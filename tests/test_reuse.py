@@ -19,7 +19,7 @@ GWF = str(Path(sys.executable).with_name("gwf"))
 FIXTURES = Path(__file__).parent / "fixtures"
 
 
-class ReuseCliTests(unittest.TestCase):
+class LocalBackendTestCase(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory(prefix="gwflow reuse ")
         self.addCleanup(temporary.cleanup)
@@ -108,6 +108,8 @@ class ReuseCliTests(unittest.TestCase):
     def trace(self):
         return Counter((self.work / "trace.txt").read_text().splitlines())
 
+
+class ReuseCliTests(LocalBackendTestCase):
     def clean_intermediate(self):
         (self.work / "middle.txt").unlink()
 

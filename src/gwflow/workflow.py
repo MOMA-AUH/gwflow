@@ -110,6 +110,15 @@ class Workflow(GwfWorkflow):
                     f"Task {name!r} declares retained output {path!r} "
                     "without a producing target"
                 )
+            for path in external:
+                producers = produced_by[path]
+                if len(producers) == 1 and producers[0] != name:
+                    producer = producers[0]
+                    if path not in retained[producer]:
+                        raise WorkflowError(
+                            f"Task {name!r} consumes {path!r} from task "
+                            f"{producer!r}, but it is not a retained output"
+                        )
             for target_name in target_names:
                 target = self.targets[target_name]
                 if not target.flattened_outputs():
@@ -122,14 +131,6 @@ class Workflow(GwfWorkflow):
                             f"Task {name!r} target {target_name!r} uses {path!r} "
                             "without declaring it as an external input"
                         )
-                    producers = produced_by[path]
-                    if len(producers) == 1 and producers[0] != name:
-                        producer = producers[0]
-                        if path not in retained[producer]:
-                            raise WorkflowError(
-                                f"Task {name!r} consumes {path!r} from task "
-                                f"{producer!r}, but it is not a retained output"
-                            )
 
     def _add_target(self, target):
         if target.name in self._reserved_names:
