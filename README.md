@@ -4,9 +4,11 @@ gwflow groups ordinary gwf targets into named Tasks. This first slice runs all
 targets through gwf's existing CLI. Task reuse after intermediate cleanup is
 planned for later issues.
 
-Install with Python 3.12:
+Install with Python 3.12 and gwf 2.1.1 from the `gwforg` Conda channel:
 
 ```bash
+conda create -n gwflow python=3.12 pip gwf=2.1.1 -c gwforg -c conda-forge
+conda activate gwflow
 python -m pip install .
 ```
 

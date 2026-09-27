@@ -10,11 +10,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: conda-incubator/setup-miniconda@v4
         with:
-          python-version: "3.12"
-      - run: python -m pip install .
-      - run: python -m unittest discover -s tests -v
+          miniforge-version: latest
+      - name: Install gwf and gwflow
+        shell: bash -l {0}
+        run: |
+          conda create -y -n gwflow-tests python=3.12 pip gwf=2.1.1 -c gwforg -c conda-forge
+          conda run -n gwflow-tests python -m pip install .
+      - name: Run installed-package and local-backend tests
+        shell: bash -l {0}
+        run: conda run -n gwflow-tests python -m unittest discover -s tests -v
 
   conda:
     runs-on: ubuntu-latest
@@ -23,7 +29,9 @@ jobs:
       - uses: conda-incubator/setup-miniconda@v4
         with:
           miniforge-version: latest
-          conda-build-version: latest
+      - name: Install conda-build
+        shell: bash -l {0}
+        run: conda install -y -n base conda-build -c conda-forge
       - name: Build artifact
         shell: bash -l {0}
         run: conda build conda-recipe -c gwforg -c conda-forge --output-folder "$RUNNER_TEMP/conda-dist"
