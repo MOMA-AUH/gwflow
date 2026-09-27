@@ -1,0 +1,33 @@
+{% set name = "gwflow" %}
+{% set version = "0.1.0" %}
+
+package:
+  name: {{ name }}
+  version: {{ version }}
+
+source:
+  path: ..
+
+build:
+  noarch: python
+  script: {{ PYTHON }} -m pip install . --no-deps --no-build-isolation
+
+requirements:
+  host:
+    - python >=3.12,<3.13
+    - pip
+    - setuptools >=68
+  run:
+    - python >=3.12,<3.13
+    - gwf ==2.1.1
+
+test:
+  imports:
+    - gwflow
+  commands:
+    - gwf --version
+
+about:
+  summary: Task definitions for gwf workflows
+  license: MIT
+  license_file: LICENSE

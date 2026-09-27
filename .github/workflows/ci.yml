@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: conda-incubator/setup-miniconda@v4
+        with:
+          miniforge-version: latest
+      - name: Install gwf and gwflow
+        shell: bash -l {0}
+        run: |
+          conda create -y -n gwflow-tests python=3.12 pip gwf=2.1.1 -c gwforg -c conda-forge
+          conda run -n gwflow-tests python -m pip install .
+      - name: Run installed-package and local-backend tests
+        shell: bash -l {0}
+        run: conda run -n gwflow-tests python -m unittest discover -s tests -v
+
+  conda:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: conda-incubator/setup-miniconda@v4
+        with:
+          miniforge-version: latest
+      - name: Install conda-build
+        shell: bash -l {0}
+        run: conda install -y -n base conda-build -c conda-forge
+      - name: Build artifact
+        shell: bash -l {0}
+        run: conda build conda-recipe -c gwforg -c conda-forge --output-folder "$RUNNER_TEMP/conda-dist"
+      - name: Install artifact and run local backend tests
+        shell: bash -l {0}
+        run: |
+          artifact=$(find "$RUNNER_TEMP/conda-dist" -name 'gwflow-0.1.0-*.conda' -print -quit)
+          test -n "$artifact"
+          conda create -y -p "$RUNNER_TEMP/gwflow-smoke" python=3.12 gwflow=0.1.0 -c "file://$RUNNER_TEMP/conda-dist" -c gwforg -c conda-forge
+          conda run -p "$RUNNER_TEMP/gwflow-smoke" python -m unittest discover -s tests -v
