@@ -4,12 +4,14 @@ gwflow groups ordinary gwf targets into named Tasks. This first slice runs all
 targets through gwf's existing CLI. Task reuse after intermediate cleanup is
 planned for later issues.
 
-Install with Python 3.12 and gwf 2.1.1 from the `gwforg` Conda channel:
+Create a local development environment with Python 3.12 and gwf 2.1.1 from
+the `gwforg` Conda channel, then install gwflow in editable mode:
 
 ```bash
-conda create -n gwflow python=3.12 pip gwf=2.1.1 -c gwforg -c conda-forge
-conda activate gwflow
-python -m pip install .
+conda env create -f environment.yml -p ./.conda-env
+source "$(conda info --base)/etc/profile.d/conda.sh"
+conda activate ./.conda-env
+python -m pip install --no-deps --no-build-isolation -e .
 ```
 
 Define a reusable task in an importable module:
@@ -40,12 +42,23 @@ gwf.task_from_template("alpha", uppercase("alpha"))
 gwf.task_from_template("beta", uppercase("beta"))
 ```
 
-Start local workers and run the whole workflow using gwf:
+The files above are available in `examples/uppercase`, along with an
+`input.txt`. From the same terminal used for installation, start local workers:
 
 ```bash
+cd examples/uppercase
 gwf -b local workers -n 2
-# In another terminal, from the workflow directory:
+```
+
+From the repository root in another terminal, activate the same environment
+and run the workflow:
+
+```bash
+source "$(conda info --base)/etc/profile.d/conda.sh"
+conda activate ./.conda-env
+cd examples/uppercase
 gwf -b local run
+cat alpha.txt beta.txt
 ```
 
 The targets appear as `alpha__copy`, `alpha__finish`, `beta__copy`, and
