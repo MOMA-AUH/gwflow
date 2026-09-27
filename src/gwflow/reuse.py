@@ -5,6 +5,8 @@ selected the backend and command options. Planning uses gwf's own scheduler;
 its backend context closes before the CLI opens the submitting context.
 """
 
+from copy import copy
+
 import click
 
 from gwf import Target
@@ -19,9 +21,30 @@ from gwf.core import (
     hash_spec,
 )
 from gwf.exceptions import WorkflowError
-from gwf.scheduling import schedule, should_run
+from gwf.scheduling import SUBMITTED_STATES, schedule, should_run
 
 from .completion import Completion
+
+
+def _execution_targets(graph, tasks, upstream, expanded, working_dir):
+    """Add completion dependencies without changing authored declarations."""
+    owned = {target.name for _, inner, _ in tasks.values() for target in inner}
+    targets = {
+        name: target for name, target in graph.targets.items() if name not in owned
+    }
+    for name in expanded:
+        boundary, inner, completion = tasks[name]
+        dependencies = sorted(str(tasks[parent][2].path) for parent in upstream[name])
+        for target in inner:
+            materialized = copy(target)
+            materialized.inputs = [*target.flattened_inputs(), *dependencies]
+            targets[target.name] = materialized
+        finalizer = completion.target(inner, working_dir)
+        finalizer.inputs = sorted({
+            *finalizer.inputs, *boundary.flattened_inputs(), *dependencies,
+        })
+        targets[finalizer.name] = finalizer
+    return targets
 
 
 def materialize(workflow, targets):
@@ -71,6 +94,25 @@ def materialize(workflow, targets):
         completion = Completion(ctx.working_dir, name, definition, commands)
         tasks[name] = (boundary, inner, completion)
 
+    owners = {
+        target.name: name
+        for name, (_, inner, _) in tasks.items() for target in inner
+    }
+    producers = {
+        name: {
+            graph.provides[path].name for path in boundary.flattened_inputs()
+            if path in graph.provides
+        }
+        for name, (boundary, _, _) in tasks.items()
+    }
+    upstream = {
+        name: {
+            owners[target] for target in names
+            if target in owners and owners[target] != name
+        }
+        for name, names in producers.items()
+    }
+
     reusable = set()
     with create_backend(
         ctx.backend, working_dir=ctx.working_dir, config=ctx.config
@@ -97,41 +139,61 @@ def materialize(workflow, targets):
                 continue
             reusable.add(name)
 
-        omitted = {target.name for name in reusable for target in tasks[name][1]}
-        expanded = {
-            name: target for name, target in graph.targets.items()
-            if name not in omitted
-        }
-        for name, (_, inner, completion) in tasks.items():
-            if name not in reusable:
-                completion.prepare()
-                finalizer = completion.target(inner, ctx.working_dir)
-                expanded[finalizer.name] = finalizer
-
-        planned = Graph.from_targets(expanded, fs)
-        submissions = set()
-        schedule(
-            planned.endpoints(), planned, fs, hashes, backend.status,
-            lambda target, dependencies: submissions.add(target.name),
-            force=cli.params.get("force", False),
+        for _, _, completion in tasks.values():
+            completion.prepare()
+        # Whole-task edges can introduce cycles even in an acyclic inner file
+        # graph. Validate all declarations and generated paths before omission.
+        Graph.from_targets(
+            _execution_targets(graph, tasks, upstream, set(tasks), ctx.working_dir), fs,
         )
-        for name, (_, inner, completion) in tasks.items():
-            if name in reusable:
-                continue
-            completion.prepare(
-                new_work=any(target.name in submissions for target in inner)
+
+        expanded = set(tasks) - reusable
+        while True:
+            replaced = {
+                name for name, (_, _, completion) in tasks.items() if completion.replaced
+            }
+            execution = _execution_targets(
+                graph, tasks, upstream, expanded, ctx.working_dir,
             )
-            finalizer = completion.target(inner, ctx.working_dir)
-            expanded[finalizer.name] = finalizer
+            planned = Graph.from_targets(execution, fs)
+            submissions = set()
+            states = schedule(
+                planned.endpoints(), planned, fs, hashes, backend.status,
+                lambda target, dependencies: submissions.add(target.name),
+                force=cli.params.get("force", False),
+            )
+            pending = {
+                target.name for target, state in states.items() if state in SUBMITTED_STATES
+            }
+            for name in expanded:
+                _, inner, completion = tasks[name]
+                completion.prepare(
+                    new_work=any(target.name in submissions for target in inner)
+                )
+            now_replaced = {
+                name for name, (_, _, completion) in tasks.items() if completion.replaced
+            }
+            affected = {
+                name for name in set(tasks) - expanded
+                if producers[name] & pending or any(
+                    parent in now_replaced or f"{parent}__gwflow_complete" in pending
+                    for parent in upstream[name]
+                )
+            }
+            if not affected and now_replaced == replaced:
+                break
+            # Both sets only grow. Completion.prepare allocates at most once,
+            # so each pass propagates stable replacement paths further downstream.
+            expanded.update(affected)
 
     # Validate generated paths as well, before changing expected attempts.
-    Graph.from_targets(expanded, CachedFilesystem())
+    Graph.from_targets(execution, CachedFilesystem())
     if not cli.params.get("dry_run"):
         for name, (_, _, completion) in tasks.items():
-            if name not in reusable:
+            if name in expanded:
                 completion.persist()
-    if reusable:
+    if set(tasks) - expanded:
         # gwf removes logs absent from its execution graph. Disable that cleanup
         # for this invocation only; never dump the changed config to disk.
         ctx.config["clean_logs"] = "false"
-    return list(expanded.values())
+    return list(execution.values())

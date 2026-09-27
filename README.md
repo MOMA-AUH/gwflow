@@ -91,6 +91,22 @@ An unchanged run submits no jobs and leaves those intermediates absent. Keep
 prevents reuse. Logs remain available with commands such as
 `gwf logs alpha__copy --no-pager`.
 
+Tasks consuming another task's retained outputs wait for that entire producer,
+including targets that run after its retained outputs appear. Each consumer
+target also depends on the producer's expected completion record. Independent
+tasks can run concurrently. A reused producer supplies its existing retained
+outputs and completion record without exposing deleted intermediates, so adding
+new tasks does not rebuild valid existing tasks.
+
+Before submission, gwflow uses gwf's scheduler to plan work without submitting
+jobs. Upstream work expands affected downstream tasks even when their retained
+outputs are currently fresh. Planning repeats until the expanded tasks and
+replacement completion expectations stop changing, keeping each replacement
+path stable within the invocation. Complete declarations, including whole-task
+dependency cycles, are validated before any reusable targets are omitted.
+`gwf run --dry-run` previews this work without changing completion records or
+expected attempts.
+
 Reuse requires the same task boundaries, inner input/output declarations, and
 target names and membership. Declaration ordering does not matter. All external
 inputs must exist, and retained outputs must exist and be at least as new as
@@ -109,8 +125,7 @@ is allowed when the remaining evidence is valid.
 
 This implementation is verified with Python 3.12, gwf 2.1.1, and its local
 backend. Use whole-workflow `gwf run`; execution selectors, groups, and
-`--no-deps` are rejected. Cross-task completion ordering and invalidation
-propagation, retry-race handling, and collapsed status reporting remain in
-Issues #7, #8, and #10 respectively. Until status projection is implemented,
+`--no-deps` are rejected. Retry-race handling and collapsed status reporting
+remain in Issues #8 and #10 respectively. Until status projection is implemented,
 `gwf status` reports ordinary inner targets and may report deleted
 intermediates as needing work even when `gwf run` can reuse their task.
