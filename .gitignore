@@ -7,3 +7,9 @@ __pycache__/
 *.egg-info/
 /build/
 /dist/
+
+# Local development environment and example outputs.
+/.conda-env/
+/examples/uppercase/.gwf/
+/examples/uppercase/alpha.*
+/examples/uppercase/beta.*
