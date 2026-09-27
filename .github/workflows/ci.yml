@@ -40,5 +40,5 @@ jobs:
         run: |
           artifact=$(find "$RUNNER_TEMP/conda-dist" -name 'gwflow-0.1.0-*.conda' -print -quit)
           test -n "$artifact"
-          conda create -y -p "$RUNNER_TEMP/gwflow-smoke" python=3.12 "$artifact" -c gwforg -c conda-forge
+          conda create -y -p "$RUNNER_TEMP/gwflow-smoke" python=3.12 gwflow=0.1.0 -c "file://$RUNNER_TEMP/conda-dist" -c gwforg -c conda-forge
           conda run -p "$RUNNER_TEMP/gwflow-smoke" python -m unittest discover -s tests -v
