@@ -1,8 +1,11 @@
-"""The authoring API for the first, ordinary-target execution slice."""
+"""Task authoring and boundary validation for ordinary gwf targets."""
 
+from collections import defaultdict
+from collections.abc import Mapping
 from copy import deepcopy
 from inspect import getfile
-from os import getcwd
+from os import fspath, getcwd
+from os.path import abspath, isabs, join
 from pathlib import Path
 from sys import _getframe
 
@@ -24,11 +27,32 @@ def _bookkeeping_name(task_name):
     return _target_name(task_name, "gwflow_complete")
 
 
+def _paths(working_dir, declaration):
+    if isinstance(declaration, str) or hasattr(declaration, "__fspath__"):
+        path = fspath(declaration)
+        return {path if isabs(path) else abspath(join(working_dir, path))}
+    if isinstance(declaration, Mapping):
+        declaration = declaration.values()
+    return {path for item in declaration for path in _paths(working_dir, item)}
+
+
+class _TaskTargets(dict):
+    """Make task declarations available when gwf builds its target graph."""
+
+    def __init__(self, workflow):
+        super().__init__()
+        self.workflow = workflow
+
+    def values(self):
+        self.workflow._validate_task_boundaries()
+        return super().values()
+
+
 class Task(GwfWorkflow):
     """An independent definition of ordinary file-producing gwf targets.
 
-    ``inputs`` and ``outputs`` declare the external inputs and retained outputs
-    used by later task-reuse slices. They do not change scheduling in this slice.
+    ``inputs`` and ``outputs`` declare the external inputs and retained outputs.
+    The declarations are validated before gwf builds the dependency graph.
     Unless ``working_dir`` is supplied, targets inherit the registering
     workflow's working directory.
     """
@@ -58,6 +82,52 @@ class Workflow(GwfWorkflow):
         super().__init__(**kwargs)
         self._task_declarations = {}
         self._reserved_names = set()
+        self.targets = _TaskTargets(self)
+
+    def _validate_task_boundaries(self):
+        """Check task boundaries before gwf submits any target."""
+        produced_by = defaultdict(list)
+        retained = {}
+        for name, declaration in self._task_declarations.items():
+            _, outputs, target_names, working_dir = declaration
+            retained[name] = _paths(working_dir, outputs)
+            for target_name in target_names:
+                for path in self.targets[target_name].flattened_outputs():
+                    produced_by[path].append(name)
+
+        for name, declaration in self._task_declarations.items():
+            inputs, outputs, target_names, working_dir = declaration
+            external = _paths(working_dir, inputs)
+            produced = {
+                path
+                for target_name in target_names
+                for path in self.targets[target_name].flattened_outputs()
+            }
+            for path in _paths(working_dir, outputs) - produced:
+                raise WorkflowError(
+                    f"Task {name!r} declares retained output {path!r} "
+                    "without a producing target"
+                )
+            for target_name in target_names:
+                target = self.targets[target_name]
+                if not target.flattened_outputs():
+                    raise WorkflowError(
+                        f"Task {name!r} has outputless inner target {target_name!r}"
+                    )
+                for path in target.flattened_inputs():
+                    if path not in produced and path not in external:
+                        raise WorkflowError(
+                            f"Task {name!r} target {target_name!r} uses {path!r} "
+                            "without declaring it as an external input"
+                        )
+                    producers = produced_by[path]
+                    if len(producers) == 1 and producers[0] != name:
+                        producer = producers[0]
+                        if path not in retained[producer]:
+                            raise WorkflowError(
+                                f"Task {name!r} consumes {path!r} from task "
+                                f"{producer!r}, but it is not a retained output"
+                            )
 
     def _add_target(self, target):
         if target.name in self._reserved_names:
@@ -108,7 +178,12 @@ class Workflow(GwfWorkflow):
                 "Task registration name collision: " + ", ".join(sorted(collisions))
             )
 
-        declarations = (deepcopy(task.inputs), deepcopy(task.outputs))
+        declarations = (
+            deepcopy(task.inputs),
+            deepcopy(task.outputs),
+            tuple(target.name for target in new_targets),
+            task.working_dir if task._explicit_working_dir else self.working_dir,
+        )
         for target in new_targets:
             self._add_target(target)
         self._task_declarations[name] = declarations

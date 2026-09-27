@@ -66,3 +66,12 @@ The targets appear as `alpha__copy`, `alpha__finish`, `beta__copy`, and
 File paths remain exactly as authored, so instances must choose distinct
 output paths. Unless specified on the Task, target working directories
 inherit the containing Workflow's directory.
+
+Before gwf builds the workflow graph, gwflow checks each task boundary. Every
+input to an inner target that is not produced inside the task must appear in
+the task's `inputs`. Every retained output in `outputs` must be produced by an
+inner target, and every inner target must declare at least one output. A task
+may consume another task's output only if the producer lists it as a retained
+output. These checks use declared file paths; gwflow does not inspect shell
+commands for additional file accesses. gwf continues to check for duplicate
+producers, cycles, and missing input files.
