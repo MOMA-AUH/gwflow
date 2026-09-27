@@ -45,7 +45,9 @@ class _TaskTargets(dict):
 
     def values(self):
         self.workflow._validate_task_boundaries()
-        return super().values()
+        from .reuse import materialize
+
+        return materialize(self.workflow, list(super().values()))
 
 
 class Task(GwfWorkflow):

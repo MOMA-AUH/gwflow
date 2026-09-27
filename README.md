@@ -1,8 +1,7 @@
 # gwflow
 
-gwflow groups ordinary gwf targets into named Tasks. This first slice runs all
-targets through gwf's existing CLI. Task reuse after intermediate cleanup is
-planned for later issues.
+gwflow groups ordinary gwf targets into named Tasks. A completed task can be
+reused through gwf's existing CLI after its internal intermediates are removed.
 
 Create a local development environment with Python 3.12 and gwf 2.1.1 from
 the `gwforg` Conda channel, then install gwflow in editable mode:
@@ -75,3 +74,43 @@ may consume another task's output only if the producer lists it as a retained
 output. These checks use declared file paths; gwflow does not inspect shell
 commands for additional file accesses. gwf continues to check for duplicate
 producers, cycles, and missing input files.
+
+Each executing task also has an ordinary `TASK__gwflow_complete` target. It
+waits for all of that task's file-producing targets and atomically writes an
+attempt-specific completion record under `.gwf/gwflow/`. Once this final job
+has completed, you can remove internal intermediates manually. For example,
+after both completion jobs in `examples/uppercase` finish:
+
+```bash
+rm alpha.tmp beta.tmp
+gwf -b local run
+```
+
+An unchanged run submits no jobs and leaves those intermediates absent. Keep
+`.gwf/` alongside the retained outputs: missing or invalid completion evidence
+prevents reuse. Logs remain available with commands such as
+`gwf logs alpha__copy --no-pager`.
+
+Reuse requires the same task boundaries, inner input/output declarations, and
+target names and membership. Declaration ordering does not matter. All external
+inputs must exist, and retained outputs must exist and be at least as new as
+the newest input. These are gwf's modification-time rules; equal timestamps
+are accepted, and file contents and sizes are not compared. Queued, running,
+failed, or cancelled targets prevent reuse. Otherwise, gwf decides which
+individual targets need work; an invalid task is not automatically forced.
+
+Command-only edits follow gwf's `use_spec_hashes` setting, which is disabled by
+default. Enable it with `gwf config set use_spec_hashes true` to check current
+commands against the completion record and gwf's saved inner command hashes.
+Package-version changes and resource-option changes add no reuse invalidators.
+Completion retains gwf's usual limitations: a record does not independently
+prove successful execution or correct outputs, and an unknown backend state
+is allowed when the remaining evidence is valid.
+
+This implementation is verified with Python 3.12, gwf 2.1.1, and its local
+backend. Use whole-workflow `gwf run`; execution selectors, groups, and
+`--no-deps` are rejected. Cross-task completion ordering and invalidation
+propagation, retry-race handling, and collapsed status reporting remain in
+Issues #7, #8, and #10 respectively. Until status projection is implemented,
+`gwf status` reports ordinary inner targets and may report deleted
+intermediates as needing work even when `gwf run` can reuse their task.
