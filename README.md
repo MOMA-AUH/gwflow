@@ -156,6 +156,19 @@ backend. Use whole-workflow `gwf run`, optionally with `--dry-run` and/or
 `--force`. Individual target selectors, `--group`, and `--no-deps` are rejected
 before submission.
 
+Task libraries can be released as ordinary, separate Python or Conda packages.
+A pipeline installs the exact releases it selects, for example
+`mapping-tasks=1.4.2` and `somatic-tasks=2.1.0` in its Conda environment, and
+imports their Python factories in `workflow.py`. These package names and
+versions are illustrative. Each factory returns an independent `Task`; the
+pipeline gives every instance a stable, unique name with `task_from_template`.
+The task name identifies an instance, while the package version identifies an
+implementation release. Changing only a package version does not invalidate
+reuse. Changes to task declarations, and command changes when
+`use_spec_hashes` is enabled, still follow the rules above. One environment
+selects one installed version of each task package; gwflow does not provide a
+task registry or separate environments per task.
+
 `gwf status` shows one completed `TASK__gwflow_complete` entry for each
 reusable task. Other tasks appear as ordinary task-prefixed targets, so queued,
 running, and failed work remains visible. A reused task's deleted internal
@@ -164,3 +177,8 @@ records and expected attempts unchanged; gwf may still update its own tracking
 files. The displayed entries mix tasks and targets, so summary counts are not
 task counts. Additional status formats and filters are not part of gwflow's
 supported inspection contract.
+
+After a release is published, install it with
+`conda create -n gwflow python=3.12 gwflow=0.1.0 -c micknudsen -c gwforg -c conda-forge`.
+The tag-triggered publication procedure and its required credential are in
+[`docs/releasing.md`](docs/releasing.md).
