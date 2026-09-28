@@ -68,9 +68,10 @@ def _execution_targets(graph, tasks, upstream, expanded, working_dir):
 
 def materialize(workflow, targets):
     cli = click.get_current_context(silent=True)
-    if cli is None or not isinstance(cli.obj, Context) or cli.info_name != "run":
+    if cli is None or not isinstance(cli.obj, Context) or cli.info_name not in ("run", "status"):
         return targets
-    if cli.params.get("targets") or cli.params.get("group") or cli.params.get("no_deps"):
+    inspecting = cli.info_name == "status"
+    if not inspecting and (cli.params.get("targets") or cli.params.get("group") or cli.params.get("no_deps")):
         raise WorkflowError(
             "gwflow supports whole-workflow run only; "
             "selectors and --no-deps are unsupported"
@@ -79,14 +80,14 @@ def materialize(workflow, targets):
         return targets
 
     ctx = cli.obj
-    # Click closes the run context after gwf has closed its submitting backend
-    # and hash contexts, including on exceptions. Acquire before reading any
-    # expected attempts or backend tracking. Repeated materialization in the
-    # same command must not try to acquire a second lock on the same file.
-    guards = cli.meta.setdefault("gwflow_submission_guards", set())
-    if ctx.working_dir not in guards:
-        cli.with_resource(_submission_guard(ctx.working_dir))
-        guards.add(ctx.working_dir)
+    if not inspecting:
+        # Click closes the run context after gwf has closed its submitting
+        # backend and hash contexts. Acquire before reading expected attempts
+        # or backend tracking, including for repeated materialization.
+        guards = cli.meta.setdefault("gwflow_submission_guards", set())
+        if ctx.working_dir not in guards:
+            cli.with_resource(_submission_guard(ctx.working_dir))
+            guards.add(ctx.working_dir)
     fs = CachedFilesystem()
     graph = Graph.from_targets(targets, fs)
     tasks = {}
@@ -173,6 +174,23 @@ def materialize(workflow, targets):
         Graph.from_targets(
             _execution_targets(graph, tasks, upstream, set(tasks), ctx.working_dir), fs,
         )
+
+        if inspecting:
+            # Keep the submitted finalizer's identity, output and command so
+            # gwf can use its backend status and saved spec hash. Its original
+            # inputs include removable intermediates and are irrelevant after
+            # the task has qualified for reuse.
+            omitted = {
+                target.name for name in reusable for target in tasks[name][1]
+            }
+            projected = {
+                target.name: target for target in targets if target.name not in omitted
+            }
+            for name in reusable:
+                finalizer = tasks[name][2].target(tasks[name][1], ctx.working_dir)
+                finalizer.inputs = []
+                projected[finalizer.name] = finalizer
+            return list(projected.values())
 
         expanded = set(tasks) - reusable
         while True:

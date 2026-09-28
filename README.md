@@ -154,7 +154,13 @@ is allowed when the remaining evidence is valid.
 This implementation is verified with Python 3.12, gwf 2.1.1, and its local
 backend. Use whole-workflow `gwf run`, optionally with `--dry-run` and/or
 `--force`. Individual target selectors, `--group`, and `--no-deps` are rejected
-before submission. Collapsed status reporting remains in Issue #10.
-Until status projection is implemented,
-`gwf status` reports ordinary inner targets and may report deleted
-intermediates as needing work even when `gwf run` can reuse their task.
+before submission.
+
+`gwf status` shows one completed `TASK__gwflow_complete` entry for each
+reusable task. Other tasks appear as ordinary task-prefixed targets, so queued,
+running, and failed work remains visible. A reused task's deleted internal
+intermediates do not appear as work to do. Status inspection leaves completion
+records and expected attempts unchanged; gwf may still update its own tracking
+files. The displayed entries mix tasks and targets, so summary counts are not
+task counts. Additional status formats and filters are not part of gwflow's
+supported inspection contract.
