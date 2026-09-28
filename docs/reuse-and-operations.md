@@ -80,10 +80,16 @@ may change before a later run, so the later submissions may differ.
 
 Repeated runs respect queued and running targets. To retry a failed target,
 run `gwf run` again; sibling targets and unrelated tasks can remain active.
-Concurrent `gwf run` invocations share a short submission guard covering planning,
-expected completion records, and gwf's saved command hashes and backend tracking.
-The guard releases when the CLI exits, without waiting for jobs, and is released
-automatically if the CLI is interrupted.
+Submit each workflow from one physical frontend node, including retries and
+overlapping `gwf run` commands. Concurrent commands on that node share an
+advisory `flock` on `.gwf/gwflow-submission.lock` in the workflow's working
+directory. It serializes planning, expected completion records, and gwf's
+saved command hashes and backend tracking. The guard releases when the CLI
+exits or is interrupted; submitted jobs do not hold it and may run on other
+nodes. Some shared filesystems do not coordinate advisory locks across nodes.
+For example, BeeGFS with `tuneUseGlobalFileLocks=false` checks locks only on
+each node. In such setups, commands launched on different frontends do not
+share this guard.
 
 Planned inner submissions and retries replace the expected completion path
 before submission. Older finalizers keep their original paths and cannot
