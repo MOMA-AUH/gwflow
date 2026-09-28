@@ -1,5 +1,7 @@
 # gwflow
 
+[![Conda Version](https://img.shields.io/conda/vn/MOMA-AUH/gwflow?style=for-the-badge&cacheSeconds=300)](https://anaconda.org/MOMA-AUH/gwflow) [![Conda Downloads](https://img.shields.io/conda/dn/MOMA-AUH/gwflow?style=for-the-badge&cacheSeconds=300)](https://anaconda.org/MOMA-AUH/gwflow)
+
 gwflow groups ordinary gwf targets into named Tasks. A completed task can be
 reused through gwf's existing CLI after its internal intermediates are removed.
 
