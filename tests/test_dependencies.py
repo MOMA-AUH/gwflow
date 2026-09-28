@@ -136,7 +136,9 @@ class TaskDependencyCliTests(test_reuse.LocalBackendTestCase):
         before = self.trace()
         # Rebuilding an ordinary target also prevents downstream omission,
         # even though existing task boundaries are currently fresh.
-        stamp = (self.work / 'input.txt').stat().st_mtime_ns - 2_000_000_000
+        # Make the seed's output strictly older than its input regardless of
+        # how long the first local-worker run took.
+        stamp = (self.work / 'extra.txt').stat().st_mtime_ns - 10_000_000_000
         os.utime(self.work / 'input.txt', ns=(stamp, stamp))
         self.run_complete()
         self.assertEqual(self.trace()['seed'], before['seed'] + 1)

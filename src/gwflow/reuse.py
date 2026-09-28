@@ -70,13 +70,13 @@ def materialize(workflow, targets):
     cli = click.get_current_context(silent=True)
     if cli is None or not isinstance(cli.obj, Context) or cli.info_name != "run":
         return targets
-    if not workflow._task_declarations:
-        return targets
     if cli.params.get("targets") or cli.params.get("group") or cli.params.get("no_deps"):
         raise WorkflowError(
             "gwflow supports whole-workflow run only; "
             "selectors and --no-deps are unsupported"
         )
+    if not workflow._task_declarations:
+        return targets
 
     ctx = cli.obj
     # Click closes the run context after gwf has closed its submitting backend
