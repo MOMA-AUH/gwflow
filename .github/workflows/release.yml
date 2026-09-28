@@ -1,0 +1,87 @@
+name: Publish Conda release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Check release tag and branch
+        shell: bash
+        run: |
+          git fetch origin master
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/master
+          version=$(python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')
+          test "$GITHUB_REF_NAME" = "v$version"
+          grep -Fqx "{% set version = \"$version\" %}" conda-recipe/meta.yaml
+      - uses: conda-incubator/setup-miniconda@v4
+        with:
+          miniforge-version: latest
+      - name: Install conda-build
+        shell: bash -l {0}
+        run: conda install -y -n base conda-build -c conda-forge
+      - name: Build release artifact
+        shell: bash -l {0}
+        run: conda build conda-recipe --no-anaconda-upload -c gwforg -c conda-forge --output-folder "$RUNNER_TEMP/conda-dist"
+      - name: Test installed artifact with local backend
+        shell: bash -l {0}
+        run: |
+          version=${GITHUB_REF_NAME#v}
+          conda create -y -p "$RUNNER_TEMP/gwflow-release-test" python=3.12 "gwflow=$version" -c "file://$RUNNER_TEMP/conda-dist" -c gwforg -c conda-forge
+          conda run -p "$RUNNER_TEMP/gwflow-release-test" python -m unittest discover -s tests -v
+          conda run -p "$RUNNER_TEMP/gwflow-release-test" python tests/release_smoke.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gwflow-conda-release
+          path: ${{ runner.temp }}/conda-dist/noarch/gwflow-*.conda
+          if-no-files-found: error
+
+  publish:
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: gwflow-conda-release
+          path: conda-dist
+      - uses: conda-incubator/setup-miniconda@v4
+        with:
+          miniforge-version: latest
+      - name: Install Anaconda.org client
+        shell: bash -l {0}
+        run: conda install -y -n base anaconda-client -c conda-forge
+      - name: Upload to micknudsen
+        shell: bash -l {0}
+        env:
+          ANACONDA_API_TOKEN: ${{ secrets.ANACONDA_API_TOKEN }}
+        run: |
+          test -n "$ANACONDA_API_TOKEN" || { echo 'ANACONDA_API_TOKEN secret is required' >&2; exit 1; }
+          anaconda upload --user micknudsen --register --label main --no-progress conda-dist/gwflow-*.conda
+      - name: Install published package and verify reuse
+        shell: bash -l {0}
+        run: |
+          version=${GITHUB_REF_NAME#v}
+          for attempt in {1..10}; do
+            if conda create -y -p "$RUNNER_TEMP/gwflow-published-test" python=3.12 "gwflow=$version" --override-channels -c micknudsen -c gwforg -c conda-forge; then
+              break
+            fi
+            if (( attempt == 10 )); then
+              echo 'Published package was not installable after 10 attempts' >&2
+              exit 1
+            fi
+            sleep 30
+          done
+          conda list -p "$RUNNER_TEMP/gwflow-published-test" --json | python -c 'import json, sys; packages = json.load(sys.stdin); package = next(p for p in packages if p["name"] == "gwflow"); assert "micknudsen" in package["channel"], package'
+          conda run -p "$RUNNER_TEMP/gwflow-published-test" python tests/release_smoke.py
