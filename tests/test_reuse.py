@@ -20,6 +20,8 @@ FIXTURES = Path(__file__).parent / "fixtures"
 
 
 class LocalBackendTestCase(unittest.TestCase):
+    workers = 2
+
     def setUp(self):
         temporary = tempfile.TemporaryDirectory(prefix="gwflow reuse ")
         self.addCleanup(temporary.cleanup)
@@ -33,7 +35,7 @@ class LocalBackendTestCase(unittest.TestCase):
         self.config = {"backend": "local", "backend.local.port": self.port}
         self.configure()
         worker = subprocess.Popen(
-            [GWF, "workers", "-n", "2", "-p", str(self.port)], cwd=self.work,
+            [GWF, "workers", "-n", str(self.workers), "-p", str(self.port)], cwd=self.work,
             stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True,
         )
         self.addCleanup(self.stop_worker, worker)

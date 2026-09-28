@@ -5,7 +5,10 @@ selected the backend and command options. Planning uses gwf's own scheduler;
 its backend context closes before the CLI opens the submitting context.
 """
 
+from contextlib import contextmanager
 from copy import copy
+import fcntl
+from pathlib import Path
 
 import click
 
@@ -24,6 +27,22 @@ from gwf.exceptions import WorkflowError
 from gwf.scheduling import SUBMITTED_STATES, schedule, should_run
 
 from .completion import Completion
+
+
+@contextmanager
+def _submission_guard(working_dir):
+    # gwf saves command hashes and backend tracking on context exit. Keep
+    # concurrent runs out until those writes finish, not just until planning
+    # or submission returns. The OS releases this lock on CLI interruption;
+    # jobs neither inherit nor wait for it.
+    path = Path(working_dir) / ".gwf" / "gwflow-submission.lock"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(lock, fcntl.LOCK_UN)
 
 
 def _execution_targets(graph, tasks, upstream, expanded, working_dir):
@@ -60,6 +79,14 @@ def materialize(workflow, targets):
         )
 
     ctx = cli.obj
+    # Click closes the run context after gwf has closed its submitting backend
+    # and hash contexts, including on exceptions. Acquire before reading any
+    # expected attempts or backend tracking. Repeated materialization in the
+    # same command must not try to acquire a second lock on the same file.
+    guards = cli.meta.setdefault("gwflow_submission_guards", set())
+    if ctx.working_dir not in guards:
+        cli.with_resource(_submission_guard(ctx.working_dir))
+        guards.add(ctx.working_dir)
     fs = CachedFilesystem()
     graph = Graph.from_targets(targets, fs)
     tasks = {}

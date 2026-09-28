@@ -107,6 +107,27 @@ dependency cycles, are validated before any reusable targets are omitted.
 `gwf run --dry-run` previews this work without changing completion records or
 expected attempts.
 
+Repeated runs respect queued and running targets. To retry a failed target,
+run `gwf run` again; sibling targets and unrelated tasks can remain active.
+Concurrent `gwf run` invocations share a short submission guard covering planning,
+expected completion records, and gwf's saved command hashes and backend tracking.
+The guard releases when the CLI exits, without waiting for jobs, and is released
+automatically if the CLI is interrupted.
+
+Planned inner submissions and retries replace the expected completion path
+before submission. Older finalizers keep their original paths and cannot
+satisfy a newer expectation. Missing completion records can be regenerated;
+malformed or mismatched records get fresh paths even with command tracking
+disabled. Older records are preserved because active jobs may still need them.
+
+Planning and submission use separate backend observations. Jobs can change
+state between them, so ordinary gwf observation limitations still apply.
+An already queued finalizer keeps its original job dependencies: after a retry
+or definition change, a later `gwf run` may be needed to recover completion.
+gwflow does not cancel active jobs or rewire their dependencies. With command
+tracking enabled, saved inner command hashes also prevent an old-definition
+job from being hidden by a newer finalizer's record.
+
 Reuse requires the same task boundaries, inner input/output declarations, and
 target names and membership. Declaration ordering does not matter. All external
 inputs must exist, and retained outputs must exist and be at least as new as
@@ -125,7 +146,7 @@ is allowed when the remaining evidence is valid.
 
 This implementation is verified with Python 3.12, gwf 2.1.1, and its local
 backend. Use whole-workflow `gwf run`; execution selectors, groups, and
-`--no-deps` are rejected. Retry-race handling and collapsed status reporting
-remain in Issues #8 and #10 respectively. Until status projection is implemented,
+`--no-deps` are rejected. Collapsed status reporting remains in Issue #10.
+Until status projection is implemented,
 `gwf status` reports ordinary inner targets and may report deleted
 intermediates as needing work even when `gwf run` can reuse their task.
