@@ -104,8 +104,15 @@ outputs are currently fresh. Planning repeats until the expanded tasks and
 replacement completion expectations stop changing, keeping each replacement
 path stable within the invocation. Complete declarations, including whole-task
 dependency cycles, are validated before any reusable targets are omitted.
-`gwf run --dry-run` previews this work without changing completion records or
-expected attempts.
+`gwf run --dry-run` previews ordinary whole-workflow work, including missing or
+invalid completion bookkeeping and affected downstream tasks. It does not submit
+jobs, replace expected attempts, or change completion records. `gwf run --force`
+bypasses task reuse and follows gwf's force scheduling for every target, even
+when one is already queued or running; affected tasks receive new expected
+attempts. Combine both options (`gwf run --force --dry-run`) to preview that
+forced work without changing completion records or expected attempts. A preview
+reflects the state observed during that invocation; backend states and files
+may change before a later run, so the later submissions may differ.
 
 Repeated runs respect queued and running targets. To retry a failed target,
 run `gwf run` again; sibling targets and unrelated tasks can remain active.
@@ -145,8 +152,9 @@ prove successful execution or correct outputs, and an unknown backend state
 is allowed when the remaining evidence is valid.
 
 This implementation is verified with Python 3.12, gwf 2.1.1, and its local
-backend. Use whole-workflow `gwf run`; execution selectors, groups, and
-`--no-deps` are rejected. Collapsed status reporting remains in Issue #10.
+backend. Use whole-workflow `gwf run`, optionally with `--dry-run` and/or
+`--force`. Individual target selectors, `--group`, and `--no-deps` are rejected
+before submission. Collapsed status reporting remains in Issue #10.
 Until status projection is implemented,
 `gwf status` reports ordinary inner targets and may report deleted
 intermediates as needing work even when `gwf run` can reuse their task.
