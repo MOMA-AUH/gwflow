@@ -1,6 +1,6 @@
 # Issue tracker
 
-Specs and tickets live in GitHub Issues in `micknudsen/gwflow`. Use the `gh` CLI with that repository.
+Specs and tickets live in GitHub Issues in `MOMA-AUH/gwflow`. Use the `gh` CLI with that repository.
 
 - Read: `gh issue view <number> --comments` and inspect labels.
 - List: `gh issue list` with the appropriate state and label filters.
