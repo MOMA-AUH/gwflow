@@ -39,7 +39,7 @@ jobs:
         run: |
           version=${GITHUB_REF_NAME#v}
           conda create -y -p "$RUNNER_TEMP/gwflow-release-test" python=3.12 "gwflow=$version" -c "file://$RUNNER_TEMP/conda-dist" -c gwforg -c conda-forge
-          conda list -p "$RUNNER_TEMP/gwflow-release-test" --json | python -c 'import json, sys; package = next(p for p in json.load(sys.stdin) if p["name"] == "gwflow"); assert package["channel"].startswith("file://"), package'
+          conda list -p "$RUNNER_TEMP/gwflow-release-test" --json | python -c 'import json, sys; package = next(p for p in json.load(sys.stdin) if p["name"] == "gwflow"); assert package["base_url"].startswith("file://"), package'
           conda run -p "$RUNNER_TEMP/gwflow-release-test" python -m unittest discover -s tests -v
           conda run -p "$RUNNER_TEMP/gwflow-release-test" python tests/release_smoke.py
       - uses: actions/upload-artifact@v4
@@ -84,5 +84,5 @@ jobs:
             fi
             sleep 30
           done
-          conda list -p "$RUNNER_TEMP/gwflow-published-test" --json | python -c 'import json, sys; packages = json.load(sys.stdin); package = next(p for p in packages if p["name"] == "gwflow"); assert "micknudsen" in package["channel"], package'
+          conda list -p "$RUNNER_TEMP/gwflow-published-test" --json | python -c 'import json, sys; package = next(p for p in json.load(sys.stdin) if p["name"] == "gwflow"); assert package["base_url"].rstrip("/").endswith("/micknudsen"), package'
           conda run -p "$RUNNER_TEMP/gwflow-published-test" python tests/release_smoke.py
