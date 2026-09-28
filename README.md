@@ -179,6 +179,6 @@ task counts. Additional status formats and filters are not part of gwflow's
 supported inspection contract.
 
 After a release is published, install it with
-`conda create -n gwflow python=3.12 gwflow=0.1.0 -c micknudsen -c gwforg -c conda-forge`.
+`conda create -n gwflow python=3.12 gwflow=0.1.0 -c MOMA-AUH -c gwforg -c conda-forge`.
 The tag-triggered publication procedure and its required credential are in
 [`docs/releasing.md`](docs/releasing.md).

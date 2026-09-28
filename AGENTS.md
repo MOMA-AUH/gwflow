@@ -2,7 +2,7 @@
 
 ### Issue tracker
 
-Before reading or publishing specs and tickets, read `docs/agents/issue-tracker.md`: use GitHub Issues in `micknudsen/gwflow`.
+Before reading or publishing specs and tickets, read `docs/agents/issue-tracker.md`: use GitHub Issues in `MOMA-AUH/gwflow`.
 
 ### Triage labels
 

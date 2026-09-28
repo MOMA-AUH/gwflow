@@ -17,13 +17,13 @@ version differs from `pyproject.toml` or whose commit is absent from `master`.
 It builds a Conda artifact without automatic upload, installs that artifact in
 a fresh environment, and runs the full local-backend test suite plus the
 small-file cleanup and reuse check. Only then does the separate `publish` job
-upload the same artifact to the `micknudsen` Anaconda.org channel. It creates
+upload the same artifact to the `MOMA-AUH` Anaconda.org channel. It creates
 another fresh environment from the published channel and repeats the cleanup
 and reuse check. A failed upload or published-package check fails the release
 workflow; do not claim publication from a successful build alone.
 
 The `publish` job requires a repository Actions secret named
-`ANACONDA_API_TOKEN` with permission to upload to the `micknudsen` account.
+`ANACONDA_API_TOKEN` with permission to upload to the `MOMA-AUH` organization.
 Store the token in GitHub Actions secrets, not in the repository. Until that
 secret is configured, the reviewable build and tests can run, but the tag
 workflow cannot complete publication.
