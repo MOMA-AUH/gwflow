@@ -13,8 +13,8 @@ __pycache__/
 /examples/uppercase/.gwf/
 /examples/uppercase/alpha.*
 /examples/uppercase/beta.*
-/examples/packaged-transactions/.gwf/
-/examples/packaged-transactions/work/
-/examples/packaged-transactions/results/
-/examples/packaged-transactions/packages/*/build/
-/examples/packaged-transactions/packages/*/dist/
+/examples/packaged/.gwf/
+/examples/packaged/work/
+/examples/packaged/results/
+/examples/packaged/packages/*/build/
+/examples/packaged/packages/*/dist/

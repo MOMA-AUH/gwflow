@@ -11,7 +11,7 @@ def summarize(source, intermediate, result):
     """Clean a transaction CSV, then retain its per-product totals."""
     source, intermediate, result = map(fspath, (source, intermediate, result))
     task = Task(inputs=[source], outputs=[result])
-    command = f"{quote(executable)} -m summary_tasks"
+    command = f"{quote(executable)} -m summary_task"
     task.target("clean", inputs=[source], outputs=[intermediate]) << (
         f"{command} clean {quote(source)} {quote(intermediate)}"
     )

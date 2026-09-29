@@ -7,7 +7,7 @@ import shutil
 from test_reuse import LocalBackendTestCase
 
 
-EXAMPLE = Path(__file__).resolve().parents[1] / "examples" / "packaged-transactions"
+EXAMPLE = Path(__file__).resolve().parents[1] / "examples" / "packaged"
 
 
 class PackagedExampleTests(LocalBackendTestCase):
@@ -16,8 +16,8 @@ class PackagedExampleTests(LocalBackendTestCase):
         shutil.copytree(EXAMPLE / "data", self.work / "data", dirs_exist_ok=True)
 
     def test_installed_packages_compose_and_reuse_after_cleanup(self):
-        self.assertEqual(version("gwflow-summary-tasks"), "0.1.0")
-        self.assertEqual(version("gwflow-report-tasks"), "0.1.0")
+        self.assertEqual(version("gwflow-summary-task"), "0.1.0")
+        self.assertEqual(version("gwflow-report-task"), "0.1.0")
 
         first = self.run_complete()
         for name in ("A", "B", "C"):

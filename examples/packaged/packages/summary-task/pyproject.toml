@@ -3,9 +3,9 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "gwflow-report-tasks"
+name = "gwflow-summary-task"
 version = "0.1.0"
-description = "Net sales task package for the gwflow packaged-transactions example"
+description = "Sample summary task package for the gwflow packaged example"
 requires-python = ">=3.12,<3.13"
 dependencies = ["gwflow>=0.1,<0.2"]
 

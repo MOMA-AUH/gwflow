@@ -1,9 +1,9 @@
-# Packaged transactions workflow
+# Packaged workflow
 
 This example assembles three gwflow tasks from two installable Python packages.
-Tasks **A** and **B** are separate instances of the `summary_tasks.summarize`
+Tasks **A** and **B** are separate instances of the `summary_task.summarize`
 factory. They clean and total sales and returns independently. Task **C** comes
-from `report_tasks.net_report` and calculates net sales from their retained
+from `report_task.net_report` and calculates net sales from their retained
 outputs.
 
 | Task | External input | Internal intermediate | Retained output |
@@ -25,8 +25,8 @@ as described in the [project README](../../README.md#install). From this
 directory, install the two task packages:
 
 ```bash
-python -m pip install -e packages/summary-tasks
-python -m pip install -e packages/report-tasks
+python -m pip install -e packages/summary-task
+python -m pip install -e packages/report-task
 ```
 
 Editable installs pick up changes to package source during development. To test

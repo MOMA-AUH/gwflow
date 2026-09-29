@@ -137,4 +137,4 @@ commands for that workflow are serialized on that node; compute jobs may run
 on other nodes.
 
 For an example with installable task packages and a three-task dependency graph,
-see the [packaged transactions workflow](examples/packaged-transactions/README.md).
+see the [packaged workflow](examples/packaged/README.md).

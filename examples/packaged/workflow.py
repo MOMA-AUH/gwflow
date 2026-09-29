@@ -1,8 +1,8 @@
 """Three tasks assembled from two independently installed task packages."""
 
 from gwflow import Workflow
-from report_tasks import net_report
-from summary_tasks import summarize
+from report_task import net_report
+from summary_task import summarize
 
 
 gwf = Workflow()

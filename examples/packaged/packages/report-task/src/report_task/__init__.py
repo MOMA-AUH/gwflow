@@ -13,7 +13,7 @@ def net_report(sales, returns, intermediate, result):
         fspath, (sales, returns, intermediate, result)
     )
     task = Task(inputs=[sales, returns], outputs=[result])
-    command = f"{quote(executable)} -m report_tasks"
+    command = f"{quote(executable)} -m report_task"
     task.target("join", inputs=[sales, returns], outputs=[intermediate]) << (
         f"{command} join {quote(sales)} {quote(returns)} {quote(intermediate)}"
     )
