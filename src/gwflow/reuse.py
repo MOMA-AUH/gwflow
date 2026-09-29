@@ -115,6 +115,14 @@ class _Plan:
     observed: dict = field(default_factory=dict)
     target_reasons: dict = field(default_factory=dict)
     evidence: dict = field(default_factory=dict)
+    upstream_chains: dict = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class _UpstreamPath:
+    parent: str | None
+    description: str
+    ordinary_tail: str = ""
 
 
 def _target_reason(target, graph, states, fs, hashes, status):
@@ -163,6 +171,89 @@ def _reuse_evidence(boundary, inner, completion, fs, hashes):
                 reasons.append(f"target {target.name}: tracked target command changed or has no saved hash; "
                                "old command text cannot be recovered from a hash")
     return reasons
+
+
+def _upstream_chains(tasks, producers, upstream, owners, planned, pending, submissions):
+    """Trace the scheduling causes across Task boundaries in the final plan."""
+    ordinary = {}
+
+    def treatment(name):
+        return "planned upstream work" if name in submissions else "active upstream work"
+
+    def ordinary_paths(name):
+        if name not in ordinary:
+            label = f"Ordinary target {name}"
+            paths = {_UpstreamPath(None, label, label)}
+            for dependency in planned.dependencies[planned.targets[name]]:
+                if dependency.name not in pending:
+                    continue
+                parent = owners.get(dependency.name)
+                if parent:
+                    paths.add(_UpstreamPath(
+                        parent, f"Task {parent} target {dependency.name} -> {label}", label,
+                    ))
+                else:
+                    paths.update(_UpstreamPath(
+                        path.parent, f"{path.description} -> {label}",
+                        f"{path.ordinary_tail} -> {label}",
+                    ) for path in ordinary_paths(dependency.name))
+            ordinary[name] = sorted(paths, key=lambda path: path.description)
+        return ordinary[name]
+
+    direct = {}
+    for name in tasks:
+        causes = []
+        named_targets = set()
+        for target in sorted(producers[name] & pending):
+            parent = owners.get(target)
+            if parent:
+                causes.append(_UpstreamPath(
+                    parent, f"Task {parent} target {target} ({treatment(target)})",
+                ))
+            else:
+                causes.extend(_UpstreamPath(
+                    path.parent, f"{path.description} ({treatment(target)})",
+                    path.ordinary_tail,
+                ) for path in ordinary_paths(target))
+            named_targets.add(target)
+        for parent in sorted(upstream[name]):
+            for target in tasks[parent][1]:
+                if target.name in pending and target.name not in named_targets:
+                    causes.append(_UpstreamPath(
+                        parent, f"Task {parent} target {target.name} "
+                                f"({treatment(target.name)}; whole-Task ordering)",
+                    ))
+                    named_targets.add(target.name)
+            completion = tasks[parent][2]
+            finalizer = f"{parent}__gwflow_complete"
+            if completion.replaced:
+                causes.append(_UpstreamPath(
+                    parent, f"Task {parent} Completion job {finalizer} "
+                            "(changed Completion attempt)",
+                ))
+            elif finalizer in pending:
+                causes.append(_UpstreamPath(
+                    parent, f"Task {parent} Completion job {finalizer} ({treatment(finalizer)})",
+                ))
+        direct[name] = causes
+
+    chains = {}
+
+    def trace(name):
+        if name not in chains:
+            paths = set()
+            parents = set()
+            for cause in direct[name]:
+                paths.add(f"{cause.description} -> Task {name}")
+                if cause.parent:
+                    extension = f" -> {cause.ordinary_tail}" if cause.ordinary_tail else ""
+                    parents.add((cause.parent, extension))
+            for parent, extension in parents:
+                paths.update(f"{path}{extension} -> Task {name}" for path in trace(parent))
+            chains[name] = sorted(paths)
+        return chains[name]
+
+    return {name: trace(name) for name in tasks}
 
 
 def plan_workflow(workflow, targets, ctx, *, force=False, status_projection=False, details=False):
@@ -342,8 +433,13 @@ def plan_workflow(workflow, targets, ctx, *, force=False, status_projection=Fals
 
     # Validate generated paths as well, before any caller can persist attempts.
     Graph.from_targets(execution, CachedFilesystem())
+    upstream_chains = (
+        _upstream_chains(tasks, producers, upstream, owners, planned, pending, submissions)
+        if details else {}
+    )
     return _Plan(
         targets=list(execution.values()), tasks=tasks, reused=set(tasks) - expanded,
         submissions=submissions, reasons=reasons, observed=observed,
         target_reasons=target_reasons, evidence=evidence,
+        upstream_chains=upstream_chains,
     )
