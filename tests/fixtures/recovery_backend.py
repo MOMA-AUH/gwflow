@@ -35,12 +35,17 @@ class RecoveryBackend:
 
     @property
     def target_defaults(self):
+        if self.options.get("capture_options"):
+            return {"cores": 1, "memory": "1g"}
         return self.local.target_defaults
 
     def status(self, target):
         return self.local.status(target)
 
     def submit(self, target, dependencies):
+        if self.options.get("capture_options"):
+            with (self.work / "submitted-options.jsonl").open("a") as stream:
+                stream.write(json.dumps({"name": target.name, "options": target.options}) + "\n")
         if target.name == self.options.get("reject"):
             raise RuntimeError("injected submission failure")
         if target.name == self.options.get("hold_submission"):
