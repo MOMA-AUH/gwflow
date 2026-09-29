@@ -155,7 +155,7 @@ backend, and command-tracking configuration as `gwf run`:
 
 ```bash
 gwf explain
-gwf -f workflow.py:gwf -b local explain
+gwf explain --details
 ```
 
 Each Task has a current condition and a separate planned action, with a concise
@@ -164,6 +164,20 @@ Completion jobs. A reusable Task needs no work even after intermediate cleanup;
 a missing retained output may need only a partial rerun, and missing or invalid
 Completion evidence may need only a Completion job. Ordinary targets outside
 Tasks are identified separately.
+
+Use `--details` to see every inner target and its bookkeeping Completion job,
+with the current backend state and planned treatment: submission or retry,
+active work left alone, up to date, or omitted by Reuse. The default reason is a
+summary; details report all observable direct causes together, including missing
+or unusable Completion evidence, changed declarations or target membership,
+missing or stale boundary files, configured command checks, and backend states
+that prevent Reuse. Relevant names and paths accompany the evidence.
+
+Command checks follow `use_spec_hashes`; equal file mtimes remain up to date,
+and an `UNKNOWN` backend state alone does not invalidate valid Completion
+evidence. Missing files do not reveal who removed them. Unusable records may
+leave prior declarations unavailable, and saved command hashes cannot recover
+old command text.
 
 Explanation submits no jobs and preserves Completion records, expected attempts,
 and logs. It waits for submission bookkeeping on the same frontend to finish,

@@ -11,8 +11,27 @@ from .reuse import _submission_guard, plan_workflow
 from .workflow import Workflow, _bookkeeping_name
 
 
-def _overview(plan):
+def _target_details(plan, names, reused, completion_name):
+    lines = []
+    for name in names:
+        state = plan.observed[name]
+        if reused:
+            treatment = "omitted by Reuse"
+        elif name in plan.submissions:
+            treatment = "retry" if state in (BackendStatus.FAILED, BackendStatus.CANCELLED) else "submit"
+        elif state in (BackendStatus.SUBMITTED, BackendStatus.RUNNING):
+            treatment = "active work left alone"
+        else:
+            treatment = "up to date; no submission"
+        role = "bookkeeping Completion job" if name == completion_name else "target"
+        lines.append(f"    {role} {name}: Current: backend {state.name.lower()}; Planned: {treatment}.")
+    return lines
+
+
+def _overview(plan, *, details=False):
     lines = ["Ordinary whole-workflow plan"]
+    if not details:
+        lines.append("Summary reasons; use --details for all observable direct causes and target treatment.")
     owned = set()
     for name, (_, inner, _) in plan.tasks.items():
         completion_name = _bookkeeping_name(name)
@@ -38,6 +57,13 @@ def _overview(plan):
             f"  Planned: {action}.",
         ])
         lines.extend(f"    Would submit {target}" for target in pending)
+        if details:
+            lines.append("  Direct evidence:")
+            lines.extend(f"    {reason}." for reason in plan.evidence[name])
+            lines.extend(_target_details(
+                plan, [*(target.name for target in inner), completion_name],
+                name in plan.reused, completion_name,
+            ))
     for target in plan.targets:
         if target.name in owned:
             continue
@@ -57,14 +83,15 @@ def _overview(plan):
 
 
 @click.command()
+@click.option("--details", is_flag=True, help="Show every Task target and direct Reuse evidence.")
 @pass_context
-def explain(ctx):
+def explain(ctx, details):
     """Explain an ordinary whole-workflow run without submitting jobs."""
     workflow = GwfWorkflow.from_context(ctx)
     if not isinstance(workflow, Workflow):
         raise WorkflowError("gwf explain requires a gwflow.Workflow; plain gwf.Workflow is unsupported")
     with _submission_guard(ctx.working_dir):
         workflow._validate_task_boundaries()
-        plan = plan_workflow(workflow, list(dict.values(workflow.targets)), ctx)
-        output = _overview(plan)
+        plan = plan_workflow(workflow, list(dict.values(workflow.targets)), ctx, details=details)
+        output = _overview(plan, details=details)
     click.echo(output)

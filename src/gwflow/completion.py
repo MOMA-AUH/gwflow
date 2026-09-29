@@ -48,6 +48,15 @@ def atomic_write(path, record):
             os.unlink(temporary)
 
 
+def _declaration_changes(label, previous, current):
+    if not isinstance(previous, dict):
+        return [f"{label}: saved declarations unavailable"]
+    return [
+        f"{label} {field}: saved {previous.get(field)!r}; current {current[field]!r}"
+        for field in ("inputs", "outputs") if previous.get(field) != current[field]
+    ]
+
+
 class Completion:
     """One task's expected attempt, independent of generated target inputs."""
 
@@ -78,6 +87,51 @@ class Completion:
 
     def is_complete(self):
         return self.matches_definition() and read_record(self.path) == self.record
+
+    def evidence(self):
+        """Describe the saved evidence before prepare can replace this attempt."""
+        if self.record is None:
+            state = "unusable" if self.expected_path.exists() else "missing"
+            return [
+                f"Completion evidence is {state} at {self.expected_path}; "
+                "saved declarations and command hashes are unavailable"
+            ]
+        reasons = []
+        if self.record["task"] != self.name:
+            reasons.append(f"Completion task identity mismatch: saved {self.record['task']!r}; current {self.name!r}")
+        previous = self.record["definition"]
+        if previous != self.definition:
+            reasons.append(f"Task {self.name} definition mismatch against {self.expected_path}")
+            reasons.extend(_declaration_changes(f"Task {self.name}", previous, self.definition))
+            old_targets = previous.get("targets")
+            new_targets = self.definition["targets"]
+            if isinstance(old_targets, dict):
+                for name in sorted(old_targets.keys() - new_targets.keys()):
+                    reasons.append(f"target {name} removed from Task {self.name}")
+                for name in sorted(new_targets.keys() - old_targets.keys()):
+                    reasons.append(f"target {name} added to Task {self.name}")
+                for name in sorted(new_targets.keys() & old_targets.keys()):
+                    reasons.extend(_declaration_changes(f"target {name}", old_targets[name], new_targets[name]))
+            else:
+                reasons.append(f"Task {self.name}: saved target declarations unavailable")
+        if self.commands is not None and self.record.get("commands") != self.commands:
+            saved = self.record.get("commands")
+            for name, command in self.commands.items():
+                if not isinstance(saved, dict) or saved.get(name) != command:
+                    reasons.append(f"target {name}: saved Completion command hash differs or is unavailable; "
+                                   "old command text cannot be recovered from a hash")
+            if isinstance(saved, dict):
+                for name in sorted(saved.keys() - self.commands.keys()):
+                    reasons.append(f"target {name}: saved Completion command hash has no current target")
+        published = read_record(self.path)
+        if published is None:
+            state = "unusable" if self.path.exists() else "missing"
+            reasons.append(f"Completion record is {state}: {self.path}")
+        elif published != self.record:
+            reasons.append(f"Completion record does not match the expected attempt: {self.path}; expected {self.expected_path}")
+        if not reasons:
+            reasons.append(f"Completion evidence matches the current Task and expected attempt: {self.path}")
+        return reasons
 
     def prepare(self, *, new_work=False):
         # A pending missing record can be recovered by the same finalizer. An
