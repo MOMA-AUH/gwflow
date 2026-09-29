@@ -138,3 +138,6 @@ on other nodes. See the [submission guard details](docs/reuse-and-operations.md#
 
 For the full rules on task boundaries, completion records, retries, and
 planning, see the [reuse and operations guide](docs/reuse-and-operations.md).
+
+For an example with installable task packages and a three-task dependency graph,
+see the [packaged transactions workflow](examples/packaged-transactions/README.md).
