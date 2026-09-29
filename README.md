@@ -184,6 +184,17 @@ evidence. Missing files do not reveal who removed them. Unusable records may
 leave prior declarations unavailable, and saved command hashes cannot recover
 old command text.
 
+Failed work and running siblings remain visible together: an ordinary run can
+retry a failed target while leaving active jobs alone. Nonreuse can also mean
+zero new submissions when old jobs are still active. Recovery notes identify
+an active Completion job for an earlier attempt or an active job whose command
+has changed under command tracking. After those jobs settle, invoke `gwf run`
+again to recover the current work and Completion evidence. Ordinary runs leave
+existing jobs and their dependencies in place. With command tracking disabled,
+an active Completion job may belong to an earlier attempt that can no longer be
+identified from the saved evidence. The note then describes possible recovery;
+inspect again after the jobs settle.
+
 Explanation submits no jobs and preserves Completion records, expected attempts,
 and logs. It waits for submission bookkeeping on the same frontend to finish,
 without waiting for compute jobs. Invalid workflows and backend query errors
