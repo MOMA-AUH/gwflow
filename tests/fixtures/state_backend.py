@@ -11,6 +11,8 @@ class StateBackend:
         self.states = json.loads((Path(working_dir) / "backend-state.json").read_text())
 
     def status(self, target):
+        if self.states.get(target.name) == "ERROR":
+            raise RuntimeError(f"Backend query failed for {target.name}")
         return BackendStatus[self.states.get(target.name, "UNKNOWN")]
 
     def submit(self, target, dependencies):

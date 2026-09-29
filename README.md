@@ -148,6 +148,35 @@ to trigger reruns, enable gwf's command tracking (off by default):
 gwf config set use_spec_hashes true
 ```
 
+## Explain the next run
+
+`gwf explain` previews an ordinary whole-workflow run using the same workflow,
+backend, and command-tracking configuration as `gwf run`:
+
+```bash
+gwf explain
+gwf -f workflow.py:gwf -b local explain
+```
+
+Each Task has a current condition and a separate planned action, with a concise
+reason. The plan lists the targets it would submit, including generated
+Completion jobs. A reusable Task needs no work even after intermediate cleanup;
+a missing retained output may need only a partial rerun, and missing or invalid
+Completion evidence may need only a Completion job. Ordinary targets outside
+Tasks are identified separately.
+
+Explanation submits no jobs and preserves Completion records, expected attempts,
+and logs. It waits for submission bookkeeping on the same frontend to finish,
+without waiting for compute jobs. Invalid workflows and backend query errors
+fail before any plan is displayed. Failed or cancelled jobs can appear in a
+successful explanation. This command requires `gwflow.Workflow`, including
+empty workflows, and currently accepts no selectors or force option.
+
+The plan reflects current observations and agrees with run while definitions,
+files, configuration, and backend state remain unchanged. It does not guarantee
+future scheduler admission or strengthen gwf's Completion guarantees. Output is
+human-readable text, not a stable machine-readable format.
+
 Use whole-workflow `gwf run`: target selectors, `--group`, and `--no-deps` are
 unsupported.
 Submit a given workflow from one physical frontend node. Concurrent `gwf run`

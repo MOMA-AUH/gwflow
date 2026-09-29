@@ -70,6 +70,14 @@ class LocalBackendTestCase(unittest.TestCase):
         self.config.update(options)
         (self.work / ".gwfconf.json").write_text(json.dumps(self.config))
 
+    def state_backend(self, states):
+        shutil.copy(FIXTURES / "state_backend.py", self.work)
+        metadata = self.work / "state_backend-1.0.dist-info"
+        metadata.mkdir(exist_ok=True)
+        (metadata / "entry_points.txt").write_text("[gwf.backends]\nstate_fixture = state_backend:setup\n")
+        (self.work / "backend-state.json").write_text(json.dumps(states))
+        return {**os.environ, "PYTHONPATH": str(self.work)}
+
     def configure_workflow(self, **options):
         shutil.copy(FIXTURES / "reuse_task.py", self.work)
         (self.work / "definition.json").write_text(json.dumps(options))
@@ -320,11 +328,7 @@ class ReuseCliTests(LocalBackendTestCase):
         self.clean_intermediate()
         # gwf's backend plugin seam supplies otherwise transient states while
         # retaining valid on-disk evidence. It never submits fixture work.
-        shutil.copy(FIXTURES / "state_backend.py", self.work)
-        metadata = self.work / "state_backend-1.0.dist-info"
-        metadata.mkdir()
-        (metadata / "entry_points.txt").write_text("[gwf.backends]\nstate_fixture = state_backend:setup\n")
-        env = {**os.environ, "PYTHONPATH": str(self.work)}
+        env = self.state_backend({})
         for state in ("SUBMITTED", "RUNNING", "FAILED", "CANCELLED", "UNKNOWN", "COMPLETED"):
             for target in ("text__prepare", "text__gwflow_complete"):
                 with self.subTest(state=state, target=target):

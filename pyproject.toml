@@ -11,5 +11,8 @@ requires-python = ">=3.12,<3.13"
 license = {file = "LICENSE"}
 dependencies = ["gwf==2.1.1"]
 
+[project.entry-points."gwf.plugins"]
+explain = "gwflow.explain:explain"
+
 [tool.setuptools.packages.find]
 where = ["src"]

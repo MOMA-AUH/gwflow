@@ -7,6 +7,7 @@ its backend context closes before the CLI opens the submitting context.
 
 from contextlib import contextmanager
 from copy import copy
+from dataclasses import dataclass, field
 import fcntl
 from pathlib import Path
 
@@ -88,6 +89,54 @@ def materialize(workflow, targets):
         if ctx.working_dir not in guards:
             cli.with_resource(_submission_guard(ctx.working_dir))
             guards.add(ctx.working_dir)
+    plan = plan_workflow(workflow, targets, ctx, force=cli.params.get("force", False),
+                         status_projection=inspecting)
+    if not inspecting:
+        if not cli.params.get("dry_run"):
+            for name, (_, _, completion) in plan.tasks.items():
+                if name not in plan.reused:
+                    completion.persist()
+        if plan.reused:
+            # gwf removes logs absent from its execution graph. Keep omitted
+            # targets' logs without dumping this temporary config to disk.
+            ctx.config["clean_logs"] = "false"
+    return plan.targets
+
+
+@dataclass
+class _Plan:
+    """Private result of ordinary gwf scheduling, before submission writes."""
+
+    targets: list
+    tasks: dict = field(default_factory=dict)
+    reused: set = field(default_factory=set)
+    submissions: set = field(default_factory=set)
+    reasons: dict = field(default_factory=dict)
+    observed: dict = field(default_factory=dict)
+    target_reasons: dict = field(default_factory=dict)
+
+
+def _target_reason(target, graph, states, fs, hashes, status):
+    if status in (BackendStatus.SUBMITTED, BackendStatus.RUNNING):
+        return "already active; ordinary run leaves it alone"
+    if status in (BackendStatus.FAILED, BackendStatus.CANCELLED):
+        return f"backend reports {status.name.lower()} work; retry"
+    if any(states[dep] in SUBMITTED_STATES for dep in graph.dependencies[target]):
+        return "dependency work requires submission"
+    if hashes.has_changed(target) is not None:
+        return "tracked target command changed or has no saved hash"
+    if any(not fs.exists(path) for path in target.flattened_outputs()):
+        return "output is missing"
+    if not target.outputs:
+        return "outputless target runs on every invocation"
+    if should_run(target, fs, hashes):
+        return "files are not up to date"
+    return "files and tracked command are up to date"
+
+
+def plan_workflow(workflow, targets, ctx, *, force=False, status_projection=False):
+    """Plan while the caller holds the submission guard; never persist attempts."""
+    inspecting = status_projection
     fs = CachedFilesystem()
     graph = Graph.from_targets(targets, fs)
     tasks = {}
@@ -145,30 +194,41 @@ def materialize(workflow, targets):
     }
 
     reusable = set()
+    reasons = {}
+    observed = {}
     with create_backend(
         ctx.backend, working_dir=ctx.working_dir, config=ctx.config
     ) as backend:
         # Do not close (and thus write) this read-only hash view. The CLI owns
         # saving hashes for actual submissions, including the finalizer.
         hashes = get_spec_hashes(working_dir=ctx.working_dir, config=ctx.config)
+
+        def status(target):
+            if target.name not in observed:
+                observed[target.name] = backend.status(target)
+            return observed[target.name]
+
         for name, (boundary, inner, completion) in tasks.items():
-            if cli.params.get("force") or not completion.is_complete():
-                continue
-            if any(not fs.exists(path) for path in boundary.flattened_inputs()):
-                continue
-            if should_run(boundary, fs, NoopSpecHashes()):
-                continue
-            finalizer = completion.target(inner, ctx.working_dir)
-            if any(
-                backend.status(target) not in (
-                    BackendStatus.COMPLETED, BackendStatus.UNKNOWN
-                )
-                for target in [*inner, finalizer]
+            if force:
+                reasons[name] = "forced run"
+            elif not completion.is_complete():
+                reasons[name] = "completion evidence is missing, invalid, or does not match"
+            elif any(not fs.exists(path) for path in boundary.flattened_inputs()):
+                reasons[name] = "external input is missing and must be produced upstream"
+            elif any(not fs.exists(path) for path in boundary.flattened_outputs()):
+                reasons[name] = "retained output is missing"
+            elif should_run(boundary, fs, NoopSpecHashes()):
+                reasons[name] = "boundary files are not up to date"
+            elif any(
+                status(target) not in (BackendStatus.COMPLETED, BackendStatus.UNKNOWN)
+                for target in [*inner, completion.target(inner, ctx.working_dir)]
             ):
-                continue
-            if any(hashes.has_changed(target) is not None for target in inner):
-                continue
-            reusable.add(name)
+                reasons[name] = "backend reports active, failed, or cancelled work"
+            elif any(hashes.has_changed(target) is not None for target in inner):
+                reasons[name] = "tracked target command changed or has no saved hash"
+            else:
+                reusable.add(name)
+                reasons[name] = "completion evidence and boundary files allow reuse"
 
         for _, _, completion in tasks.values():
             completion.prepare()
@@ -193,7 +253,7 @@ def materialize(workflow, targets):
                 finalizer = tasks[name][2].target(tasks[name][1], ctx.working_dir)
                 finalizer.inputs = []
                 projected[finalizer.name] = finalizer
-            return list(projected.values())
+            return _Plan(targets=list(projected.values()))
 
         expanded = set(tasks) - reusable
         while True:
@@ -206,9 +266,9 @@ def materialize(workflow, targets):
             planned = Graph.from_targets(execution, fs)
             submissions = set()
             states = schedule(
-                planned.endpoints(), planned, fs, hashes, backend.status,
+                planned.endpoints(), planned, fs, hashes, status,
                 lambda target, dependencies: submissions.add(target.name),
-                force=cli.params.get("force", False),
+                force=force,
             )
             pending = {
                 target.name for target, state in states.items() if state in SUBMITTED_STATES
@@ -232,16 +292,22 @@ def materialize(workflow, targets):
                 break
             # Both sets only grow. Completion.prepare allocates at most once,
             # so each pass propagates stable replacement paths further downstream.
+            for name in affected:
+                reasons[name] = "upstream work or a replaced completion attempt prevents reuse"
             expanded.update(affected)
 
-    # Validate generated paths as well, before changing expected attempts.
+        for _, inner, completion in tasks.values():
+            for target in [*inner, completion.target(inner, ctx.working_dir)]:
+                status(target)
+        target_reasons = {
+            target.name: _target_reason(target, planned, states, fs, hashes, status(target))
+            for target in graph.targets.values() if target.name not in owners
+        }
+
+    # Validate generated paths as well, before any caller can persist attempts.
     Graph.from_targets(execution, CachedFilesystem())
-    if not cli.params.get("dry_run"):
-        for name, (_, _, completion) in tasks.items():
-            if name in expanded:
-                completion.persist()
-    if set(tasks) - expanded:
-        # gwf removes logs absent from its execution graph. Disable that cleanup
-        # for this invocation only; never dump the changed config to disk.
-        ctx.config["clean_logs"] = "false"
-    return list(execution.values())
+    return _Plan(
+        targets=list(execution.values()), tasks=tasks, reused=set(tasks) - expanded,
+        submissions=submissions, reasons=reasons, observed=observed,
+        target_reasons=target_reasons,
+    )
