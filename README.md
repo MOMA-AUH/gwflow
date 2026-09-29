@@ -109,6 +109,24 @@ The finished tasks are reused: gwf submits no new jobs, and the `.tmp` files
 stay absent. Keep the `.gwf/` directory beside the outputs; it contains the
 completion records needed for reuse.
 
+Generated Completion jobs inherit the workflow's `defaults`. Use
+`completion_defaults` to give these bookkeeping jobs smaller resources while
+retaining any site options shared with ordinary targets:
+
+```python
+gwf = Workflow(
+    defaults={"account": "my-account", "queue": "my-partition", "cores": 16},
+    completion_defaults={"cores": 1, "memory": "1g", "walltime": "00:05:00"},
+)
+```
+
+Completion options start with workflow defaults and apply these overrides. They
+do not inherit Task defaults or individual target options. Omitting
+`completion_defaults` leaves the workflow defaults intact; `None` has gwf's
+ordinary option handling. Resource-only changes do not invalidate completed
+Tasks. Choose values accepted by your backend: a rejected Completion submission
+leaves its record unpublished and can be retried with `gwf run`.
+
 ## Using gwflow in a larger workflow
 
 - Declare every file a task reads from outside as a task input, and every result

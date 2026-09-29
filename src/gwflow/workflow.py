@@ -75,13 +75,14 @@ class Task(GwfWorkflow):
 class Workflow(GwfWorkflow):
     """A gwf workflow that accepts named snapshots of Task definitions."""
 
-    def __init__(self, working_dir=None, defaults=None, executor=None):
+    def __init__(self, working_dir=None, defaults=None, executor=None, *, completion_defaults=None):
         if working_dir is None:
             working_dir = str(Path(getfile(_getframe(1))).resolve().parent)
         kwargs = {"working_dir": working_dir, "defaults": defaults or {}}
         if executor is not None:
             kwargs["executor"] = executor
         super().__init__(**kwargs)
+        self.completion_defaults = deepcopy(completion_defaults) if completion_defaults is not None else {}
         self._task_declarations = {}
         self._reserved_names = set()
         self.targets = _TaskTargets(self)

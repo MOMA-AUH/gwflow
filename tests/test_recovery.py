@@ -14,6 +14,57 @@ import test_reuse
 class RecoveryCliTests(test_reuse.LocalBackendTestCase):
     workers = 4
 
+    def configure_resource_workflow(self, *, completion_defaults=None):
+        configuration = "" if completion_defaults is None else f", completion_defaults={completion_defaults!r}"
+        (self.work / "workflow.py").write_text(
+            "from gwflow import Task, Workflow\n"
+            "gwf = Workflow(defaults={'cores': 3, 'memory': '8g'}"
+            + configuration + ")\n"
+            "task = Task(inputs=['input.txt'], outputs=['result.txt'], defaults={'cores': 7})\n"
+            "task.target('prepare', inputs=['input.txt'], outputs=['middle.txt'], memory='4g') << 'cp input.txt middle.txt'\n"
+            "task.target('finish', inputs=['middle.txt'], outputs=['result.txt']) << 'cp middle.txt result.txt'\n"
+            "gwf.task_from_template('text', task)\n"
+            "gwf.target('standalone', inputs=[], outputs=['standalone.txt'], cores=5) << 'touch standalone.txt'\n"
+        )
+
+    def submitted_options(self):
+        return {
+            item["name"]: item["options"]
+            for item in map(json.loads, (self.work / "submitted-options.jsonl").read_text().splitlines())
+        }
+
+    def test_completion_options_inherit_workflow_defaults_and_apply_overrides(self):
+        self.configure_resource_workflow(completion_defaults={"cores": 1, "memory": None})
+        env = self.inject(capture_options=True)
+        self.cli("-b", "recovery_fixture", "run", env=env)
+        self.finish()
+        options = self.submitted_options()
+        self.assertEqual(options["text__gwflow_complete"]["cores"], 1)
+        self.assertNotIn("memory", options["text__gwflow_complete"])
+        self.assertEqual(options["text__prepare"]["cores"], 7)
+        self.assertEqual(options["text__prepare"]["memory"], "4g")
+        self.assertEqual(options["standalone"]["cores"], 5)
+
+        (self.work / "middle.txt").unlink()
+        self.configure_resource_workflow(completion_defaults={"cores": 2})
+        self.assertNotIn("Submitted target", self.cli("run"))
+        self.assertFalse((self.work / "middle.txt").exists())
+
+    def test_omitted_completion_overrides_and_rejected_submission_recover(self):
+        self.configure_resource_workflow()
+        env = self.inject(capture_options=True, reject="text__gwflow_complete")
+        output = self.cli("-b", "recovery_fixture", "run", success=False, env=env)
+        self.assertIn("injected submission failure", output)
+        self.assertEqual(self.submitted_options()["text__gwflow_complete"]["cores"], 3)
+        self.assertEqual(self.submitted_options()["text__gwflow_complete"]["memory"], "8g")
+        self.wait_for(lambda: (self.work / "result.txt").exists())
+        records = self.records("text")
+        self.assertNotIn(json.loads(records["expected.json"])["attempt"] + ".json", records)
+        output = self.cli("run")
+        self.assertIn("Submitted target text__gwflow_complete", output)
+        self.assertNotIn("Submitted target text__prepare", output)
+        self.finish()
+
     def configure_workflow(self, command="old"):
         shutil.copy(test_reuse.FIXTURES / "retry_tasks.py", self.work)
         (self.work / "definition.json").write_text(json.dumps(command))

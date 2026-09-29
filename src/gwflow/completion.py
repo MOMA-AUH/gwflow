@@ -51,12 +51,13 @@ def atomic_write(path, record):
 class Completion:
     """One task's expected attempt, independent of generated target inputs."""
 
-    def __init__(self, working_dir, name, definition, commands):
+    def __init__(self, working_dir, name, definition, commands, options):
         self.directory = Path(working_dir) / ".gwf" / "gwflow" / name
         self.expected_path = self.directory / "expected.json"
         self.name = name
         self.definition = definition
         self.commands = commands
+        self.options = options
         self.record = read_record(self.expected_path)
         self.replaced = False
 
@@ -111,7 +112,7 @@ class Completion:
                 path for target in targets for path in target.flattened_outputs()
             }),
             outputs=[str(self.path)],
-            options={},
+            options=self.options.copy(),
             working_dir=working_dir,
             spec=command,
         )

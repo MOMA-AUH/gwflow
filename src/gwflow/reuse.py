@@ -119,7 +119,10 @@ def materialize(workflow, targets):
             {target.name: hash_spec(target.spec) for target in inner}
             if ctx.config.get("use_spec_hashes") else None
         )
-        completion = Completion(ctx.working_dir, name, definition, commands)
+        completion = Completion(
+            ctx.working_dir, name, definition, commands,
+            {**workflow.defaults, **workflow.completion_defaults},
+        )
         tasks[name] = (boundary, inner, completion)
 
     owners = {
