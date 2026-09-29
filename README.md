@@ -156,7 +156,6 @@ backend, and command-tracking configuration as `gwf run`:
 ```bash
 gwf explain
 gwf explain --details
-gwf -f workflow.py:gwf -b local explain
 ```
 
 Each Task has a current condition and a separate planned action, with a concise
