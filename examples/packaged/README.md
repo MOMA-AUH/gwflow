@@ -43,10 +43,15 @@ Then, in another terminal in this directory, run the workflow and inspect its
 retained report:
 
 ```bash
+gwf -b local explain --details
 gwf -b local run
 gwf -b local status
 cat results/net.csv
 ```
+
+Before the first run, Task C's explanation includes upstream cause chains from
+both A and B, including their planned target work and changed Completion
+attempts.
 
 The final report contains `apples,17,2,15` and `pears,8,1,7` under the
 `product,sales,returns,net` header. After all three tasks have completed,
@@ -60,3 +65,22 @@ gwf -b local run
 The second run submits no targets and does not recreate the deleted files.
 Keep `.gwf/`: it contains the completion records needed for reuse. Inputs and
 retained outputs remain in place.
+
+## See upstream causes after reuse
+
+After all three Tasks finish, `gwf -b local explain --details` shows no upstream
+cause chains: A and B have no planned work, so C can be reused. To see the new
+explanation on a completed workflow, remove one generated retained output and
+preview the next run:
+
+```bash
+rm results/sales.csv
+gwf -b local explain --details
+gwf -b local run --dry-run
+gwf -b local run
+```
+
+Task C's `Upstream cause chains` now names A's `A__clean` and `A__aggregate`
+work and its changed `A__gwflow_complete` attempt. B remains reusable. The
+dry-run lists the same submissions, and the final run restores the removed
+output.
