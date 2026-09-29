@@ -1,22 +1,12 @@
 """Ordinary whole-workflow explanation through the installed gwf CLI."""
 
-import json
 import os
 import re
-import shutil
 
 import test_reuse
 
 
 class ExplainCliTests(test_reuse.LocalBackendTestCase):
-    def state_backend(self, states):
-        shutil.copy(test_reuse.FIXTURES / "state_backend.py", self.work)
-        metadata = self.work / "state_backend-1.0.dist-info"
-        metadata.mkdir(exist_ok=True)
-        (metadata / "entry_points.txt").write_text("[gwf.backends]\nstate_fixture = state_backend:setup\n")
-        (self.work / "backend-state.json").write_text(json.dumps(states))
-        return {**os.environ, "PYTHONPATH": str(self.work)}
-
     def evidence(self):
         return {
             path.relative_to(self.work): (path.read_bytes(), path.stat().st_mtime_ns)

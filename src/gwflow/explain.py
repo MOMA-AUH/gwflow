@@ -8,14 +8,15 @@ from gwf.core import pass_context
 from gwf.exceptions import WorkflowError
 
 from .reuse import _submission_guard, plan_workflow
-from .workflow import Workflow
+from .workflow import Workflow, _bookkeeping_name
 
 
 def _overview(plan):
     lines = ["Ordinary whole-workflow plan"]
     owned = set()
     for name, (_, inner, _) in plan.tasks.items():
-        names = {target.name for target in inner} | {f"{name}__gwflow_complete"}
+        completion_name = _bookkeeping_name(name)
+        names = {target.name for target in inner} | {completion_name}
         owned.update(names)
         current = "reusable" if name in plan.reused else "not reusable"
         states = sorted({
@@ -27,7 +28,7 @@ def _overview(plan):
         pending = sorted(names & plan.submissions)
         if not pending:
             action = "reuse; no work" if name in plan.reused else "no new submissions"
-        elif pending == [f"{name}__gwflow_complete"]:
+        elif pending == [completion_name]:
             action = "completion-only repair"
         else:
             action = "submit target work"

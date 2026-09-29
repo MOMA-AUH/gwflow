@@ -1,8 +1,6 @@
 """Whole-workflow preview, force, and selector behavior through gwf's CLI."""
 
 import json
-import os
-import shutil
 
 import test_reuse
 
@@ -19,15 +17,9 @@ class ExecutionModeCliTests(test_reuse.LocalBackendTestCase):
     def preview_without_submissions(self, *args):
         # This backend rejects submit(), so the preview cannot accidentally
         # launch fixture work even if gwf's dry-run plumbing changes.
-        shutil.copy(test_reuse.FIXTURES / "state_backend.py", self.work)
-        metadata = self.work / "state_backend-1.0.dist-info"
-        metadata.mkdir(exist_ok=True)
-        (metadata / "entry_points.txt").write_text(
-            "[gwf.backends]\nstate_fixture = state_backend:setup\n"
-        )
-        (self.work / "backend-state.json").write_text("{}")
+        env = self.state_backend({})
         return self.cli("-b", "state_fixture", "run", "--dry-run", *args,
-                        env={**os.environ, "PYTHONPATH": str(self.work)})
+                        env=env)
 
     def check_preview_and_force(self, tracking):
         self.configure(use_spec_hashes=tracking)
