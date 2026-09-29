@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import unittest
@@ -116,6 +117,17 @@ class RecoveryCliTests(test_reuse.LocalBackendTestCase):
         self.assertEqual(self.trace(), trace)
         self.assertFalse((self.work / "sibling.tmp").exists())
 
+    def explain_before_run(self):
+        records = {name: self.records(name) for name in ("retry", "unrelated")}
+        trace = self.trace()
+        output = self.cli("explain", "--details")
+        self.assertNotIn("Submitted target", output)
+        self.assertEqual({name: self.records(name) for name in records}, records)
+        self.assertEqual(self.trace(), trace)
+        self.assertEqual(set(re.findall(r"Would submit (\w+)", output)),
+                         set(re.findall(r"Would submit (\w+)", self.cli("run", "--dry-run"))))
+        return output
+
     def inject(self, **options):
         shutil.copy(test_reuse.FIXTURES / "recovery_backend.py", self.work)
         metadata = self.work / "recovery_backend-1.0.dist-info"
@@ -170,6 +182,14 @@ class RecoveryCliTests(test_reuse.LocalBackendTestCase):
         self.wait_for(failed)
         records, unrelated = self.records(), self.records("unrelated")
         (self.work / "allow-work").touch()
+        plan = self.explain_before_run()
+        self.assertIn("failed", plan)
+        self.assertIn("running", plan)
+        self.assertRegex(plan, r"retry__work: Current: backend failed; Planned: retry")
+        self.assertRegex(plan, r"retry__sibling: Current: backend running; Planned: active work left alone")
+        self.assertEqual(set(re.findall(r"Would submit (\w+)", plan)), {"retry__work"})
+        self.assertIn("Recovery:", plan)
+        self.assertIn("later ordinary invocation", plan)
         output = self.cli("run")
         self.assertIn("Submitted target retry__work", output)
         self.assertNotIn("Submitted target retry__sibling", output)
@@ -178,6 +198,8 @@ class RecoveryCliTests(test_reuse.LocalBackendTestCase):
         self.assertNotEqual(self.records(), records)
         self.assertEqual(self.records("unrelated"), unrelated)
         records = self.records()
+        plan = self.explain_before_run()
+        self.assertRegex(plan, r"Recovery:.*retry__gwflow_complete.*later ordinary invocation.*may be needed")
         self.assertNotIn("Submitted target", self.cli("run"))
         self.assertEqual(self.records(), records)
         self.assertEqual(self.trace(), {"work": 2})
@@ -185,6 +207,10 @@ class RecoveryCliTests(test_reuse.LocalBackendTestCase):
         # Let it settle; ordinary gwf can recover it on a later invocation.
         self.release("old", "sibling", "unrelated")
         self.settle()
+        plan = self.explain_before_run()
+        self.assertIn("completion-only repair", plan)
+        self.assertEqual(set(re.findall(r"Would submit (\w+)", plan)), {"retry__gwflow_complete"})
+        self.assertNotIn("Recovery:", plan)
         output = self.cli("run")
         self.assertIn("Submitted target retry__gwflow_complete", output)
         self.assertNotIn("Submitted target retry__work", output)
@@ -197,11 +223,19 @@ class RecoveryCliTests(test_reuse.LocalBackendTestCase):
         (self.work / "allow-work").touch()
         self.cli("run")
         self.started("old", "sibling", "unrelated")
+        self.assertNotIn("Recovery:", self.explain_before_run())
         old_expected = self.records()["expected.json"]
         self.configure_workflow(command="new")
+        plan = self.explain_before_run()
+        self.assertIn("Current: not reusable", plan)
+        self.assertIn("no new submissions", plan)
+        self.assertNotIn("Would submit", plan)
+        self.assertRegex(plan, r"Recovery:.*retry__gwflow_complete")
+        self.assertIn("later ordinary invocation", plan)
         self.assertNotIn("Submitted target", self.cli("run"))
         pending = self.records()
         self.assertNotEqual(pending["expected.json"], old_expected)
+        self.assertIn("later ordinary invocation", self.explain_before_run())
         self.assertNotIn("Submitted target", self.cli("run"))
         self.assertEqual(self.records(), pending)
         self.release("old", "sibling", "unrelated")
@@ -209,6 +243,10 @@ class RecoveryCliTests(test_reuse.LocalBackendTestCase):
         published = self.records()
         self.assertIn(old_expected, [data for name, data in published.items() if name != "expected.json"])
         self.assertNotIn(pending["expected.json"], [data for name, data in published.items() if name != "expected.json"])
+        plan = self.explain_before_run()
+        self.assertEqual(set(re.findall(r"Would submit (\w+)", plan)),
+                         {"retry__work", "retry__gwflow_complete"})
+        self.assertNotIn("Recovery:", plan)
         output = self.cli("run")
         self.assertIn("Submitted target retry__work", output)
         self.assertNotIn("Submitted target retry__sibling", output)
@@ -283,6 +321,11 @@ class RecoveryCliTests(test_reuse.LocalBackendTestCase):
         self.cli("-b", "recovery_fixture", "run", success=False, env=env)
         self.started("old", "sibling")
         self.configure_workflow(command="new")
+        plan = self.explain_before_run()
+        self.assertIn("Would submit retry__gwflow_complete", plan)
+        self.assertNotIn("Would submit retry__work", plan)
+        self.assertRegex(plan, r"Recovery:.*retry__work.*command")
+        self.assertIn("later ordinary invocation", plan)
         output = self.cli("run")
         self.assertNotIn("Submitted target retry__work", output)
         self.assertIn("Submitted target retry__gwflow_complete", output)

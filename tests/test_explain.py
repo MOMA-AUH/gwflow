@@ -306,24 +306,29 @@ class ExplainCliTests(test_reuse.LocalBackendTestCase):
         self.assertIn("requires a gwflow.Workflow", output)
         self.assertNotIn("Ordinary whole-workflow plan", output)
 
-    def test_selected_backend_reports_failed_cancelled_and_active_work_without_submitting(self):
+    def test_backend_states_gate_task_reuse_with_qualifying_completion_evidence(self):
         self.run_complete()
-        for state in ("FAILED", "CANCELLED", "RUNNING", "SUBMITTED", "UNKNOWN", "COMPLETED"):
-            with self.subTest(state=state):
-                env = self.state_backend({"text__prepare": state, "text__finish": "RUNNING"})
-                before = self.evidence()
-                output = self.cli("-b", "state_fixture", "explain", env=env)
-                self.assertIn("running", output)
-                if state not in ("UNKNOWN", "COMPLETED"):
-                    self.assertIn(state.lower(), output)
-                self.assertEqual(self.submissions(output), self.submissions(
-                    self.cli("-b", "state_fixture", "run", "--dry-run", env=env)))
-                self.assertEqual(self.evidence(), before)
-        # UNKNOWN alone must preserve valid Completion evidence after cleanup.
         (self.work / "middle.txt").unlink()
-        output = self.cli("-b", "state_fixture", "explain", env=self.state_backend({}))
-        self.assertIn("Current: reusable", output)
-        self.assertEqual(self.submissions(output), set())
+        before = self.evidence()
+        for state in ("FAILED", "CANCELLED", "RUNNING", "SUBMITTED", "UNKNOWN", "COMPLETED"):
+            for target in ("text__prepare", "text__gwflow_complete"):
+                with self.subTest(state=state, target=target):
+                    env = self.state_backend({target: state})
+                    output = self.cli("-b", "state_fixture", "explain", "--details", env=env)
+                    detail = self.target_detail(output, target)
+                    self.assertIn(state.lower(), detail)
+                    if state in ("UNKNOWN", "COMPLETED"):
+                        self.assertIn("Current: reusable", output)
+                        self.assertIn("omitted by reuse", detail)
+                        self.assertEqual(self.submissions(output), set())
+                    else:
+                        self.assertIn("Current: not reusable", output)
+                        self.assertIn("left alone" if state in ("RUNNING", "SUBMITTED") else "retry", detail)
+                        self.assertIn("prevents Reuse", output)
+                        self.assertIn("text__finish", self.submissions(output))
+                    self.assertEqual(self.submissions(output), self.submissions(
+                        self.cli("-b", "state_fixture", "run", "--dry-run", env=env)))
+                    self.assertEqual(self.evidence(), before)
 
     def test_active_obsolete_attempt_has_no_submissions_but_is_not_reusable(self):
         self.run_complete()
@@ -336,16 +341,64 @@ class ExplainCliTests(test_reuse.LocalBackendTestCase):
         self.assertIn("Current: not reusable", output)
         self.assertIn("running", output)
         self.assertIn("no new submissions", output)
+        self.assertIn("Recovery:", output)
+        self.assertIn("text__gwflow_complete", output)
+        self.assertIn("later ordinary invocation", output)
+        self.assertIn("gwf run", output)
         self.assertEqual(self.submissions(output), set())
+        self.assertEqual(self.submissions(output), self.submissions(
+            self.cli("-b", "state_fixture", "run", "--dry-run", env=env)))
+        self.assertEqual(self.evidence(), before)
+
+        # An ordinary invocation persists the replacement without resubmitting
+        # active jobs. With hashes disabled, their attempt is now unidentifiable.
+        self.assertEqual(self.submissions(
+            self.cli("-b", "state_fixture", "run", env=env), "Submitted target"), set())
+        pending = self.evidence()
+        self.assertNotEqual(pending, before)
+        output = self.cli("-b", "state_fixture", "explain", "--details", env=env)
+        self.assertIn("Current: not reusable", output)
+        self.assertEqual(self.submissions(output), set())
+        self.assertRegex(output, r"Recovery:.*text__gwflow_complete.*later ordinary invocation.*may be needed")
+        self.assertEqual(self.evidence(), pending)
+        # The old attempt's existing record cannot satisfy the replacement
+        # after the backend no longer reports active jobs.
+        output = self.cli("-b", "state_fixture", "explain", env=self.state_backend({}))
+        self.assertIn("completion-only repair", output)
+        self.assertEqual(self.submissions(output), {"text__gwflow_complete"})
+        self.assertNotIn("Recovery:", output)
+        self.assertEqual(self.evidence(), pending)
+
+    def test_active_changed_command_needs_later_run_even_with_new_completion_job(self):
+        self.configure(use_spec_hashes=True)
+        self.run_complete()
+        self.configure_workflow(command_suffix="changed")
+        env = self.state_backend({"text__prepare": "RUNNING", "text__finish": "COMPLETED",
+                                  "text__gwflow_complete": "COMPLETED"})
+        before = self.evidence()
+        output = self.cli("-b", "state_fixture", "explain", "--details", env=env)
+        self.assertIn("left alone", self.target_detail(output, "text__prepare"))
+        self.assertRegex(output, r"Recovery:.*text__prepare.*command")
+        self.assertIn("later ordinary invocation", output)
+        self.assertIn("gwf run", output)
+        self.assertEqual(self.submissions(output), {"text__finish", "text__gwflow_complete"})
+        self.assertEqual(self.submissions(output), self.submissions(
+            self.cli("-b", "state_fixture", "run", "--dry-run", env=env)))
         self.assertEqual(self.evidence(), before)
 
     def test_backend_query_failure_does_not_display_a_plan(self):
-        env = self.state_backend({"text__finish": "ERROR"})
+        self.run_complete()
+        (self.work / "middle.txt").unlink()
         before = self.evidence()
-        output = self.cli("-b", "state_fixture", "explain", env=env, success=False)
-        self.assertIn("Backend query failed", output)
-        self.assertNotIn("Ordinary whole-workflow plan", output)
-        self.assertEqual(self.evidence(), before)
+        for target in ("text__finish", "text__gwflow_complete"):
+            for options in ((), ("--details",)):
+                with self.subTest(target=target, options=options):
+                    env = self.state_backend({target: "ERROR"})
+                    output = self.cli("-b", "state_fixture", "explain", *options, env=env, success=False)
+                    self.assertIn("Backend query failed", output)
+                    self.assertNotIn("Ordinary whole-workflow plan", output)
+                    self.assertNotIn("Would submit", output)
+                    self.assertEqual(self.evidence(), before)
 
     def test_command_changes_follow_selected_tracking_configuration(self):
         for tracking in (False, True):

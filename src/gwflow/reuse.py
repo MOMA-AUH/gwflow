@@ -116,6 +116,7 @@ class _Plan:
     target_reasons: dict = field(default_factory=dict)
     evidence: dict = field(default_factory=dict)
     upstream_chains: dict = field(default_factory=dict)
+    recovery: dict[str, list[str]] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -421,11 +422,33 @@ def plan_workflow(workflow, targets, ctx, *, force=False, status_projection=Fals
                 reasons[name] = "upstream work or a replaced completion attempt prevents reuse"
             expanded.update(affected)
 
+        recovery: dict[str, list[str]] = {name: [] for name in tasks}
         for name, (_, inner, completion) in tasks.items():
+            finalizer = f"{name}__gwflow_complete"
             for target in [*inner, completion.target(inner, ctx.working_dir)]:
                 state = status(target)
                 if details and state not in (BackendStatus.COMPLETED, BackendStatus.UNKNOWN):
                     evidence[name].append(f"target {target.name}: backend {state.name.lower()} prevents Reuse")
+                if (state not in (BackendStatus.SUBMITTED, BackendStatus.RUNNING)
+                        or target.name in submissions):
+                    continue
+                required = "is needed"
+                if target.name == finalizer and completion.replaced:
+                    cause = f"active Completion job {finalizer} belongs to an earlier attempt"
+                elif hashes.has_changed(target) is not None:
+                    cause = f"active target {target.name} has a changed or unrecorded command"
+                elif target.name == finalizer and completion.commands is None and not completion.is_complete():
+                    # Once a replacement is persisted, disabled command tracking
+                    # cannot identify whether the active job owns that attempt.
+                    cause = f"active Completion job {finalizer} has no matching Completion record yet"
+                    required = "may be needed"
+                else:
+                    continue
+                recovery[name].append(
+                    f"{cause} and is left alone; "
+                    f"after active jobs settle, a later ordinary invocation of `gwf run` {required} "
+                    "to recover the current work and Completion evidence"
+                )
         target_reasons = {
             target.name: _target_reason(target, planned, states, fs, hashes, status(target))
             for target in graph.targets.values() if target.name not in owners
@@ -442,4 +465,5 @@ def plan_workflow(workflow, targets, ctx, *, force=False, status_projection=Fals
         submissions=submissions, reasons=reasons, observed=observed,
         target_reasons=target_reasons, evidence=evidence,
         upstream_chains=upstream_chains,
+        recovery=recovery,
     )

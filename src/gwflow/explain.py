@@ -58,6 +58,7 @@ def _overview(plan, *, details=False):
             f"  Planned: {action}.",
         ])
         lines.extend(f"    Would submit {target}" for target in pending)
+        lines.extend(f"  Recovery: {note}." for note in plan.recovery[name])
         if details:
             lines.append("  Direct evidence:")
             lines.extend(f"    {reason}." for reason in plan.evidence[name])
