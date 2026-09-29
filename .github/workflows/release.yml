@@ -11,10 +11,10 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - name: Check release tag and branch
@@ -42,7 +42,7 @@ jobs:
           conda list -p "$RUNNER_TEMP/gwflow-release-test" --json | python -c 'import json, sys; package = next(p for p in json.load(sys.stdin) if p["name"] == "gwflow"); assert package["base_url"].startswith("file://"), package'
           conda run -p "$RUNNER_TEMP/gwflow-release-test" python -m unittest discover -s tests -v
           conda run -p "$RUNNER_TEMP/gwflow-release-test" python tests/release_smoke.py
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: gwflow-conda-release
           path: ${{ runner.temp }}/conda-dist/noarch/gwflow-*.conda
@@ -52,8 +52,8 @@ jobs:
     needs: verify
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
         with:
           name: gwflow-conda-release
           path: conda-dist
