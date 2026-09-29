@@ -126,7 +126,9 @@ class _UpstreamPath:
     ordinary_tail: str = ""
 
 
-def _target_reason(target, graph, states, fs, hashes, status):
+def _target_reason(target, graph, states, fs, hashes, status, *, force=False):
+    if force:
+        return "forced whole-workflow run"
     if status in (BackendStatus.SUBMITTED, BackendStatus.RUNNING):
         return "already active; ordinary run leaves it alone"
     if status in (BackendStatus.FAILED, BackendStatus.CANCELLED):
@@ -450,7 +452,7 @@ def plan_workflow(workflow, targets, ctx, *, force=False, status_projection=Fals
                     "to recover the current work and Completion evidence"
                 )
         target_reasons = {
-            target.name: _target_reason(target, planned, states, fs, hashes, status(target))
+            target.name: _target_reason(target, planned, states, fs, hashes, status(target), force=force)
             for target in graph.targets.values() if target.name not in owners
         }
 

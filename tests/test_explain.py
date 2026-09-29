@@ -29,6 +29,86 @@ class ExplainCliTests(test_reuse.LocalBackendTestCase):
                 return " ".join(block.lower().split())
         self.fail(f"No state and treatment for {name}: {output}")
 
+    def test_force_previews_whole_workflow_and_matches_execution(self):
+        self.run_complete()
+        (self.work / "middle.txt").unlink()
+        before = self.evidence()
+        output = self.cli("explain", "--force", "--details")
+        expected = {"text__prepare", "text__finish", "text__gwflow_complete"}
+        self.assertIn("Forced whole-workflow plan", output)
+        self.assertIn("Reuse bypassed", output)
+        self.assertEqual(self.submissions(output), expected)
+        self.assertEqual(self.evidence(), before)
+        self.assertFalse((self.work / "middle.txt").exists())
+        self.assertEqual(self.submissions(self.cli("run", "--force", "--dry-run")), expected)
+        self.assertEqual(self.submissions(self.run_force_complete(), "Submitted target"), expected)
+        self.assertEqual(self.trace(), {"prepare": 2, "finish": 2})
+
+    def run_force_complete(self):
+        output = self.cli("run", "--force")
+        self.finish()
+        return output
+
+    def test_force_identifies_active_resubmission_without_writing_evidence(self):
+        self.run_complete()
+        with (self.work / "workflow.py").open("a") as stream:
+            stream.write("gwf.target('plain', inputs=[], outputs=['plain.txt']) << 'touch plain.txt'\n")
+        env = self.state_backend({"text__prepare": "RUNNING",
+                                  "text__gwflow_complete": "SUBMITTED",
+                                  "plain": "RUNNING"})
+        before = self.evidence()
+        output = self.cli("-b", "state_fixture", "explain", "--force", "--details", env=env)
+        self.assertIn("forced resubmission", self.target_detail(output, "text__prepare"))
+        self.assertIn("forced resubmission", self.target_detail(output, "text__gwflow_complete"))
+        self.assertRegex(output, r"(?s)Ordinary target plain.*?Planned: forced resubmission")
+        self.assertEqual(self.submissions(output), self.submissions(
+            self.cli("-b", "state_fixture", "run", "--force", "--dry-run", env=env)))
+        self.assertEqual(self.evidence(), before)
+
+    def test_task_filter_changes_display_only_after_whole_workflow_planning(self):
+        with (self.work / "workflow.py").open("a") as stream:
+            stream.write(
+                "from gwflow import Task\n"
+                "other = Task(inputs=[], outputs=['other.txt'])\n"
+                "other.target('make', inputs=[], outputs=['other.txt']) << 'touch other.txt'\n"
+                "gwf.task_from_template('other', other)\n"
+                "gwf.target('plain', inputs=[], outputs=['plain.txt']) << 'touch plain.txt'\n"
+            )
+        before = self.evidence()
+        for options in ((), ("--force",)):
+            with self.subTest(options=options):
+                all_output = self.cli("explain", *options, "--details")
+                selected = self.cli("explain", *options, "--details", "text")
+                self.assertIn("Task text", selected)
+                self.assertNotIn("Task other", selected)
+                self.assertNotIn("Ordinary target plain", selected)
+                self.assertEqual(self.submissions(selected),
+                                 self.submissions(all_output) &
+                                 {"text__prepare", "text__finish", "text__gwflow_complete"})
+                if options:
+                    self.assertIn("Forced whole-workflow plan", selected)
+                    self.assertIn("displaying Task text", selected)
+                self.assertEqual(self.evidence(), before)
+                unknown = self.cli("explain", *options, "typo", success=False)
+                self.assertIn("Unknown Task name", unknown)
+                self.assertEqual(self.evidence(), before)
+        env = self.state_backend({"other__make": "ERROR"})
+        output = self.cli("-b", "state_fixture", "explain", "--force", "text",
+                          env=env, success=False)
+        self.assertIn("Backend query failed for other__make", output)
+        self.assertNotIn("Forced whole-workflow plan", output)
+        self.assertEqual(self.evidence(), before)
+        (self.work / "workflow.py").write_text(
+            (self.work / "workflow.py").read_text() +
+            "bad = Task(inputs=['missing.txt'], outputs=['bad.txt'])\n"
+            "bad.target('make', inputs=[], outputs=['bad.txt']) << 'touch bad.txt'\n"
+            "gwf.task_from_template('bad', bad)\n"
+        )
+        output = self.cli("explain", "--force", "text", success=False)
+        self.assertIn("missing.txt", output)
+        self.assertNotIn("Forced whole-workflow plan", output)
+        self.assertEqual(self.evidence(), before)
+
     def test_details_show_every_target_state_and_planned_treatment(self):
         output = self.cli("explain", "--details")
         for name in ("text__prepare", "text__finish", "text__gwflow_complete"):
