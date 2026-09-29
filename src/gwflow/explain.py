@@ -31,7 +31,8 @@ def _target_details(plan, names, reused, completion_name):
 def _overview(plan, *, details=False):
     lines = ["Ordinary whole-workflow plan"]
     if not details:
-        lines.append("Summary reasons; use --details for all observable direct causes and target treatment.")
+        lines.append("Summary reasons; additional causes may apply. Use --details for evidence, "
+                     "upstream chains, and target treatment.")
     owned = set()
     for name, (_, inner, _) in plan.tasks.items():
         completion_name = _bookkeeping_name(name)
@@ -60,6 +61,9 @@ def _overview(plan, *, details=False):
         if details:
             lines.append("  Direct evidence:")
             lines.extend(f"    {reason}." for reason in plan.evidence[name])
+            if plan.upstream_chains[name]:
+                lines.append("  Upstream cause chains:")
+                lines.extend(f"    {chain}." for chain in plan.upstream_chains[name])
             lines.extend(_target_details(
                 plan, [*(target.name for target in inner), completion_name],
                 name in plan.reused, completion_name,

@@ -3,6 +3,7 @@
 from collections import Counter
 import json
 import os
+import re
 import shutil
 import unittest
 
@@ -10,6 +11,14 @@ import test_reuse
 
 
 class TaskDependencyCliTests(test_reuse.LocalBackendTestCase):
+    def submissions(self, output, prefix="Would submit"):
+        return set(re.findall(rf"{prefix} (\w+)", output))
+
+    def task_block(self, output, name):
+        return output.split(f"Task {name}\n", 1)[1].split("\nTask ", 1)[0].split(
+            "\nOrdinary target ", 1,
+        )[0]
+
     def configure_workflow(self, *, extend=False, gated=False, suffix="", report=False):
         shutil.copy(test_reuse.FIXTURES / "dependent_tasks.py", self.work)
         (self.work / "definition.json").write_text(json.dumps({
@@ -113,6 +122,106 @@ class TaskDependencyCliTests(test_reuse.LocalBackendTestCase):
         }))
         self.clean_intermediates()
         self.assertNotIn("Submitted target", self.cli("run"))
+
+    def test_explain_traces_independent_upstream_work_and_changed_attempts(self):
+        self.configure_workflow(report=True)
+        self.configure(use_spec_hashes=True)
+        self.run_complete()
+        before = self.trace()
+        self.configure_workflow(report=True, suffix="changed")
+        (self.work / "Mapping_T1.txt").unlink()
+
+        explanation = self.cli("explain", "--details")
+        somatic = self.task_block(explanation, "Somatic_N_T1")
+        report = self.task_block(explanation, "report")
+        self.assertIn("Mapping_N__tail", somatic)
+        self.assertIn("Mapping_T1__retain", somatic)
+        self.assertIn("changed Completion attempt", somatic)
+        self.assertIn("planned upstream work", somatic)
+        self.assertRegex(report, r"Mapping_N__tail[^\n]*-> Task Somatic_N_T1[^\n]*-> Task report")
+        self.assertIn("additional causes", self.cli("explain"))
+        expected = self.submissions(explanation)
+        self.assertEqual(expected, self.submissions(self.cli("run", "--dry-run")))
+        self.assertEqual(expected, self.submissions(self.run_complete(), "Submitted target"))
+        self.assertEqual(self.trace()["Mapping_T1:prepare"], before["Mapping_T1:prepare"])
+
+    def test_explain_traces_standalone_upstream_target(self):
+        self.configure_workflow(report=True)
+        with (self.work / "workflow.py").open("a") as stream:
+            stream.write("gwf.target('seed', inputs=['extra.txt'], outputs=['input.txt']) << "
+                         "'echo seed >> trace.txt; cp extra.txt input.txt'\n")
+        (self.work / "input.txt").unlink()
+        self.run_complete()
+        stamp = (self.work / "extra.txt").stat().st_mtime_ns - 10_000_000_000
+        os.utime(self.work / "input.txt", ns=(stamp, stamp))
+
+        explanation = self.cli("explain", "--details")
+        report = self.task_block(explanation, "report")
+        self.assertIn("Ordinary target seed", explanation)
+        self.assertRegex(report, r"Ordinary target seed[^\n]*-> Task Mapping_N[^\n]*"
+                                 r"-> Task Somatic_N_T1[^\n]*-> Task report")
+        self.assertEqual(self.submissions(explanation), self.submissions(self.cli("run", "--dry-run")))
+        self.assertEqual(self.submissions(explanation), self.submissions(self.run_complete(), "Submitted target"))
+
+    def test_explain_traces_standalone_target_chain(self):
+        self.configure_workflow(report=True)
+        with (self.work / "workflow.py").open("a") as stream:
+            stream.write(
+                "gwf.target('preseed', inputs=['extra.txt'], outputs=['prepared.txt']) << "
+                "'cp extra.txt prepared.txt'\n"
+                "gwf.target('seed', inputs=['prepared.txt'], outputs=['input.txt']) << "
+                "'cp prepared.txt input.txt'\n"
+            )
+        (self.work / "input.txt").unlink()
+        self.run_complete()
+        (self.work / "extra.txt").write_text("changed\n")
+        stamp = (self.work / "input.txt").stat().st_mtime_ns + 10_000_000_000
+        os.utime(self.work / "extra.txt", ns=(stamp, stamp))
+
+        explanation = self.cli("explain", "--details")
+        report = self.task_block(explanation, "report")
+        self.assertRegex(report, r"Ordinary target preseed[^\n]*-> Ordinary target seed[^\n]*"
+                                 r"-> Task Mapping_N[^\n]*-> Task Somatic_N_T1[^\n]*-> Task report")
+        self.assertEqual(self.submissions(explanation), self.submissions(self.cli("run", "--dry-run")))
+        self.assertEqual(self.submissions(explanation), self.submissions(self.run_complete(), "Submitted target"))
+
+    def test_explain_traces_task_through_standalone_target(self):
+        with (self.work / "workflow.py").open("a") as stream:
+            stream.write(
+                "from gwflow import Task\n"
+                "gwf.target('relay', inputs=['Mapping_N.txt'], outputs=['relay.txt']) << "
+                "'cp Mapping_N.txt relay.txt'\n"
+                "consumer = Task(inputs=['relay.txt'], outputs=['consumer.txt'])\n"
+                "consumer.target('make', inputs=['relay.txt'], outputs=['consumer.txt']) "
+                "<< 'cp relay.txt consumer.txt'\n"
+                "gwf.task_from_template('consumer', consumer)\n"
+            )
+        self.run_complete()
+        (self.work / "Mapping_N.txt").unlink()
+
+        explanation = self.cli("explain", "--details")
+        consumer = self.task_block(explanation, "consumer")
+        self.assertRegex(consumer, r"Task Mapping_N target Mapping_N__retain[^\n]*"
+                                   r"-> Ordinary target relay[^\n]*-> Task consumer")
+        self.assertEqual(self.submissions(explanation), self.submissions(self.cli("run", "--dry-run")))
+        self.assertEqual(self.submissions(explanation), self.submissions(self.run_complete(), "Submitted target"))
+
+    def test_explain_traces_completion_only_repair(self):
+        self.configure_workflow(report=True)
+        self.run_complete()
+        before = self.trace()
+        records = list((self.work / ".gwf" / "gwflow" / "Mapping_N").glob("*.json"))
+        next(path for path in records if path.name != "expected.json").write_text("invalid record")
+
+        explanation = self.cli("explain", "--details")
+        mapping = self.task_block(explanation, "Mapping_N")
+        somatic = self.task_block(explanation, "Somatic_N_T1")
+        self.assertIn("completion-only repair", mapping)
+        self.assertNotIn("Mapping_N__tail (planned upstream work", somatic)
+        self.assertIn("Mapping_N__gwflow_complete (changed Completion attempt)", somatic)
+        self.assertEqual(self.submissions(explanation), self.submissions(self.cli("run", "--dry-run")))
+        self.assertEqual(self.submissions(explanation), self.submissions(self.run_complete(), "Submitted target"))
+        self.assertEqual(self.trace()["Mapping_N:tail"], before["Mapping_N:tail"])
 
     def test_missing_upstream_output_invalidates_fresh_consumers_without_hashes(self):
         self.configure_workflow(report=True)
