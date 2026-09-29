@@ -3,6 +3,10 @@
 import os
 import re
 
+from gwf import Target
+from gwf.conf import FileConfig
+from gwf.core import get_spec_hashes
+
 import test_reuse
 
 
@@ -18,6 +22,47 @@ class ExplainCliTests(test_reuse.LocalBackendTestCase):
     def submissions(self, output, prefix="Would submit"):
         return set(re.findall(rf"{prefix} (\w+)", output))
 
+    def target_detail(self, output, name):
+        return next(line.lower() for line in output.splitlines()
+                    if name in line and "Current:" in line and "Planned:" in line)
+
+    def test_details_show_every_target_state_and_planned_treatment(self):
+        output = self.cli("explain", "--details")
+        for name in ("text__prepare", "text__finish", "text__gwflow_complete"):
+            detail = self.target_detail(output, name)
+            self.assertIn("unknown", detail)
+            self.assertIn("submit", detail)
+        self.assertIn("bookkeeping Completion job", output)
+        self.assertEqual(self.submissions(output), self.submissions(self.cli("run", "--dry-run")))
+
+        self.run_complete()
+        (self.work / "result.txt").unlink()
+        output = self.cli("explain", "--details")
+        self.assertIn("up to date", self.target_detail(output, "text__prepare"))
+        self.assertIn("submit", self.target_detail(output, "text__finish"))
+        self.run_complete()
+        (self.work / "middle.txt").unlink()
+        before = self.evidence()
+        output = self.cli("explain", "--details")
+        for name in ("text__prepare", "text__finish", "text__gwflow_complete"):
+            detail = self.target_detail(output, name)
+            self.assertIn("completed", detail)
+            self.assertIn("omitted by reuse", detail)
+        self.assertEqual(self.submissions(output), set())
+        self.assertEqual(self.evidence(), before)
+
+        for state in ("FAILED", "CANCELLED", "RUNNING", "SUBMITTED"):
+            with self.subTest(state=state):
+                env = self.state_backend({"text__prepare": state, "text__finish": "RUNNING"})
+                output = self.cli("-b", "state_fixture", "explain", "--details", env=env)
+                detail = self.target_detail(output, "text__prepare")
+                self.assertIn(state.lower(), detail)
+                self.assertIn("retry" if state in ("FAILED", "CANCELLED") else "left alone", detail)
+                self.assertIn("left alone", self.target_detail(output, "text__finish"))
+                self.assertEqual(self.submissions(output), self.submissions(
+                    self.cli("-b", "state_fixture", "run", "--dry-run", env=env)))
+                self.assertEqual(self.evidence(), before)
+
     def test_initial_plan_agrees_with_dry_run_and_run_without_writing_evidence(self):
         before = self.evidence()
         output = self.cli("explain")
@@ -31,6 +76,158 @@ class ExplainCliTests(test_reuse.LocalBackendTestCase):
         self.assertFalse((self.work / "trace.txt").exists())
         self.assertEqual(self.submissions(self.cli("run", "--dry-run")), expected)
         self.assertEqual(self.submissions(self.run_complete(), "Submitted target"), expected)
+
+    def test_details_report_independent_direct_causes_together(self):
+        self.configure(use_spec_hashes=True)
+        self.configure_workflow(side=True, retain_side=True)
+        self.run_complete()
+        self.configure_workflow(side=True, retain_side=True, boundary_extra=True,
+                                inner_extra=True, extra_output=True, command_suffix="changed")
+        with (self.work / "workflow.py").open("a") as stream:
+            stream.write("gwf.target('seed', inputs=[], outputs=['extra.txt']) << 'touch extra.txt'\n")
+        (self.work / "extra.txt").unlink()
+        (self.work / "result.txt").unlink()
+        stamp = (self.work / "input.txt").stat().st_mtime_ns - 2_000_000_000
+        os.utime(self.work / "side.txt", ns=(stamp, stamp))
+        for path in (self.work / ".gwf" / "gwflow").rglob("*.json"):
+            if path.name != "expected.json":
+                path.write_text("invalid record")
+        env = self.state_backend({"text__prepare": "FAILED", "text__finish": "RUNNING",
+                                  "text__side": "SUBMITTED", "text__gwflow_complete": "CANCELLED"})
+        before = self.evidence()
+        output = self.cli("-b", "state_fixture", "explain", "--details", env=env)
+        for evidence in ("Completion record is unusable", "definition mismatch",
+                         "external input is missing", "retained output is missing",
+                         "retained output is stale", "saved Completion command hash",
+                         "tracked target command", "prevents Reuse"):
+            self.assertIn(evidence, output)
+        for path in ("extra.txt", "extra-output.txt", "result.txt", "side.txt", "input.txt"):
+            self.assertIn(str(self.work / path), output)
+        for target in ("text__prepare", "text__finish", "text__side", "text__gwflow_complete"):
+            self.assertTrue(any(target in line and "prevents Reuse" in line
+                                for line in output.splitlines()), output)
+        self.assertEqual(self.submissions(output), self.submissions(
+            self.cli("-b", "state_fixture", "run", "--dry-run", env=env)))
+        concise = self.cli("-b", "state_fixture", "explain", env=env)
+        self.assertIn("--details", concise)
+        self.assertNotIn("Direct evidence:", concise)
+        self.assertEqual(self.evidence(), before)
+
+    def test_details_respect_tracking_modes_and_equal_boundary_mtimes(self):
+        for tracking in (False, True):
+            with self.subTest(tracking=tracking):
+                self.configure(use_spec_hashes=tracking)
+                self.configure_workflow(command_suffix="before")
+                self.run_complete()
+                (self.work / "middle.txt").unlink()
+                stamp = (self.work / "result.txt").stat().st_mtime_ns
+                (self.work / "input.txt").write_text("changed content\n")
+                os.utime(self.work / "input.txt", ns=(stamp, stamp))
+                env = self.state_backend({})
+                before = self.evidence()
+                output = self.cli("-b", "state_fixture", "explain", "--details", env=env)
+                self.assertIn("Current: reusable", output)
+                self.assertIn("boundary files are up to date", output)
+                self.assertIn("command tracking is " + ("enabled" if tracking else "disabled"), output)
+                self.assertIn("unknown", self.target_detail(output, "text__prepare"))
+                self.assertEqual(self.submissions(output), set())
+
+                self.configure_workflow(command_suffix="after")
+                output = self.cli("-b", "state_fixture", "explain", "--details", env=env)
+                if tracking:
+                    self.assertIn("text__prepare: saved Completion command hash differs", output)
+                    self.assertIn("text__prepare: tracked target command changed", output)
+                    self.assertIn("old command text cannot be recovered", output)
+                else:
+                    self.assertIn("Current: reusable", output)
+                    self.assertNotIn("command hash differs", output)
+                    self.assertNotIn("tracked target command changed", output)
+                self.assertEqual(self.submissions(output), self.submissions(
+                    self.cli("-b", "state_fixture", "run", "--dry-run", env=env)))
+                self.assertEqual(self.evidence(), before)
+                self.run_complete()
+
+    def test_details_explain_a_task_without_retained_outputs(self):
+        (self.work / "workflow.py").write_text(
+            "from gwflow import Task, Workflow\n"
+            "gwf = Workflow()\n"
+            "task = Task(inputs=[], outputs=[])\n"
+            "task.target('make', inputs=[], outputs=['internal.txt']) << 'touch internal.txt'\n"
+            "gwf.task_from_template('scratch', task)\n"
+        )
+        self.run_complete()
+        output = self.cli("explain", "--details")
+        self.assertIn("Current: not reusable", output)
+        self.assertIn("no retained outputs", output)
+        self.assertNotIn("boundary files are up to date", output)
+        self.assertEqual(self.submissions(output), self.submissions(self.cli("run", "--dry-run")))
+
+    def test_details_distinguish_missing_and_unusable_completion_evidence(self):
+        self.run_complete()
+        records = list((self.work / ".gwf" / "gwflow").rglob("*.json"))
+        for path in records:
+            saved = path.read_bytes()
+            for damage in ("missing", "unusable"):
+                with self.subTest(path=path.name, damage=damage):
+                    if damage == "missing":
+                        path.unlink()
+                    else:
+                        path.write_text("invalid record")
+                    before = self.evidence()
+                    output = self.cli("explain", "--details")
+                    kind = "evidence" if path.name == "expected.json" else "record"
+                    self.assertIn(f"Completion {kind} is {damage}", output)
+                    self.assertIn(str(path), output)
+                    if kind == "evidence":
+                        self.assertIn("saved declarations and command hashes are unavailable", output)
+                    self.assertIn("completion-only repair", output)
+                    self.assertEqual(self.submissions(output), {"text__gwflow_complete"})
+                    self.assertEqual(self.evidence(), before)
+                    self.assertEqual(self.submissions(output), self.submissions(self.cli("run", "--dry-run")))
+                path.write_bytes(saved)
+
+    def test_details_name_changed_declarations_and_target_membership(self):
+        self.run_complete()
+        self.configure_workflow(boundary_extra=True, retain_middle=True,
+                                inner_extra=True, extra_output=True, side=True,
+                                prepare_name="renamed")
+        before = self.evidence()
+        output = self.cli("explain", "--details")
+        self.assertIn("definition mismatch", output)
+        self.assertIn("text__prepare removed", output)
+        self.assertIn("text__renamed added", output)
+        self.assertIn("text__side added", output)
+        self.assertTrue(any("Task text inputs" in line and str(self.work / "extra.txt") in line
+                            for line in output.splitlines()), output)
+        self.assertTrue(any("Task text outputs" in line and str(self.work / "middle.txt") in line
+                            for line in output.splitlines()), output)
+        self.assertEqual(self.evidence(), before)
+        self.assertEqual(self.submissions(output), self.submissions(self.cli("run", "--dry-run")))
+        self.run_complete()
+        self.configure_workflow(boundary_extra=True, retain_middle=True,
+                                inner_extra=False, extra_output=False, side=True,
+                                prepare_name="renamed")
+        output = self.cli("explain", "--details")
+        for field, path in (("inputs", "extra.txt"), ("outputs", "extra-output.txt")):
+            self.assertTrue(any(f"text__renamed {field}" in line and str(self.work / path) in line
+                                for line in output.splitlines()), output)
+
+    def test_details_check_gwf_hashes_even_when_completion_hashes_match(self):
+        self.configure(use_spec_hashes=True)
+        self.run_complete()
+        (self.work / "middle.txt").unlink()
+        with get_spec_hashes(working_dir=str(self.work),
+                             config=FileConfig.load(self.work / ".gwfconf.json")) as hashes:
+            hashes.invalidate(Target("text__prepare", [], [], {}))
+        before = self.evidence()
+        output = self.cli("explain", "--details")
+        self.assertIn("Completion evidence matches", output)
+        self.assertIn("text__prepare: tracked target command changed or has no saved hash", output)
+        self.assertNotIn("saved Completion command hash differs", output)
+        self.assertEqual(self.evidence(), before)
+        self.assertEqual(self.submissions(output), {"text__prepare", "text__finish", "text__gwflow_complete"})
+        self.assertEqual(self.submissions(output), self.submissions(self.cli("run", "--dry-run")))
+        self.assertEqual(self.submissions(output), self.submissions(self.run_complete(), "Submitted target"))
 
     def test_mixed_workflow_identifies_ordinary_targets_and_specific_reasons(self):
         with (self.work / "workflow.py").open("a") as stream:

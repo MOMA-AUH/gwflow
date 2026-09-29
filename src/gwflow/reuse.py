@@ -114,6 +114,7 @@ class _Plan:
     reasons: dict = field(default_factory=dict)
     observed: dict = field(default_factory=dict)
     target_reasons: dict = field(default_factory=dict)
+    evidence: dict = field(default_factory=dict)
 
 
 def _target_reason(target, graph, states, fs, hashes, status):
@@ -134,7 +135,37 @@ def _target_reason(target, graph, states, fs, hashes, status):
     return "files and tracked command are up to date"
 
 
-def plan_workflow(workflow, targets, ctx, *, force=False, status_projection=False):
+def _reuse_evidence(boundary, inner, completion, fs, hashes):
+    reasons = completion.evidence()
+    boundary_reasons = []
+    inputs = sorted(set(boundary.flattened_inputs()))
+    outputs = sorted(set(boundary.flattened_outputs()))
+    if not boundary.outputs:
+        boundary_reasons.append("Task has no retained outputs; gwf boundary freshness cannot allow Reuse")
+    for path in inputs:
+        if not fs.exists(path):
+            boundary_reasons.append(f"external input is missing and must be produced upstream: {path}")
+    for path in outputs:
+        if not fs.exists(path):
+            boundary_reasons.append(f"retained output is missing: {path}")
+        else:
+            newer = [source for source in inputs
+                     if fs.exists(source) and fs.changed_at(source) > fs.changed_at(path)]
+            if newer:
+                boundary_reasons.append(f"retained output is stale: {path}; newer external inputs: {', '.join(newer)}")
+    reasons.extend(boundary_reasons or ["boundary files are up to date under gwf mtime rules"])
+    if completion.commands is None:
+        reasons.append("command tracking is disabled; command changes do not prevent Reuse")
+    else:
+        reasons.append("command tracking is enabled; checking saved Completion and gwf target command hashes")
+        for target in inner:
+            if hashes.has_changed(target) is not None:
+                reasons.append(f"target {target.name}: tracked target command changed or has no saved hash; "
+                               "old command text cannot be recovered from a hash")
+    return reasons
+
+
+def plan_workflow(workflow, targets, ctx, *, force=False, status_projection=False, details=False):
     """Plan while the caller holds the submission guard; never persist attempts."""
     inspecting = status_projection
     fs = CachedFilesystem()
@@ -196,6 +227,7 @@ def plan_workflow(workflow, targets, ctx, *, force=False, status_projection=Fals
     reusable = set()
     reasons = {}
     observed = {}
+    evidence = {}
     with create_backend(
         ctx.backend, working_dir=ctx.working_dir, config=ctx.config
     ) as backend:
@@ -209,6 +241,8 @@ def plan_workflow(workflow, targets, ctx, *, force=False, status_projection=Fals
             return observed[target.name]
 
         for name, (boundary, inner, completion) in tasks.items():
+            if details:
+                evidence[name] = _reuse_evidence(boundary, inner, completion, fs, hashes)
             if force:
                 reasons[name] = "forced run"
             elif not completion.is_complete():
@@ -296,9 +330,11 @@ def plan_workflow(workflow, targets, ctx, *, force=False, status_projection=Fals
                 reasons[name] = "upstream work or a replaced completion attempt prevents reuse"
             expanded.update(affected)
 
-        for _, inner, completion in tasks.values():
+        for name, (_, inner, completion) in tasks.items():
             for target in [*inner, completion.target(inner, ctx.working_dir)]:
-                status(target)
+                state = status(target)
+                if details and state not in (BackendStatus.COMPLETED, BackendStatus.UNKNOWN):
+                    evidence[name].append(f"target {target.name}: backend {state.name.lower()} prevents Reuse")
         target_reasons = {
             target.name: _target_reason(target, planned, states, fs, hashes, status(target))
             for target in graph.targets.values() if target.name not in owners
@@ -309,5 +345,5 @@ def plan_workflow(workflow, targets, ctx, *, force=False, status_projection=Fals
     return _Plan(
         targets=list(execution.values()), tasks=tasks, reused=set(tasks) - expanded,
         submissions=submissions, reasons=reasons, observed=observed,
-        target_reasons=target_reasons,
+        target_reasons=target_reasons, evidence=evidence,
     )
