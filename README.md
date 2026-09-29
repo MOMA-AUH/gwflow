@@ -134,10 +134,7 @@ Use whole-workflow `gwf run`: target selectors, `--group`, and `--no-deps` are
 unsupported.
 Submit a given workflow from one physical frontend node. Concurrent `gwf run`
 commands for that workflow are serialized on that node; compute jobs may run
-on other nodes. See the [submission guard details](docs/reuse-and-operations.md#planning-previews-and-retries).
-
-For the full rules on task boundaries, completion records, retries, and
-planning, see the [reuse and operations guide](docs/reuse-and-operations.md).
+on other nodes.
 
 For an example with installable task packages and a three-task dependency graph,
 see the [packaged transactions workflow](examples/packaged-transactions/README.md).
