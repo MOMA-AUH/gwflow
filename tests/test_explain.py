@@ -23,8 +23,11 @@ class ExplainCliTests(test_reuse.LocalBackendTestCase):
         return set(re.findall(rf"{prefix} (\w+)", output))
 
     def target_detail(self, output, name):
-        return next(line.lower() for line in output.splitlines()
-                    if name in line and "Current:" in line and "Planned:" in line)
+        for block in re.split(r"\b(?:target|Completion job)\s+", output):
+            if (re.match(rf"{re.escape(name)}\b", block)
+                    and "Current:" in block and "Planned:" in block):
+                return " ".join(block.lower().split())
+        self.fail(f"No state and treatment for {name}: {output}")
 
     def test_details_show_every_target_state_and_planned_treatment(self):
         output = self.cli("explain", "--details")
@@ -103,9 +106,9 @@ class ExplainCliTests(test_reuse.LocalBackendTestCase):
             self.assertIn(evidence, output)
         for path in ("extra.txt", "extra-output.txt", "result.txt", "side.txt", "input.txt"):
             self.assertIn(str(self.work / path), output)
-        for target in ("text__prepare", "text__finish", "text__side", "text__gwflow_complete"):
-            self.assertTrue(any(target in line and "prevents Reuse" in line
-                                for line in output.splitlines()), output)
+        for target, state in (("text__prepare", "failed"), ("text__finish", "running"),
+                              ("text__side", "submitted"), ("text__gwflow_complete", "cancelled")):
+            self.assertRegex(output, rf"{target}\W+backend\s+{state}\s+prevents\s+Reuse")
         self.assertEqual(self.submissions(output), self.submissions(
             self.cli("-b", "state_fixture", "run", "--dry-run", env=env)))
         concise = self.cli("-b", "state_fixture", "explain", env=env)
@@ -197,10 +200,8 @@ class ExplainCliTests(test_reuse.LocalBackendTestCase):
         self.assertIn("text__prepare removed", output)
         self.assertIn("text__renamed added", output)
         self.assertIn("text__side added", output)
-        self.assertTrue(any("Task text inputs" in line and str(self.work / "extra.txt") in line
-                            for line in output.splitlines()), output)
-        self.assertTrue(any("Task text outputs" in line and str(self.work / "middle.txt") in line
-                            for line in output.splitlines()), output)
+        for field, path in (("inputs", "extra.txt"), ("outputs", "middle.txt")):
+            self.assertRegex(output, rf"(?s)Task\s+text\s+{field}.*?{re.escape(str(self.work / path))}")
         self.assertEqual(self.evidence(), before)
         self.assertEqual(self.submissions(output), self.submissions(self.cli("run", "--dry-run")))
         self.run_complete()
@@ -209,8 +210,7 @@ class ExplainCliTests(test_reuse.LocalBackendTestCase):
                                 prepare_name="renamed")
         output = self.cli("explain", "--details")
         for field, path in (("inputs", "extra.txt"), ("outputs", "extra-output.txt")):
-            self.assertTrue(any(f"text__renamed {field}" in line and str(self.work / path) in line
-                                for line in output.splitlines()), output)
+            self.assertRegex(output, rf"(?s)text__renamed\s+{field}.*?{re.escape(str(self.work / path))}")
 
     def test_details_check_gwf_hashes_even_when_completion_hashes_match(self):
         self.configure(use_spec_hashes=True)
