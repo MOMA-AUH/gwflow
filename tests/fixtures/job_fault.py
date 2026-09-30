@@ -61,12 +61,12 @@ def rename(source, destination, **kwargs):
     return result
 
 
-def utime(path, **kwargs):
-    if options.get("unsupported_mtime"):
+def utime(path, *args, **kwargs):
+    if isinstance(path, int) and options.get("unsupported_mtime"):
         raise OSError(errno.ENOTSUP, "fixture filesystem cannot preserve timestamps")
     if options.get("coarse_mtime") and "ns" in kwargs:
         kwargs["ns"] = tuple(value // 1_000_000_000 * 1_000_000_000 for value in kwargs["ns"])
-    return original_utime(path, **kwargs)
+    return original_utime(path, *args, **kwargs)
 
 
 os.link, os.replace, os.rename = link, replace, rename
