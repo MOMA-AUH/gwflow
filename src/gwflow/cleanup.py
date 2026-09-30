@@ -14,13 +14,14 @@ class CleanupObservation:
     action: str
     reason: str
     directories: dict = field(default_factory=dict)
+    explicit: bool = False
 
 
-def observe(store, attempt, backend, backend_name):
-    observation = CleanupObservation(attempt, "keep", "incomplete computation or results")
+def observe(store, attempt, backend, backend_name, *, explicit=False):
+    observation = CleanupObservation(attempt, "keep", "incomplete computation or results", explicit=explicit)
     try:
         store.validate_roots()
-        if store.recorded_current(attempt["task"])["attempt"] != attempt["attempt"]:
+        if not explicit and store.recorded_current(attempt["task"])["attempt"] != attempt["attempt"]:
             observation.reason = "superseded attempt; default cleanup keeps older work"
             return observation
         jobs = admission.observe(store, attempt, backend, backend_name)
@@ -30,15 +31,18 @@ def observe(store, attempt, backend, backend_name):
             observation.action, observation.reason = "blocked", "unresolved submission: " + ", ".join(uncertain)
             return observation
         if active:
+            if explicit:
+                observation.action = "blocked"
             observation.reason = "active work: " + ", ".join(active)
             return observation
-        try:
-            completed = store.completed(attempt)
-        except (WorkflowError, OSError):
-            completed = False
-        if not completed:
-            observation.reason = "Completion or retained results are invalid; keep work for retry or repair"
-            return observation
+        if not explicit:
+            try:
+                completed = store.completed(attempt)
+            except (WorkflowError, OSError):
+                completed = False
+            if not completed:
+                observation.reason = "Completion or retained results are invalid; keep work for retry or repair"
+                return observation
         record = store.cleanup_record(attempt)
         workspace = store.workspace(attempt)
         identity = store.workspace_identity(attempt)
@@ -54,14 +58,16 @@ def observe(store, attempt, backend, backend_name):
                 raise WorkflowError("Removed work was recreated; existing files are not adopted")
             observation.action, observation.reason = "removed", "work already removed"
         else:
-            observation.action, observation.reason = "eligible", "checked Completion and retained results; no active work"
+            observation.action = "eligible"
+            observation.reason = ("explicitly selected inactive attempt" if explicit else
+                                  "checked Completion and retained results; no active work")
     except (WorkflowError, OSError) as error:
         observation.action, observation.reason = "blocked", str(error)
     return observation
 
 
 def remove(store, observation, backend, backend_name):
-    checked = observe(store, observation.attempt, backend, backend_name)
+    checked = observe(store, observation.attempt, backend, backend_name, explicit=observation.explicit)
     if checked.action != "eligible":
         return checked
     attempt = checked.attempt
@@ -73,7 +79,7 @@ def remove(store, observation, backend, backend_name):
     for path, identity in checked.directories.items():
         store.validate_roots()
         if _files.exists(path):
-            rechecked = observe(store, attempt, backend, backend_name)
+            rechecked = observe(store, attempt, backend, backend_name, explicit=observation.explicit)
             if rechecked.action != "eligible":
                 return rechecked
             _files.remove_directory(path, identity)
