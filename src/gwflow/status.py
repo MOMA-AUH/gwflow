@@ -65,7 +65,7 @@ def managed_status(ctx, targets, endpoints, output_format, statuses, group, deta
             if group and not any((target.group or "none") in group
                                  for target in workflow._task_declarations[task.name].targets.values()):
                 continue
-            state = {"transfer": "shouldrun", "deferred": "shouldrun", "initialize": "shouldrun", "retry": "shouldrun", "continue": "shouldrun", "prepare": "shouldrun", "fresh": "shouldrun", "reuse": "completed", "active": "running", "blocked": "failed"}[task.action]
+            state = {"repair": "shouldrun", "transfer": "shouldrun", "deferred": "shouldrun", "initialize": "shouldrun", "retry": "shouldrun", "continue": "shouldrun", "prepare": "shouldrun", "fresh": "shouldrun", "reuse": "completed", "active": "running", "blocked": "failed"}[task.action]
             if statuses and state not in statuses:
                 continue
             label = ("reusable work-present" if task.work_present else "reusable work-cleaned") if task.action == "reuse" else task.action

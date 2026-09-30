@@ -56,6 +56,9 @@ def submit_plan(plan, workflow, ctx, *, dry_run):
     blocked = [task for task in plan.tasks if task.action == "blocked"]
     if blocked:
         raise WorkflowError("; ".join(f"Task {task.name}: {task.reason}" for task in blocked))
+    for task in plan.tasks:
+        if task.action == "deferred":
+            logger.info("Task %s: %s", task.name, task.reason)
     if dry_run:
         for task in plan.tasks:
             if task.action in ("fresh", "initialize"):
@@ -66,10 +69,12 @@ def submit_plan(plan, workflow, ctx, *, dry_run):
                 logger.info("Would restart preparation in the same attempt")
         return
     replacements = [task for task in plan.tasks if task.action in ("fresh", "initialize") and task.attempt is not None]
-    transfers = [task for task in plan.tasks if task.action == "transfer"]
-    recreate_work = (any(task.action in ("fresh", "initialize") for task in plan.tasks)
-                     and plan.store.work_root_needs_recreation())
-    if replacements or transfers or recreate_work:
+    transfers = [task for task in plan.tasks if task.action in ("transfer", "repair")]
+    needed_roots = {"results", "staging"} if any(task.pending for task in plan.tasks) else set()
+    if any(task.action in ("fresh", "initialize") for task in plan.tasks):
+        needed_roots.add("work")
+    recreate = sorted(key for key in needed_roots if plan.store.root_needs_recreation(key))
+    if replacements or transfers or recreate:
         with create_backend(ctx.backend, working_dir=ctx.working_dir, config=ctx.config) as backend:
             consumers = admission.consumer_activity(plan.store, backend, ctx.backend)
             for task in [*replacements, *transfers]:
@@ -78,18 +83,21 @@ def submit_plan(plan, workflow, ctx, *, dry_run):
                     raise WorkflowError(f"Task {task.name}: {activity.reason}")
                 if task.action == "transfer":
                     transfer.inspect(plan.store, task.attempt)
+                elif task.action == "repair":
+                    transfer.repair_sources(plan.store, task.attempt)
                 elif plan.store.result_removal(task.attempt) != task.removal:
                     raise WorkflowError(f"Task {task.name}: results ownership changed after planning")
-            if recreate_work:
+            if recreate:
                 for attempt in plan.store.recorded_tasks():
                     activity = admission.replacement_activity(plan.store, attempt, backend, ctx.backend, consumers)
                     if activity.reason:
-                        raise WorkflowError("Cannot recreate work root: " + activity.reason)
-        if recreate_work:
-            plan.store.recreate_work_root()
+                        raise WorkflowError("Cannot recreate " + ", ".join(recreate) + " root: " + activity.reason)
+        if recreate:
+            for key in recreate:
+                plan.store.recreate_root(key)
     selected = []
     for task in plan.tasks:
-        if task.action in ("fresh", "initialize", "prepare", "continue", "retry", "transfer"):
+        if task.action in ("fresh", "initialize", "prepare", "continue", "retry", "transfer", "repair"):
             attempt = task.attempt
             if task.action == "fresh":
                 attempt = plan.store.initialize(task, workflow._result_dirs[task.name],
@@ -99,6 +107,8 @@ def submit_plan(plan, workflow, ctx, *, dry_run):
                                                            for name in producer_names(task.structure)})
             elif task.action == "initialize":
                 attempt = plan.store.finish_initialization(attempt)
+            elif task.action == "repair":
+                attempt = plan.store.start_repair(attempt, transfer.repair_sources(plan.store, attempt))
             selected.append((task, attempt))
     if not selected:
         return
@@ -107,6 +117,8 @@ def submit_plan(plan, workflow, ctx, *, dry_run):
         with get_spec_hashes(working_dir=ctx.working_dir, config=ctx.config) as hashes:
             for task, attempt in selected:
                 observed = {} if task.action == "fresh" else dict(task.submissions)
+                if task.action == "repair":
+                    observed = admission.observe(plan.store, attempt, backend, ctx.backend)
                 submitted[task.name] = observed
                 if task.retry:
                     observed = admission.observe(plan.store, attempt, backend, ctx.backend)

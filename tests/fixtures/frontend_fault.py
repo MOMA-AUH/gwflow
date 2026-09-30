@@ -25,9 +25,15 @@ def replace(source, destination, **kwargs):
         os._exit(91)
     if selected and destination == "current.json" and phase == "before_selection":
         os._exit(90)
+    if selected and destination == "repair.json" and phase == "before_repair_intent":
+        os._exit(99)
+    if selected and destination == "attempt.json" and phase == "before_repair_selection":
+        os._exit(100)
     if destination == "owner.json" and phase == "before_work_recreation":
         os._exit(95)
     result = original_replace(source, destination, **kwargs)
+    if selected and destination == "attempt.json" and phase == "after_repair_selection":
+        os._exit(101)
     if (destination == "owner.json" and phase == "before_work_install"
             and json.loads((parent / destination).read_text()).get("work_recreation")):
         os._exit(96)

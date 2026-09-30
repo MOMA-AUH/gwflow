@@ -35,7 +35,7 @@ class LocalBackendTestCase(unittest.TestCase):
         self.config = {"backend": "local", "backend.local.port": self.port}
         self.configure()
         worker = subprocess.Popen(
-            [GWF, "workers", "-n", str(self.workers), "-p", str(self.port)], cwd=self.work,
+            [GWF, "workers", "--host", "127.0.0.1", "-n", str(self.workers), "-p", str(self.port)], cwd=self.work,
             stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True,
         )
         self.addCleanup(self.stop_worker, worker)
@@ -108,4 +108,3 @@ class LocalBackendTestCase(unittest.TestCase):
 
     def trace(self):
         return Counter((self.work / "trace.txt").read_text().splitlines())
-

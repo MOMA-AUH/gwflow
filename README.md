@@ -225,9 +225,24 @@ definition requires new initialization. Failure after removal leaves the previou
 results absent; there is no rollback. Invalid ownership evidence or substituted
 managed links block removal.
 
-Damaged results cannot be reused. Until the repair slice is available, run keeps
-their work and reports the blocked recovery; consumers defer their input decision
-instead of being forced because a producer's result is temporarily unavailable.
+When retained files are missing or their size or modification time changes,
+ordinary run repairs the complete result set from verified committed work. Repair
+preserves the Task attempt, uses a new transfer operation, and may overwrite manual
+edits. The old Completion becomes ineligible before repair is admitted. The whole
+replacement is copied privately before installation intent is recorded and the
+owned damaged set is removed. Interrupted copying, removal, installation, and
+Completion recording resume under that operation. Active or uncertain producer
+work and consumers block repair, including consumers omitted from the loaded
+workflow.
+
+If the required work or its success evidence is missing or invalid, run starts a
+fresh attempt and recomputes. The command tracking setting also governs repair
+eligibility. Consumers with an existing input baseline defer comparison during
+same-attempt repair; explain reports when a later ordinary invocation must replan.
+Restored metadata that still matches permits consumer reuse. Different destination
+timestamp precision can instead require new consumer computation, even though the
+producer attempt stays the same. Missing results or staging roots are recreated
+only after guarded ownership and inactivity checks.
 
 Structure is always tracked. Commands follow gwf's inherited `use_spec_hashes`
 setting (default false); enabling it is recommended. File size and modification

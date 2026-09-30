@@ -212,6 +212,7 @@ def _valid_attempt(attempt):
                 or set(targets) != set(attempt["executions"]) or set(targets) != set(commands)
                 or set(attempt["jobs"]) != set(targets) | {"gwflow_prepare", "gwflow_complete"}
                 or not _uuid(attempt["preparation"]) or not _uuid(attempt["operation"]) or type(attempt["command_tracking"]) is not bool
+                or "repair_from" in attempt and (not _uuid(attempt["repair_from"]) or attempt["repair_from"] == attempt["operation"])
                 or type(attempt["managed_tmpdir"]) is not bool):
             return False
         for local, target in targets.items():
@@ -290,13 +291,14 @@ class Store:
             if (not isinstance(identities, dict) or identities.keys() != self.locations.keys()
                     or any(not _valid_identity(value) for value in identities.values())):
                 raise WorkflowError("Malformed managed root ownership evidence")
-            pending = self.owner.get("work_recreation")
-            if pending is not None:
-                work = self.locations["work"]
-                if (not isinstance(pending, dict) or not _uuid(pending.get("operation"))
-                        or not _valid_identity(pending.get("identity"))
-                        or pending.get("source") != str(work.with_name(f".{work.name}-gwflow-{pending['operation']}"))):
-                    raise WorkflowError("Malformed work-root recreation evidence")
+            for key in ("work", "results", "staging"):
+                pending = self.owner.get(f"{key}_recreation")
+                if pending is not None:
+                    root = self.locations[key]
+                    if (not isinstance(pending, dict) or not _uuid(pending.get("operation"))
+                            or not _valid_identity(pending.get("identity"))
+                            or pending.get("source") != str(root.with_name(f".{root.name}-gwflow-{pending['operation']}"))):
+                        raise WorkflowError(f"Malformed {key}-root recreation evidence")
         self.validate_roots()
 
     @classmethod
@@ -331,40 +333,40 @@ class Store:
             found = _files.identity(path)
             if self.owner is not None:
                 expected = self.owner.get("root_identity", {}).get(key)
-                pending = self.owner.get("work_recreation") if key == "work" else None
+                pending = self.owner.get(f"{key}_recreation") if key != "book" else None
                 if expected != found and (pending is None or pending["identity"] != found):
                     raise WorkflowError(f"Managed root identity changed: {path}")
 
-    def work_root_needs_recreation(self):
-        return self.owner is not None and (self.owner.get("work_recreation") is not None
-                                           or not _files.exists(self.locations["work"]))
+    def root_needs_recreation(self, key):
+        return self.owner is not None and (self.owner.get(f"{key}_recreation") is not None
+                                          or not _files.exists(self.locations[key]))
 
-    def recreate_work_root(self):
+    def recreate_root(self, key):
         """Install a durably identified empty root before any result invalidation."""
         self.validate_roots()
-        if not self.work_root_needs_recreation():
+        if not self.root_needs_recreation(key):
             return
-        work = self.locations["work"]
-        pending = self.owner.get("work_recreation")
+        root = self.locations[key]
+        pending = self.owner.get(f"{key}_recreation")
         if pending is None:
             operation = uuid4().hex
-            source = work.with_name(f".{work.name}-gwflow-{operation}")
+            source = root.with_name(f".{root.name}-gwflow-{operation}")
             with _files.directory(source.parent, create=True) as parent:
                 os.mkdir(source.name, dir_fd=parent)
                 _files.sync_directory(parent)
             pending = {"operation": operation, "source": str(source), "identity": _files.identity(source)}
-            self.owner = {**self.owner, "work_recreation": pending}
+            self.owner = {**self.owner, f"{key}_recreation": pending}
             _files.publish(self.owner_path, self.owner)
         source = Path(pending["source"])
-        if _files.exists(work):
-            if _files.identity(work) != pending["identity"] or _files.exists(source):
-                raise WorkflowError("Work-root recreation destination changed")
+        if _files.exists(root):
+            if _files.identity(root) != pending["identity"] or _files.exists(source):
+                raise WorkflowError(f"{key.capitalize()}-root recreation destination changed")
         else:
             if _files.identity(source) != pending["identity"]:
-                raise WorkflowError("Work-root recreation staging ownership changed")
-            _files.commit_directory(source, work)
-        self.owner = {**self.owner, "root_identity": {**self.owner["root_identity"], "work": pending["identity"]}}
-        del self.owner["work_recreation"]
+                raise WorkflowError(f"{key.capitalize()}-root recreation staging ownership changed")
+            _files.commit_directory(source, root)
+        self.owner = {**self.owner, "root_identity": {**self.owner["root_identity"], key: pending["identity"]}}
+        del self.owner[f"{key}_recreation"]
         _files.publish(self.owner_path, self.owner)
 
     def _task_dir(self, name):
@@ -386,16 +388,43 @@ class Store:
         return self.locations["staging"] / attempt["attempt"] / attempt["operation"]
 
     def transfer_ownership(self, attempt):
-        path = self.attempt_dir(attempt) / "transfer.json"
+        path = self.record_path(attempt, "transfer.json")
         record = self.read(attempt, "transfer.json", "transfer", operation=attempt["operation"])
         if record is None and not _files.exists(path):
             return None
         if (record is None or not _uuid(record.get("copy"))
                 or record.get("staging") != str(self.transfer_dir(attempt) / record["copy"])
                 or record.get("destination") != str(self.result_dir(attempt))
+                or "replaces" not in record or record["replaces"] is not None and not _valid_identity(record["replaces"])
                 or not _valid_identity(record.get("staged_identity"))):
             raise WorkflowError("Missing or malformed transfer ownership evidence")
         return record
+
+    def repair_intent(self, attempt):
+        record = self.read(attempt, "repair.json", "repair", operation=attempt["operation"])
+        if "repair_from" not in attempt and record is None and not _files.exists(self.record_path(attempt, "repair.json")):
+            return None
+        if (record is None or not _uuid(record.get("previous")) or record["previous"] == attempt["operation"]
+                or record["previous"] != attempt.get("repair_from")
+                or record.get("destination") != str(self.result_dir(attempt))
+                or "result_identity" not in record or "sources" not in record
+                or record["result_identity"] is not None and not _valid_identity(record["result_identity"])):
+            raise WorkflowError("Missing or malformed repair intent")
+        return record
+
+    def start_repair(self, attempt, sources):
+        """Select a new finishing operation only after its repair intent is durable."""
+        if self.current(attempt["task"], attempt["result_dir"]) != attempt:
+            raise WorkflowError("Task selection changed before repair")
+        previous, removal = attempt["operation"], self.result_removal(attempt)
+        attempt = deepcopy(attempt)
+        attempt["repair_from"] = previous
+        attempt["operation"] = uuid4().hex
+        attempt["jobs"]["gwflow_complete"] = f"{attempt['task']}__gwflow_complete__{attempt['operation']}"
+        self.publish(attempt, "repair.json", "repair", operation=attempt["operation"], previous=previous,
+                     result_identity=removal, destination=str(self.result_dir(attempt)), sources=sources)
+        _files.publish(self.attempt_dir(attempt) / "attempt.json", attempt)
+        return attempt
 
     def identity(self, attempt, **extra):
         return {"owner": self.owner["owner"], "task": attempt["task"], "attempt": attempt["attempt"], **extra}
@@ -406,15 +435,20 @@ class Store:
                       else {"execution": attempt["executions"][local]})
         return {"job": attempt["jobs"][local], **generation}
 
+    def record_path(self, attempt, filename):
+        if filename in ("transfer.json", "manifest.json", "installed.json", "completion.json", "repair.json", "installation.json"):
+            return self.attempt_dir(attempt) / "operations" / attempt["operation"] / filename
+        return self.attempt_dir(attempt) / filename
+
     def read(self, attempt, filename, kind, **extra):
-        record = _files.read_json(self.attempt_dir(attempt) / filename)
+        record = _files.read_json(self.record_path(attempt, filename))
         return record if _matches(record, kind, **self.identity(attempt, **extra)) else None
 
     def publish(self, attempt, filename, kind, **fields):
         self.validate_roots()
         if hasattr(self, "runtime_admission"):
             fields.setdefault("admission", self.runtime_admission)
-        _files.publish(self.attempt_dir(attempt) / filename, _record(kind, **self.identity(attempt), **fields))
+        _files.publish(self.record_path(attempt, filename), _record(kind, **self.identity(attempt), **fields))
 
     def current(self, name, result_dir):
         destination = self.locations["results"] / result_dir
@@ -639,10 +673,13 @@ class Store:
             if expected != _files.identity(destination):
                 raise WorkflowError(f"Previous results ownership changed during initialization: {destination}")
             return expected
-        if not _files.exists(self.attempt_dir(attempt) / "completion.json"):
+        if not _files.exists(self.record_path(attempt, "completion.json")):
             transfer = self.transfer_ownership(attempt)
-            if transfer is not None and transfer["staged_identity"] == _files.identity(destination):
-                return transfer["staged_identity"]
+            if transfer is not None and _files.identity(destination) in (transfer["staged_identity"], transfer["replaces"]):
+                return _files.identity(destination)
+            repair = self.repair_intent(attempt)
+            if repair is not None and repair["result_identity"] == _files.identity(destination):
+                return repair["result_identity"]
         manifest = self.read(attempt, "manifest.json", "manifest", operation=attempt["operation"])
         if (manifest is None or manifest.get("destination") != str(destination)
                 or manifest.get("retained") != attempt["structure"]["retained"]

@@ -30,6 +30,7 @@ def gate(name):
 original_link, original_replace, original_rename = os.link, os.replace, os.rename
 original_utime = os.utime
 original_copyfileobj = shutil.copyfileobj
+original_unlink, original_rmdir = os.unlink, os.rmdir
 
 
 def link(source, destination, **kwargs):
@@ -54,7 +55,11 @@ def replace(source, destination, **kwargs):
         os._exit(101)
     if destination == "completion.json" and options.get("crash_before_completion"):
         os._exit(99)
+    if destination == "installation.json" and options.get("crash_before_installation_intent"):
+        os._exit(102)
     result = original_replace(source, destination, **kwargs)
+    if destination == "installation.json" and options.get("crash_after_installation_intent"):
+        os._exit(103)
     if destination == "manifest.json" and options.get("crash_after_manifest"):
         os._exit(98)
     if destination == "manifest.json" and options.get("gate_after_manifest"):
@@ -89,8 +94,24 @@ def copyfileobj(source, destination, *args, **kwargs):
     return original_copyfileobj(source, destination, *args, **kwargs)
 
 
+def unlink(path, **kwargs):
+    parent = Path(os.readlink(f"/proc/self/fd/{kwargs['dir_fd']}")) if "dir_fd" in kwargs else None
+    result = original_unlink(path, **kwargs)
+    if options.get("crash_during_results_removal") and parent is not None and work / "results" in parent.parents:
+        os._exit(104)
+    return result
+
+
+def rmdir(path, **kwargs):
+    result = original_rmdir(path, **kwargs)
+    if options.get("crash_after_results_removal") and path == "report":
+        os._exit(105)
+    return result
+
+
 os.link, os.replace, os.rename = link, replace, rename
 os.utime = utime
+os.unlink, os.rmdir = unlink, rmdir
 shutil.copyfileobj = copyfileobj
 if options.get("gate_before_preparation"):
     gate("preparation")

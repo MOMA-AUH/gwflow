@@ -53,7 +53,7 @@ def main():
             json.dumps({"backend": "local", "backend.local.port": port})
         )
         worker = subprocess.Popen(
-            [GWF, "workers", "-n", "2", "-p", str(port)],
+            [GWF, "workers", "--host", "127.0.0.1", "-n", "2", "-p", str(port)],
             cwd=work, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True,
         )
         try:

@@ -120,7 +120,7 @@ class TaskDependencyTests(LocalBackendTestCase):
         (self.work / "job-fault.json").write_text(json.dumps({"gate_before_preparation": True}))
         self.cli("-b", "recovery_fixture", "run", env=self.inject(job_fault="c__" + job))
         self.wait_for(lambda: (self.work / "preparation-held").exists())
-        record = next((self.work / ".gwf/gwflow").glob("owners/*/tasks/a/attempts/*/completion.json"))
+        record = next((self.work / ".gwf/gwflow").glob("owners/*/tasks/a/attempts/*/**/completion.json"))
         saved = record.read_bytes()
         wrong = json.loads(saved)
         wrong["attempt"] = "0" * 32
