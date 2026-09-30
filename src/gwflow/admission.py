@@ -17,7 +17,7 @@ from gwf.exceptions import WorkflowError
 from gwf.scheduling import submit_backend
 
 from . import _files
-from .lifecycle import _uuid
+from .lifecycle import _uuid, ordered_targets, target_dependencies
 from .workflow import lifecycle_jobs
 
 
@@ -48,8 +48,8 @@ def predecessors(attempt, local):
     if local == "gwflow_prepare":
         return []
     if local == "gwflow_complete":
-        return list(attempt["executions"])
-    return ["gwflow_prepare"]
+        return sorted(attempt["executions"])
+    return ["gwflow_prepare", *target_dependencies(attempt["structure"], local)]
 
 
 def _valid_dependencies(attempt, local, dependencies):
@@ -58,15 +58,28 @@ def _valid_dependencies(attempt, local, dependencies):
     for dependency, expected in zip(dependencies, predecessors(attempt, local)):
         if (not isinstance(dependency, dict) or set(dependency) != {"local", "job", "admission", "submission", "backend"}
                 or dependency["local"] != expected or not _uuid(dependency["admission"])
-                or dependency["job"] != attempt["jobs"][expected]
+                or not _known_job(attempt, dependency["job"], expected)
                 or dependency["submission"] != f"{dependency['job']}__{dependency['admission']}"
                 or not isinstance(dependency["backend"], dict)):
             return False
     return True
 
 
+def intent_path(attempt, local):
+    generation = attempt["jobs"][local].rsplit("__", 1)[-1]
+    return f"submissions/{generation}/{local}-intent.json"
+
+
+def _known_job(attempt, job, local=None):
+    if not isinstance(job, str):
+        return False
+    prefix, _, generation = job.rpartition("__")
+    names = [local] if local is not None else lifecycle_jobs(attempt["executions"])
+    return _uuid(generation) and prefix in {f"{attempt['task']}__{name}" for name in names}
+
+
 def read_intent(store, attempt, local):
-    path = f"submissions/{local}-intent.json"
+    path = intent_path(attempt, local)
     record = store.read(attempt, path, "submission-intent", **store.job_identity(attempt, local))
     if record is None:
         if _files.exists(store.attempt_dir(attempt) / path):
@@ -80,7 +93,7 @@ def read_intent(store, attempt, local):
                     raise WorkflowError("Malformed admission archive")
                 previous = store.read(attempt, f"admissions/{token}/intent.json", "submission-intent")
                 if (previous is None or previous.get("admission") != token
-                        or previous.get("job") not in attempt["jobs"].values()):
+                        or not _known_job(attempt, previous.get("job"))):
                     raise WorkflowError(f"unresolved submission: admission {token} has unreadable history")
                 if previous["job"] == attempt["jobs"][local]:
                     raise WorkflowError(f"unresolved submission: {previous.get('submission', local)}; current intent is missing")
@@ -120,6 +133,8 @@ def succeeded(store, attempt, local, intent):
 
 def require_dependencies(store, attempt, intent):
     for dependency in intent["dependencies"]:
+        if dependency["job"] != attempt["jobs"][dependency["local"]]:
+            raise WorkflowError("Scheduled dependency execution generation was replaced")
         previous = store.read(attempt, f"admissions/{dependency['admission']}/intent.json", "submission-intent")
         expected = {key: value for key, value in dependency.items() if key != "local"}
         if previous is None or identity(previous) != expected:
@@ -130,7 +145,7 @@ def require_dependencies(store, attempt, intent):
 
 def observe(store, attempt, backend, name):
     observations = {}
-    for local in lifecycle_jobs(attempt["executions"]):
+    for local in lifecycle_jobs(ordered_targets(attempt["structure"])):
         intent = read_intent(store, attempt, local)
         if intent is None:
             observations[local] = JobObservation(local, "pending")
@@ -189,13 +204,38 @@ def restore_tracking(backend, name, observations):
                 backend._tracked_jobs[observation.submission] = observation.job_id
 
 
+def cancel_queued(store, attempt, locals, backend, name):
+    """Request cancellation, then require an independent terminal observation."""
+    observations = observe(store, attempt, backend, name)
+    if locals and not isinstance(backend, TrackingBackend):
+        raise WorkflowError("Backend cannot confirm queued dependent cancellation")
+    restore_tracking(backend, name, observations)
+    for local in locals:
+        item = observations[local]
+        if item.state != "active":
+            continue
+        if item.backend_state != BackendStatus.SUBMITTED or item.job_id is None:
+            raise WorkflowError(f"Active dependent submission cannot be replaced: {item.submission}")
+        store.publish(attempt, f"admissions/{item.intent['admission']}/cancellation.json", "cancellation-request",
+                      **identity(item.intent), job_id=item.job_id)
+        backend.cancel(Target(item.submission, [], [], {}))
+    if locals:
+        ids = [item.job_id for item in observations.values() if item.job_id is not None]
+        states = backend.ops.get_job_states(ids)
+        backend._job_states.update({job_id: states.get(job_id, BackendStatus.UNKNOWN) for job_id in ids})
+        observations = observe(store, attempt, backend, name)
+    if any(observations[local].state in ("active", "uncertain") for local in locals):
+        raise WorkflowError("Waiting for confirmed dependent cancellation; retry on a later run")
+    return observations
+
+
 def new_intent(store, attempt, local, dependencies, backend, name):
     token = uuid4().hex
     fields = {**store.job_identity(attempt, local), "admission": token,
               "submission": f"{attempt['jobs'][local]}__{token}",
               "backend": backend_identity(backend, name), "dependencies": dependencies}
     store.publish(attempt, f"admissions/{token}/intent.json", "submission-intent", **fields)
-    store.publish(attempt, f"submissions/{local}-intent.json", "submission-intent", **fields)
+    store.publish(attempt, intent_path(attempt, local), "submission-intent", **fields)
     return read_intent(store, attempt, local)
 
 

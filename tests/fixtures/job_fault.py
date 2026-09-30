@@ -25,7 +25,7 @@ def gate(name):
         time.sleep(0.025)
 
 
-original_link, original_replace = os.link, os.replace
+original_link, original_replace, original_rename = os.link, os.replace, os.rename
 
 
 def link(source, destination, **kwargs):
@@ -42,13 +42,24 @@ def link(source, destination, **kwargs):
 
 
 def replace(source, destination, **kwargs):
+    if destination == "success.json" and options.get("crash_before_success"):
+        os._exit(93)
     result = original_replace(source, destination, **kwargs)
     if destination == "manifest.json" and options.get("gate_after_manifest"):
         gate("manifest")
     return result
 
 
-os.link, os.replace = link, replace
+def rename(source, destination, **kwargs):
+    if destination == "committed" and options.get("crash_before_commit"):
+        os._exit(94)
+    result = original_rename(source, destination, **kwargs)
+    if destination == "committed" and options.get("crash_after_commit"):
+        os._exit(95)
+    return result
+
+
+os.link, os.replace, os.rename = link, replace, rename
 if options.get("gate_before_preparation"):
     gate("preparation")
 # The backend passes the original interpreter's '-m gwflow.execution' arguments.

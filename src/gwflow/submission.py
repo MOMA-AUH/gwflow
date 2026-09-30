@@ -57,6 +57,8 @@ def submit_plan(plan, workflow, ctx, *, dry_run):
         raise WorkflowError("; ".join(f"Task {task.name}: {task.reason}" for task in blocked))
     if dry_run:
         for task in plan.tasks:
+            for local in task.cancel:
+                logger.info("Would request cancellation of queued dependent %s__%s", task.name, local)
             for local in task.pending:
                 logger.info("Would submit %s__%s", task.name, local)
             if task.action == "prepare":
@@ -64,7 +66,7 @@ def submit_plan(plan, workflow, ctx, *, dry_run):
         return
     selected = []
     for task in plan.tasks:
-        if task.action in ("fresh", "prepare", "continue"):
+        if task.action in ("fresh", "prepare", "continue", "retry"):
             attempt = task.attempt
             if task.action == "fresh":
                 attempt = plan.store.initialize(task, workflow._result_dirs[task.name],
@@ -77,6 +79,15 @@ def submit_plan(plan, workflow, ctx, *, dry_run):
         with get_spec_hashes(working_dir=ctx.working_dir, config=ctx.config) as hashes:
             for task, attempt in selected:
                 observed = dict(task.submissions)
+                if task.retry:
+                    observed = admission.cancel_queued(plan.store, attempt, task.cancel, backend, ctx.backend)
+                    if any(item.state == "uncertain" for item in observed.values()):
+                        raise WorkflowError(f"Task {task.name}: unresolved submission prevents retry")
+                    if any(observed[local].state == "active" for local in [*task.retry, "gwflow_complete"]):
+                        raise WorkflowError(f"Task {task.name}: active dependent work blocks retry")
+                    if task.action != "prepare" or _files.exists(plan.store.attempt_dir(attempt) / "inputs.json"):
+                        plan.store.check_inputs(attempt)
+                    attempt = plan.store.replace_executions(task, tracking=ctx.config.get("use_spec_hashes"))
                 admission.restore_tracking(backend, ctx.backend, observed)
                 for item in observed.values():
                     if item.reconcile:

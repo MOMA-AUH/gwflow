@@ -10,24 +10,30 @@ from gwf.exceptions import WorkflowError
 
 from . import _files, admission
 from .commands import Command
-from .lifecycle import Store
+from .lifecycle import Store, target_dependencies
 
 
 def execute(store, attempt, local):
     store.validate_roots()
     store.check_inputs(attempt)
+    store.require_current_execution(attempt, local)
+    for dependency in target_dependencies(attempt["structure"], local):
+        store.checked_target(attempt, dependency)
     home = store.execution_dir(attempt, local)
     staging, temporary = home / "staging", home / "tmp"
     if _files.exists(home):
         raise WorkflowError("Target execution storage already exists; unchecked work cannot be adopted")
     _files.mkdir(staging)
     _files.mkdir(temporary)
-    declaration = attempt["commands"][local]
+    execution = store.execution(attempt, local)
+    declaration = execution["command"]
     if "literal" in declaration:
         command = declaration["literal"]
     else:
         command = Command(declaration["template"], declaration["bindings"]).render(
-            lambda reference: reference["external"] if "external" in reference else staging / reference["file"])
+            lambda reference: (reference["external"] if "external" in reference
+                               else staging / reference["file"] if reference["target"] == local
+                               else store.execution_dir(attempt, reference["target"]) / "committed" / reference["file"]))
     environment = os.environ.copy()
     if attempt["managed_tmpdir"]:
         environment["TMPDIR"] = str(temporary)
@@ -37,9 +43,10 @@ def execute(store, attempt, local):
     store.validate_roots()
     paths = attempt["structure"]["targets"][local]["outputs"]
     observed = _files.metadata(staging, paths, sync=True)
+    store.require_current_execution(attempt, local)
     _files.commit_directory(staging, home / "committed")
-    store.publish(attempt, f"targets/{local}.json", "target-success", target=local,
-                  execution=attempt["executions"][local], outputs=observed)
+    store.publish(attempt, f"executions/{attempt['executions'][local]}/success.json", "target-success", target=local,
+                  execution=attempt["executions"][local], outputs=observed, dependencies=execution["dependencies"])
 
 
 def finish(store, attempt):
