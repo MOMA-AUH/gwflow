@@ -7,7 +7,7 @@ name = "gwflow-summary-task"
 version = "0.1.0"
 description = "Sample summary task package for the gwflow packaged example"
 requires-python = ">=3.12,<3.13"
-dependencies = ["gwflow>=0.1,<0.2"]
+dependencies = ["gwflow>=0.1,<0.3"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
