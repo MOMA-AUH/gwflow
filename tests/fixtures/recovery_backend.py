@@ -6,6 +6,7 @@ This fixture uses only gwf's existing backend plugin contract for those cases.
 """
 
 import json
+import os
 from pathlib import Path
 import shlex
 import sys
@@ -61,6 +62,8 @@ class RecoveryBackend:
             target.spec = shlex.join([sys.executable, str(self.work / "job_fault.py"), str(self.work), *original[1:]])
         self.local.submit(target, dependencies)
         self.submitted = True
+        if self.options.get("lose_tracking") and target.name.startswith(self.options["lose_tracking"] + "__"):
+            os._exit(93)
         if self.options.get("lose_ack") and target.name.startswith(self.options["lose_ack"] + "__"):
             raise RuntimeError("injected lost acknowledgement after acceptance")
 

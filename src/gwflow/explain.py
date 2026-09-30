@@ -7,7 +7,7 @@ from gwf.exceptions import WorkflowError
 
 from ._frontend import _submission_guard
 from .planning import plan_workflow
-from .workflow import Workflow
+from .workflow import Workflow, lifecycle_jobs
 
 
 @click.command()
@@ -30,7 +30,7 @@ def explain(ctx, details, force, task_name):
                 continue
             click.echo(f"Task {task.name}: {task.action}; {task.reason}")
             if task.action in ("fresh", "prepare"):
-                for local in ["gwflow_prepare", *task.structure["targets"], "gwflow_complete"]:
+                for local in lifecycle_jobs(task.structure["targets"]):
                     click.echo(f"  Would submit {task.name}__{local}")
             if details and task.attempt:
                 click.echo(f"  Attempt: {task.attempt['attempt']}")

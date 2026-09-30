@@ -10,7 +10,7 @@ from gwf.exceptions import WorkflowError
 def declared_path(value, working_dir):
     if not isinstance(value, (str, os.PathLike)) or not os.fspath(value):
         raise WorkflowError("External inputs must be declared file paths")
-    return os.path.abspath(os.path.join(working_dir, value))
+    return str((Path(working_dir) / value).absolute())
 
 
 def observe(paths, locations):

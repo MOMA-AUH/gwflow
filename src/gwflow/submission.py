@@ -4,6 +4,7 @@ import logging
 import os
 import shlex
 import sys
+from uuid import uuid4
 
 from gwf import Target
 from gwf.backends import create_backend
@@ -12,6 +13,8 @@ from gwf.exceptions import WorkflowError
 from gwf.scheduling import submit_backend
 
 from . import _files
+
+from .workflow import lifecycle_jobs
 
 
 logger = logging.getLogger(__name__)
@@ -57,28 +60,28 @@ def submit_plan(plan, workflow, ctx, *, dry_run):
     if dry_run:
         for task in plan.tasks:
             if task.action in ("fresh", "prepare"):
-                for local in ["gwflow_prepare", *task.structure["targets"], "gwflow_complete"]:
+                for local in lifecycle_jobs(task.structure["targets"]):
                     logger.info("Would submit %s__%s", task.name, local)
                 if task.action == "prepare":
                     logger.info("Would restart preparation in the same attempt")
         return
-    fresh = []
+    attempts = []
     for task in plan.tasks:
         if task.action in ("fresh", "prepare"):
             attempt = task.attempt if task.action == "prepare" else plan.store.initialize(task, workflow._result_dirs[task.name],
                                             tracking=ctx.config.get("use_spec_hashes"),
                                             managed_tmpdir=workflow.managed_tmpdir)
-            fresh.append(attempt)
-    if not fresh:
+            attempts.append(attempt)
+    if not attempts:
         return
     with create_backend(ctx.backend, working_dir=ctx.working_dir, config=ctx.config) as backend:
         with get_spec_hashes(working_dir=ctx.working_dir, config=ctx.config) as hashes:
-            for attempt in fresh:
+            for attempt in attempts:
                 dependencies = []
-                for local in ["gwflow_prepare", *attempt["executions"], "gwflow_complete"]:
+                for local in lifecycle_jobs(attempt["executions"]):
                     plan.store.validate_roots()
                     target = _job(plan.store, attempt, local, workflow)
-                    identity = plan.store.job_identity(attempt, local)
+                    identity = {**plan.store.job_identity(attempt, local), "admission": uuid4().hex}
                     plan.store.publish(attempt, f"submissions/{local}-intent.json", "submission-intent", **identity)
                     _log_aliases(ctx.working_dir, f"{attempt['task']}__{local}", target.name)
                     submit_backend(target, dependencies, backend, hashes)

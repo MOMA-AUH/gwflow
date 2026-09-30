@@ -200,3 +200,28 @@ class ExternalInputTests(LocalBackendTestCase):
         self.assertIn("fresh attempt", self.cli("explain"))
         self.assertIn("fresh attempt", self.cli("run", success=False))
         self.assertEqual((self.work / "results/sample/result.txt").read_text(), "hello\n")
+
+    def test_symlink_parent_components_preserve_the_declared_file(self):
+        (self.work / "actual/nested").mkdir(parents=True)
+        (self.work / "actual/input.txt").write_text("intended input\n")
+        (self.work / "link").symlink_to("actual/nested")
+        for source in ("link/../input.txt", str(self.work / "link/../input.txt")):
+            with self.subTest(source=source):
+                self.configure_workflow(source=source)
+                self.run_complete()
+                self.assertEqual((self.work / "results/sample/result.txt").read_text(), "intended input\n")
+                self.assertEqual((self.work / "results/sample/alias.txt").read_text(), str(self.work / "link/../input.txt") + "\n")
+
+    def test_preparation_retry_does_not_reuse_previous_admission_acknowledgement(self):
+        self.cli("-b", "recovery_fixture", "run", env=self.fault(crash_before_baseline=True))
+        self.settle()
+        env = self.fault(gate_before_preparation=True)
+        self.inject(job_fault="sample__gwflow_prepare", lose_tracking="sample__gwflow_prepare")
+        self.cli("-b", "recovery_fixture", "run", env=env, success=False)
+        self.wait_for(lambda: (self.work / "preparation-held").exists())
+        try:
+            self.assertIn("unresolved submission", self.cli("explain"))
+            self.assertIn("unresolved submission", self.cli("run", success=False))
+        finally:
+            (self.work / "preparation-release").touch()
+        self.settle()

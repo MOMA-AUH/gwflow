@@ -7,7 +7,8 @@ from gwf.backends import BackendStatus, create_backend
 from gwf.exceptions import WorkflowError
 
 from . import _files, inputs
-from .lifecycle import Store, TaskObservation, declarations
+from .lifecycle import Store, TaskObservation, declarations, _uuid
+from .workflow import lifecycle_jobs
 
 
 @dataclass
@@ -18,7 +19,7 @@ class Plan:
 
 def plan_workflow(workflow, ctx, *, force=False):
     expected = {f"{name}__{local}" for name, task in workflow._task_declarations.items()
-                for local in [*task.targets, "gwflow_prepare", "gwflow_complete"]}
+                for local in lifecycle_jobs(task.targets)}
     if set(workflow.targets) != expected:
         raise WorkflowError("Every computation target in gwflow.Workflow must belong to a registered Task")
     store = Store.for_workflow(workflow)
@@ -36,8 +37,9 @@ def plan_workflow(workflow, ctx, *, force=False):
                     for local, job in attempt["jobs"].items():
                         identity = store.job_identity(attempt, local)
                         intent = store.read(attempt, f"submissions/{local}-intent.json", "submission-intent", **identity)
-                        ack = store.read(attempt, f"submissions/{local}-ack.json", "submission-ack", **identity)
-                        if intent is not None and (ack is None or "job_id" not in ack):
+                        ack = store.read(attempt, f"submissions/{local}-ack.json", "submission-ack", **identity,
+                                         admission=intent.get("admission") if intent else None)
+                        if intent is not None and (not _uuid(intent.get("admission")) or ack is None or ack.get("job_id") is None):
                             uncertain.append(job)
                         target = Target(job, [], [], {})
                         tracked = backend.get_tracked_id(target) if hasattr(backend, "get_tracked_id") else None
