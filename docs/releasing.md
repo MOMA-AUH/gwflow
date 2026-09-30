@@ -1,6 +1,6 @@
 # Conda release
 
-The supported first-release environment is Python 3.12, gwf 2.1.1, and the
+The supported release environment is Python 3.12, gwf 2.1.1, and the
 local backend. `pyproject.toml` and `conda-recipe/meta.yaml` carry those same
 bounds. Cluster backends and other versions have not been verified.
 
