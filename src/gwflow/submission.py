@@ -10,7 +10,7 @@ from gwf.backends import create_backend
 from gwf.core import get_spec_hashes
 from gwf.exceptions import WorkflowError
 
-from . import _files, admission
+from . import _files, admission, transfer
 from .lifecycle import producer_names
 
 from .workflow import lifecycle_jobs
@@ -66,16 +66,19 @@ def submit_plan(plan, workflow, ctx, *, dry_run):
                 logger.info("Would restart preparation in the same attempt")
         return
     replacements = [task for task in plan.tasks if task.action in ("fresh", "initialize") and task.attempt is not None]
+    transfers = [task for task in plan.tasks if task.action == "transfer"]
     recreate_work = (any(task.action in ("fresh", "initialize") for task in plan.tasks)
                      and plan.store.work_root_needs_recreation())
-    if replacements or recreate_work:
+    if replacements or transfers or recreate_work:
         with create_backend(ctx.backend, working_dir=ctx.working_dir, config=ctx.config) as backend:
             consumers = admission.consumer_activity(plan.store, backend, ctx.backend)
-            for task in replacements:
+            for task in [*replacements, *transfers]:
                 activity = admission.replacement_activity(plan.store, task.attempt, backend, ctx.backend, consumers)
                 if activity.reason:
                     raise WorkflowError(f"Task {task.name}: {activity.reason}")
-                if plan.store.result_removal(task.attempt) != task.removal:
+                if task.action == "transfer":
+                    transfer.inspect(plan.store, task.attempt)
+                elif plan.store.result_removal(task.attempt) != task.removal:
                     raise WorkflowError(f"Task {task.name}: results ownership changed after planning")
             if recreate_work:
                 for attempt in plan.store.recorded_tasks():
@@ -86,7 +89,7 @@ def submit_plan(plan, workflow, ctx, *, dry_run):
             plan.store.recreate_work_root()
     selected = []
     for task in plan.tasks:
-        if task.action in ("fresh", "initialize", "prepare", "continue", "retry"):
+        if task.action in ("fresh", "initialize", "prepare", "continue", "retry", "transfer"):
             attempt = task.attempt
             if task.action == "fresh":
                 attempt = plan.store.initialize(task, workflow._result_dirs[task.name],

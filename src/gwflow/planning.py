@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from gwf.backends import BackendStatus, create_backend
 from gwf.exceptions import WorkflowError
 
-from . import _files, admission, inputs
+from . import _files, admission, inputs, transfer
 from .lifecycle import Store, TaskObservation, declarations, ordered_tasks, ordered_targets, producer_names, target_dependencies
 from .workflow import lifecycle_jobs
 
@@ -92,6 +92,21 @@ def input_metadata_changed(store, attempt):
     return baseline["inputs"] != observed
 
 
+def recover_transfer(store, observation, jobs):
+    try:
+        recovery = transfer.inspect(store, observation.attempt)
+    except transfer.InvalidSources:
+        attempt = observation.attempt
+        if (observation.work_present and not any(_files.exists(store.attempt_dir(attempt) / filename)
+                                                for filename in ("manifest.json", "installed.json", "completion.json"))
+                and retry_observation(store, observation, jobs)):
+            return
+        fresh_observation(store, observation, "transfer sources cannot be recovered; fresh computation is required")
+        return
+    observation.action, observation.reason = "transfer", recovery.reason
+    observation.pending = ["gwflow_complete"]
+
+
 def plan_workflow(workflow, ctx, *, force=False, force_tasks=()):
     if force and force_tasks:
         raise WorkflowError("Cannot combine --force and --force-task")
@@ -120,6 +135,7 @@ def plan_workflow(workflow, ctx, *, force=False, force_tasks=()):
                             raise WorkflowError("Task initialization is not ready but has submission evidence")
                     observation.work_present = _files.exists(store.workspace(attempt))
                     jobs = admission.observe(store, attempt, backend, ctx.backend)
+                    finishing = jobs["gwflow_complete"]
                     observation.submissions = jobs
                     uncertain = [item.submission for item in jobs.values() if item.state == "uncertain"]
                     active = [item.submission for item in jobs.values() if item.state == "active"]
@@ -153,6 +169,11 @@ def plan_workflow(workflow, ctx, *, force=False, force_tasks=()):
                         observation.action, observation.reason = "prepare", "restart interrupted preparation in the same attempt"
                         observation.pending = lifecycle_jobs(ordered_targets(attempt["structure"]))
                         observation.retry = ordered_targets(attempt["structure"])
+                    elif (not active and (finishing.state in ("failed", "cancelled")
+                                          or finishing.state == "pending" and finishing.intent is not None)
+                          and all(jobs[local].state == "complete" for local in attempt["executions"])
+                          and not _files.exists(store.attempt_dir(attempt) / "completion.json")):
+                        recover_transfer(store, observation, jobs)
                     elif retry_observation(store, observation, jobs):
                         pass
                     elif not failed and pending:
@@ -176,7 +197,7 @@ def plan_workflow(workflow, ctx, *, force=False, force_tasks=()):
         for observation in tasks:
             if observation.attempt is not None:
                 observation.consumers = consumers.get((observation.name, observation.attempt["attempt"]), {})
-                if observation.action in ("fresh", "initialize"):
+                if observation.action in ("fresh", "initialize", "transfer"):
                     activity = admission.replacement_activity(store, observation.attempt, backend, ctx.backend, consumers)
                     observation.consumers = activity.consumers
                     if activity.reason:
