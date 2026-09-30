@@ -39,6 +39,7 @@ jobs:
         run: |
           version=${GITHUB_REF_NAME#v}
           conda create -y -p "$RUNNER_TEMP/gwflow-release-test" python=3.12 "gwflow=$version" -c "file://$RUNNER_TEMP/conda-dist" -c gwforg -c conda-forge
+          conda run -p "$RUNNER_TEMP/gwflow-release-test" python -m pip install ./examples/packaged/packages/summary-task ./examples/packaged/packages/report-task
           conda list -p "$RUNNER_TEMP/gwflow-release-test" --json | python -c 'import json, sys; package = next(p for p in json.load(sys.stdin) if p["name"] == "gwflow"); assert package["base_url"].startswith("file://"), package'
           conda run -p "$RUNNER_TEMP/gwflow-release-test" python -m unittest discover -s tests -v
           conda run -p "$RUNNER_TEMP/gwflow-release-test" python tests/release_smoke.py
