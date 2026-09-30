@@ -1,10 +1,8 @@
-"""Compact Task status through the ordinary gwf CLI."""
+"""Compact managed Task status and unchanged gwf formatting for plain workflows."""
 
-from collections import Counter
-from contextlib import nullcontext
+from fnmatch import fnmatchcase
 
 import click
-
 from gwf import Workflow as GwfWorkflow
 from gwf.backends import create_backend
 from gwf.core import CachedFilesystem, Graph, Status, get_spec_hashes, pass_context
@@ -15,162 +13,24 @@ from gwf.scheduling import get_status_map
 from ._frontend import _submission_guard
 from ._state import state_name
 from .planning import plan_workflow
-from .workflow import Workflow, _bookkeeping_name
+from .workflow import Workflow
 
 
 class _StatusChoice(click.Choice):
     def convert(self, value, param, ctx):
-        # Accept gwf's spelling without advertising it in choices or completion.
-        if value == "cancelled":
-            value = "canceled"
-        return super().convert(value, param, ctx)
+        return super().convert("canceled" if value == "cancelled" else value, param, ctx)
 
 
-_VISUALS = {
-    Status.SHOULDRUN: (".", "magenta"),
-    Status.SUBMITTED: ("~", "cyan"),
-    Status.RUNNING: ("~", "blue"),
-    Status.COMPLETED: ("+", "green"),
-    Status.FAILED: ("!", "red"),
-    Status.CANCELLED: ("!", "red"),
-}
-
-
-def _task_state(states):
-    for state in (Status.FAILED, Status.CANCELLED, Status.RUNNING,
-                  Status.SUBMITTED, Status.SHOULDRUN):
-        if state in states:
-            return state
-    return Status.COMPLETED
-
-
-def _task_summary(states, inner_names, reused):
-    if reused:
-        count = len(inner_names)
-        return f"{count} target{'s' if count != 1 else ''} omitted by reuse"
-    counts = Counter(states[name] for name in inner_names)
-    problems = []
-    for state in (Status.FAILED, Status.CANCELLED):
-        count = counts[state]
-        if count:
-            problems.append(f"{count} {state_name(state)} target{'s' if count != 1 else ''}")
-    if problems:
-        return ", ".join(problems)
-    count = len(inner_names)
-    return f"{counts[Status.COMPLETED]}/{count} target{'s' if count != 1 else ''} completed"
-
-
-def _echo_row(symbol, label, state, detail="", *, indent="", color=None):
-    line = f"{indent}{symbol} {label:<28} {state:<12} {detail}".rstrip()
-    click.secho(line, fg=color)
-
-
-def _print_tree(workflow, target_states, selected, backend, *, details, filtered):
-    states = {target.name: state for target, state in target_states.items()}
-    targets_by_name = {target.name: target for target in target_states}
-    visible = {target.name for target in selected}
-    declared = dict(workflow.targets)
-    entries = []
-    owned = set()
-
-    for name, (_, _, inner_names, _) in workflow._task_declarations.items():
-        completion_name = _bookkeeping_name(name)
-        names = (*inner_names, completion_name)
-        owned.update(names)
-        if not any(target in visible for target in names):
-            continue
-        order = min((declared[target].order for target in inner_names), default=float("inf"))
-        entries.append((order, "task", name, inner_names, completion_name))
-
-    for target in target_states:
-        if target.name not in owned and target.name in visible:
-            entries.append((target.order, "target", target))
-
-    for entry in sorted(entries, key=lambda item: item[0]):
-        if entry[1] == "target":
-            target = entry[2]
-            state = states[target.name]
-            symbol, color = _VISUALS[state]
-            tracked_id = backend.get_tracked_id(target) if hasattr(backend, "get_tracked_id") else None
-            _echo_row(symbol, f"Target {target.name}", state_name(state),
-                      f"(id: {tracked_id or 'none'})", color=color)
-            continue
-
-        _, _, name, inner_names, completion_name = entry
-        present = [target for target in inner_names if target in states]
-        reused = not present and completion_name in states
-        task_states = [states[target] for target in (*inner_names, completion_name)
-                       if target in states]
-        task_state = _task_state(task_states)
-        symbol, color = _VISUALS[task_state]
-        label = "reusable" if reused else state_name(task_state)
-        _echo_row(symbol, f"Task {name}", label,
-                  _task_summary(states, inner_names, reused), color=color)
-
-        expand = details or task_state in (
-            Status.SUBMITTED, Status.RUNNING, Status.FAILED, Status.CANCELLED
-        )
-        if not expand:
-            continue
-        children = [target for target in inner_names if target in visible or
-                    (details and not filtered and target not in states and
-                     completion_name in visible)]
-        if details and completion_name in visible:
-            children.append(completion_name)
-        for index, target_name in enumerate(children):
-            last = index == len(children) - 1
-            prefix = "  `-- " if last else "  |-- "
-            local_name = ("completion" if target_name == completion_name else
-                          target_name.removeprefix(f"{name}__"))
-            if target_name not in states:
-                _echo_row("+", local_name, "omitted by reuse", indent=prefix, color="green")
-                continue
-            state = states[target_name]
-            symbol, child_color = _VISUALS[state]
-            target = targets_by_name[target_name]
-            tracked_id = backend.get_tracked_id(target) if hasattr(backend, "get_tracked_id") else None
-            _echo_row(symbol, local_name, state_name(state),
-                      f"(id: {tracked_id or 'none'})", indent=prefix, color=child_color)
-
-
-@click.command(name="status")
-@click.argument("targets", nargs=-1)
-@click.option("--endpoints", is_flag=True, default=False, help="Show only endpoints.")
-@click.option("-f", "--format", "output_format", default="tree",
-              type=click.Choice(("tree", "default", "summary", "grouped")),
-              help="How to format status output.")
-@click.option("-s", "--status", "statuses", multiple=True,
-              type=_StatusChoice(tuple(state_name(state) for state in Status)),
-              help="Filter by state.")
-@click.option("-g", "--group", multiple=True)
-@click.option("--details", is_flag=True, help="Expand visible Task targets and Completion jobs in tree view.")
-@pass_context
-def managed_status(ctx, targets, endpoints, output_format, statuses, group, details):
-    """Show target status, grouped under Tasks in gwflow workflows."""
-    statuses = tuple("cancelled" if name == "canceled" else name for name in statuses)
-    workflow = GwfWorkflow.from_context(ctx)
-    managed = isinstance(workflow, Workflow)
-    guard = (_submission_guard(
-        ctx.working_dir,
-        waiting_message="Waiting for another invocation to finish submission bookkeeping...",
-    ) if managed else nullcontext())
-    with guard:
-        fs = CachedFilesystem()
-        if managed:
-            declarations = list(workflow.targets.values())
-            plan = plan_workflow(workflow, declarations, ctx)
-            graph = Graph.from_targets({target.name: target for target in plan.status_targets}, fs)
-        else:
-            graph = Graph.from_targets(workflow.targets, fs)
-            if output_format == "tree":
-                output_format = "default"
-        with create_backend(ctx.backend, working_dir=ctx.working_dir, config=ctx.config) as backend:
-            # Inspection reads hashes without closing their writing context.
-            hashes = get_spec_hashes(working_dir=ctx.working_dir, config=ctx.config)
+def _plain_status(workflow, ctx, targets, endpoints, output_format, statuses, group):
+    fs = CachedFilesystem()
+    graph = Graph.from_targets(workflow.targets, fs)
+    with create_backend(ctx.backend, working_dir=ctx.working_dir, config=ctx.config) as backend:
+        with get_spec_hashes(working_dir=ctx.working_dir, config=ctx.config) as hashes:
             states = get_status_map(graph, fs, hashes, backend)
             filters = []
             if statuses:
-                filters.append(StatusFilter(states.get, [Status[name.upper()] for name in statuses]))
+                filters.append(StatusFilter(states.get, [Status[("cancelled" if name == "canceled" else name).upper()]
+                                                         for name in statuses]))
             if targets:
                 filters.append(NameFilter(targets))
             if endpoints:
@@ -178,16 +38,45 @@ def managed_status(ctx, targets, endpoints, output_format, statuses, group, deta
             if group:
                 filters.append(GroupFilter(group))
             selected = set(filter_generic(graph, filters))
-            if output_format == "tree":
-                _print_tree(workflow, states, selected, backend, details=details,
-                            filtered=bool(statuses or targets or endpoints or group))
-            else:
-                FORMATS[output_format](
-                    {target: state for target, state in states.items() if target in selected}, backend,
-                )
+            FORMATS["default" if output_format == "tree" else output_format](
+                {target: state for target, state in states.items() if target in selected}, backend)
 
 
-# Patch the command object too, regardless of plugin discovery order.
+@click.command(name="status")
+@click.argument("targets", nargs=-1)
+@click.option("--endpoints", is_flag=True, default=False)
+@click.option("-f", "--format", "output_format", default="tree", type=click.Choice(("tree", "default", "summary", "grouped")))
+@click.option("-s", "--status", "statuses", multiple=True, type=_StatusChoice(tuple(state_name(state) for state in Status)))
+@click.option("-g", "--group", multiple=True)
+@click.option("--details", is_flag=True, help="Show public target names and execution jobs.")
+@pass_context
+def managed_status(ctx, targets, endpoints, output_format, statuses, group, details):
+    """Show managed Task condition, including reusable cleaned work."""
+    workflow = GwfWorkflow.from_context(ctx)
+    if not isinstance(workflow, Workflow):
+        return _plain_status(workflow, ctx, targets, endpoints, output_format, statuses, group)
+    with _submission_guard(ctx.working_dir, waiting_message="Waiting for frontend submission bookkeeping..."):
+        plan = plan_workflow(workflow, ctx)
+        for task in plan.tasks:
+            public = [f"{task.name}__{local}" for local in [*task.structure["targets"], "gwflow_complete"]]
+            if targets and not any(fnmatchcase(name, pattern) for name in [task.name, *public] for pattern in targets):
+                continue
+            if group and not any((target.group or "none") in group
+                                 for target in workflow._task_declarations[task.name].targets.values()):
+                continue
+            state = {"fresh": "shouldrun", "reuse": "completed", "active": "running", "blocked": "failed"}[task.action]
+            if statuses and state not in statuses:
+                continue
+            label = ("reusable work-present" if task.work_present else "reusable work-cleaned") if task.action == "reuse" else task.action
+            click.echo(f"Task {task.name}: {label}; {task.reason}")
+            if details:
+                for local in [*task.structure["targets"], "gwflow_complete"]:
+                    job = task.attempt["jobs"][local] if task.attempt else "not submitted"
+                    click.echo(f"  {task.name}__{local}: {job}")
+                if task.attempt:
+                    click.echo(f"  Attempt: {task.attempt['attempt']}; workspace: {plan.store.workspace(task.attempt)}")
+
+
 gwf_status.params = managed_status.params
 gwf_status.callback = managed_status.callback
 gwf_status.help = managed_status.help

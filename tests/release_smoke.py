@@ -13,7 +13,6 @@ from gwf.backends.local import Client, LocalStatus
 
 
 GWF = str(Path(sys.executable).with_name("gwf"))
-EXAMPLE = Path(__file__).resolve().parents[1] / "examples" / "uppercase"
 
 
 def wait_for(predicate, description):
@@ -37,7 +36,16 @@ def run(work):
 def main():
     with tempfile.TemporaryDirectory(prefix="gwflow-release-") as directory:
         work = Path(directory)
-        shutil.copytree(EXAMPLE, work, dirs_exist_ok=True)
+        (work / "workflow.py").write_text(
+            "from gwflow import Task, Workflow\n"
+            "gwf = Workflow()\n"
+            "task = Task(inputs=[])\n"
+            "target = task.target('write', inputs=[], outputs=['out.txt'])\n"
+            "target << 'printf HELLO > out.txt'\n"
+            "task.retain('text', source=target.output('out.txt'), path='text.txt')\n"
+            "gwf.task_from_template('alpha', task)\n"
+            "gwf.task_from_template('beta', task)\n"
+        )
         with socket.socket() as probe:
             probe.bind(("127.0.0.1", 0))
             port = probe.getsockname()[1]
@@ -71,15 +79,15 @@ def main():
                 return bool(states) and all(state == LocalStatus.COMPLETED for state in states)
 
             wait_for(jobs_complete, "task completion")
-            expected = (work / "input.txt").read_text().upper()
+            expected = "HELLO"
             for name in ("alpha", "beta"):
-                if (work / f"{name}.txt").read_text() != expected:
+                if (work / "results" / name / "text.txt").read_text() != expected:
                     raise AssertionError(f"Unexpected {name} output")
-                (work / f"{name}.tmp").unlink()
+            shutil.rmtree(work / "work")
             second = run(work)
             if "Submitted target" in second:
                 raise AssertionError(second)
-            if any((work / f"{name}.tmp").exists() for name in ("alpha", "beta")):
+            if (work / "work").exists():
                 raise AssertionError("An internal intermediate was recreated")
             print("Published-package cleanup and reuse smoke check passed")
         finally:
