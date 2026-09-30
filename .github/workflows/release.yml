@@ -48,8 +48,12 @@ jobs:
           path: ${{ runner.temp }}/conda-dist/noarch/gwflow-*.conda
           if-no-files-found: error
 
-  publish:
+  slurm-acceptance:
     needs: verify
+    uses: ./.github/workflows/slurm-acceptance.yml
+
+  publish:
+    needs: [verify, slurm-acceptance]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7

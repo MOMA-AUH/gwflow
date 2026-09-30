@@ -1,0 +1,74 @@
+name: Slurm acceptance
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  build-development-candidate:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: conda-incubator/setup-miniconda@v4
+        with:
+          miniforge-version: latest
+      - name: Build candidate Conda artifact
+        shell: bash -l {0}
+        run: |
+          conda install -y -n base conda-build -c conda-forge
+          conda build conda-recipe --no-anaconda-upload -c gwforg -c conda-forge --output-folder "$RUNNER_TEMP/conda-dist"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: gwflow-conda-release
+          path: ${{ runner.temp }}/conda-dist/noarch/gwflow-*.conda
+          if-no-files-found: error
+
+  accept:
+    needs: build-development-candidate
+    if: always() && (needs.build-development-candidate.result == 'success' || needs.build-development-candidate.result == 'skipped')
+    runs-on: [self-hosted, linux, gwflow-slurm]
+    timeout-minutes: 90
+    concurrency:
+      group: gwflow-slurm-site
+      cancel-in-progress: false
+    env:
+      SLURM_SHARED_ROOT: ${{ vars.SLURM_SHARED_ROOT }}
+      SLURM_WAIT_SECONDS: ${{ vars.SLURM_WAIT_SECONDS || '2400' }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: gwflow-conda-release
+          path: ${{ runner.temp }}/gwflow-candidate
+      - name: Install exact candidate on shared storage and run real Slurm acceptance
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$SLURM_SHARED_ROOT" && test "${SLURM_SHARED_ROOT#/}" != "$SLURM_SHARED_ROOT"
+          test -d "$SLURM_SHARED_ROOT" && test -w "$SLURM_SHARED_ROOT"
+          for program in conda sbatch squeue sacct scontrol; do command -v "$program"; done
+          candidate=$(find "$RUNNER_TEMP/gwflow-candidate" -name 'gwflow-*.conda' -print -quit)
+          test -n "$candidate"
+          base="$SLURM_SHARED_ROOT/gwflow-acceptance/$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          mkdir -p "$base"
+          conda create -y -p "$base/conda-env" python=3.12 "$candidate" -c gwforg -c conda-forge
+          conda list -p "$base/conda-env" --json > "$base/conda-list.json"
+          sha256sum "$candidate" > "$base/candidate.sha256"
+          export PATH="$base/conda-env/bin:$PATH"
+          "$base/conda-env/bin/python" tests/slurm_acceptance.py \
+            --work-root "$base/evidence" --artifact "$candidate" \
+            --deadline-seconds "$SLURM_WAIT_SECONDS"
+      - name: Preserve site evidence and Slurm logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: gwflow-slurm-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ vars.SLURM_SHARED_ROOT }}/gwflow-acceptance/${{ github.run_id }}-${{ github.run_attempt }}/evidence/
+            ${{ vars.SLURM_SHARED_ROOT }}/gwflow-acceptance/${{ github.run_id }}-${{ github.run_attempt }}/conda-list.json
+            ${{ vars.SLURM_SHARED_ROOT }}/gwflow-acceptance/${{ github.run_id }}-${{ github.run_attempt }}/candidate.sha256
+          if-no-files-found: warn
