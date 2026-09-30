@@ -149,8 +149,9 @@ class FreshAttemptTests(LocalBackendTestCase):
         before = self.attempts()
         (self.work / "results/a/result.txt").unlink()
         self.assertIn("Task c: deferred;", self.cli("explain"))
-        self.cli("run", success=False)
+        self.run_complete()
         self.assertEqual(self.attempts(), before)
+        self.assertIn("Task c: reuse;", self.cli("explain"))
         self.assertTrue((self.work / "work/a").exists())
         self.assertEqual((self.work / "results/c/result.txt").read_text(), "a")
 
@@ -250,7 +251,7 @@ class FreshAttemptTests(LocalBackendTestCase):
 
     def test_unknown_result_ownership_blocks_all_requested_removal(self):
         self.run_complete()
-        manifest = next((self.work / ".gwf/gwflow").glob("owners/*/tasks/b/attempts/*/manifest.json"))
+        manifest = next((self.work / ".gwf/gwflow").glob("owners/*/tasks/b/attempts/*/**/manifest.json"))
         original = json.loads(manifest.read_text())
         missing_metadata = {key: value for key, value in original.items() if key != "outputs"}
         for contents in ("{truncated", json.dumps(missing_metadata)):

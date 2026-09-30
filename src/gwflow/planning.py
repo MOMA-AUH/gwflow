@@ -46,7 +46,7 @@ def retry_observation(store, observation, jobs):
     store.check_inputs(attempt)
     if not observation.work_present:
         raise WorkflowError("Missing attempt workspace requires a fresh attempt")
-    if any(_files.exists(store.attempt_dir(attempt) / filename) for filename in ("manifest.json", "installed.json", "completion.json")):
+    if any(_files.exists(store.record_path(attempt, filename)) for filename in ("manifest.json", "installed.json", "completion.json")):
         raise WorkflowError("Existing results finishing evidence requires recovery before computation retry")
     admission.require_retry_inactive(jobs, replaced)
     observation.retry = replaced
@@ -97,13 +97,31 @@ def recover_transfer(store, observation, jobs):
         recovery = transfer.inspect(store, observation.attempt)
     except transfer.InvalidSources:
         attempt = observation.attempt
-        if (observation.work_present and not any(_files.exists(store.attempt_dir(attempt) / filename)
-                                                for filename in ("manifest.json", "installed.json", "completion.json"))
+        if (observation.work_present and store.repair_intent(attempt) is None
+                and not any(_files.exists(store.record_path(attempt, filename))
+                            for filename in ("manifest.json", "installed.json", "completion.json"))
                 and retry_observation(store, observation, jobs)):
             return
         fresh_observation(store, observation, "transfer sources cannot be recovered; fresh computation is required")
         return
     observation.action, observation.reason = "transfer", recovery.reason
+    observation.pending = ["gwflow_complete"]
+
+
+def completed_observation(store, observation):
+    try:
+        completed = store.completed(observation.attempt)
+    except (WorkflowError, OSError):
+        completed = False
+    if completed:
+        observation.action, observation.reason = "reuse", "checked Completion and retained metadata match"
+        return
+    try:
+        transfer.repair_sources(store, observation.attempt)
+    except transfer.InvalidSources:
+        fresh_observation(store, observation, "retained repair sources are unavailable or invalid; fresh computation is required")
+        return
+    observation.action, observation.reason = "repair", "restore damaged retained results from checked work under the same attempt"
     observation.pending = ["gwflow_complete"]
 
 
@@ -154,12 +172,15 @@ def plan_workflow(workflow, ctx, *, force=False, force_tasks=()):
                         observation.removal = store.result_removal(attempt)
                         observation.action, observation.reason = "initialize", "resume selected initialization; remove previous results before submission"
                         observation.pending = lifecycle_jobs(ordered_targets(structure))
-                    elif not active and any(selected[producer].action in ("blocked", "deferred") for producer in producer_names(structure)):
-                        observation.action, observation.reason = "deferred", "producer results need recovery; defer input comparison until their metadata is available"
+                    elif not active and any(selected[producer].action in ("blocked", "deferred", "repair", "transfer")
+                                            for producer in producer_names(structure)) and _files.exists(store.attempt_dir(attempt) / "inputs.json"):
+                        observation.action, observation.reason = "deferred", "producer results need recovery; a later invocation must replan input validity after restored metadata is available"
                     elif input_metadata_changed(store, attempt):
                         fresh_observation(store, observation, "input metadata changed; a fresh attempt is required")
-                    elif not active and store.read(attempt, "completion.json", "completion", operation=attempt["operation"]) is not None and store.completed(attempt):
-                        observation.action, observation.reason = "reuse", "checked Completion and retained metadata match"
+                    elif not active and store.read(attempt, "completion.json", "completion", operation=attempt["operation"]) is not None:
+                        completed_observation(store, observation)
+                    elif not active and store.repair_intent(attempt) is not None:
+                        recover_transfer(store, observation, jobs)
                     elif ((jobs["gwflow_prepare"].state in ("failed", "cancelled")
                            or jobs["gwflow_prepare"].backend_state in (BackendStatus.FAILED, BackendStatus.CANCELLED))
                           and not active and observation.work_present
@@ -172,7 +193,7 @@ def plan_workflow(workflow, ctx, *, force=False, force_tasks=()):
                     elif (not active and (finishing.state in ("failed", "cancelled")
                                           or finishing.state == "pending" and finishing.intent is not None)
                           and all(jobs[local].state == "complete" for local in attempt["executions"])
-                          and not _files.exists(store.attempt_dir(attempt) / "completion.json")):
+                          and not _files.exists(store.record_path(attempt, "completion.json"))):
                         recover_transfer(store, observation, jobs)
                     elif retry_observation(store, observation, jobs):
                         pass
@@ -197,7 +218,7 @@ def plan_workflow(workflow, ctx, *, force=False, force_tasks=()):
         for observation in tasks:
             if observation.attempt is not None:
                 observation.consumers = consumers.get((observation.name, observation.attempt["attempt"]), {})
-                if observation.action in ("fresh", "initialize", "transfer"):
+                if observation.action in ("fresh", "initialize", "transfer", "repair"):
                     activity = admission.replacement_activity(store, observation.attempt, backend, ctx.backend, consumers)
                     observation.consumers = activity.consumers
                     if activity.reason:
