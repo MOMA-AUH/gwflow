@@ -13,6 +13,7 @@ import sys
 import time
 
 from gwf import Target
+from gwf.backends import BackendStatus
 from gwf.backends.base import TrackingBackend
 from gwf.backends.local import Client, LocalStatus, LocalOps
 
@@ -46,6 +47,8 @@ class RecoveryBackend(TrackingBackend):
         return super().target_defaults
 
     def status(self, target):
+        if self.options.get("queued_prefix") and target.name.startswith(self.options["queued_prefix"] + "__"):
+            return BackendStatus.SUBMITTED
         if self.options.get("hold_observation"):
             (self.work / "observation-held").touch()
             wait_for(lambda: (self.work / "observation-release").exists())

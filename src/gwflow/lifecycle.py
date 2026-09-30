@@ -385,6 +385,18 @@ class Store:
     def transfer_dir(self, attempt):
         return self.locations["staging"] / attempt["attempt"] / attempt["operation"]
 
+    def transfer_ownership(self, attempt):
+        path = self.attempt_dir(attempt) / "transfer.json"
+        record = self.read(attempt, "transfer.json", "transfer", operation=attempt["operation"])
+        if record is None and not _files.exists(path):
+            return None
+        if (record is None or not _uuid(record.get("copy"))
+                or record.get("staging") != str(self.transfer_dir(attempt) / record["copy"])
+                or record.get("destination") != str(self.result_dir(attempt))
+                or not _valid_identity(record.get("staged_identity"))):
+            raise WorkflowError("Missing or malformed transfer ownership evidence")
+        return record
+
     def identity(self, attempt, **extra):
         return {"owner": self.owner["owner"], "task": attempt["task"], "attempt": attempt["attempt"], **extra}
 
@@ -623,6 +635,10 @@ class Store:
             if expected != _files.identity(destination):
                 raise WorkflowError(f"Previous results ownership changed during initialization: {destination}")
             return expected
+        if not _files.exists(self.attempt_dir(attempt) / "completion.json"):
+            transfer = self.transfer_ownership(attempt)
+            if transfer is not None and transfer["staged_identity"] == _files.identity(destination):
+                return transfer["staged_identity"]
         manifest = self.read(attempt, "manifest.json", "manifest", operation=attempt["operation"])
         if (manifest is None or manifest.get("destination") != str(destination)
                 or manifest.get("retained") != attempt["structure"]["retained"]

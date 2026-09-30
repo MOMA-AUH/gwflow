@@ -9,6 +9,7 @@ import errno
 import os
 from pathlib import Path
 import runpy
+import shutil
 import sys
 import time
 
@@ -28,6 +29,7 @@ def gate(name):
 
 original_link, original_replace, original_rename = os.link, os.replace, os.rename
 original_utime = os.utime
+original_copyfileobj = shutil.copyfileobj
 
 
 def link(source, destination, **kwargs):
@@ -46,7 +48,15 @@ def link(source, destination, **kwargs):
 def replace(source, destination, **kwargs):
     if destination == "success.json" and options.get("crash_before_success"):
         os._exit(93)
+    if destination == "manifest.json" and options.get("crash_before_manifest"):
+        os._exit(97)
+    if destination == "transfer.json" and options.get("crash_before_transfer_ownership"):
+        os._exit(101)
+    if destination == "completion.json" and options.get("crash_before_completion"):
+        os._exit(99)
     result = original_replace(source, destination, **kwargs)
+    if destination == "manifest.json" and options.get("crash_after_manifest"):
+        os._exit(98)
     if destination == "manifest.json" and options.get("gate_after_manifest"):
         gate("manifest")
     return result
@@ -58,6 +68,8 @@ def rename(source, destination, **kwargs):
     result = original_rename(source, destination, **kwargs)
     if destination == "committed" and options.get("crash_after_commit"):
         os._exit(95)
+    if destination != "committed" and options.get("crash_after_results_install"):
+        os._exit(100)
     return result
 
 
@@ -69,8 +81,17 @@ def utime(path, *args, **kwargs):
     return original_utime(path, *args, **kwargs)
 
 
+def copyfileobj(source, destination, *args, **kwargs):
+    if options.get("crash_during_copy"):
+        destination.write(source.read(1))
+        destination.flush()
+        os._exit(96)
+    return original_copyfileobj(source, destination, *args, **kwargs)
+
+
 os.link, os.replace, os.rename = link, replace, rename
 os.utime = utime
+shutil.copyfileobj = copyfileobj
 if options.get("gate_before_preparation"):
     gate("preparation")
 # The backend passes the original interpreter's '-m gwflow.execution' arguments.

@@ -105,6 +105,28 @@ def metadata(root, filenames, *, sync=False):
     return result
 
 
+def file_set(root):
+    """List the complete regular-file set without traversing any symlinks."""
+    def visit(parent, prefix):
+        files = set()
+        for name in os.listdir(parent):
+            relative = prefix + name
+            info = os.stat(name, dir_fd=parent, follow_symlinks=False)
+            if stat.S_ISDIR(info.st_mode):
+                child = os.open(name, _DIRECTORY_FLAGS, dir_fd=parent)
+                try:
+                    files.update(visit(child, relative + "/"))
+                finally:
+                    os.close(child)
+            elif stat.S_ISREG(info.st_mode):
+                files.add(relative)
+            else:
+                raise WorkflowError(f"Non-regular retained output: {relative}")
+        return files
+    with directory(root) as parent:
+        return visit(parent, "")
+
+
 def read_json(path):
     path = Path(path)
     try:
@@ -145,9 +167,12 @@ def publish(path, record, *, replace=True):
                 pass
 
 
-def commit_directory(source, destination):
+def commit_directory(source, destination, *, expected=None):
     source, destination = Path(source), Path(destination)
     with directory(source) as staged:
+        info = os.fstat(staged)
+        if expected is not None and expected != {"device": info.st_dev, "inode": info.st_ino}:
+            raise WorkflowError(f"Managed staging ownership changed: {source}")
         sync_directory(staged)
     with directory(source.parent) as src, directory(destination.parent, create=True) as dst:
         # Refuse existing destinations; never merge file sets or adopt them.
@@ -157,6 +182,9 @@ def commit_directory(source, destination):
             pass
         else:
             raise WorkflowError(f"Managed destination already exists: {destination}")
+        current = os.stat(source.name, dir_fd=src, follow_symlinks=False)
+        if (current.st_dev, current.st_ino) != (info.st_dev, info.st_ino):
+            raise WorkflowError(f"Managed staging changed before commit: {source}")
         os.rename(source.name, destination.name, src_dir_fd=src, dst_dir_fd=dst)
         sync_directory(src)
         sync_directory(dst)

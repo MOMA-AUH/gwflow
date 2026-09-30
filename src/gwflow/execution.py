@@ -1,9 +1,7 @@
 """Scheduled checked execution and complete-result transfer for managed Tasks."""
 
-import errno
 import os
 from pathlib import Path
-import shutil
 import subprocess
 import sys
 
@@ -12,6 +10,7 @@ from gwf.exceptions import WorkflowError
 from . import _files, admission
 from .commands import Command
 from .lifecycle import Store, target_dependencies
+from .transfer import finish
 
 
 def execute(store, attempt, local):
@@ -49,53 +48,6 @@ def execute(store, attempt, local):
     _files.commit_directory(staging, home / "committed")
     store.publish(attempt, f"executions/{attempt['executions'][local]}/success.json", "target-success", target=local,
                   execution=attempt["executions"][local], outputs=observed, dependencies=execution["dependencies"])
-
-
-def finish(store, attempt):
-    store.validate_roots()
-    if any(_files.exists(store.attempt_dir(attempt) / filename)
-           for filename in ("manifest.json", "installed.json", "completion.json")):
-        raise WorkflowError("Existing transfer evidence requires recovery; it cannot be overwritten by another finishing job")
-    if _files.exists(store.result_dir(attempt)):
-        raise WorkflowError("Results destination already exists; existing results cannot be adopted or replaced")
-    sources = {local: store.checked_target(attempt, local) for local in attempt["executions"]}
-    staging = store.transfer_dir(attempt)
-    if _files.exists(staging):
-        raise WorkflowError("Interrupted transfer requires recovery; existing staging is not adopted")
-    _files.mkdir(staging)
-    retained = attempt["structure"]["retained"]
-    for item in retained.values():
-        local, source, destination = item["target"], item["source"], item["path"]
-        root = store.execution_dir(attempt, local) / "committed"
-        store.validate_roots()
-        with _files.regular_file(root, source) as source_fd:
-            with _files.regular_file(staging, destination, create=True) as destination_fd:
-                with os.fdopen(os.dup(source_fd), "rb") as reader, os.fdopen(os.dup(destination_fd), "wb") as writer:
-                    shutil.copyfileobj(reader, writer)
-                    writer.flush()
-                observed = sources[local]["outputs"][source]
-                try:
-                    os.utime(destination_fd, ns=(observed["mtime_ns"], observed["mtime_ns"]))
-                except OSError as error:
-                    if error.errno not in (errno.ENOTSUP, errno.ENOSYS):
-                        raise
-                os.fsync(destination_fd)
-        store.checked_target(attempt, local)
-    copied = _files.metadata(staging, [item["path"] for item in retained.values()], sync=True)
-    store.publish(attempt, "manifest.json", "manifest", operation=attempt["operation"],
-                  sources={local: {"execution": record["execution"], "outputs": record["outputs"]}
-                           for local, record in sources.items()},
-                  retained=retained, outputs=copied, destination=str(store.result_dir(attempt)),
-                  staged_identity=_files.identity(staging))
-    store.validate_roots()
-    if store.current(attempt["task"], attempt["result_dir"]) != attempt:
-        raise WorkflowError("Current Task attempt changed before results commit")
-    store.check_inputs(attempt)
-    _files.commit_directory(staging, store.result_dir(attempt))
-    destination_metadata = _files.metadata(store.result_dir(attempt), copied)
-    store.publish(attempt, "installed.json", "installed", operation=attempt["operation"], outputs=destination_metadata)
-    store.publish(attempt, "completion.json", "completion", operation=attempt["operation"], outputs=destination_metadata,
-                  producers=attempt["producers"])
 
 
 def main():

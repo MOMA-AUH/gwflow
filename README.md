@@ -6,7 +6,8 @@ Checked completion evidence lets a Task remain reusable after its work is remove
 
 The development branch is migrating to v0.3.0. The current managed lifecycle
 supports Task graphs, named Task dependencies, external inputs, and partial
-retries, fresh attempts, and separate work/results filesystems. Repair and managed cleanup are being added in
+retries, fresh attempts, separate work/results filesystems, and interrupted
+transfer recovery. Repair and managed cleanup are being added in
 [the implementation queue](https://github.com/MOMA-AUH/gwflow/issues/62).
 Existing v0.2 factories and records are not converted or adopted. The older
 examples will be migrated with the complete workflow demonstration.
@@ -119,6 +120,23 @@ staging and installs the complete set in `results/hello/` before recording
 Completion. Retained files are independent copies; only declared retained files
 appear in results. Scratch, work outputs, and execution IDs remain in work or
 bookkeeping. A Task may retain no files but still requires checked computation.
+
+An ordinary `gwf run` recovers interrupted finishing under the same Task attempt
+without repeating verified computation. Partial copying restarts as a complete
+copy from checked work; a fully prepared set can be installed directly. After
+installation, recovery checks the exact operation, directory ownership, complete
+file set, and separately recorded destination metadata before recording
+Completion. With this evidence intact, it can finish even after work removal.
+Consumers still wait for final Completion.
+
+When installed association or copied metadata is insufficient, recovery rebuilds
+the whole set from valid work only after checking inactivity and consumer
+protection. Missing ownership evidence blocks removal. Invalid work requires
+another computation execution: an eligible partial attempt retries its targets,
+or a fresh attempt starts when the previous finishing state cannot be continued.
+Changed tracked inputs, commands, or structure also follow the fresh-attempt
+rules. `status`, `explain`, and dry-run identify transfer recovery without
+restarting copying or changing records. Unknown submissions remain protected.
 
 Results and bookkeeping must survive work removal. An unchanged completed Task
 can be reused without its work. A subsequent fresh attempt recreates an absent
