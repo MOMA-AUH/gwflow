@@ -183,11 +183,11 @@ def plan_workflow(workflow, ctx, *, force=False, force_tasks=()):
                     elif not active and any(awaiting_producer_metadata(store, selected[producer])
                                             for producer in producer_names(structure)) and _files.exists(store.attempt_dir(attempt) / "inputs.json"):
                         observation.action, observation.reason = "deferred", "producer results need recovery; a later invocation must replan input validity after restored metadata is available"
+                    elif not active and store.cleanup_record(attempt) is not None:
+                        completed_observation(store, observation)
                     elif input_metadata_changed(store, attempt):
                         fresh_observation(store, observation, "input metadata changed; a fresh attempt is required")
                     elif not active and store.read(attempt, "completion.json", "completion", operation=attempt["operation"]) is not None:
-                        completed_observation(store, observation)
-                    elif not active and store.cleanup_record(attempt) is not None:
                         completed_observation(store, observation)
                     elif not active and store.repair_intent(attempt) is not None:
                         recover_transfer(store, observation, jobs)

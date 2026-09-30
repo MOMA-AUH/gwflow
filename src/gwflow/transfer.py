@@ -65,10 +65,10 @@ def _sources(store, attempt, *, check_files):
 def repair_sources(store, attempt):
     """Establish repair eligibility before invalidating the previous Completion."""
     store.validate_roots()
-    store.check_inputs(attempt)
-    store.result_removal(attempt)
     if store.cleanup_record(attempt) is not None:
         raise InvalidSources("Work is marked for cleanup; repair requires fresh computation")
+    store.check_inputs(attempt)
+    store.result_removal(attempt)
     return _sources(store, attempt, check_files=True)
 
 

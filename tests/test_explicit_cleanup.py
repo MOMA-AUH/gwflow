@@ -116,6 +116,39 @@ class ExplicitCleanupTests(LocalBackendTestCase):
         self.assertIn("unresolved submission", output)
         self.assertTrue((self.work / "work/a" / attempt).exists())
 
+    def test_cleanup_before_input_preparation_requires_fresh_attempt(self):
+        self.cli("-b", "recovery_fixture", "run", env=self.inject(reject_before_admission=True), success=False)
+        a, b = self.attempt("a"), self.attempt("b")
+        self.cli("clean-work", "--delete", "--attempt", a, "--attempt", b)
+        self.assertIn("Task a: fresh;", self.cli("explain"))
+        self.assertIn("Task b: fresh;", self.cli("explain"))
+        self.run_complete()
+        self.assertNotEqual(self.attempt("a"), a)
+        self.assertNotEqual(self.attempt("b"), b)
+        self.assertEqual(Counter((self.work / "trace").read_text().splitlines()), {"a": 1, "b": 1})
+
+    def test_cleaned_failed_attempt_uses_new_inputs_instead_of_discarded_baseline(self):
+        workflow = self.work / "workflow.py"
+        workflow.write_text(workflow.read_text().replace("Task(inputs=[])", "Task(inputs=['input.txt'])", 1)
+                            .replace("printf a", "exit 8; printf a"))
+        self.cli("run")
+        self.settle()
+        attempt = self.attempt("a")
+        baseline = next(path for path in (self.work / ".gwf/gwflow").rglob("inputs.json")
+                        if json.loads(path.read_text())["attempt"] == attempt)
+        baseline.write_text("{")
+        self.cli("clean-work", "--delete", "--attempt", attempt)
+        self.assertIn("Task a: fresh;", self.cli("explain"))
+        (self.work / "input.txt").unlink()
+        self.assertIn("Cannot observe external input", self.cli("run", success=False))
+        self.assertEqual(Counter((self.work / "trace").read_text().splitlines()), {"a": 1, "b": 1})
+        (self.work / "input.txt").write_text("new baseline\n")
+        workflow.write_text(workflow.read_text().replace("exit 8; printf a", "printf a"))
+        self.cli("run")
+        self.settle()
+        self.assertNotEqual(self.attempt("a"), attempt)
+        self.assertEqual((self.work / "results/a/result.txt").read_text(), "a")
+
     def test_interrupted_failed_cleanup_resumes_and_never_continues_discarded_work(self):
         failing = self.work / "fail-b"
         failing.touch()
