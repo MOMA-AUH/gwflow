@@ -121,8 +121,10 @@ appear in results. Scratch, work outputs, and execution IDs remain in work or
 bookkeeping. A Task may retain no files but still requires checked computation.
 
 Results and bookkeeping must survive work removal. An unchanged completed Task
-can be reused without its work. Incomplete attempts, damaged results, changed
-tracked computation, and uncertain submissions currently fail explicitly when
+can be reused without its work. A subsequent fresh attempt recreates an absent
+work root with new recorded ownership before removing any previous results.
+Interrupted recreation can resume; an unexplained replacement root is rejected.
+Incomplete attempts, damaged results, and uncertain submissions fail explicitly when
 they require a recovery operation that is not yet available. Generic `gwf clean`
 and `gwf touch` are rejected for managed workflows. Ordinary `gwf.Workflow`
 commands keep their usual behavior.

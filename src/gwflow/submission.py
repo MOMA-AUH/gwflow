@@ -66,25 +66,24 @@ def submit_plan(plan, workflow, ctx, *, dry_run):
                 logger.info("Would restart preparation in the same attempt")
         return
     replacements = [task for task in plan.tasks if task.action in ("fresh", "initialize") and task.attempt is not None]
-    if replacements:
+    recreate_work = (any(task.action in ("fresh", "initialize") for task in plan.tasks)
+                     and plan.store.work_root_needs_recreation())
+    if replacements or recreate_work:
         with create_backend(ctx.backend, working_dir=ctx.working_dir, config=ctx.config) as backend:
             consumers = admission.consumer_activity(plan.store, backend, ctx.backend)
             for task in replacements:
-                attempts = [task.attempt]
-                if plan.store.read(task.attempt, "ready.json", "ready") is None:
-                    previous = plan.store.initialization_previous(task.attempt)
-                    if previous is not None:
-                        attempts.append(previous)
-                for attempt in attempts:
-                    observed = admission.observe(plan.store, attempt, backend, ctx.backend)
-                    conflicting = [item.submission for item in observed.values() if item.state in ("active", "uncertain")]
-                    if conflicting:
-                        raise WorkflowError(f"Task {task.name}: active or unresolved submissions block replacement: " + ", ".join(conflicting))
-                    active_consumers = consumers.get((task.name, attempt["attempt"]), {})
-                    if active_consumers:
-                        raise WorkflowError(f"Task {task.name}: active consumers block replacement: " + ", ".join(active_consumers))
+                activity = admission.replacement_activity(plan.store, task.attempt, backend, ctx.backend, consumers)
+                if activity.reason:
+                    raise WorkflowError(f"Task {task.name}: {activity.reason}")
                 if plan.store.result_removal(task.attempt) != task.removal:
                     raise WorkflowError(f"Task {task.name}: results ownership changed after planning")
+            if recreate_work:
+                for attempt in plan.store.recorded_tasks():
+                    activity = admission.replacement_activity(plan.store, attempt, backend, ctx.backend, consumers)
+                    if activity.reason:
+                        raise WorkflowError("Cannot recreate work root: " + activity.reason)
+        if recreate_work:
+            plan.store.recreate_work_root()
     selected = []
     for task in plan.tasks:
         if task.action in ("fresh", "initialize", "prepare", "continue", "retry"):

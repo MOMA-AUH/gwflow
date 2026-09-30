@@ -72,7 +72,7 @@ def pending_submissions(attempt, jobs):
 def fresh_observation(store, observation, reason):
     active = [item.submission for item in observation.submissions.values() if item.state in ("active", "uncertain")]
     if active:
-        raise WorkflowError("Active or unresolved work blocks replacement: " + ", ".join(active))
+        raise WorkflowError("Unresolved or active work blocks replacement: " + ", ".join(active))
     inputs.observe([value for value in observation.structure["inputs"] if isinstance(value, str)], store.locations)
     observation.removal = store.result_removal(observation.attempt) if observation.attempt else None
     observation.action, observation.reason = "fresh", reason
@@ -176,16 +176,10 @@ def plan_workflow(workflow, ctx, *, force=False, force_tasks=()):
         for observation in tasks:
             if observation.attempt is not None:
                 observation.consumers = consumers.get((observation.name, observation.attempt["attempt"]), {})
-                if observation.action in ("fresh", "initialize") and store.read(observation.attempt, "ready.json", "ready") is None:
-                    previous = store.initialization_previous(observation.attempt)
-                    if previous is not None:
-                        observation.consumers = {**observation.consumers, **consumers.get((observation.name, previous["attempt"]), {})}
-                        previous_jobs = admission.observe(store, previous, backend, ctx.backend)
-                        conflicts = [item.submission for item in previous_jobs.values() if item.state in ("active", "uncertain")]
-                        if conflicts:
-                            observation.action, observation.reason = "blocked", "Previous attempt has active or unresolved work: " + ", ".join(conflicts)
-                            observation.pending = []
-                if observation.action in ("fresh", "initialize") and observation.consumers:
-                    observation.action, observation.reason = "blocked", "Active consumers block replacement: " + ", ".join(observation.consumers)
-                    observation.pending = []
+                if observation.action in ("fresh", "initialize"):
+                    activity = admission.replacement_activity(store, observation.attempt, backend, ctx.backend, consumers)
+                    observation.consumers = activity.consumers
+                    if activity.reason:
+                        observation.action, observation.reason = "blocked", activity.reason
+                        observation.pending = []
     return Plan(store, tasks)

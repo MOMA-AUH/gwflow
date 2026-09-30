@@ -4,6 +4,7 @@ from collections import Counter
 import json
 import os
 import shlex
+import shutil
 import subprocess
 import sys
 
@@ -164,6 +165,49 @@ class FreshAttemptTests(LocalBackendTestCase):
         self.cli("run", "--force-task", "a")
         self.finish()
         self.assertEqual(Counter((self.work / "trace").read_text().splitlines()), {"a": 2, "b": 1, "c": 2})
+
+    def test_first_initialization_interrupted_before_intent_can_restart(self):
+        result = subprocess.run([sys.executable, str(FIXTURES / "frontend_fault.py"), str(self.work), "before_initialization_intent", "a", "run"],
+                                cwd=self.work, capture_output=True, text=True, timeout=30)
+        self.assertEqual(result.returncode, 91, result.stdout + result.stderr)
+        self.assertFalse((self.work / "results/a").exists())
+        self.assertIn("Task a: fresh;", self.cli("explain"))
+        self.cli("run")
+        self.finish()
+        self.assertEqual((self.work / "results/c/result.txt").read_text(), "a")
+        self.assertEqual(Counter((self.work / "trace").read_text().splitlines()), {"a": 1, "b": 1, "c": 1})
+
+    def test_force_recreates_removed_work_root_before_removing_results(self):
+        self.run_complete()
+        before = self.attempts()
+        shutil.rmtree(self.work / "work")
+        self.assertIn("Task a: reuse;", self.cli("explain"))
+        self.cli("run", "--force-task", "a", "--dry-run")
+        self.assertFalse((self.work / "work").exists())
+        self.assertEqual((self.work / "results/a/result.txt").read_text(), "a")
+        self.cli("run", "--force-task", "a")
+        self.finish()
+        after = self.attempts()
+        self.assertNotEqual(after["a"], before["a"])
+        self.assertEqual(after["b"], before["b"])
+        self.assertNotEqual(after["c"], before["c"])
+        self.assertEqual(Counter((self.work / "trace").read_text().splitlines()), {"a": 2, "b": 1, "c": 2})
+
+    def test_work_root_recreation_interruptions_preserve_results_and_restart(self):
+        self.run_complete()
+        for phase, code in (("before_work_recreation", 95), ("before_work_install", 96), ("after_work_install", 97)):
+            with self.subTest(phase=phase):
+                before = self.attempts()
+                shutil.rmtree(self.work / "work")
+                result = subprocess.run([sys.executable, str(FIXTURES / "frontend_fault.py"), str(self.work), phase, "a", "run", "--force-task", "a"],
+                                        cwd=self.work, capture_output=True, text=True, timeout=30)
+                self.assertEqual(result.returncode, code, result.stdout + result.stderr)
+                self.assertEqual((self.work / "results/a/result.txt").read_text(), "a")
+                self.assertEqual(self.attempts(), before)
+                self.cli("run", "--force-task", "a")
+                self.finish()
+                self.assertNotEqual(self.attempts()["a"], before["a"])
+        self.assertEqual(Counter((self.work / "trace").read_text().splitlines()), {"a": 4, "b": 1, "c": 4})
 
     def test_changed_pending_structure_selects_another_fresh_attempt(self):
         self.run_complete()
