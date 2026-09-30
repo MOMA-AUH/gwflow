@@ -27,7 +27,7 @@ workflow with gwf's CLI.
 For a published release, create an environment with Python 3.12:
 
 ```bash
-conda create -n gwflow python=3.12 gwflow=0.2.0 -c MOMA-AUH -c gwforg -c conda-forge
+conda create -n gwflow python=3.12 gwflow=0.2.1 -c MOMA-AUH -c gwforg -c conda-forge
 conda activate gwflow
 ```
 
@@ -95,8 +95,14 @@ gwf -b local run
 ```
 
 When the jobs finish, `alpha.txt` and `beta.txt` contain the uppercase text. You
-can check progress with `gwf -b local status`. Each task also has a completion
-entry such as `alpha__gwflow_complete`.
+can check progress with `gwf -b local status`. The default view lists Tasks
+from the start of the workflow. Submitted, running, failed, and cancelled Tasks
+expand to show their targets; reusable Tasks collapse into one line. Colors
+reinforce the ASCII symbols when output goes to a terminal. Use
+`gwf status --details` to expand visible targets. Use
+`gwf status --format default` for gwf's original flat view, including a
+completion entry such as `alpha__gwflow_complete`. Existing status
+filters and summary and grouped formats remain available.
 
 Now remove the two internal files and run again:
 
