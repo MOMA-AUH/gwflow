@@ -6,7 +6,7 @@ Checked completion evidence lets a Task remain reusable after its work is remove
 
 The development branch is migrating to v0.3.0. The current managed lifecycle
 supports Task graphs, named Task dependencies, external inputs, and partial
-retries and fresh attempts on one filesystem. Repair and managed cleanup are being added in
+retries, fresh attempts, and separate work/results filesystems. Repair and managed cleanup are being added in
 [the implementation queue](https://github.com/MOMA-AUH/gwflow/issues/62).
 Existing v0.2 factories and records are not converted or adopted. The older
 examples will be migrated with the complete workflow demonstration.
@@ -217,6 +217,38 @@ time checks do not detect changes preserving both, and successful execution does
 not certify output contents. Resources, packages, hidden parameters, and the
 software environment have no independent invalidation component.
 
+Storage placement belongs to the pipeline; the same Task factory and named
+output references work with different initial roots:
+
+```python
+gwf = Workflow(
+    work_root="/scratch/project/work",
+    results_root="/durable/project/results",
+    results_staging_root="/durable/project/staging",
+)
+handle = gwf.task_from_template("sample_a", task, result_dir="samples/a/report")
+```
+
+Roots default to `work/` and `results/` beneath the workflow directory. A Task's
+results directory defaults to its name; `result_dir` supplies an optional relative
+grouping path, and the factory's retained mappings supply filenames inside it.
+Task directories can share grouping parents but cannot contain one another.
+
+The default transfer staging is `.gwf/gwflow/staging/` when bookkeeping and
+results share a filesystem. Otherwise configure staging explicitly on the
+results filesystem, outside results and work. Invalid placement fails before
+initialization. Retained files are copied across filesystems, then the complete
+staged directory is renamed into results on the same filesystem. Source work
+files remain intact. Transfer preserves modification times where supported and
+records actual destination metadata separately, including filesystem precision
+differences or unsupported timestamp preservation. Results contain only retained
+files and their grouping directories.
+
+Equivalent resolved root spellings and root aliases are accepted. After initial
+use, changing recorded roots or an existing Task's `result_dir` is rejected;
+storage is not relocated or adopted. Newly added Tasks can choose new valid
+directories under the recorded roots.
+
 Work, results, and bookkeeping roots must be disjoint. Configured storage must
 be visible to jobs and support coherent record visibility and atomic directory
 rename on the relevant filesystem. Existing unowned destinations, changed
@@ -230,3 +262,8 @@ Run the installed-package tests with:
 python -m unittest discover -s tests -v
 python tests/release_smoke.py
 ```
+
+The storage tests exercise distinct filesystems using `/dev/shm` when available
+and report an explicit skip when no writable separate filesystem is available.
+The timestamp tests also use controlled filesystem observations to cover lower
+destination precision and unsupported timestamp preservation.

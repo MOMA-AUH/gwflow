@@ -1,5 +1,6 @@
 """Scheduled checked execution and complete-result transfer for managed Tasks."""
 
+import errno
 import os
 from pathlib import Path
 import shutil
@@ -73,7 +74,11 @@ def finish(store, attempt):
                     shutil.copyfileobj(reader, writer)
                     writer.flush()
                 observed = sources[local]["outputs"][source]
-                os.utime(destination_fd, ns=(observed["mtime_ns"], observed["mtime_ns"]))
+                try:
+                    os.utime(destination_fd, ns=(observed["mtime_ns"], observed["mtime_ns"]))
+                except OSError as error:
+                    if error.errno not in (errno.ENOTSUP, errno.ENOSYS):
+                        raise
                 os.fsync(destination_fd)
         store.checked_target(attempt, local)
     copied = _files.metadata(staging, [item["path"] for item in retained.values()], sync=True)

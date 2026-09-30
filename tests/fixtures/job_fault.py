@@ -5,6 +5,7 @@ leaves the production atomic-publication implementation to handle the fault.
 """
 
 import json
+import errno
 import os
 from pathlib import Path
 import runpy
@@ -26,6 +27,7 @@ def gate(name):
 
 
 original_link, original_replace, original_rename = os.link, os.replace, os.rename
+original_utime = os.utime
 
 
 def link(source, destination, **kwargs):
@@ -59,7 +61,16 @@ def rename(source, destination, **kwargs):
     return result
 
 
+def utime(path, **kwargs):
+    if options.get("unsupported_mtime"):
+        raise OSError(errno.ENOTSUP, "fixture filesystem cannot preserve timestamps")
+    if options.get("coarse_mtime") and "ns" in kwargs:
+        kwargs["ns"] = tuple(value // 1_000_000_000 * 1_000_000_000 for value in kwargs["ns"])
+    return original_utime(path, **kwargs)
+
+
 os.link, os.replace, os.rename = link, replace, rename
+os.utime = utime
 if options.get("gate_before_preparation"):
     gate("preparation")
 # The backend passes the original interpreter's '-m gwflow.execution' arguments.

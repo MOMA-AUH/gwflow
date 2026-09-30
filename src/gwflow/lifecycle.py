@@ -323,8 +323,6 @@ class Store:
             raise WorkflowError("Results staging cannot overlap work/results or contain bookkeeping")
         if _device(staging) != _device(results):
             raise WorkflowError("Results staging must share the results filesystem; configure results_staging_root")
-        if _device(work) != _device(results):
-            raise WorkflowError("Separate work/results filesystems are not yet supported")
 
     def validate_roots(self):
         for key, path in self.locations.items():
