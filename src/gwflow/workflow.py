@@ -134,7 +134,7 @@ class Workflow(GwfWorkflow):
     """Register Task factories and select their managed storage locations."""
 
     def __init__(self, working_dir=None, defaults=None, executor=None, *,
-                 completion_defaults=None, managed_tmpdir=True,
+                 completion_defaults=None, preparation_defaults=None, managed_tmpdir=True,
                  work_root="work", results_root="results", results_staging_root=None):
         if working_dir is None:
             working_dir = str(Path(getfile(_getframe(1))).resolve().parent)
@@ -143,6 +143,7 @@ class Workflow(GwfWorkflow):
             kwargs["executor"] = executor
         super().__init__(**kwargs)
         self.completion_defaults = dict(completion_defaults or {})
+        self.preparation_defaults = dict(preparation_defaults or {})
         if type(managed_tmpdir) is not bool:
             raise WorkflowError("managed_tmpdir must be true or false")
         self.managed_tmpdir = managed_tmpdir
@@ -165,7 +166,7 @@ class Workflow(GwfWorkflow):
         result_dir = relative_path(name if result_dir is None else result_dir)
         validate_destinations([*self._result_dirs.values(), result_dir])
         snapshot = deepcopy(task)
-        names = {f"{name}__{local}" for local in snapshot.targets} | {f"{name}__gwflow_complete"}
+        names = {f"{name}__{local}" for local in snapshot.targets} | {f"{name}__gwflow_prepare", f"{name}__gwflow_complete"}
         if names & self.targets.keys():
             raise WorkflowError("Task registration name collision")
         for local, target in snapshot.targets.items():
@@ -174,6 +175,10 @@ class Workflow(GwfWorkflow):
                 name=f"{name}__{local}", inputs=[], outputs=[], options=target.options,
                 working_dir=self.working_dir, group=target.group,
             )
+        self.targets[f"{name}__gwflow_prepare"] = GwfTarget(
+            name=f"{name}__gwflow_prepare", inputs=[], outputs=[], options={},
+            working_dir=self.working_dir,
+        )
         self.targets[f"{name}__gwflow_complete"] = GwfTarget(
             name=f"{name}__gwflow_complete", inputs=[], outputs=[], options={},
             working_dir=self.working_dir,

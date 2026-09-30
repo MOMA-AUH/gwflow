@@ -11,7 +11,7 @@ from uuid import uuid4
 from gwf.exceptions import WorkflowError
 from gwf.utils import is_valid_name
 
-from . import _files
+from . import _files, inputs
 from .commands import Command, shell
 from .workflow import TargetOutput, relative_path, validate_destinations
 
@@ -52,10 +52,9 @@ def _fingerprint(structure, commands, tracking):
     return hashlib.sha256(json.dumps(definition, sort_keys=True).encode()).hexdigest()
 
 
-def declarations(task):
+def declarations(task, store):
     """Canonical logical structure and commands; generated paths never enter."""
-    if task.inputs or any(target.inputs for target in task.targets.values()):
-        raise WorkflowError("External inputs are not yet supported by managed Tasks")
+    boundary = sorted({inputs.declared_path(value, store.working_dir) for value in task.inputs})
     if len(task.targets) != 1:
         raise WorkflowError("Managed Tasks currently require exactly one target")
     targets = {}
@@ -67,12 +66,21 @@ def declarations(task):
             raise WorkflowError(f"Task has outputless inner target {name!r}")
         outputs = [relative_path(path) for path in target.outputs]
         validate_destinations(outputs)
-        targets[name] = {"inputs": [], "outputs": sorted(outputs)}
+        incoming = sorted({inputs.declared_path(value, store.working_dir) for value in target.inputs})
+        if not set(incoming) <= set(boundary):
+            raise WorkflowError(f"Target {name!r} uses an undeclared Task boundary input")
+        targets[name] = {"inputs": incoming, "outputs": sorted(outputs)}
         if isinstance(target.spec, str):
             commands[name] = {"literal": target.spec}
         elif isinstance(target.spec, Command):
             bindings = {}
             for slot, reference in target.spec.bindings.items():
+                if isinstance(reference, (str, os.PathLike)):
+                    alias = inputs.declared_path(reference, store.working_dir)
+                    if alias not in incoming:
+                        raise WorkflowError(f"Command binding {slot!r} is not a declared target input")
+                    bindings[slot] = {"external": alias}
+                    continue
                 if (not isinstance(reference, TargetOutput) or reference.target is not target
                         or reference.filename not in target.outputs):
                     raise WorkflowError(f"Command binding {slot!r} is not a declared input or output of {name!r}")
@@ -86,7 +94,7 @@ def declarations(task):
             raise WorkflowError(f"Retained output {name!r} has an undeclared source")
         retained[name] = {"target": source.target.name, "source": source.filename, "path": relative_path(path)}
     validate_destinations([item["path"] for item in retained.values()])
-    return {"inputs": [], "targets": targets, "retained": retained}, commands
+    return {"inputs": boundary, "targets": targets, "retained": retained}, commands
 
 
 def _valid_attempt(attempt):
@@ -94,15 +102,18 @@ def _valid_attempt(attempt):
     try:
         structure, commands = attempt["structure"], attempt["commands"]
         targets, retained = structure["targets"], structure["retained"]
-        if (structure["inputs"] != [] or not targets
+        if (not isinstance(structure["inputs"], list)
+                or any(not isinstance(path, str) or not Path(path).is_absolute() for path in structure["inputs"])
+                or not targets
                 or set(targets) != set(attempt["executions"]) or set(targets) != set(commands)
-                or set(attempt["jobs"]) != set(targets) | {"gwflow_complete"}
-                or not _uuid(attempt["operation"]) or type(attempt["command_tracking"]) is not bool
+                or set(attempt["jobs"]) != set(targets) | {"gwflow_prepare", "gwflow_complete"}
+                or not _uuid(attempt["preparation"]) or not _uuid(attempt["operation"]) or type(attempt["command_tracking"]) is not bool
                 or type(attempt["managed_tmpdir"]) is not bool):
             return False
         for local, target in targets.items():
             if (not isinstance(local, str) or not is_valid_name(local) or local.startswith("gwflow_")
-                    or not _uuid(attempt["executions"][local]) or target["inputs"] != []
+                    or not _uuid(attempt["executions"][local]) or not isinstance(target["inputs"], list)
+                    or not set(target["inputs"]) <= set(structure["inputs"])
                     or not isinstance(target["outputs"], list) or not target["outputs"]
                     or any(relative_path(path) != path for path in target["outputs"])
                     or attempt["jobs"][local] != f"{attempt['task']}__{local}__{attempt['executions'][local]}"):
@@ -117,7 +128,9 @@ def _valid_attempt(attempt):
                     return False
                 shell(command["template"], **command["bindings"])
                 for binding in command["bindings"].values():
-                    if binding["target"] != local or binding["file"] not in target["outputs"]:
+                    if set(binding) == {"external"} and binding["external"] in target["inputs"]:
+                        continue
+                    if set(binding) != {"target", "file"} or binding["target"] != local or binding["file"] not in target["outputs"]:
                         return False
         for name, item in retained.items():
             if (not isinstance(name, str) or not name or item["target"] not in targets
@@ -125,6 +138,8 @@ def _valid_attempt(attempt):
                     or relative_path(item["path"]) != item["path"]):
                 return False
         validate_destinations([item["path"] for item in retained.values()])
+        if attempt["jobs"]["gwflow_prepare"] != f"{attempt['task']}__gwflow_prepare__{attempt['preparation']}":
+            return False
         if attempt["jobs"]["gwflow_complete"] != f"{attempt['task']}__gwflow_complete__{attempt['operation']}":
             return False
         expected = _fingerprint(structure, commands, attempt["command_tracking"])
@@ -237,6 +252,7 @@ class Store:
 
     def job_identity(self, attempt, local):
         generation = ({"operation": attempt["operation"]} if local == "gwflow_complete"
+                      else {"preparation": attempt["preparation"]} if local == "gwflow_prepare"
                       else {"execution": attempt["executions"][local]})
         return {"job": attempt["jobs"][local], **generation}
 
@@ -270,6 +286,34 @@ class Store:
             raise WorkflowError(f"Recorded Task results location changed for {name!r}")
         return attempt
 
+    def input_baseline(self, attempt):
+        record = self.read(attempt, "inputs.json", "inputs", preparation=attempt["preparation"])
+        if record is None or not inputs.valid(record.get("inputs"), attempt["structure"]["inputs"]):
+            raise WorkflowError("Missing or malformed input preparation baseline")
+        return record
+
+    def check_inputs(self, attempt):
+        baseline = self.input_baseline(attempt)
+        try:
+            observed = inputs.observe(attempt["structure"]["inputs"], self.locations)
+        except WorkflowError as error:
+            raise WorkflowError(f"External inputs unavailable after preparation; a fresh attempt is required: {error}") from error
+        if baseline["inputs"] != observed:
+            raise WorkflowError("External inputs changed after preparation; a fresh attempt is required")
+
+    def prepare(self, attempt):
+        path = self.attempt_dir(attempt) / "inputs.json"
+        if _files.exists(path):
+            self.check_inputs(attempt)
+            return
+        observed = inputs.observe(attempt["structure"]["inputs"], self.locations)
+        self.validate_roots()
+        record = _record("inputs", **self.identity(attempt), preparation=attempt["preparation"], inputs=observed)
+        try:
+            _files.publish(path, record, replace=False)
+        except FileExistsError:
+            self.check_inputs(attempt)
+
     def checked_target(self, attempt, local, *, check_files=True):
         record = self.read(attempt, f"targets/{local}.json", "target-success",
                            execution=attempt["executions"][local], target=local)
@@ -281,6 +325,7 @@ class Store:
         return record
 
     def completed(self, attempt):
+        self.check_inputs(attempt)
         operation = attempt["operation"]
         completion = self.read(attempt, "completion.json", "completion", operation=operation)
         installed = self.read(attempt, "installed.json", "installed", operation=operation)
@@ -313,13 +358,14 @@ class Store:
                                  root_identity={key: _files.identity(path) for key, path in self.locations.items()})
             _files.publish(self.owner_path, self.owner)
         self.current(observation.name, result_dir)
-        attempt_id, operation = uuid4().hex, uuid4().hex
+        attempt_id, operation, preparation = uuid4().hex, uuid4().hex, uuid4().hex
         executions = {local: uuid4().hex for local in observation.structure["targets"]}
         jobs = {local: f"{observation.name}__{local}__{execution}" for local, execution in executions.items()}
+        jobs["gwflow_prepare"] = f"{observation.name}__gwflow_prepare__{preparation}"
         jobs["gwflow_complete"] = f"{observation.name}__gwflow_complete__{operation}"
         fingerprint = _fingerprint(observation.structure, observation.commands, tracking)
         attempt = _record("attempt", owner=self.owner["owner"], task=observation.name, attempt=attempt_id,
-                          operation=operation, executions=executions, jobs=jobs, result_dir=result_dir,
+                          operation=operation, preparation=preparation, executions=executions, jobs=jobs, result_dir=result_dir,
                           structure=observation.structure, commands=observation.commands,
                           command_tracking=bool(tracking), fingerprint=fingerprint, managed_tmpdir=managed_tmpdir)
         _files.publish(self.attempt_dir(attempt) / "attempt.json", attempt)

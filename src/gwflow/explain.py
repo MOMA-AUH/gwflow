@@ -29,8 +29,8 @@ def explain(ctx, details, force, task_name):
             if task_name is not None and task.name != task_name:
                 continue
             click.echo(f"Task {task.name}: {task.action}; {task.reason}")
-            if task.action == "fresh":
-                for local in [*task.structure["targets"], "gwflow_complete"]:
+            if task.action in ("fresh", "prepare"):
+                for local in ["gwflow_prepare", *task.structure["targets"], "gwflow_complete"]:
                     click.echo(f"  Would submit {task.name}__{local}")
             if details and task.attempt:
                 click.echo(f"  Attempt: {task.attempt['attempt']}")

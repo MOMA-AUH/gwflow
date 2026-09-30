@@ -15,6 +15,7 @@ from .lifecycle import Store
 
 def execute(store, attempt, local):
     store.validate_roots()
+    store.check_inputs(attempt)
     home = store.execution_dir(attempt, local)
     staging, temporary = home / "staging", home / "tmp"
     if _files.exists(home):
@@ -26,7 +27,7 @@ def execute(store, attempt, local):
         command = declaration["literal"]
     else:
         command = Command(declaration["template"], declaration["bindings"]).render(
-            lambda reference: staging / reference["file"])
+            lambda reference: reference["external"] if "external" in reference else staging / reference["file"])
     environment = os.environ.copy()
     if attempt["managed_tmpdir"]:
         environment["TMPDIR"] = str(temporary)
@@ -76,6 +77,7 @@ def finish(store, attempt):
     store.validate_roots()
     if store.current(attempt["task"], attempt["result_dir"]) != attempt:
         raise WorkflowError("Current Task attempt changed before results commit")
+    store.check_inputs(attempt)
     _files.commit_directory(staging, store.result_dir(attempt))
     destination_metadata = _files.metadata(store.result_dir(attempt), copied)
     store.publish(attempt, "installed.json", "installed", operation=attempt["operation"], outputs=destination_metadata)
@@ -95,6 +97,8 @@ def main():
     attempt = store.current(task, attempt["result_dir"])
     if operation == "execute":
         execute(store, attempt, args[0])
+    elif operation == "prepare":
+        store.prepare(attempt)
     elif operation == "finish":
         finish(store, attempt)
     else:

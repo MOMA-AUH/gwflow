@@ -121,7 +121,7 @@ def read_json(path):
         raise WorkflowError(f"Cannot read managed evidence {path}: {exc}") from exc
 
 
-def publish(path, record):
+def publish(path, record, *, replace=True):
     path = Path(path)
     with directory(path.parent, create=True) as parent:
         temporary = ".pending-" + uuid4().hex
@@ -133,7 +133,10 @@ def publish(path, record):
                 stream.write("\n")
                 stream.flush()
                 os.fsync(stream.fileno())
-            os.replace(temporary, path.name, src_dir_fd=parent, dst_dir_fd=parent)
+            if replace:
+                os.replace(temporary, path.name, src_dir_fd=parent, dst_dir_fd=parent)
+            else:
+                os.link(temporary, path.name, src_dir_fd=parent, dst_dir_fd=parent, follow_symlinks=False)
             sync_directory(parent)
         finally:
             try:

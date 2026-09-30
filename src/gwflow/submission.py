@@ -19,15 +19,18 @@ logger = logging.getLogger(__name__)
 
 def _job(store, attempt, local, workflow):
     finishing = local == "gwflow_complete"
+    preparing = local == "gwflow_prepare"
+    computing = not (finishing or preparing)
     declaration = workflow._task_declarations[attempt["task"]]
     command = [sys.executable, "-m", "gwflow.execution", str(store.owner_path),
-               attempt["task"], attempt["attempt"], "finish" if finishing else "execute"]
-    if not finishing:
+               attempt["task"], attempt["attempt"], "finish" if finishing else "prepare" if preparing else "execute"]
+    if computing:
         command.append(local)
     options = ({**workflow.defaults, **workflow.completion_defaults} if finishing
+               else {**workflow.defaults, **workflow.preparation_defaults} if preparing
                else declaration.targets[local].options)
     kwargs = {}
-    if not finishing and declaration.targets[local].executor is not None:
+    if computing and declaration.targets[local].executor is not None:
         kwargs["executor"] = declaration.targets[local].executor
     elif workflow.executor is not None:
         kwargs["executor"] = workflow.executor
@@ -53,14 +56,16 @@ def submit_plan(plan, workflow, ctx, *, dry_run):
         raise WorkflowError("; ".join(f"Task {task.name}: {task.reason}" for task in blocked))
     if dry_run:
         for task in plan.tasks:
-            if task.action == "fresh":
-                for local in [*task.structure["targets"], "gwflow_complete"]:
+            if task.action in ("fresh", "prepare"):
+                for local in ["gwflow_prepare", *task.structure["targets"], "gwflow_complete"]:
                     logger.info("Would submit %s__%s", task.name, local)
+                if task.action == "prepare":
+                    logger.info("Would restart preparation in the same attempt")
         return
     fresh = []
     for task in plan.tasks:
-        if task.action == "fresh":
-            attempt = plan.store.initialize(task, workflow._result_dirs[task.name],
+        if task.action in ("fresh", "prepare"):
+            attempt = task.attempt if task.action == "prepare" else plan.store.initialize(task, workflow._result_dirs[task.name],
                                             tracking=ctx.config.get("use_spec_hashes"),
                                             managed_tmpdir=workflow.managed_tmpdir)
             fresh.append(attempt)
@@ -70,13 +75,13 @@ def submit_plan(plan, workflow, ctx, *, dry_run):
         with get_spec_hashes(working_dir=ctx.working_dir, config=ctx.config) as hashes:
             for attempt in fresh:
                 dependencies = []
-                for local in [*attempt["executions"], "gwflow_complete"]:
+                for local in ["gwflow_prepare", *attempt["executions"], "gwflow_complete"]:
                     plan.store.validate_roots()
                     target = _job(plan.store, attempt, local, workflow)
                     identity = plan.store.job_identity(attempt, local)
                     plan.store.publish(attempt, f"submissions/{local}-intent.json", "submission-intent", **identity)
                     _log_aliases(ctx.working_dir, f"{attempt['task']}__{local}", target.name)
-                    submit_backend(target, dependencies if local == "gwflow_complete" else [], backend, hashes)
+                    submit_backend(target, dependencies, backend, hashes)
                     tracked_id = backend.get_tracked_id(target) if hasattr(backend, "get_tracked_id") else None
                     plan.store.publish(attempt, f"submissions/{local}-ack.json", "submission-ack", **identity, job_id=tracked_id)
                     dependencies.append(target)
