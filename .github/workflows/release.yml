@@ -28,6 +28,8 @@ jobs:
       - uses: conda-incubator/setup-miniconda@v4
         with:
           miniforge-version: latest
+          channels: conda-forge
+          conda-remove-defaults: "true"
       - name: Install conda-build
         shell: bash -l {0}
         run: conda install -y -n base conda-build -c conda-forge
@@ -61,6 +63,8 @@ jobs:
       - uses: conda-incubator/setup-miniconda@v4
         with:
           miniforge-version: latest
+          channels: conda-forge
+          conda-remove-defaults: "true"
       - name: Install Anaconda.org client
         shell: bash -l {0}
         run: conda install -y -n base anaconda-client -c conda-forge
