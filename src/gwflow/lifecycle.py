@@ -14,7 +14,7 @@ from gwf.utils import is_valid_name
 
 from . import _files, inputs
 from .commands import Command, shell
-from .workflow import TargetOutput, relative_path, validate_destinations
+from .workflow import RetainedOutput, TargetOutput, relative_path, validate_destinations
 
 
 def _uuid(value):
@@ -55,16 +55,36 @@ def _fingerprint(structure, commands, tracking):
 
 def target_dependencies(structure, local):
     return sorted({reference["target"] for reference in structure["targets"][local]["inputs"]
-                   if isinstance(reference, dict)})
+                   if isinstance(reference, dict) and "target" in reference})
+
+
+def producer_names(structure):
+    return sorted({reference["task"] for reference in structure["inputs"] if isinstance(reference, dict)})
+
+
+def _boundary_reference(value, store, workflow):
+    if isinstance(value, RetainedOutput):
+        if (value.workflow is not workflow or value.task_name not in workflow._task_declarations
+                or value.name not in workflow._task_declarations[value.task_name].retained):
+            raise WorkflowError("Retained input must name a registered output in this Workflow")
+        return {"task": value.task_name, "output": value.name}
+    return inputs.declared_path(value, store.working_dir)
 
 
 def ordered_targets(structure):
-    remaining = {local: set(target_dependencies(structure, local)) for local in structure["targets"]}
+    return _dependency_order({local: set(target_dependencies(structure, local)) for local in structure["targets"]}, "Task target")
+
+
+def ordered_tasks(declared):
+    return _dependency_order({name: set(producer_names(structure)) for name, (structure, _) in declared.items()}, "Task")
+
+
+def _dependency_order(remaining, kind):
     ordered = []
     while remaining:
         ready = sorted(local for local, dependencies in remaining.items() if not dependencies)
         if not ready:
-            raise WorkflowError("Task target dependency graph contains a cycle")
+            raise WorkflowError(f"{kind} dependency graph contains a cycle")
         ordered.extend(ready)
         for local in ready:
             del remaining[local]
@@ -80,9 +100,14 @@ def _target_reference(task, reference):
     return {"target": reference.target.name, "file": reference.filename}
 
 
-def declarations(task, store):
+def declarations(task, store, workflow):
     """Canonical logical structure and commands; generated paths never enter."""
-    boundary = sorted({inputs.declared_path(value, store.working_dir) for value in task.inputs})
+    boundary = []
+    for value in task.inputs:
+        reference = _boundary_reference(value, store, workflow)
+        if reference not in boundary:
+            boundary.append(reference)
+    boundary.sort(key=lambda item: json.dumps(item, sort_keys=True))
     if not task.targets:
         raise WorkflowError("Managed Tasks require at least one target")
     targets = {}
@@ -97,8 +122,8 @@ def declarations(task, store):
         incoming = []
         for value in target.inputs:
             reference = (_target_reference(task, value) if isinstance(value, TargetOutput)
-                         else inputs.declared_path(value, store.working_dir))
-            if isinstance(reference, str) and reference not in boundary:
+                         else _boundary_reference(value, store, workflow))
+            if not isinstance(value, TargetOutput) and reference not in boundary:
                 raise WorkflowError(f"Target {name!r} uses an undeclared Task boundary input")
             if reference not in incoming:
                 incoming.append(reference)
@@ -109,11 +134,11 @@ def declarations(task, store):
         elif isinstance(target.spec, Command):
             bindings = {}
             for slot, reference in target.spec.bindings.items():
-                if isinstance(reference, (str, os.PathLike)):
-                    alias = inputs.declared_path(reference, store.working_dir)
+                if isinstance(reference, (str, os.PathLike, RetainedOutput)):
+                    alias = _boundary_reference(reference, store, workflow)
                     if alias not in incoming:
                         raise WorkflowError(f"Command binding {slot!r} is not a declared target input")
-                    bindings[slot] = {"external": alias}
+                    bindings[slot] = {"external": alias} if isinstance(alias, str) else alias
                     continue
                 resolved = _target_reference(task, reference)
                 if reference.target is not target and resolved not in incoming:
@@ -143,6 +168,8 @@ def valid_command(command, target, local):
         for binding in command["bindings"].values():
             if set(binding) == {"external"} and binding["external"] in target["inputs"]:
                 continue
+            if set(binding) == {"task", "output"} and binding in target["inputs"]:
+                continue
             if (set(binding) != {"target", "file"} or not
                     ((binding["target"] == local and binding["file"] in target["outputs"]) or binding in target["inputs"])):
                 return False
@@ -157,7 +184,13 @@ def _valid_attempt(attempt):
         structure, commands = attempt["structure"], attempt["commands"]
         targets, retained = structure["targets"], structure["retained"]
         if (not isinstance(structure["inputs"], list)
-                or any(not isinstance(path, str) or not Path(path).is_absolute() for path in structure["inputs"])
+                or any(not (isinstance(path, str) and Path(path).is_absolute()
+                            or isinstance(path, dict) and set(path) == {"task", "output"}
+                            and isinstance(path["task"], str) and is_valid_name(path["task"])
+                            and isinstance(path["output"], str) and path["output"])
+                       for path in structure["inputs"])
+                or not isinstance(attempt["producers"], dict) or set(attempt["producers"]) != set(producer_names(structure))
+                or attempt["task"] in attempt["producers"] or any(not _uuid(value) for value in attempt["producers"].values())
                 or not targets
                 or set(targets) != set(attempt["executions"]) or set(targets) != set(commands)
                 or set(attempt["jobs"]) != set(targets) | {"gwflow_prepare", "gwflow_complete"}
@@ -167,8 +200,8 @@ def _valid_attempt(attempt):
         for local, target in targets.items():
             if (not isinstance(local, str) or not is_valid_name(local) or local.startswith("gwflow_")
                     or not _uuid(attempt["executions"][local]) or not isinstance(target["inputs"], list)
-                    or any(not (reference in structure["inputs"] if isinstance(reference, str)
-                               else isinstance(reference, dict) and set(reference) == {"target", "file"}
+                    or any(not (reference in structure["inputs"]
+                               or isinstance(reference, dict) and set(reference) == {"target", "file"}
                                and reference["target"] in targets and reference["file"] in targets[reference["target"]]["outputs"])
                            for reference in target["inputs"])
                     or not isinstance(target["outputs"], list) or not target["outputs"]
@@ -207,6 +240,7 @@ class TaskObservation:
     submissions: dict = field(default_factory=dict)
     pending: list = field(default_factory=list)
     retry: list = field(default_factory=list)
+    consumers: dict = field(default_factory=dict)
 
 
 class Store:
@@ -340,14 +374,76 @@ class Store:
 
     def input_baseline(self, attempt):
         record = self.read(attempt, "inputs.json", "inputs", preparation=attempt["preparation"])
-        if record is None or not inputs.valid(record.get("inputs"), attempt["structure"]["inputs"]):
+        if (record is None or record.get("producers") != attempt["producers"]
+                or not inputs.valid(record.get("inputs"), self.input_paths(attempt))):
             raise WorkflowError("Missing or malformed input preparation baseline")
         return record
+
+    def recorded_current(self, name):
+        current = _files.read_json(self._task_dir(name) / "current.json")
+        if (not _matches(current, "current", owner=self.owner["owner"], task=name)
+                or not _uuid(current.get("attempt"))):
+            raise WorkflowError(f"Missing selected producer attempt for Task {name!r}")
+        record = self.read(current, "attempt.json", "attempt")
+        if record is None or not _valid_attempt(record):
+            raise WorkflowError(f"Malformed selected attempt for Task {name!r}")
+        return self.current(name, record["result_dir"])
+
+    def recorded_tasks(self):
+        if self.owner is None:
+            return []
+        root = self.root / "owners" / self.owner["owner"] / "tasks"
+        if not _files.exists(root):
+            return []
+        with _files.directory(root) as directory:
+            names = sorted(os.listdir(directory))
+        if any(not is_valid_name(name) for name in names):
+            raise WorkflowError("Malformed recorded Task name")
+        return [self.recorded_current(name) for name in names]
+
+    def producer_attempt(self, attempt, name):
+        producer = self.recorded_current(name)
+        if producer["attempt"] != attempt["producers"][name]:
+            raise WorkflowError(f"Expected producer {name} attempt {attempt['producers'][name]} changed; a fresh consumer attempt is required")
+        return producer
+
+    def retained_path(self, attempt, reference):
+        producer = self.producer_attempt(attempt, reference["task"])
+        if reference["output"] not in producer["structure"]["retained"]:
+            raise WorkflowError("Producer does not declare the selected retained output")
+        return self.result_dir(producer) / producer["structure"]["retained"][reference["output"]]["path"]
+
+    def input_paths(self, attempt):
+        return [reference if isinstance(reference, str) else str(self.retained_path(attempt, reference))
+                for reference in attempt["structure"]["inputs"]]
+
+    def require_producers(self, attempt):
+        checking = getattr(self, "_checking_producers", set())
+        if attempt["task"] in checking:
+            raise WorkflowError("Recorded Task dependency graph contains a cycle")
+        self._checking_producers = checking
+        checking.add(attempt["task"])
+        try:
+            for name in attempt["producers"]:
+                if not self.completed(self.producer_attempt(attempt, name)):
+                    raise WorkflowError(f"Expected producer {name} attempt {attempt['producers'][name]} lacks checked Completion")
+        finally:
+            checking.remove(attempt["task"])
+
+    def observe_inputs(self, attempt):
+        self.require_producers(attempt)
+        references = attempt["structure"]["inputs"]
+        observed = inputs.observe([value for value in references if isinstance(value, str)], self.locations)
+        for reference in references:
+            if isinstance(reference, dict):
+                path = self.retained_path(attempt, reference)
+                observed[str(path)] = {"resolved": str(path), **_files.metadata(path.parent, [path.name])[path.name]}
+        return observed
 
     def check_inputs(self, attempt):
         baseline = self.input_baseline(attempt)
         try:
-            observed = inputs.observe(attempt["structure"]["inputs"], self.locations)
+            observed = self.observe_inputs(attempt)
         except WorkflowError as error:
             raise WorkflowError(f"External inputs unavailable after preparation; a fresh attempt is required: {error}") from error
         if baseline["inputs"] != observed:
@@ -358,9 +454,10 @@ class Store:
         if _files.exists(path):
             self.check_inputs(attempt)
             return
-        observed = inputs.observe(attempt["structure"]["inputs"], self.locations)
+        observed = self.observe_inputs(attempt)
         self.validate_roots()
         record = _record("inputs", **self.identity(attempt), preparation=attempt["preparation"], inputs=observed,
+                         producers=attempt["producers"],
                          admission=getattr(self, "runtime_admission", None))
         try:
             _files.publish(path, record, replace=False)
@@ -422,6 +519,7 @@ class Store:
         manifest = self.read(attempt, "manifest.json", "manifest", operation=operation)
         destinations = [item["path"] for item in attempt["structure"]["retained"].values()]
         if (completion is None or installed is None or manifest is None
+                or completion.get("producers") != attempt["producers"]
                 or completion.get("outputs") != installed.get("outputs")
                 or installed.get("outputs") != manifest.get("outputs")
                 or not _valid_metadata(completion.get("outputs"), destinations)):
@@ -437,7 +535,7 @@ class Store:
             return False
         return _files.metadata(self.result_dir(attempt), destinations) == completion["outputs"]
 
-    def initialize(self, observation, result_dir, *, tracking, managed_tmpdir):
+    def initialize(self, observation, result_dir, *, tracking, managed_tmpdir, producers):
         self.validate_roots()
         if self.owner is None:
             owner = uuid4().hex
@@ -456,7 +554,7 @@ class Store:
         fingerprint = _fingerprint(observation.structure, observation.commands, tracking)
         attempt = _record("attempt", owner=self.owner["owner"], task=observation.name, attempt=attempt_id,
                           operation=operation, preparation=preparation, executions=executions, jobs=jobs, result_dir=result_dir,
-                          structure=observation.structure, commands=observation.commands,
+                          structure=observation.structure, commands=observation.commands, producers=producers,
                           command_tracking=bool(tracking), fingerprint=fingerprint, managed_tmpdir=managed_tmpdir)
         _files.publish(self.attempt_dir(attempt) / "attempt.json", attempt)
         _files.publish(self._task_dir(observation.name) / "current.json",

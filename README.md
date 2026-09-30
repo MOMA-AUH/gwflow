@@ -5,8 +5,8 @@ work storage, while named retained files are copied into stable results storage.
 Checked completion evidence lets a Task remain reusable after its work is removed.
 
 The development branch is migrating to v0.3.0. The current managed lifecycle
-supports Task graphs, external inputs, and partial retries on one filesystem.
-Cross-Task dependencies, repair, force, and managed cleanup are being added in
+supports Task graphs, named Task dependencies, external inputs, and partial
+retries on one filesystem. Repair, force, and managed cleanup are being added in
 [the implementation queue](https://github.com/MOMA-AUH/gwflow/issues/62).
 Existing v0.2 factories and records are not converted or adopted. The older
 examples will be migrated with the complete workflow demonstration.
@@ -71,6 +71,35 @@ paths, including symlink aliases; files are read in place without automatic
 copying or linking into work. Inputs must resolve to regular files outside this
 Workflow's managed storage. Boundary declarations and target inputs are required
 even when a command binds a file.
+
+Connect Tasks through the retained names returned by registration:
+
+```python
+consumer = Task(inputs=[hello.outputs["message"]])
+read_message = consumer.target("read", inputs=consumer.inputs, outputs=["copy.txt"])
+read_message << shell("cat {source} > {out}", source=hello.outputs["message"], out=read_message.output("copy.txt"))
+consumer.retain("copy", source=read_message.output("copy.txt"), path="copy.txt")
+gwf.task_from_template("consumer", consumer)
+```
+
+The consumer does not need the producer's filename or results root. Handles
+expose retained public names only and belong to the Workflow that registered
+them. Cross-Workflow handles, internal outputs from another Task, undeclared
+bindings, and Task dependency cycles fail before submission.
+
+Consumer attempts record their expected producer attempt identities before any
+input is consumed. Preparation waits for checked Completion of those exact
+attempts, including producer branches with no retained output; computation and
+finishing recheck the association and input metadata. Existing files alone do
+not satisfy this dependency. Independent Tasks remain concurrent, and submission
+returns while producer work is still queued or running.
+
+Adding a consumer after completed producers' disposable work has been removed
+computes only the consumer. Their retained files and required bookkeeping must
+remain intact. Detailed status and explain show expected producers and active
+consumers, including queued preparation and finishing jobs. Persisted consumer
+bindings remain visible even if that consumer is later omitted from the loaded
+workflow; removing a Python declaration does not end its admitted jobs.
 
 A scheduled preparation job precedes computation and records each input alias,
 resolved destination, byte size, and nanosecond mtime. It observes changes made

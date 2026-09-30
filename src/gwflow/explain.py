@@ -36,5 +36,9 @@ def explain(ctx, details, force, task_name):
                 click.echo(f"  Attempt: {task.attempt['attempt']}")
                 click.echo(f"  Workspace: {plan.store.workspace(task.attempt)}")
                 click.echo(f"  Results: {plan.store.result_dir(task.attempt)}")
+                for name, expected in task.attempt["producers"].items():
+                    click.echo(f"  Expected producer {name}: {expected}")
+                for name, jobs in task.consumers.items():
+                    click.echo(f"  Active consumer {name}: " + ", ".join(f"{item.submission} ({item.state})" for item in jobs))
                 for local, item in task.submissions.items():
                     click.echo(f"  {task.name}__{local}: {item.submission or 'not submitted'} ({item.state})")

@@ -76,6 +76,10 @@ def managed_status(ctx, targets, endpoints, output_format, statuses, group, deta
                     click.echo(f"  {task.name}__{local}: {job}")
                 if task.attempt:
                     click.echo(f"  Attempt: {task.attempt['attempt']}; workspace: {plan.store.workspace(task.attempt)}")
+                    for name, expected in task.attempt["producers"].items():
+                        click.echo(f"  Expected producer {name}: {expected}")
+                    for name, jobs in task.consumers.items():
+                        click.echo(f"  Active consumer {name}: " + ", ".join(f"{item.submission} ({item.state})" for item in jobs))
 
 
 gwf_status.params = managed_status.params

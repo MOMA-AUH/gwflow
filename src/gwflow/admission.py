@@ -100,6 +100,7 @@ def read_intent(store, attempt, local):
         return None
     admission = record.get("admission")
     if (not _uuid(admission) or record.get("submission") != f"{attempt['jobs'][local]}__{admission}"
+            or record.get("producers") != (attempt["producers"] if local == "gwflow_prepare" else {})
             or not isinstance(record.get("backend"), dict) or not _valid_dependencies(attempt, local, record.get("dependencies"))
             or store.read(attempt, f"admissions/{admission}/intent.json", "submission-intent") != record):
         raise WorkflowError(f"Malformed submission intent for {attempt['task']}__{local}")
@@ -199,6 +200,20 @@ def acknowledge(store, attempt, intent, job_id):
                   **identity(intent), job_id=job_id)
 
 
+def consumer_activity(store, backend, name):
+    """Recorded bindings protect producers even when a consumer is not loaded."""
+    consumers = {}
+    for attempt in store.recorded_tasks():
+        if not attempt["producers"]:
+            continue
+        active = [item for item in observe(store, attempt, backend, name).values()
+                  if item.state in ("active", "uncertain")]
+        if active:
+            for producer, expected in attempt["producers"].items():
+                consumers.setdefault((producer, expected), {})[attempt["task"]] = active
+    return consumers
+
+
 def restore_tracking(backend, name, observations):
     """Restore known IDs only during run, so gwf can encode dependency IDs."""
     if isinstance(backend, TrackingBackend):
@@ -222,6 +237,7 @@ def new_intent(store, attempt, local, dependencies, backend, name):
     fields = {**store.job_identity(attempt, local), "admission": token,
               "submission": f"{attempt['jobs'][local]}__{token}",
               "backend": backend_identity(backend, name), "dependencies": dependencies}
+    fields["producers"] = attempt["producers"] if local == "gwflow_prepare" else {}
     store.publish(attempt, f"admissions/{token}/intent.json", "submission-intent", **fields)
     store.publish(attempt, intent_path(attempt, local), "submission-intent", **fields)
     return read_intent(store, attempt, local)
