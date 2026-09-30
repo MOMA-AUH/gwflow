@@ -296,9 +296,11 @@ def initial_scenarios(run):
 def inspect_coordination(run, work):
     # Hold the same frontend submission lock while real Slurm work is active.
     # Explain must report the wait, then return before the compute job finishes.
-    (work / "beta.release").unlink()
-    (work / "beta.side.tmp").unlink()
-    (work / "beta.started").unlink()
+    time.sleep(1.1)
+    (work / "beta.in").write_text("inspection\n")
+    (work / "beta.release").unlink(missing_ok=True)
+    (work / "beta.side.tmp").unlink(missing_ok=True)
+    (work / "beta.started").unlink(missing_ok=True)
     try:
         output = run.cli(work, "run")
         require_submissions(output, {"beta__side", "beta__gwflow_complete"})
