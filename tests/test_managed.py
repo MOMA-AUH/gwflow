@@ -105,8 +105,10 @@ class ManagedCliTests(LocalBackendTestCase):
                 self.cli("run")
                 self.settle()
                 self.assertFalse((self.work / "results" / name).exists())
-                self.assertIn("blocked", self.cli("explain"))
-                self.assertIn("incomplete", self.cli("run", success=False))
+                self.assertIn(": retry;", self.cli("explain"))
+                self.cli("run")
+                self.settle()
+                self.assertFalse((self.work / "results" / name).exists())
         self.assertEqual(outside.read_text(), "untouched")
 
     def test_template_quoting_literal_braces_and_multiple_nested_outputs(self):
@@ -296,7 +298,7 @@ class ManagedCliTests(LocalBackendTestCase):
         self.write_task("exit 1", retained=False)
         self.cli("run")
         self.settle()
-        self.assertIn("blocked", self.cli("explain"))
+        self.assertIn(": retry;", self.cli("explain"))
         self.assertFalse((self.work / "results/sample").exists())
 
     def test_retained_results_survive_work_removal_and_are_reused(self):

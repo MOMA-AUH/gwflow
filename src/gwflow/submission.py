@@ -64,7 +64,7 @@ def submit_plan(plan, workflow, ctx, *, dry_run):
         return
     selected = []
     for task in plan.tasks:
-        if task.action in ("fresh", "prepare", "continue"):
+        if task.action in ("fresh", "prepare", "continue", "retry"):
             attempt = task.attempt
             if task.action == "fresh":
                 attempt = plan.store.initialize(task, workflow._result_dirs[task.name],
@@ -77,6 +77,14 @@ def submit_plan(plan, workflow, ctx, *, dry_run):
         with get_spec_hashes(working_dir=ctx.working_dir, config=ctx.config) as hashes:
             for task, attempt in selected:
                 observed = dict(task.submissions)
+                if task.retry:
+                    observed = admission.observe(plan.store, attempt, backend, ctx.backend)
+                    if any(item.state == "uncertain" for item in observed.values()):
+                        raise WorkflowError(f"Task {task.name}: unresolved submission prevents retry")
+                    admission.require_retry_inactive(observed, task.retry)
+                    if task.action != "prepare" or _files.exists(plan.store.attempt_dir(attempt) / "inputs.json"):
+                        plan.store.check_inputs(attempt)
+                    attempt = plan.store.replace_executions(task, tracking=ctx.config.get("use_spec_hashes"))
                 admission.restore_tracking(backend, ctx.backend, observed)
                 for item in observed.values():
                     if item.reconcile:

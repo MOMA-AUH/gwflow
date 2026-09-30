@@ -5,8 +5,8 @@ work storage, while named retained files are copied into stable results storage.
 Checked completion evidence lets a Task remain reusable after its work is removed.
 
 The development branch is migrating to v0.3.0. The current managed lifecycle
-supports single-target Tasks with external inputs on one filesystem. Task graphs,
-computation retries, repair, force, and managed cleanup are being added in
+supports Task graphs, external inputs, and partial retries on one filesystem.
+Cross-Task dependencies, repair, force, and managed cleanup are being added in
 [the implementation queue](https://github.com/MOMA-AUH/gwflow/issues/62).
 Existing v0.2 factories and records are not converted or adopted. The older
 examples will be migrated with the complete workflow demonstration.
@@ -111,8 +111,40 @@ prove rejection or inactivity. Unresolved submissions block run with the Task
 and submission name; no uncertainty override is provided. Status and explain
 show the same decision without modifying managed records. Later matching
 execution evidence can resolve uncertainty, and expired scheduler history does
-not invalidate checked Completion. Preparation retries require confirmed
-inactivity; computation retries remain part of the implementation queue.
+not invalidate checked Completion. Retries require confirmed inactivity for every execution being replaced.
+
+Within a Task, declare upstream outputs as target inputs and bind those same
+references into commands:
+
+```python
+count = task.target("count", inputs=[read.output("copy.txt")], outputs=["count.txt"])
+count << shell("wc -l < {source} > {out}", source=read.output("copy.txt"), out=count.output("count.txt"))
+```
+
+Add targets before registering the Task. References resolve to checked committed
+output sets; target-local filenames can repeat in different targets. Foreign
+references, undeclared inputs, and cycles fail before submission. Finishing
+waits for every branch, including targets whose outputs are not retained.
+
+An ordinary run retries failed or interrupted targets in the same eligible
+attempt, with new execution directories and private temporary storage. Valid
+successful siblings are preserved. Replacing an upstream execution also
+replaces its dependents, even if regenerated files have matching metadata.
+An unrelated running sibling can continue. Queued or running computation
+dependents block replacement until they settle; run does not cancel them.
+An already queued finishing job keeps its original bindings. Retry can proceed
+while that job remains queued, but finishing is deferred until a later run after
+the obsolete submission settles. If the scheduler leaves failed dependencies
+queued, cancel those jobs using the backend's normal mechanism and wait for
+confirmed inactivity before running again.
+
+Retries require the original input baseline and workspace. Resource changes
+permit continuation. Structural changes and enabled command changes require a
+fresh attempt. With command tracking disabled, retry commands may change while
+successful siblings retain earlier outputs; enabling tracking later requires
+valid baselines for every selected execution. Interrupted output sets without
+success evidence are rerun, and abandoned work remains owned for later cleanup.
+Status, explain, and dry-run show planned retries without allocating executions.
 
 Structure is always tracked. Commands follow gwf's inherited `use_spec_hashes`
 setting (default false); enabling it is recommended. File size and modification

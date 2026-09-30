@@ -1,5 +1,6 @@
 """Owned storage and persistent evidence for the managed Task lifecycle."""
 
+from copy import deepcopy
 from dataclasses import dataclass, field
 import hashlib
 import json
@@ -52,11 +53,38 @@ def _fingerprint(structure, commands, tracking):
     return hashlib.sha256(json.dumps(definition, sort_keys=True).encode()).hexdigest()
 
 
+def target_dependencies(structure, local):
+    return sorted({reference["target"] for reference in structure["targets"][local]["inputs"]
+                   if isinstance(reference, dict)})
+
+
+def ordered_targets(structure):
+    remaining = {local: set(target_dependencies(structure, local)) for local in structure["targets"]}
+    ordered = []
+    while remaining:
+        ready = sorted(local for local, dependencies in remaining.items() if not dependencies)
+        if not ready:
+            raise WorkflowError("Task target dependency graph contains a cycle")
+        ordered.extend(ready)
+        for local in ready:
+            del remaining[local]
+        for dependencies in remaining.values():
+            dependencies.difference_update(ready)
+    return ordered
+
+
+def _target_reference(task, reference):
+    if (not isinstance(reference, TargetOutput) or reference.target not in task.targets.values()
+            or reference.filename not in reference.target.outputs):
+        raise WorkflowError("Target reference is not a declared input or output of its owning Task")
+    return {"target": reference.target.name, "file": reference.filename}
+
+
 def declarations(task, store):
     """Canonical logical structure and commands; generated paths never enter."""
     boundary = sorted({inputs.declared_path(value, store.working_dir) for value in task.inputs})
-    if len(task.targets) != 1:
-        raise WorkflowError("Managed Tasks currently require exactly one target")
+    if not task.targets:
+        raise WorkflowError("Managed Tasks require at least one target")
     targets = {}
     commands = {}
     for name, target in sorted(task.targets.items()):
@@ -66,9 +94,15 @@ def declarations(task, store):
             raise WorkflowError(f"Task has outputless inner target {name!r}")
         outputs = [relative_path(path) for path in target.outputs]
         validate_destinations(outputs)
-        incoming = sorted({inputs.declared_path(value, store.working_dir) for value in target.inputs})
-        if not set(incoming) <= set(boundary):
-            raise WorkflowError(f"Target {name!r} uses an undeclared Task boundary input")
+        incoming = []
+        for value in target.inputs:
+            reference = (_target_reference(task, value) if isinstance(value, TargetOutput)
+                         else inputs.declared_path(value, store.working_dir))
+            if isinstance(reference, str) and reference not in boundary:
+                raise WorkflowError(f"Target {name!r} uses an undeclared Task boundary input")
+            if reference not in incoming:
+                incoming.append(reference)
+        incoming.sort(key=lambda item: json.dumps(item, sort_keys=True))
         targets[name] = {"inputs": incoming, "outputs": sorted(outputs)}
         if isinstance(target.spec, str):
             commands[name] = {"literal": target.spec}
@@ -81,10 +115,10 @@ def declarations(task, store):
                         raise WorkflowError(f"Command binding {slot!r} is not a declared target input")
                     bindings[slot] = {"external": alias}
                     continue
-                if (not isinstance(reference, TargetOutput) or reference.target is not target
-                        or reference.filename not in target.outputs):
+                resolved = _target_reference(task, reference)
+                if reference.target is not target and resolved not in incoming:
                     raise WorkflowError(f"Command binding {slot!r} is not a declared input or output of {name!r}")
-                bindings[slot] = {"target": name, "file": reference.filename}
+                bindings[slot] = resolved
             commands[name] = {"template": target.spec.template, "bindings": bindings}
         else:
             raise WorkflowError("A target command must be literal text or shell(template, **bindings)")
@@ -94,7 +128,27 @@ def declarations(task, store):
             raise WorkflowError(f"Retained output {name!r} has an undeclared source")
         retained[name] = {"target": source.target.name, "source": source.filename, "path": relative_path(path)}
     validate_destinations([item["path"] for item in retained.values()])
-    return {"inputs": boundary, "targets": targets, "retained": retained}, commands
+    structure = {"inputs": boundary, "targets": targets, "retained": retained}
+    ordered_targets(structure)
+    return structure, commands
+
+
+def valid_command(command, target, local):
+    try:
+        if "literal" in command:
+            return set(command) == {"literal"} and isinstance(command["literal"], str)
+        if set(command) != {"template", "bindings"}:
+            return False
+        shell(command["template"], **command["bindings"])
+        for binding in command["bindings"].values():
+            if set(binding) == {"external"} and binding["external"] in target["inputs"]:
+                continue
+            if (set(binding) != {"target", "file"} or not
+                    ((binding["target"] == local and binding["file"] in target["outputs"]) or binding in target["inputs"])):
+                return False
+        return True
+    except (KeyError, TypeError, ValueError, AttributeError, WorkflowError):
+        return False
 
 
 def _valid_attempt(attempt):
@@ -113,30 +167,23 @@ def _valid_attempt(attempt):
         for local, target in targets.items():
             if (not isinstance(local, str) or not is_valid_name(local) or local.startswith("gwflow_")
                     or not _uuid(attempt["executions"][local]) or not isinstance(target["inputs"], list)
-                    or not set(target["inputs"]) <= set(structure["inputs"])
+                    or any(not (reference in structure["inputs"] if isinstance(reference, str)
+                               else isinstance(reference, dict) and set(reference) == {"target", "file"}
+                               and reference["target"] in targets and reference["file"] in targets[reference["target"]]["outputs"])
+                           for reference in target["inputs"])
                     or not isinstance(target["outputs"], list) or not target["outputs"]
                     or any(relative_path(path) != path for path in target["outputs"])
                     or attempt["jobs"][local] != f"{attempt['task']}__{local}__{attempt['executions'][local]}"):
                 return False
             validate_destinations(target["outputs"])
-            command = commands[local]
-            if "literal" in command:
-                if set(command) != {"literal"} or not isinstance(command["literal"], str):
-                    return False
-            else:
-                if set(command) != {"template", "bindings"}:
-                    return False
-                shell(command["template"], **command["bindings"])
-                for binding in command["bindings"].values():
-                    if set(binding) == {"external"} and binding["external"] in target["inputs"]:
-                        continue
-                    if set(binding) != {"target", "file"} or binding["target"] != local or binding["file"] not in target["outputs"]:
-                        return False
+            if not valid_command(commands[local], target, local):
+                return False
         for name, item in retained.items():
             if (not isinstance(name, str) or not name or item["target"] not in targets
                     or item["source"] not in targets[item["target"]]["outputs"]
                     or relative_path(item["path"]) != item["path"]):
                 return False
+        ordered_targets(structure)
         validate_destinations([item["path"] for item in retained.values()])
         if attempt["jobs"]["gwflow_prepare"] != f"{attempt['task']}__gwflow_prepare__{attempt['preparation']}":
             return False
@@ -159,6 +206,7 @@ class TaskObservation:
     work_present: bool = False
     submissions: dict = field(default_factory=dict)
     pending: list = field(default_factory=list)
+    retry: list = field(default_factory=list)
 
 
 class Store:
@@ -319,11 +367,48 @@ class Store:
         except FileExistsError:
             self.check_inputs(attempt)
 
+    def write_execution(self, attempt, local, command, *, tracking):
+        self.publish(attempt, f"executions/{attempt['executions'][local]}/definition.json", "execution",
+                     execution=attempt["executions"][local], target=local, command=command, command_tracking=bool(tracking),
+                     dependencies={name: attempt["executions"][name]
+                                   for name in target_dependencies(attempt["structure"], local)})
+
+    def execution(self, attempt, local):
+        record = self.read(attempt, f"executions/{attempt['executions'][local]}/definition.json", "execution",
+                           execution=attempt["executions"][local], target=local)
+        dependencies = {name: attempt["executions"][name] for name in target_dependencies(attempt["structure"], local)}
+        if (record is None or record.get("dependencies") != dependencies
+                or type(record.get("command_tracking")) is not bool
+                or not valid_command(record.get("command"), attempt["structure"]["targets"][local], local)
+                or record["command_tracking"] and record["command"] != attempt["commands"][local]):
+            raise WorkflowError(f"Missing or incompatible execution definition for {local!r}")
+        return record
+
+    def require_current_execution(self, attempt, local):
+        current = self.current(attempt["task"], attempt["result_dir"])
+        for name in [local, *target_dependencies(attempt["structure"], local)]:
+            if current["executions"][name] != attempt["executions"][name]:
+                raise WorkflowError(f"Execution generation changed for {name!r}")
+
+    def replace_executions(self, observation, *, tracking):
+        attempt = deepcopy(observation.attempt)
+        if self.current(attempt["task"], attempt["result_dir"]) != attempt:
+            raise WorkflowError("Task selection changed before retry")
+        for local in observation.retry:
+            execution = uuid4().hex
+            attempt["executions"][local] = execution
+            attempt["jobs"][local] = f"{attempt['task']}__{local}__{execution}"
+        for local in observation.retry:
+            self.write_execution(attempt, local, observation.commands[local], tracking=tracking)
+        _files.publish(self.attempt_dir(attempt) / "attempt.json", attempt)
+        return attempt
+
     def checked_target(self, attempt, local, *, check_files=True):
-        record = self.read(attempt, f"targets/{local}.json", "target-success",
+        record = self.read(attempt, f"executions/{attempt['executions'][local]}/success.json", "target-success",
                            execution=attempt["executions"][local], target=local)
         paths = attempt["structure"]["targets"][local]["outputs"]
-        if record is None or not _valid_metadata(record.get("outputs"), paths):
+        if (record is None or not _valid_metadata(record.get("outputs"), paths)
+                or record.get("dependencies") != self.execution(attempt, local)["dependencies"]):
             raise WorkflowError(f"Target {local!r} lacks checked success evidence")
         if check_files and _files.metadata(self.execution_dir(attempt, local) / "committed", paths) != record["outputs"]:
             raise WorkflowError(f"Target {local!r} work metadata changed")
@@ -364,7 +449,7 @@ class Store:
             _files.publish(self.owner_path, self.owner)
         self.current(observation.name, result_dir)
         attempt_id, operation, preparation = uuid4().hex, uuid4().hex, uuid4().hex
-        executions = {local: uuid4().hex for local in observation.structure["targets"]}
+        executions = {local: uuid4().hex for local in ordered_targets(observation.structure)}
         jobs = {local: f"{observation.name}__{local}__{execution}" for local, execution in executions.items()}
         jobs["gwflow_prepare"] = f"{observation.name}__gwflow_prepare__{preparation}"
         jobs["gwflow_complete"] = f"{observation.name}__gwflow_complete__{operation}"
@@ -377,5 +462,7 @@ class Store:
         _files.publish(self._task_dir(observation.name) / "current.json",
                        _record("current", **self.identity(attempt)))
         _files.mkdir(self.workspace(attempt))
+        for local in ordered_targets(attempt["structure"]):
+            self.write_execution(attempt, local, observation.commands[local], tracking=attempt["command_tracking"])
         self.publish(attempt, "ready.json", "ready")
         return attempt
