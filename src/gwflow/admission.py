@@ -131,10 +131,14 @@ def succeeded(store, attempt, local, intent):
         return False
 
 
+def dependencies_current(attempt, intent):
+    return all(item["job"] == attempt["jobs"][item["local"]] for item in intent["dependencies"])
+
+
 def require_dependencies(store, attempt, intent):
+    if not dependencies_current(attempt, intent):
+        raise WorkflowError("Scheduled dependency execution generation was replaced")
     for dependency in intent["dependencies"]:
-        if dependency["job"] != attempt["jobs"][dependency["local"]]:
-            raise WorkflowError("Scheduled dependency execution generation was replaced")
         previous = store.read(attempt, f"admissions/{dependency['admission']}/intent.json", "submission-intent")
         expected = {key: value for key, value in dependency.items() if key != "local"}
         if previous is None or identity(previous) != expected:
@@ -204,29 +208,13 @@ def restore_tracking(backend, name, observations):
                 backend._tracked_jobs[observation.submission] = observation.job_id
 
 
-def cancel_queued(store, attempt, locals, backend, name):
-    """Request cancellation, then require an independent terminal observation."""
-    observations = observe(store, attempt, backend, name)
-    if locals and not isinstance(backend, TrackingBackend):
-        raise WorkflowError("Backend cannot confirm queued dependent cancellation")
-    restore_tracking(backend, name, observations)
-    for local in locals:
-        item = observations[local]
-        if item.state != "active":
-            continue
-        if item.backend_state != BackendStatus.SUBMITTED or item.job_id is None:
-            raise WorkflowError(f"Active dependent submission cannot be replaced: {item.submission}")
-        store.publish(attempt, f"admissions/{item.intent['admission']}/cancellation.json", "cancellation-request",
-                      **identity(item.intent), job_id=item.job_id)
-        backend.cancel(Target(item.submission, [], [], {}))
-    if locals:
-        ids = [item.job_id for item in observations.values() if item.job_id is not None]
-        states = backend.ops.get_job_states(ids)
-        backend._job_states.update({job_id: states.get(job_id, BackendStatus.UNKNOWN) for job_id in ids})
-        observations = observe(store, attempt, backend, name)
-    if any(observations[local].state in ("active", "uncertain") for local in locals):
-        raise WorkflowError("Waiting for confirmed dependent cancellation; retry on a later run")
-    return observations
+def require_retry_inactive(observations, replaced):
+    conflicting = [local for local in replaced if observations[local].state == "active"]
+    finishing = observations["gwflow_complete"]
+    if finishing.state == "active" and finishing.backend_state != BackendStatus.SUBMITTED:
+        conflicting.append("gwflow_complete")
+    if conflicting:
+        raise WorkflowError("Active dependent work blocks retry: " + ", ".join(conflicting))
 
 
 def new_intent(store, attempt, local, dependencies, backend, name):

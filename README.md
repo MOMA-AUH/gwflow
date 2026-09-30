@@ -130,10 +130,13 @@ An ordinary run retries failed or interrupted targets in the same eligible
 attempt, with new execution directories and private temporary storage. Valid
 successful siblings are preserved. Replacing an upstream execution also
 replaces its dependents, even if regenerated files have matching metadata.
-An unrelated running sibling can continue. Queued dependents requiring new
-bindings are cancelled first; their terminal state must be confirmed before
-replacement. A still-running dependent blocks replacement. If cancellation is
-not yet confirmed, run again after the scheduler settles it.
+An unrelated running sibling can continue. Queued or running computation
+dependents block replacement until they settle; run does not cancel them.
+An already queued finishing job keeps its original bindings. Retry can proceed
+while that job remains queued, but finishing is deferred until a later run after
+the obsolete submission settles. If the scheduler leaves failed dependencies
+queued, cancel those jobs using the backend's normal mechanism and wait for
+confirmed inactivity before running again.
 
 Retries require the original input baseline and workspace. Resource changes
 permit continuation. Structural changes and enabled command changes require a
@@ -141,8 +144,7 @@ fresh attempt. With command tracking disabled, retry commands may change while
 successful siblings retain earlier outputs; enabling tracking later requires
 valid baselines for every selected execution. Interrupted output sets without
 success evidence are rerun, and abandoned work remains owned for later cleanup.
-Status, explain, and dry-run show planned retries without allocating executions
-or requesting cancellation.
+Status, explain, and dry-run show planned retries without allocating executions.
 
 Structure is always tracked. Commands follow gwf's inherited `use_spec_hashes`
 setting (default false); enabling it is recommended. File size and modification

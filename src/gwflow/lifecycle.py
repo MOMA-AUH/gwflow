@@ -207,7 +207,6 @@ class TaskObservation:
     submissions: dict = field(default_factory=dict)
     pending: list = field(default_factory=list)
     retry: list = field(default_factory=list)
-    cancel: list = field(default_factory=list)
 
 
 class Store:

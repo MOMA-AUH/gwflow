@@ -83,12 +83,20 @@ class TaskGraphTests(LocalBackendTestCase):
             left_command=f"echo left >> {trace}; touch {shlex.quote(str(held))}; while [ ! -e {shlex.quote(str(release))} ]; do sleep 0.025; done; printf left > same.txt",
             right_command=f"echo right >> {trace}; if [ -e {shlex.quote(str(failing))} ]; then exit 8; fi; printf right > same.txt",
         )
+        workflow = self.work / "workflow.py"
+        declaration = workflow.read_text().split("join = task.target")[0]
+        workflow.write_text(declaration +
+            "done = task.target('done', inputs=[], outputs=['done.txt'])\n" +
+            f"done << {'echo done >> ' + trace + '; printf done > done.txt'!r}\n" +
+            "task.retain('right', source=right.output('same.txt'), path='result.txt')\n" +
+            "gwf.task_from_template('sample', task)\n")
         self.cli("run")
         self.wait_for(held.exists)
         def right_failed():
             with Client.connect(port=self.port) as client:
                 return LocalStatus.FAILED in client.status().values()
         self.wait_for(right_failed)
+        self.wait_for(lambda: "done" in (self.work / "trace").read_text().splitlines())
         try:
             failing.unlink()
             self.cli("run")
@@ -98,8 +106,27 @@ class TaskGraphTests(LocalBackendTestCase):
         finally:
             release.touch()
         self.settle()
+        self.cli("run")
+        self.settle()
+        self.assertEqual((self.work / "results/sample/result.txt").read_text(), "right")
+        self.assertEqual(Counter((self.work / "trace").read_text().splitlines()), {"left":1, "right":2, "done":1})
+
+    def test_rejected_retry_admission_resumes_selected_generations(self):
+        failing = self.work / "fail-right"
+        failing.touch()
+        trace = shlex.quote(str(self.work / "trace"))
+        self.configure_workflow(right_command=f"echo right >> {trace}; if [ -e {shlex.quote(str(failing))} ]; then exit 8; fi; printf right > same.txt")
+        self.cli("run")
+        self.settle()
+        attempt_line = next(line for line in self.cli("explain", "--details").splitlines() if "Attempt:" in line)
+        failing.unlink()
+        self.cli("-b", "recovery_fixture", "run", env=self.inject(reject_before_admission=True), success=False)
+        self.assertIn("continue", self.cli("explain"))
+        self.cli("run")
+        self.settle()
         self.assertEqual((self.work / "results/sample/result.txt").read_text(), "leftright")
         self.assertEqual(Counter((self.work / "trace").read_text().splitlines()), {"left":1, "right":2, "join":1})
+        self.assertIn(attempt_line, self.cli("explain", "--details"))
 
     def interrupted_target(self, fault):
         shutil.copy(FIXTURES / "job_fault.py", self.work)
@@ -185,7 +212,7 @@ class TaskGraphTests(LocalBackendTestCase):
         self.configure(use_spec_hashes=True)
         self.assertIn("fresh attempt", self.cli("run", success=False))
 
-    def test_queued_dependents_must_confirm_cancellation_before_rebinding(self):
+    def test_queued_dependents_block_rebinding_without_automatic_cancellation(self):
         from gwf.backends.local import Client, LocalStatus
         held, release, failing = (self.work / name for name in ("left-held", "left-release", "fail-right"))
         failing.touch()
@@ -203,7 +230,8 @@ class TaskGraphTests(LocalBackendTestCase):
         self.wait_for(right_failed)
         try:
             failing.unlink()
-            self.assertIn("confirmed dependent cancellation", self.cli("-b", "slurm", "run", env=env, success=False))
+            self.assertIn("Active dependent work blocks retry: join", self.cli("-b", "slurm", "run", env=env, success=False))
+            self.assertFalse((self.work / "cancellation-requested").exists())
             self.assertEqual(Counter((self.work / "trace").read_text().splitlines()), {"left":1, "right":1})
         finally:
             release.touch()

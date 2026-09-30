@@ -48,18 +48,25 @@ def retry_observation(store, observation, jobs):
         raise WorkflowError("Missing attempt workspace requires a fresh attempt")
     if any(_files.exists(store.attempt_dir(attempt) / filename) for filename in ("manifest.json", "installed.json", "completion.json")):
         raise WorkflowError("Existing results finishing evidence requires recovery before computation retry")
-    conflicting = [local for local in [*replaced, "gwflow_complete"] if jobs[local].state == "active"]
-    running = [local for local in conflicting if jobs[local].backend_state != BackendStatus.SUBMITTED]
-    if running:
-        raise WorkflowError("Active dependent work blocks retry: " + ", ".join(running))
-    observation.cancel = conflicting
+    admission.require_retry_inactive(jobs, replaced)
     observation.retry = replaced
     observation.pending = [local for local in ordered_targets(attempt["structure"])
-                           if local in replaced or jobs[local].state == "pending"] + ["gwflow_complete"]
+                           if local in replaced or jobs[local].state == "pending"]
     observation.action, observation.reason = "retry", "retry target executions: " + ", ".join(replaced)
-    if conflicting:
-        observation.reason += "; first confirm cancellation of queued dependents: " + ", ".join(conflicting)
+    if jobs["gwflow_complete"].state == "active":
+        observation.reason += "; finishing deferred until its previous queued submission settles; run again afterward"
+    else:
+        observation.pending.append("gwflow_complete")
     return True
+
+
+def pending_submissions(attempt, jobs):
+    pending = [local for local, item in jobs.items() if item.state == "pending"]
+    finishing = jobs["gwflow_complete"]
+    if (finishing.state in ("failed", "cancelled") and finishing.intent is not None
+            and not admission.dependencies_current(attempt, finishing.intent)):
+        pending.append("gwflow_complete")
+    return pending
 
 
 def plan_workflow(workflow, ctx, *, force=False):
@@ -83,8 +90,8 @@ def plan_workflow(workflow, ctx, *, force=False):
                     observation.submissions = jobs
                     uncertain = [item.submission for item in jobs.values() if item.state == "uncertain"]
                     active = [item.submission for item in jobs.values() if item.state == "active"]
-                    pending = [local for local, item in jobs.items() if item.state == "pending"]
-                    failed = [local for local, item in jobs.items() if item.state in ("failed", "cancelled")]
+                    pending = pending_submissions(attempt, jobs)
+                    failed = [local for local, item in jobs.items() if item.state in ("failed", "cancelled") and local not in pending]
                     if uncertain:
                         observation.action, observation.reason = "blocked", "unresolved submission: " + ", ".join(uncertain)
                     elif (force or structure != attempt["structure"] or
