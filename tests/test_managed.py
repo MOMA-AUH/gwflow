@@ -260,8 +260,9 @@ class ManagedCliTests(LocalBackendTestCase):
         workflow.write_text(workflow.read_text().replace("printf first", "printf second"))
         self.assertNotIn("Submitted target", self.cli("run"))
         self.configure(use_spec_hashes=True)
-        self.assertIn("commands", self.cli("run", success=False))
-        self.assertEqual((self.work / "results/sample/result.txt").read_text(), "first")
+        self.assertIn("commands", self.cli("explain"))
+        self.run_complete()
+        self.assertEqual((self.work / "results/sample/result.txt").read_text(), "second")
 
     def test_declared_storage_overlaps_fail_before_initialization(self):
         for settings in ("work_root='results/work'", "results_root='.gwf/results'", "work_root='same', results_root='same'"):

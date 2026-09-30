@@ -160,3 +160,48 @@ def commit_directory(source, destination):
         os.rename(source.name, destination.name, src_dir_fd=src, dst_dir_fd=dst)
         sync_directory(src)
         sync_directory(dst)
+
+
+def remove_directory(path, expected):
+    """Remove an owned directory by descriptor, never following child links."""
+    path = Path(path)
+    with directory(path.parent) as parent:
+        try:
+            child = os.open(path.name, _DIRECTORY_FLAGS, dir_fd=parent)
+        except FileNotFoundError:
+            return
+        except OSError as error:
+            raise WorkflowError(f"Cannot remove managed directory {path}: {error}") from error
+        try:
+            info = os.fstat(child)
+            if {"device": info.st_dev, "inode": info.st_ino} != expected:
+                raise WorkflowError(f"Managed directory ownership changed before removal: {path}")
+            _remove_contents(child)
+            current = os.stat(path.name, dir_fd=parent, follow_symlinks=False)
+            if (current.st_dev, current.st_ino) != (info.st_dev, info.st_ino):
+                raise WorkflowError(f"Managed directory changed during removal: {path}")
+            os.rmdir(path.name, dir_fd=parent)
+            sync_directory(parent)
+        finally:
+            os.close(child)
+
+
+def _remove_contents(parent):
+    for name in os.listdir(parent):
+        info = os.stat(name, dir_fd=parent, follow_symlinks=False)
+        if stat.S_ISDIR(info.st_mode):
+            child = os.open(name, _DIRECTORY_FLAGS, dir_fd=parent)
+            try:
+                opened = os.fstat(child)
+                if (opened.st_dev, opened.st_ino) != (info.st_dev, info.st_ino):
+                    raise WorkflowError("Managed child directory changed before removal")
+                _remove_contents(child)
+                current = os.stat(name, dir_fd=parent, follow_symlinks=False)
+                if (current.st_dev, current.st_ino) != (opened.st_dev, opened.st_ino):
+                    raise WorkflowError("Managed child directory changed during removal")
+            finally:
+                os.close(child)
+            os.rmdir(name, dir_fd=parent)
+        else:
+            os.unlink(name, dir_fd=parent)
+        sync_directory(parent)

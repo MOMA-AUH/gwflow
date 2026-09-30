@@ -6,7 +6,7 @@ Checked completion evidence lets a Task remain reusable after its work is remove
 
 The development branch is migrating to v0.3.0. The current managed lifecycle
 supports Task graphs, named Task dependencies, external inputs, and partial
-retries on one filesystem. Repair, force, and managed cleanup are being added in
+retries and fresh attempts on one filesystem. Repair and managed cleanup are being added in
 [the implementation queue](https://github.com/MOMA-AUH/gwflow/issues/62).
 Existing v0.2 factories and records are not converted or adopted. The older
 examples will be migrated with the complete workflow demonstration.
@@ -106,8 +106,8 @@ resolved destination, byte size, and nanosecond mtime. It observes changes made
 before it runs. Its first committed baseline is immutable, including across
 preparation retries. An interrupted preparation can restart when all admitted
 jobs are confirmed inactive and computation has not started. Changed inputs
-block continuation and results installation with a fresh-attempt diagnostic;
-automatic fresh-attempt replacement is a later lifecycle slice. Neither input
+prevent continuation and results installation under the old attempt; an ordinary
+run starts fresh work once conflicting activity has settled and inputs are valid. Neither input
 locking nor snapshots nor an atomic observation of multiple files is promised.
 `preparation_defaults` and `completion_defaults` overlay Workflow defaults for
 the respective scheduled jobs, independently of Task computation defaults.
@@ -174,6 +174,40 @@ successful siblings retain earlier outputs; enabling tracking later requires
 valid baselines for every selected execution. Interrupted output sets without
 success evidence are rerun, and abandoned work remains owned for later cleanup.
 Status, explain, and dry-run show planned retries without allocating executions.
+
+An ordinary run starts a fresh attempt when declared structure, tracked commands,
+input metadata, or a bound producer attempt changes. Declaration order alone does
+not count as a change. Refresh selected exact Task names, or every Task, with:
+
+```sh
+gwf explain --force-task hello
+gwf run --force-task hello --dry-run
+gwf run --force-task hello
+gwf run --force
+```
+
+`--force-task` is repeatable and still plans the whole workflow. Refreshing a
+producer also refreshes its consumers, even if regenerated files have identical
+size and mtime; unrelated reusable Tasks stay unchanged. Do not combine it with
+`--force`. Inner-target selectors, groups, and dependency bypass are unsupported.
+
+Starting a fresh attempt removes that Task's previous results before submitting
+jobs. Explain and dry-run disclose this removal without changing files. Run
+validates the whole workflow, ownership, and conflicting activity first. Active
+Tasks, active consumers, and unresolved admissions block conflicting replacement;
+force does not cancel or duplicate their jobs. Old disposable work remains owned
+by its old attempt for later cleanup.
+
+Initialization records the selected attempt and previous result ownership before
+removal, then records readiness before admission. An ordinary invocation resumes
+an interrupted initialization under that same identity. A changed pending
+definition requires new initialization. Failure after removal leaves the previous
+results absent; there is no rollback. Invalid ownership evidence or substituted
+managed links block removal.
+
+Damaged results cannot be reused. Until the repair slice is available, run keeps
+their work and reports the blocked recovery; consumers defer their input decision
+instead of being forced because a producer's result is temporarily unavailable.
 
 Structure is always tracked. Commands follow gwf's inherited `use_spec_hashes`
 setting (default false); enabling it is recommended. File size and modification

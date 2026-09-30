@@ -6,7 +6,7 @@ from gwf.backends import BackendStatus, create_backend
 from gwf.exceptions import WorkflowError
 
 from . import _files, admission, inputs
-from .lifecycle import Store, TaskObservation, declarations, ordered_tasks, ordered_targets, target_dependencies
+from .lifecycle import Store, TaskObservation, declarations, ordered_tasks, ordered_targets, producer_names, target_dependencies
 from .workflow import lifecycle_jobs
 
 
@@ -69,7 +69,35 @@ def pending_submissions(attempt, jobs):
     return pending
 
 
-def plan_workflow(workflow, ctx, *, force=False):
+def fresh_observation(store, observation, reason):
+    active = [item.submission for item in observation.submissions.values() if item.state in ("active", "uncertain")]
+    if active:
+        raise WorkflowError("Active or unresolved work blocks replacement: " + ", ".join(active))
+    inputs.observe([value for value in observation.structure["inputs"] if isinstance(value, str)], store.locations)
+    observation.removal = store.result_removal(observation.attempt) if observation.attempt else None
+    observation.action, observation.reason = "fresh", reason
+    if observation.removal is not None:
+        observation.reason += f"; remove previous results at {store.result_dir(observation.attempt)} before submission"
+    observation.pending = lifecycle_jobs(ordered_targets(observation.structure))
+
+
+def input_metadata_changed(store, attempt):
+    if not _files.exists(store.attempt_dir(attempt) / "inputs.json"):
+        return False
+    baseline = store.input_baseline(attempt)
+    try:
+        observed = store.observe_inputs(attempt)
+    except WorkflowError as error:
+        raise WorkflowError(f"Inputs unavailable; a fresh attempt requires valid inputs: {error}") from error
+    return baseline["inputs"] != observed
+
+
+def plan_workflow(workflow, ctx, *, force=False, force_tasks=()):
+    if force and force_tasks:
+        raise WorkflowError("Cannot combine --force and --force-task")
+    unknown = set(force_tasks) - workflow._task_declarations.keys()
+    if unknown:
+        raise WorkflowError("Unknown Task names for --force-task: " + ", ".join(sorted(unknown)))
     expected = {f"{name}__{local}" for name, task in workflow._task_declarations.items()
                 for local in lifecycle_jobs(task.targets)}
     if set(workflow.targets) != expected:
@@ -77,6 +105,7 @@ def plan_workflow(workflow, ctx, *, force=False):
     store = Store.for_workflow(workflow)
     declared = {name: declarations(task, store, workflow) for name, task in workflow._task_declarations.items()}
     tasks = []
+    selected = {}
     with create_backend(ctx.backend, working_dir=ctx.working_dir, config=ctx.config) as backend:
         for name in ordered_tasks(declared):
             structure, commands = declared[name]
@@ -84,8 +113,11 @@ def plan_workflow(workflow, ctx, *, force=False):
             observation = TaskObservation(name, "fresh", "no completed managed attempt", structure, commands, attempt)
             if attempt is not None:
                 try:
-                    if store.read(attempt, "ready.json", "ready") is None:
-                        raise WorkflowError("Task initialization is not ready; recovery is not yet supported")
+                    initializing = store.read(attempt, "ready.json", "ready") is None
+                    if initializing:
+                        store.initialization(attempt)
+                        if _files.exists(store.attempt_dir(attempt) / "admissions"):
+                            raise WorkflowError("Task initialization is not ready but has submission evidence")
                     observation.work_present = _files.exists(store.workspace(attempt))
                     jobs = admission.observe(store, attempt, backend, ctx.backend)
                     observation.submissions = jobs
@@ -95,10 +127,21 @@ def plan_workflow(workflow, ctx, *, force=False):
                     failed = [local for local, item in jobs.items() if item.state in ("failed", "cancelled") and local not in pending]
                     if uncertain:
                         observation.action, observation.reason = "blocked", "unresolved submission: " + ", ".join(uncertain)
-                    elif (force or structure != attempt["structure"] or
-                          ctx.config.get("use_spec_hashes") and not tracked_commands_match(store, attempt, commands)):
-                        reason = "active work blocks replacement" if active else "changed structure/commands or force requires a fresh attempt; replacement is not yet supported"
-                        observation.action, observation.reason = "blocked", reason
+                    elif (force or name in force_tasks or structure != attempt["structure"] or
+                          any(selected[producer].action == "fresh" or selected[producer].attempt["attempt"] != attempt["producers"].get(producer)
+                              for producer in producer_names(structure)) or
+                          ctx.config.get("use_spec_hashes") and
+                          (commands != attempt["commands"] or not attempt["command_tracking"] or
+                           not initializing and not tracked_commands_match(store, attempt, commands))):
+                        fresh_observation(store, observation, "force or changed structure, commands, or producer identity requires a fresh attempt")
+                    elif initializing:
+                        observation.removal = store.result_removal(attempt)
+                        observation.action, observation.reason = "initialize", "resume selected initialization; remove previous results before submission"
+                        observation.pending = lifecycle_jobs(ordered_targets(structure))
+                    elif not active and any(selected[producer].action in ("blocked", "deferred") for producer in producer_names(structure)):
+                        observation.action, observation.reason = "deferred", "producer results need recovery; defer input comparison until their metadata is available"
+                    elif input_metadata_changed(store, attempt):
+                        fresh_observation(store, observation, "input metadata changed; a fresh attempt is required")
                     elif not active and store.read(attempt, "completion.json", "completion", operation=attempt["operation"]) is not None and store.completed(attempt):
                         observation.action, observation.reason = "reuse", "checked Completion and retained metadata match"
                     elif ((jobs["gwflow_prepare"].state in ("failed", "cancelled")
@@ -126,11 +169,23 @@ def plan_workflow(workflow, ctx, *, force=False):
                 except (WorkflowError, OSError) as error:
                     observation.action, observation.reason = "blocked", str(error)
             else:
-                inputs.observe([value for value in structure["inputs"] if isinstance(value, str)], store.locations)
-                observation.pending = lifecycle_jobs(ordered_targets(structure))
+                fresh_observation(store, observation, "no completed managed attempt")
             tasks.append(observation)
+            selected[name] = observation
         consumers = admission.consumer_activity(store, backend, ctx.backend)
         for observation in tasks:
             if observation.attempt is not None:
                 observation.consumers = consumers.get((observation.name, observation.attempt["attempt"]), {})
+                if observation.action in ("fresh", "initialize") and store.read(observation.attempt, "ready.json", "ready") is None:
+                    previous = store.initialization_previous(observation.attempt)
+                    if previous is not None:
+                        observation.consumers = {**observation.consumers, **consumers.get((observation.name, previous["attempt"]), {})}
+                        previous_jobs = admission.observe(store, previous, backend, ctx.backend)
+                        conflicts = [item.submission for item in previous_jobs.values() if item.state in ("active", "uncertain")]
+                        if conflicts:
+                            observation.action, observation.reason = "blocked", "Previous attempt has active or unresolved work: " + ", ".join(conflicts)
+                            observation.pending = []
+                if observation.action in ("fresh", "initialize") and observation.consumers:
+                    observation.action, observation.reason = "blocked", "Active consumers block replacement: " + ", ".join(observation.consumers)
+                    observation.pending = []
     return Plan(store, tasks)
