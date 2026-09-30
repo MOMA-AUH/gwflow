@@ -27,6 +27,7 @@ from gwf.core import (
 from gwf.exceptions import WorkflowError
 from gwf.scheduling import SUBMITTED_STATES, schedule, should_run
 
+from ._state import state_name
 from .completion import Completion
 
 
@@ -137,7 +138,7 @@ def _target_reason(target, graph, states, fs, hashes, status, *, force=False):
     if status in (BackendStatus.SUBMITTED, BackendStatus.RUNNING):
         return "already active; ordinary run leaves it alone"
     if status in (BackendStatus.FAILED, BackendStatus.CANCELLED):
-        return f"backend reports {status.name.lower()} work; retry"
+        return f"backend reports {state_name(status)} work; retry"
     if any(states[dep] in SUBMITTED_STATES for dep in graph.dependencies[target]):
         return "dependency work requires submission"
     if hashes.has_changed(target) is not None:
@@ -356,7 +357,7 @@ def plan_workflow(workflow, targets, ctx, *, force=False, status_projection=Fals
                 status(target) not in (BackendStatus.COMPLETED, BackendStatus.UNKNOWN)
                 for target in [*inner, completion.target(inner, ctx.working_dir)]
             ):
-                reasons[name] = "backend reports active, failed, or cancelled work"
+                reasons[name] = "backend reports active, failed, or canceled work"
             elif any(hashes.has_changed(target) is not None for target in inner):
                 reasons[name] = "tracked target command changed or has no saved hash"
             else:
@@ -435,7 +436,7 @@ def plan_workflow(workflow, targets, ctx, *, force=False, status_projection=Fals
             for target in [*inner, completion.target(inner, ctx.working_dir)]:
                 state = status(target)
                 if details and state not in (BackendStatus.COMPLETED, BackendStatus.UNKNOWN):
-                    evidence[name].append(f"target {target.name}: backend {state.name.lower()} prevents Reuse")
+                    evidence[name].append(f"target {target.name}: backend {state_name(state)} prevents Reuse")
                 if (state not in (BackendStatus.SUBMITTED, BackendStatus.RUNNING)
                         or target.name in submissions):
                     continue

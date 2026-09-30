@@ -7,6 +7,7 @@ from gwf.backends import BackendStatus
 from gwf.core import pass_context
 from gwf.exceptions import WorkflowError
 
+from ._state import state_name
 from .reuse import _submission_guard, plan_workflow
 from .workflow import Workflow, _bookkeeping_name
 
@@ -32,7 +33,7 @@ def _target_details(plan, names, reused, completion_name, *, force=False):
         else:
             treatment = "up to date; no submission"
         role = "bookkeeping Completion job" if name == completion_name else "target"
-        lines.append(f"    {role} {name}: Current: backend {state.name.lower()}; Planned: {treatment}.")
+        lines.append(f"    {role} {name}: Current: backend {state_name(state)}; Planned: {treatment}.")
     return lines
 
 
@@ -53,7 +54,7 @@ def _overview(plan, *, details=False, force=False, task_name=None):
         current = ("Reuse bypassed by force" if force else
                    "reusable" if name in plan.reused else "not reusable")
         states = sorted({
-            plan.observed[target].name.lower() for target in names
+            state_name(plan.observed[target]) for target in names
             if plan.observed[target] not in (BackendStatus.COMPLETED, BackendStatus.UNKNOWN)
         })
         if states:
@@ -91,7 +92,7 @@ def _overview(plan, *, details=False, force=False, task_name=None):
                   "submit" if will_submit else "no new submissions")
         lines.extend([
             f"Ordinary target {target.name}",
-            f"  Current: backend {state.name.lower()}.",
+            f"  Current: backend {state_name(state)}.",
             f"  Planned: {action}. "
             f"Reason: {plan.target_reasons[target.name]}.",
         ])

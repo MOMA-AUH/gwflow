@@ -96,13 +96,14 @@ gwf -b local run
 
 When the jobs finish, `alpha.txt` and `beta.txt` contain the uppercase text. You
 can check progress with `gwf -b local status`. The default view lists Tasks
-from the start of the workflow. Submitted, running, failed, and cancelled Tasks
+from the start of the workflow. Submitted, running, failed, and canceled Tasks
 expand to show their targets; reusable Tasks collapse into one line. Colors
 reinforce the ASCII symbols when output goes to a terminal. Use
 `gwf status --details` to expand visible targets. Use
 `gwf status --format default` for gwf's original flat view, including a
 completion entry such as `alpha__gwflow_complete`. Existing status
-filters and summary and grouped formats remain available.
+filters and summary and grouped formats remain available. gwflow displays
+`canceled` in its tree view and explanations. Filter with `--status canceled`.
 
 Now remove the two internal files and run again:
 
@@ -217,7 +218,7 @@ been persisted. There is no built-in lock timeout, and inspection does not wait
 for compute jobs to finish. Ctrl-C exits nonzero and releases any acquired guard,
 preserving Completion records and expected attempts so later invocations can
 proceed. Invalid workflows and backend query errors
-fail before any plan is displayed. Failed or cancelled jobs can appear in a
+fail before any plan is displayed. Failed or canceled jobs can appear in a
 successful explanation. This command requires `gwflow.Workflow`, including
 empty workflows.
 
