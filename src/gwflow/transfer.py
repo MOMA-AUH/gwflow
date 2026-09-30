@@ -45,15 +45,21 @@ class InvalidSources(WorkflowError):
     """Transfer cannot recover without another computation execution."""
 
 
+def _check_source(store, attempt, sources, local, filename):
+    root = store.execution_dir(attempt, local) / "committed"
+    if _files.metadata(root, [filename])[filename] != sources[local]["outputs"][filename]:
+        raise WorkflowError(f"Retained transfer source changed: {local}/{filename}")
+
+
 def _sources(store, attempt, *, check_files):
-    sources = {}
-    for local in attempt["executions"]:
-        try:
-            record = store.checked_target(attempt, local, check_files=check_files)
-        except (WorkflowError, OSError) as error:
-            raise InvalidSources(f"Invalid transfer source for {local!r}: {error}") from error
-        sources[local] = {"execution": record["execution"], "outputs": record["outputs"]}
-    return sources
+    try:
+        sources = store.source_evidence(attempt)
+        if check_files:
+            for item in attempt["structure"]["retained"].values():
+                _check_source(store, attempt, sources, item["target"], item["source"])
+        return sources
+    except (WorkflowError, OSError) as error:
+        raise InvalidSources(f"Invalid transfer source: {error}") from error
 
 
 def inspect(store, attempt):
@@ -112,7 +118,7 @@ def _prepare(store, attempt, previous):
                     if error.errno not in (errno.ENOTSUP, errno.ENOSYS):
                         raise
                 os.fsync(destination_fd)
-        store.checked_target(attempt, local)
+        _check_source(store, attempt, sources, local, source)
     copied = _files.metadata(staging, [item["path"] for item in retained.values()], sync=True)
     store.publish(attempt, "manifest.json", "manifest", operation=attempt["operation"],
                   sources=sources, retained=retained, outputs=copied, destination=str(store.result_dir(attempt)),

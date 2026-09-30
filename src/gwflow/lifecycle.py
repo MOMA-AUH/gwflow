@@ -602,6 +602,13 @@ class Store:
             raise WorkflowError(f"Target {local!r} work metadata changed")
         return record
 
+    def source_evidence(self, attempt):
+        sources = {}
+        for local in attempt["executions"]:
+            target = self.checked_target(attempt, local, check_files=False)
+            sources[local] = {"execution": target["execution"], "outputs": target["outputs"]}
+        return sources
+
     def completed(self, attempt):
         self.check_inputs(attempt)
         operation = attempt["operation"]
@@ -615,10 +622,7 @@ class Store:
                 or installed.get("outputs") != manifest.get("outputs")
                 or not _valid_metadata(completion.get("outputs"), destinations)):
             return False
-        sources = {}
-        for local in attempt["executions"]:
-            target = self.checked_target(attempt, local, check_files=False)
-            sources[local] = {"execution": target["execution"], "outputs": target["outputs"]}
+        sources = self.source_evidence(attempt)
         if (manifest.get("sources") != sources
                 or manifest.get("retained") != attempt["structure"]["retained"]
                 or manifest.get("destination") != str(self.result_dir(attempt))

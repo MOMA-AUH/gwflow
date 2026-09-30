@@ -256,3 +256,16 @@ class TransferRecoveryTests(LocalBackendTestCase):
         self.assertFalse((result / "extra").exists())
         self.assertEqual((outside / "sentinel").read_text(), "untouched")
         self.assertEqual((self.work / "trace").read_text().splitlines(), ["compute"])
+
+    def test_missing_unretained_intermediate_does_not_repeat_verified_computation(self):
+        workflow = self.work / "workflow.py"
+        workflow.write_text('\n'.join(line for line in workflow.read_text().splitlines() if not line.startswith("task.retain('two'")) + '\n')
+        self.cli("-b", "recovery_fixture", "run", env=self.fault(crash_during_copy=True))
+        self.settle()
+        next((self.work / "work").rglob("two.txt")).unlink()
+        self.assertIn("Task a: transfer;", self.cli("explain"))
+        self.cli("run")
+        self.settle()
+        self.assertIn("Task a: reuse;", self.cli("explain"))
+        self.assertEqual((self.work / "trace").read_text().splitlines(), ["compute"])
+        self.assertEqual((self.work / "results/samples/a/report/renamed.txt").read_text(), "first")
