@@ -346,3 +346,28 @@ class ResultsRepairTests(LocalBackendTestCase):
         self.assertIn("ownership", self.cli("run", success=False))
         self.assertEqual((result / "unrelated.txt").read_text(), "unowned")
         self.assertEqual((self.work / "trace").read_text().splitlines(), ["compute"])
+
+    def test_active_repair_defers_existing_consumer_and_allows_independent_work(self):
+        self.add_consumer()
+        self.run_complete()
+        before = self.attempt()
+        (self.work / "results/samples/a/report/renamed.txt").unlink()
+        self.cli("-b", "recovery_fixture", "run", env=self.fault(gate_after_manifest=True))
+        self.wait_for((self.work / "manifest-held").exists)
+        try:
+            workflow = self.work / "workflow.py"
+            workflow.write_text(workflow.read_text() + "gwf.task_from_template('b', task)\n")
+            preview = self.cli("explain")
+            self.assertIn("Task a: active;", preview)
+            self.assertIn("Task c: deferred;", preview)
+            self.assertIn("later invocation", preview)
+            self.assertIn("Submitted target b__compute", self.cli("run"))
+            self.wait_for((self.work / "results/b/renamed.txt").exists)
+            self.assertFalse((self.work / "results/samples/a/report/renamed.txt").exists())
+            self.assertEqual((self.work / "results/c/joined.txt").read_text(), "firstsecond")
+        finally:
+            (self.work / "manifest-release").touch()
+        self.finish()
+        self.assertEqual(self.attempt(), before)
+        self.assertIn("Task c: reuse;", self.cli("explain"))
+        self.assertEqual((self.work / "trace").read_text().splitlines(), ["compute", "consumer", "compute"])

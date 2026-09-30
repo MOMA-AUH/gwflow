@@ -125,6 +125,14 @@ def completed_observation(store, observation):
     observation.pending = ["gwflow_complete"]
 
 
+def awaiting_producer_metadata(store, observation):
+    if observation.action in ("blocked", "deferred", "repair", "transfer"):
+        return True
+    attempt = observation.attempt
+    return (observation.action == "active" and store.repair_intent(attempt) is not None
+            and store.read(attempt, "completion.json", "completion", operation=attempt["operation"]) is None)
+
+
 def plan_workflow(workflow, ctx, *, force=False, force_tasks=()):
     if force and force_tasks:
         raise WorkflowError("Cannot combine --force and --force-task")
@@ -172,7 +180,7 @@ def plan_workflow(workflow, ctx, *, force=False, force_tasks=()):
                         observation.removal = store.result_removal(attempt)
                         observation.action, observation.reason = "initialize", "resume selected initialization; remove previous results before submission"
                         observation.pending = lifecycle_jobs(ordered_targets(structure))
-                    elif not active and any(selected[producer].action in ("blocked", "deferred", "repair", "transfer")
+                    elif not active and any(awaiting_producer_metadata(store, selected[producer])
                                             for producer in producer_names(structure)) and _files.exists(store.attempt_dir(attempt) / "inputs.json"):
                         observation.action, observation.reason = "deferred", "producer results need recovery; a later invocation must replan input validity after restored metadata is available"
                     elif input_metadata_changed(store, attempt):
