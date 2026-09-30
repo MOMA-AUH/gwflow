@@ -57,9 +57,13 @@ def replace(source, destination, **kwargs):
         os._exit(99)
     if destination == "installation.json" and options.get("crash_before_installation_intent"):
         os._exit(102)
+    if destination == "staging.json" and options.get("crash_before_staging_ownership"):
+        os._exit(106)
     result = original_replace(source, destination, **kwargs)
     if destination == "installation.json" and options.get("crash_after_installation_intent"):
         os._exit(103)
+    if destination == "staging.json" and options.get("crash_after_staging_ownership"):
+        os._exit(107)
     if destination == "manifest.json" and options.get("crash_after_manifest"):
         os._exit(98)
     if destination == "manifest.json" and options.get("gate_after_manifest"):
@@ -71,9 +75,11 @@ def rename(source, destination, **kwargs):
     if destination == "committed" and options.get("crash_before_commit"):
         os._exit(94)
     result = original_rename(source, destination, **kwargs)
+    if str(source).startswith(".staging-") and options.get("crash_after_staging_directory_install"):
+        os._exit(108)
     if destination == "committed" and options.get("crash_after_commit"):
         os._exit(95)
-    if destination != "committed" and options.get("crash_after_results_install"):
+    if destination != "committed" and not str(source).startswith(".staging-") and options.get("crash_after_results_install"):
         os._exit(100)
     return result
 

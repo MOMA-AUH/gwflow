@@ -67,6 +67,8 @@ def repair_sources(store, attempt):
     store.validate_roots()
     store.check_inputs(attempt)
     store.result_removal(attempt)
+    if store.cleanup_record(attempt) is not None:
+        raise InvalidSources("Work is marked for cleanup; repair requires fresh computation")
     return _sources(store, attempt, check_files=True)
 
 
@@ -84,6 +86,9 @@ def inspect(store, attempt):
     store.check_inputs(attempt)
     sources = _sources(store, attempt, check_files=False)
     record = store.transfer_ownership(attempt)
+    staging = store.staging_record(attempt)
+    if staging is not None and _files.exists(staging["destination"]) and _files.identity(staging["destination"]) != staging["identity"]:
+        raise WorkflowError("Transfer staging directory ownership changed")
     repair = store.repair_intent(attempt)
     if repair is not None and repair["sources"] != sources:
         raise InvalidSources("Repair source execution evidence changed")
@@ -119,10 +124,11 @@ def inspect(store, attempt):
 
 def _prepare(store, attempt, previous, removal):
     sources = _sources(store, attempt, check_files=True)
+    directory = store.ensure_staging(attempt)
     if previous is not None and _files.exists(Path(previous["staging"])):
         _files.remove_directory(Path(previous["staging"]), previous["staged_identity"])
     copy = uuid4().hex
-    staging = store.transfer_dir(attempt) / copy
+    staging = directory / copy
     _files.mkdir(staging)
     store.publish(attempt, "transfer.json", "transfer", operation=attempt["operation"], copy=copy,
                   staging=str(staging), destination=str(store.result_dir(attempt)), staged_identity=_files.identity(staging),

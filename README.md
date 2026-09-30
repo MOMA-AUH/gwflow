@@ -7,7 +7,8 @@ Checked completion evidence lets a Task remain reusable after its work is remove
 The development branch is migrating to v0.3.0. The current managed lifecycle
 supports Task graphs, named Task dependencies, external inputs, and partial
 retries, fresh attempts, separate work/results filesystems, and interrupted
-transfer recovery. Repair and managed cleanup are being added in
+transfer recovery, repair, and completed-work cleanup. Explicit older/failed
+attempt cleanup and the remaining inspection improvements are being added in
 [the implementation queue](https://github.com/MOMA-AUH/gwflow/issues/62).
 Existing v0.2 factories and records are not converted or adopted. The older
 examples will be migrated with the complete workflow demonstration.
@@ -243,6 +244,38 @@ Restored metadata that still matches permits consumer reuse. Different destinati
 timestamp precision can instead require new consumer computation, even though the
 producer attempt stays the same. Missing results or staging roots are recreated
 only after guarded ownership and inactivity checks.
+
+Use `gwf clean-work` to preview completed-work cleanup. It lists recorded Tasks,
+attempt UUIDs, workspace and staging locations, eligibility, and reasons. Add
+`--delete` for noninteractive deletion; repeat `--task NAME` to limit the default
+selection. Unknown Task names fail before any deletion.
+
+```console
+gwf clean-work
+gwf clean-work --task A --task B
+gwf clean-work --delete --task A --task B
+```
+
+Default cleanup removes only current completed work whose retained results still
+match checked Completion and whose jobs are inactive. Failed, partial, superseded,
+transferring, and repairable work is kept. Active jobs are skipped; unresolved
+submissions and insufficient ownership cause requested deletion to fail. A prior
+preview does not authorize a later deletion: ownership, result validity, and
+activity are checked again under the same frontend guard as submission.
+
+Cleanup removes the owned workspace and recorded transfer-staging directories,
+including staging on configured storage. Retained results, external inputs, logs,
+and reuse evidence remain. Active consumers reading results do not prevent
+cleaning completed producer work. Empty grouping parents and unrecorded allocations
+are left untouched; UUID-like directory names alone do not establish ownership.
+Incidental scratch symlinks are unlinked without following their destinations.
+
+Durable cleanup intent precedes deletion, and another `clean-work --delete` resumes
+an interrupted eligible cleanup. Valid results remain reusable even if deletion
+was interrupted. Once work is marked for removal, it cannot supply a later repair;
+missing or changed results require fresh computation. Work cleanup therefore gives
+up repair sources, while permitting new consumers to use retained results without
+recreating completed producer work.
 
 Structure is always tracked. Commands follow gwf's inherited `use_spec_hashes`
 setting (default false); enabling it is recommended. File size and modification

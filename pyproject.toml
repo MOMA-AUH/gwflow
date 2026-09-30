@@ -15,6 +15,7 @@ dependencies = ["gwf==2.1.1"]
 run = "gwflow.run:run"
 explain = "gwflow.explain:explain"
 status = "gwflow.status:status"
+clean-work = "gwflow.clean_work:clean_work"
 
 [tool.setuptools.packages.find]
 where = ["src"]

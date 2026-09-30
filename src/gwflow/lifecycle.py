@@ -378,6 +378,23 @@ class Store:
     def workspace(self, attempt):
         return self.locations["work"] / attempt["task"] / attempt["attempt"]
 
+    def workspace_identity(self, attempt):
+        ready = self.read(attempt, "ready.json", "ready")
+        if (ready is None or ready.get("workspace") != str(self.workspace(attempt))
+                or not _valid_identity(ready.get("workspace_identity"))):
+            raise WorkflowError("Missing or malformed workspace ownership evidence")
+        return ready["workspace_identity"]
+
+    def cleanup_record(self, attempt):
+        record = self.read(attempt, "cleanup.json", "cleanup")
+        if record is None and not _files.exists(self.record_path(attempt, "cleanup.json")):
+            return None
+        if (record is None or not _uuid(record.get("cleanup")) or record.get("state") not in ("removing", "removed")
+                or record.get("operation") != attempt["operation"] or record.get("executions") != attempt["executions"]
+                or not isinstance(record.get("directories"), dict)):
+            raise WorkflowError("Missing or malformed cleanup evidence")
+        return record
+
     def execution_dir(self, attempt, local):
         return self.workspace(attempt) / local / attempt["executions"][local]
 
@@ -386,6 +403,55 @@ class Store:
 
     def transfer_dir(self, attempt):
         return self.locations["staging"] / attempt["attempt"] / attempt["operation"]
+
+    def staging_record(self, attempt):
+        record = self.read(attempt, "staging.json", "staging-directory", operation=attempt["operation"])
+        if record is None and not _files.exists(self.record_path(attempt, "staging.json")):
+            return None
+        if (record is None or not _uuid(record.get("allocation")) or not _valid_identity(record.get("identity"))
+                or record.get("destination") != str(self.transfer_dir(attempt))
+                or record.get("source") != str(self.transfer_dir(attempt).with_name(".staging-" + record["allocation"]))):
+            raise WorkflowError("Missing or malformed transfer staging ownership")
+        return record
+
+    def ensure_staging(self, attempt):
+        """Publish the directory's identity before installing its owned namespace."""
+        destination = self.transfer_dir(attempt)
+        record = self.staging_record(attempt)
+        if record is None or not _files.exists(destination) and not _files.exists(record["source"]):
+            if _files.exists(destination):
+                raise WorkflowError("Unowned existing transfer staging directory")
+            allocation = uuid4().hex
+            source = destination.with_name(".staging-" + allocation)
+            with _files.directory(source.parent, create=True) as parent:
+                os.mkdir(source.name, dir_fd=parent)
+                _files.sync_directory(parent)
+            self.publish(attempt, "staging.json", "staging-directory", operation=attempt["operation"],
+                         allocation=allocation, source=str(source), destination=str(destination), identity=_files.identity(source))
+            record = self.staging_record(attempt)
+        source = Path(record["source"])
+        if _files.exists(destination):
+            if _files.identity(destination) != record["identity"] or _files.exists(source):
+                raise WorkflowError("Transfer staging directory ownership changed")
+        else:
+            _files.commit_directory(source, destination, expected=record["identity"])
+        return destination
+
+    def staging_directories(self, attempt):
+        root = self.attempt_dir(attempt) / "operations"
+        if not _files.exists(root):
+            return {}
+        with _files.directory(root) as directory:
+            operations = sorted(os.listdir(directory))
+        result = {}
+        for operation in operations:
+            if not _uuid(operation):
+                raise WorkflowError("Malformed recorded transfer operation")
+            record = self.staging_record({**attempt, "operation": operation})
+            if record is not None:
+                result[record["destination"]] = record["identity"]
+                result[record["source"]] = record["identity"]
+        return result
 
     def transfer_ownership(self, attempt):
         path = self.record_path(attempt, "transfer.json")
@@ -436,7 +502,7 @@ class Store:
         return {"job": attempt["jobs"][local], **generation}
 
     def record_path(self, attempt, filename):
-        if filename in ("transfer.json", "manifest.json", "installed.json", "completion.json", "repair.json", "installation.json"):
+        if filename in ("staging.json", "transfer.json", "manifest.json", "installed.json", "completion.json", "repair.json", "installation.json"):
             return self.attempt_dir(attempt) / "operations" / attempt["operation"] / filename
         return self.attempt_dir(attempt) / filename
 
@@ -525,6 +591,21 @@ class Store:
         if any(not is_valid_name(name) for name in names):
             raise WorkflowError("Malformed recorded Task name")
         return [self.recorded_current(name) for name in names if not self.unselected_initialization(name)]
+
+    def recorded_attempts(self):
+        result = []
+        for current in self.recorded_tasks():
+            root = self._task_dir(current["task"]) / "attempts"
+            with _files.directory(root) as directory:
+                attempts = sorted(os.listdir(directory))
+            for attempt_id in attempts:
+                if not _uuid(attempt_id):
+                    raise WorkflowError("Malformed recorded Task attempt")
+                attempt = self.read({"task": current["task"], "attempt": attempt_id}, "attempt.json", "attempt")
+                if attempt is None or not _valid_attempt(attempt):
+                    raise WorkflowError("Missing or malformed recorded Task attempt")
+                result.append(attempt)
+        return result
 
     def producer_attempt(self, attempt, name):
         producer = self.recorded_current(name)
@@ -728,7 +809,8 @@ class Store:
         _files.mkdir(self.workspace(attempt))
         for local in ordered_targets(attempt["structure"]):
             self.write_execution(attempt, local, attempt["commands"][local], tracking=attempt["command_tracking"])
-        self.publish(attempt, "ready.json", "ready")
+        self.publish(attempt, "ready.json", "ready", workspace=str(self.workspace(attempt)),
+                     workspace_identity=_files.identity(self.workspace(attempt)))
         return attempt
 
     def initialize(self, observation, result_dir, *, tracking, managed_tmpdir, producers):

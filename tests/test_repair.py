@@ -245,7 +245,7 @@ class ResultsRepairTests(LocalBackendTestCase):
         before = self.attempt()
         workflow = self.work / "workflow.py"
         original = workflow.read_text()
-        workflow.write_text(original.replace("printf first", "printf FIRST"))
+        workflow.write_text(original.replace("printf first", "printf FIRST_CHANGED"))
         (self.work / "results/samples/a/report/renamed.txt").unlink()
         self.assertIn("Task a: fresh;", self.cli("explain"))
         self.configure(use_spec_hashes=False)
@@ -257,7 +257,7 @@ class ResultsRepairTests(LocalBackendTestCase):
         (self.work / "results/samples/a/report/renamed.txt").unlink()
         self.run_complete()
         self.assertNotEqual(self.attempt(), before)
-        self.assertEqual((self.work / "results/samples/a/report/renamed.txt").read_text(), "FIRST")
+        self.assertEqual((self.work / "results/samples/a/report/renamed.txt").read_text(), "FIRST_CHANGED")
         self.assertEqual((self.work / "trace").read_text().splitlines(), ["compute", "compute"])
 
     def test_installed_repair_can_complete_after_sources_are_removed(self):
