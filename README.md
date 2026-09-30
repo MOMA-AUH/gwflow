@@ -205,14 +205,20 @@ identified from the saved evidence. The note then describes possible recovery;
 inspect again after the jobs settle.
 
 Explanation submits no jobs and preserves Completion records, expected attempts,
-and logs. It waits for submission bookkeeping on the same frontend to finish,
-without waiting for compute jobs. Invalid workflows and backend query errors
+and logs. If another invocation holds the physical-frontend submission guard,
+it displays a waiting message until submission and tracking bookkeeping have
+been persisted. There is no built-in lock timeout, and inspection does not wait
+for compute jobs to finish. Ctrl-C exits nonzero and releases any acquired guard,
+preserving Completion records and expected attempts so later invocations can
+proceed. Invalid workflows and backend query errors
 fail before any plan is displayed. Failed or cancelled jobs can appear in a
 successful explanation. This command requires `gwflow.Workflow`, including
 empty workflows.
 
 The plan reflects current observations and agrees with run while definitions,
-files, configuration, and backend state remain unchanged. It does not guarantee
+files, configuration, and backend state remain unchanged. The frontend guard
+does not provide a distributed snapshot: files and backend states can change
+during or after inspection. The plan does not guarantee
 future scheduler admission or strengthen gwf's Completion guarantees. Output is
 human-readable text, not a stable machine-readable format.
 

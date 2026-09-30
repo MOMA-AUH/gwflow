@@ -112,7 +112,10 @@ def explain(ctx, details, force, task_name):
     workflow = GwfWorkflow.from_context(ctx)
     if not isinstance(workflow, Workflow):
         raise WorkflowError("gwf explain requires a gwflow.Workflow; plain gwf.Workflow is unsupported")
-    with _submission_guard(ctx.working_dir):
+    with _submission_guard(
+        ctx.working_dir,
+        waiting_message="Waiting for another invocation to finish submission bookkeeping...",
+    ):
         workflow._validate_task_boundaries()
         plan = plan_workflow(workflow, list(dict.values(workflow.targets)), ctx,
                              force=force, details=details)

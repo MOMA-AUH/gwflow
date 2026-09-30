@@ -4,6 +4,7 @@ import json
 import os
 import re
 import shutil
+import signal
 import subprocess
 import unittest
 
@@ -146,6 +147,85 @@ class RecoveryCliTests(test_reuse.LocalBackendTestCase):
         )
         self.addCleanup(self.stop_worker, process)
         return process
+
+    def launch_explain(self, env=None):
+        output = self.work / "explain-output.txt"
+        backend = ["-b", "recovery_fixture"] if env is not None else []
+        with output.open("w") as stream:
+            process = subprocess.Popen(
+                [test_reuse.GWF, *backend, "explain", "--details"], cwd=self.work,
+                env=env, stdout=stream, stderr=subprocess.STDOUT, text=True,
+            )
+        self.addCleanup(self.stop_worker, process)
+        return process, output
+
+    def test_explain_waits_for_tracking_then_inspects_running_jobs(self):
+        self.configure(use_spec_hashes=True)
+        (self.work / "allow-work").touch()
+        submitter = self.launch(self.inject(hold_tracking=True))
+        self.wait_for(lambda: (self.work / "tracking-held").exists())
+        self.started("old", "sibling", "unrelated")
+        records = {task: self.records(task) for task in ("retry", "unrelated")}
+        inspector, output = self.launch_explain()
+        try:
+            self.wait_for(lambda: "waiting" in output.read_text().lower())
+            self.assertIsNone(inspector.poll())
+            self.assertNotIn("whole-workflow plan", output.read_text())
+        finally:
+            (self.work / "tracking-release").touch()
+        out, err = submitter.communicate(timeout=10)
+        self.assertEqual(submitter.returncode, 0, out + err)
+        inspector.wait(timeout=10)
+        explanation = output.read_text()
+        self.assertEqual(inspector.returncode, 0, explanation)
+        self.assertEqual(explanation.lower().count("waiting"), 1)
+        self.assertIn("backend running", explanation)
+        self.assertIn("backend submitted", explanation)
+        self.assertNotIn("Would submit", explanation)
+        self.assertNotIn("Recovery:", explanation)
+        self.assertEqual({task: self.records(task) for task in records}, records)
+        self.assertEqual(self.trace(), {"work": 1})
+        self.assertFalse((self.work / "result.txt").exists())
+        self.release("old", "sibling", "unrelated")
+        self.finish()
+
+    def test_interrupted_explain_preserves_evidence_and_releases_guard(self):
+        self.completed_setup()
+        def evidence():
+            return {
+                path: (path.read_bytes(), path.stat().st_mtime_ns)
+                for directory in ("gwflow", "logs")
+                for path in (self.work / ".gwf" / directory).rglob("*")
+                if path.is_file()
+            }
+        before = evidence()
+        for stage in ("waiting", "inspecting"):
+            with self.subTest(stage=stage):
+                env = self.inject(hold_observation=True)
+                if stage == "waiting":
+                    holder = self.launch(env)
+                    self.wait_for(lambda: (self.work / "observation-held").exists())
+                    inspector, output = self.launch_explain()
+                    self.wait_for(lambda: "waiting" in output.read_text().lower())
+                else:
+                    inspector, output = self.launch_explain(env)
+                    self.wait_for(lambda: (self.work / "observation-held").exists())
+                inspector.send_signal(signal.SIGINT)
+                inspector.wait(timeout=10)
+                self.assertNotEqual(inspector.returncode, 0, output.read_text())
+                self.assertNotIn("whole-workflow plan", output.read_text())
+                self.assertEqual(evidence(), before)
+                if stage == "waiting":
+                    self.assertIsNone(holder.poll())
+                    (self.work / "observation-release").touch()
+                    out, err = holder.communicate(timeout=10)
+                    self.assertEqual(holder.returncode, 0, out + err)
+                explanation = self.cli("explain")
+                self.assertNotIn("Would submit", explanation)
+                self.assertNotIn("waiting", explanation.lower())
+                self.assertNotIn("Submitted target", self.cli("run"))
+                (self.work / "observation-held").unlink()
+                (self.work / "observation-release").unlink(missing_ok=True)
 
     def test_overlapping_invocations_wait_for_cli_tracking_then_respect_active_jobs(self):
         self.configure(use_spec_hashes=True)
