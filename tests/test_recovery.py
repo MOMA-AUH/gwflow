@@ -191,12 +191,14 @@ class RecoveryCliTests(test_reuse.LocalBackendTestCase):
 
     def test_interrupted_explain_preserves_evidence_and_releases_guard(self):
         self.completed_setup()
-        before = {
-            path: (path.read_bytes(), path.stat().st_mtime_ns)
-            for directory in ("gwflow", "logs")
-            for path in (self.work / ".gwf" / directory).rglob("*")
-            if path.is_file()
-        }
+        def evidence():
+            return {
+                path: (path.read_bytes(), path.stat().st_mtime_ns)
+                for directory in ("gwflow", "logs")
+                for path in (self.work / ".gwf" / directory).rglob("*")
+                if path.is_file()
+            }
+        before = evidence()
         for stage in ("waiting", "inspecting"):
             with self.subTest(stage=stage):
                 env = self.inject(hold_observation=True)
@@ -212,10 +214,7 @@ class RecoveryCliTests(test_reuse.LocalBackendTestCase):
                 inspector.wait(timeout=10)
                 self.assertNotEqual(inspector.returncode, 0, output.read_text())
                 self.assertNotIn("whole-workflow plan", output.read_text())
-                self.assertEqual(
-                    {path: (path.read_bytes(), path.stat().st_mtime_ns) for path in before},
-                    before,
-                )
+                self.assertEqual(evidence(), before)
                 if stage == "waiting":
                     self.assertIsNone(holder.poll())
                     (self.work / "observation-release").touch()
