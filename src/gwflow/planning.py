@@ -30,6 +30,8 @@ def plan_workflow(workflow, ctx, *, force=False):
             observation = TaskObservation(name, "fresh", "no completed managed attempt", structure, commands, attempt)
             if attempt is not None:
                 try:
+                    if store.read(attempt, "ready.json", "ready") is None:
+                        raise WorkflowError("Task initialization is not ready; recovery is not yet supported")
                     observation.work_present = _files.exists(store.workspace(attempt))
                     jobs = admission.observe(store, attempt, backend, ctx.backend)
                     observation.submissions = jobs

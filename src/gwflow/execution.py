@@ -100,14 +100,7 @@ def main():
     if intent is None or intent["admission"] != token:
         raise WorkflowError("Scheduled job does not own the selected submission generation")
     store.runtime_admission = token
-    for dependency in intent["dependencies"]:
-        previous = store.read(attempt, f"admissions/{dependency['admission']}/intent.json", "submission-intent")
-        if previous is None or admission.identity(previous) != {key: dependency[key] for key in admission.identity(previous)}:
-            raise WorkflowError("Scheduled dependency generation does not match")
-        outcome = store.read(attempt, f"admissions/{dependency['admission']}/outcome.json", "job-outcome",
-                             **admission.identity(previous), state="complete")
-        if outcome is None and not admission.success_evidence(store, attempt, dependency["local"], previous):
-            raise WorkflowError("Scheduled dependency lacks checked success evidence")
+    admission.require_dependencies(store, attempt, intent)
     try:
         if operation == "execute":
             execute(store, attempt, local)

@@ -78,9 +78,11 @@ def read_intent(store, attempt, local):
             for token in tokens:
                 if not _uuid(token):
                     raise WorkflowError("Malformed admission archive")
-                previous = store.read(attempt, f"admissions/{token}/intent.json", "submission-intent",
-                                      **store.job_identity(attempt, local))
-                if previous is not None:
+                previous = store.read(attempt, f"admissions/{token}/intent.json", "submission-intent")
+                if (previous is None or previous.get("admission") != token
+                        or previous.get("job") not in attempt["jobs"].values()):
+                    raise WorkflowError(f"unresolved submission: admission {token} has unreadable history")
+                if previous["job"] == attempt["jobs"][local]:
                     raise WorkflowError(f"unresolved submission: {previous.get('submission', local)}; current intent is missing")
         return None
     admission = record.get("admission")
@@ -106,6 +108,26 @@ def success_evidence(store, attempt, local, intent):
     return record is not None and record.get("admission") == token
 
 
+def succeeded(store, attempt, local, intent):
+    outcome = store.read(attempt, f"admissions/{intent['admission']}/outcome.json", "job-outcome", **identity(intent))
+    if outcome is not None and outcome.get("state") == "complete":
+        return True
+    try:
+        return success_evidence(store, attempt, local, intent)
+    except (WorkflowError, OSError):
+        return False
+
+
+def require_dependencies(store, attempt, intent):
+    for dependency in intent["dependencies"]:
+        previous = store.read(attempt, f"admissions/{dependency['admission']}/intent.json", "submission-intent")
+        expected = {key: value for key, value in dependency.items() if key != "local"}
+        if previous is None or identity(previous) != expected:
+            raise WorkflowError("Scheduled dependency generation does not match")
+        if not succeeded(store, attempt, dependency["local"], previous):
+            raise WorkflowError("Scheduled dependency lacks checked success evidence")
+
+
 def observe(store, attempt, backend, name):
     observations = {}
     for local in lifecycle_jobs(attempt["executions"]):
@@ -117,11 +139,7 @@ def observe(store, attempt, backend, name):
         ack = store.read(attempt, f"admissions/{token}/ack.json", "submission-ack", **identity(intent))
         rejection = store.read(attempt, f"admissions/{token}/rejected.json", "submission-rejected", **identity(intent))
         outcome = store.read(attempt, f"admissions/{token}/outcome.json", "job-outcome", **identity(intent))
-        try:
-            checked = success_evidence(store, attempt, local, intent)
-        except (WorkflowError, OSError):
-            checked = False
-        checked = checked or bool(outcome and outcome.get("state") == "complete")
+        checked = succeeded(store, attempt, local, intent)
         target = Target(intent["submission"], [], [], {})
         tracked_id, state = None, BackendStatus.UNKNOWN
         same_backend = intent["backend"] == backend_identity(backend, name)

@@ -245,3 +245,30 @@ class ManagedCoordinationTests(LocalBackendTestCase):
         self.settle()
         self.assertEqual((self.work / "results/sample/report.txt").read_text(), "hello")
         self.assertIn("reuse", self.cli("explain"))
+
+    def test_missing_initialization_ready_evidence_blocks_admission(self):
+        self.cli("-b", "recovery_fixture", "run", env=self.inject(reject_before_admission=True), success=False)
+        for path in (self.work / ".gwf/gwflow").rglob("*.json"):
+            if json.loads(path.read_text()).get("kind") == "gwflow.ready":
+                path.unlink()
+                break
+        else:
+            self.fail("No initialization evidence was available for fault injection")
+        self.assertIn("initialization", self.cli("run", success=False))
+        self.assertFalse((self.work / "results/sample").exists())
+
+    def test_unreadable_archive_cannot_make_an_admission_look_unsubmitted(self):
+        self.run_complete()
+        paths = []
+        for path in (self.work / ".gwf/gwflow").rglob("*.json"):
+            record = json.loads(path.read_text())
+            if record.get("kind") == "gwflow.submission-intent" and "__write__" in record.get("submission", ""):
+                paths.append(path)
+        self.assertEqual(len(paths), 2)
+        for path in paths:
+            if path.name.endswith("-intent.json"):
+                path.unlink()
+            else:
+                path.write_text("{truncated")
+        self.assertIn("unresolved submission", self.cli("run", success=False))
+        self.assertEqual((self.work / "results/sample/report.txt").read_text(), "hello")
