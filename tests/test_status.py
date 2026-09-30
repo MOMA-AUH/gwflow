@@ -46,7 +46,16 @@ class StatusCliTests(test_reuse.LocalBackendTestCase):
                 "broken.target('fail', inputs=['input.txt'], outputs=['broken.txt']) << 'exit 1'\n"
                 "gwf.task_from_template('broken', broken)\n"
             )
-        self.addCleanup((self.work / "busy.release").touch)
+        def release_busy():
+            (self.work / "busy.release").touch()
+
+            def no_running_jobs():
+                with Client.connect(port=self.port) as client:
+                    return LocalStatus.RUNNING not in client.status().values()
+
+            self.wait_for(no_running_jobs)
+
+        self.addCleanup(release_busy)
         self.cli("run")
 
         def active_and_failed():
