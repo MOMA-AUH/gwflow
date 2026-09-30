@@ -23,6 +23,8 @@ def replace(source, destination, **kwargs):
     selected = parent is not None and f"/tasks/{task}/" in str(parent) + "/"
     if selected and destination == "initialization.json" and phase == "before_initialization_intent":
         os._exit(91)
+    if selected and destination == "current.json" and phase == "before_selection":
+        os._exit(90)
     if destination == "owner.json" and phase == "before_work_recreation":
         os._exit(95)
     result = original_replace(source, destination, **kwargs)

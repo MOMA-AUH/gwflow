@@ -26,6 +26,18 @@ def _valid_identity(value):
             and all(type(number) is int and number >= 0 for number in value.values()))
 
 
+def _initialization_entries(path):
+    with _files.directory(path) as directory:
+        entries = set(os.listdir(directory))
+    for filename in list(entries):
+        if filename.startswith(".pending-") and _uuid(filename.removeprefix(".pending-")):
+            # A killed atomic publish may leave its private regular file.
+            # It is never read as evidence, selected, or deleted here.
+            _files.metadata(path, [filename])
+            entries.remove(filename)
+    return entries
+
+
 def _overlap(left, right):
     return left == right or left in right.parents or right in left.parents
 
@@ -422,9 +434,8 @@ class Store:
         task_dir = self._task_dir(name)
         if _files.exists(task_dir / "current.json") or _files.exists(self.locations["work"] / name):
             return False
-        with _files.directory(task_dir) as directory:
-            if set(os.listdir(directory)) != {"attempts"}:
-                return False
+        if _initialization_entries(task_dir) != {"attempts"}:
+            return False
         with _files.directory(task_dir / "attempts") as directory:
             attempts = os.listdir(directory)
         if not attempts or any(not _uuid(value) for value in attempts):
@@ -433,19 +444,13 @@ class Store:
             attempt = self.read({"task": name, "attempt": attempt_id}, "attempt.json", "attempt")
             if attempt is None or not _valid_attempt(attempt) or _files.exists(self.result_dir(attempt)):
                 return False
-            with _files.directory(self.attempt_dir(attempt)) as directory:
-                files = os.listdir(directory)
-            for filename in files:
+            for filename in _initialization_entries(self.attempt_dir(attempt)):
                 if filename == "initialization.json":
                     record = self.initialization(attempt)
                     if record["previous"] is not None or record["result_identity"] is not None:
                         return False
                 elif filename != "attempt.json":
-                    if not filename.startswith(".pending-") or not _uuid(filename.removeprefix(".pending-")):
-                        return False
-                    # A killed atomic publish may leave its private regular file.
-                    # It is never read as evidence, selected, or deleted here.
-                    _files.metadata(self.attempt_dir(attempt), [filename])
+                    return False
         return True
 
     def input_baseline(self, attempt):

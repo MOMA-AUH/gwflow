@@ -167,9 +167,15 @@ class FreshAttemptTests(LocalBackendTestCase):
         self.assertEqual(Counter((self.work / "trace").read_text().splitlines()), {"a": 2, "b": 1, "c": 2})
 
     def test_first_initialization_interrupted_before_intent_can_restart(self):
-        result = subprocess.run([sys.executable, str(FIXTURES / "frontend_fault.py"), str(self.work), "before_initialization_intent", "a", "run"],
+        self.first_initialization_interrupted("before_initialization_intent", 91)
+
+    def test_first_initialization_interrupted_before_selection_can_restart(self):
+        self.first_initialization_interrupted("before_selection", 90)
+
+    def first_initialization_interrupted(self, phase, code):
+        result = subprocess.run([sys.executable, str(FIXTURES / "frontend_fault.py"), str(self.work), phase, "a", "run"],
                                 cwd=self.work, capture_output=True, text=True, timeout=30)
-        self.assertEqual(result.returncode, 91, result.stdout + result.stderr)
+        self.assertEqual(result.returncode, code, result.stdout + result.stderr)
         self.assertFalse((self.work / "results/a").exists())
         self.assertIn("Task a: fresh;", self.cli("explain"))
         self.cli("run")
