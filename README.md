@@ -150,13 +150,22 @@ gwf config set use_spec_hashes true
 
 ## Explain the next run
 
-`gwf explain` previews an ordinary whole-workflow run using the same workflow,
-backend, and command-tracking configuration as `gwf run`:
+`gwf explain` previews a whole-workflow run using the same workflow, backend,
+and command-tracking configuration as `gwf run`:
 
 ```bash
 gwf explain
 gwf explain --details
+gwf explain --force
+gwf explain --force --details alpha
+gwf explain alpha
 ```
+
+`--force` previews the prospective submissions from `gwf run --force`,
+including resubmission of active targets, while bypassing Reuse. The heading
+identifies a forced whole-workflow plan. One exact Task name may filter the
+display in either mode; it does not select work to run. The entire workflow is
+validated and planned before filtering, and an unknown Task name fails clearly.
 
 Each Task has a current condition and a separate planned action, with a concise
 reason, which may summarize only one of several causes. The plan lists the
@@ -200,7 +209,7 @@ and logs. It waits for submission bookkeeping on the same frontend to finish,
 without waiting for compute jobs. Invalid workflows and backend query errors
 fail before any plan is displayed. Failed or cancelled jobs can appear in a
 successful explanation. This command requires `gwflow.Workflow`, including
-empty workflows, and currently accepts no selectors or force option.
+empty workflows.
 
 The plan reflects current observations and agrees with run while definitions,
 files, configuration, and backend state remain unchanged. It does not guarantee
