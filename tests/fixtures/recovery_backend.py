@@ -56,6 +56,8 @@ class RecoveryBackend:
             wait_for(lambda: (self.work / "submission-release").exists())
         self.local.submit(target, dependencies)
         self.submitted = True
+        if self.options.get("lose_ack") and target.name.startswith(self.options["lose_ack"] + "__"):
+            raise RuntimeError("injected lost acknowledgement after acceptance")
 
     def get_tracked_id(self, target):
         return self.local.get_tracked_id(target)

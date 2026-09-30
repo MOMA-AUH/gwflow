@@ -1,239 +1,91 @@
 # gwflow
 
-[![Conda Version](https://img.shields.io/conda/vn/MOMA-AUH/gwflow?style=for-the-badge&cacheSeconds=300)](https://anaconda.org/MOMA-AUH/gwflow) [![Conda Downloads](https://img.shields.io/conda/dn/MOMA-AUH/gwflow?style=for-the-badge&cacheSeconds=300)](https://anaconda.org/MOMA-AUH/gwflow)
+gwflow adds managed Tasks to [gwf](https://gwf.app/): computation runs in disposable
+work storage, while named retained files are copied into stable results storage.
+Checked completion evidence lets a Task remain reusable after its work is removed.
 
-**Reuse finished parts of a gwf workflow, even after cleaning up their
-temporary files.**
+The development branch is migrating to v0.3.0. The current managed lifecycle
+supports input-free, single-target Tasks on one filesystem. External inputs,
+Task graphs, retries, repair, force, and managed cleanup are being added in
+[the implementation queue](https://github.com/MOMA-AUH/gwflow/issues/62).
+Existing v0.2 factories and records are not converted or adopted. The older
+examples will be migrated with the complete workflow demonstration.
 
-In a large workflow, one useful result may take several targets and many
-intermediate files to produce. You often want to keep the result and delete the
-intermediates to save space. In an ordinary gwf workflow, removing those files
-can make the targets look unfinished on the next run. gwflow lets you group
-those targets into a **Task** with declared external inputs and retained outputs
-(the files you keep). Once the task finishes, later runs can reuse it without
-recreating its deleted intermediates.
+Install with Python 3.12 and gwf 2.1.1:
 
-For example, a mapping task could keep an alignment file while discarding
-temporary chunks. A downstream task can use that alignment file; it waits for
-the whole mapping task to finish. Independent tasks can still run at the same
-time.
-
-gwflow is for people who already use gwf and want to clean up intermediates or
-share reusable task definitions across pipelines. You still run and inspect the
-workflow with gwf's CLI.
-
-## Install
-
-For a published release, create an environment with Python 3.12:
-
-```bash
-conda create -n gwflow python=3.12 gwflow=0.2.2 -c MOMA-AUH -c gwforg -c conda-forge
-conda activate gwflow
+```sh
+python -m pip install .
 ```
 
-To use this checkout instead, create its development environment and install the
-package:
-
-```bash
-conda env create -f environment.yml -p ./.conda-env
-source "$(conda info --base)/etc/profile.d/conda.sh"
-conda activate ./.conda-env
-python -m pip install --no-deps --no-build-isolation -e .
-```
-
-The verified setup uses gwf 2.1.1 and its local backend.
-
-## Try a Task
-
-The example below is also in [`examples/uppercase`](examples/uppercase). Make a
-new directory with an input file, then add the two Python files below:
-
-```bash
-mkdir gwflow-demo && cd gwflow-demo
-printf 'hello gwflow\n' > input.txt
-```
-
-`task_library.py` defines the work. The `.tmp` file is internal; the `.txt` file
-is the retained output:
+Create `workflow.py`:
 
 ```python
-from gwflow import Task
-
-
-def uppercase(name):
-    task = Task(inputs=["input.txt"], outputs=[f"{name}.txt"])
-    task.target("copy", inputs=["input.txt"], outputs=[f"{name}.tmp"]) << (
-        f"cat input.txt > {name}.tmp"
-    )
-    task.target("finish", inputs=[f"{name}.tmp"], outputs=[f"{name}.txt"]) << (
-        f"tr '[:lower:]' '[:upper:]' < {name}.tmp > {name}.txt"
-    )
-    return task
-```
-
-`workflow.py` gives two instances of that task distinct names and output paths:
-
-```python
-from gwflow import Workflow
-from task_library import uppercase
+from gwflow import Task, Workflow, shell
 
 gwf = Workflow()
-gwf.task_from_template("alpha", uppercase("alpha"))
-gwf.task_from_template("beta", uppercase("beta"))
-```
-
-From the directory containing those files, start local workers in one terminal:
-
-```bash
-gwf -b local workers -n 2
-```
-
-In another terminal with the same environment active, run the workflow:
-
-```bash
-gwf -b local run
-```
-
-When the jobs finish, `alpha.txt` and `beta.txt` contain the uppercase text. You
-can check progress with `gwf -b local status`. The default view lists Tasks
-from the start of the workflow. Submitted, running, failed, and canceled Tasks
-expand to show their targets; reusable Tasks collapse into one line. Colors
-reinforce the ASCII symbols when output goes to a terminal. Use
-`gwf status --details` to expand visible targets. Use
-`gwf status --format default` for gwf's original flat view, including a
-completion entry such as `alpha__gwflow_complete`. Existing status
-filters and summary and grouped formats remain available. gwflow displays
-`canceled` in its tree view and explanations. Filter with `--status canceled`.
-
-Now remove the two internal files and run again:
-
-```bash
-rm alpha.tmp beta.tmp
-gwf -b local run
-```
-
-The finished tasks are reused: gwf submits no new jobs, and the `.tmp` files
-stay absent. Keep the `.gwf/` directory beside the outputs; it contains the
-completion records needed for reuse.
-
-Generated Completion jobs inherit the workflow's `defaults`. Use
-`completion_defaults` to give these bookkeeping jobs smaller resources while
-retaining any site options shared with ordinary targets:
-
-```python
-gwf = Workflow(
-    defaults={"account": "my-account", "queue": "my-partition", "cores": 16},
-    completion_defaults={"cores": 1, "memory": "1g", "walltime": "00:05:00"},
+task = Task(inputs=[])
+write = task.target("write", inputs=[], outputs=["message.txt", "scratch.txt"])
+write << shell(
+    "printf 'hello\\n' > {message}; printf temporary > scratch.txt",
+    message=write.output("message.txt"),
 )
+task.retain("message", source=write.output("message.txt"), path="message.txt")
+hello = gwf.task_from_template("hello", task)
+# hello.outputs["message"] is the named retained-output reference.
 ```
 
-Completion options start with workflow defaults and apply these overrides. They
-do not inherit Task defaults or individual target options. Omitting
-`completion_defaults` leaves the workflow defaults intact; `None` has gwf's
-ordinary option handling. Resource-only changes do not invalidate completed
-Tasks. Choose values accepted by your backend: a rejected Completion submission
-leaves its record unpublished and can be retried with `gwf run`.
+Run and inspect through gwf:
 
-## Using gwflow in a larger workflow
-
-- Declare every file a task reads from outside as a task input, and every result
-  another task needs as a retained output. gwflow checks these boundaries before
-  submission.
-- Give each task instance a stable, unique name. Names qualify its targets
-  (`alpha__copy`, for example); they do not change file paths. Instances
-  therefore need distinct output paths.
-- Put task factories in importable Python modules. Pipelines can install
-  particular releases of those modules and register instances in `workflow.py`.
-- Use `gwf run --dry-run` to preview whole-workflow work, `gwf run --force` to
-  rerun it, and `gwf logs alpha__copy --no-pager` to inspect a target. A failed
-  target can be retried with `gwf run`.
-
-Reuse follows gwf's file modification-time rules. If you want command changes
-to trigger reruns, enable gwf's command tracking (off by default):
-
-```bash
-gwf config set use_spec_hashes true
-```
-
-## Explain the next run
-
-`gwf explain` previews a whole-workflow run using the same workflow, backend,
-and command-tracking configuration as `gwf run`:
-
-```bash
-gwf explain
+```sh
 gwf explain --details
-gwf explain --force
-gwf explain --force --details alpha
-gwf explain alpha
+gwf run --dry-run
+gwf run
+gwf status --details
+gwf logs hello__write --no-pager
 ```
 
-`--force` previews the prospective submissions from `gwf run --force`,
-including resubmission of active targets, while bypassing Reuse. The heading
-identifies a forced whole-workflow plan. One exact Task name may filter the
-display in either mode; it does not select work to run. The entire workflow is
-validated and planned before filtering, and an unknown Task name fails clearly.
+Use the normal gwf backend configuration and local workers or cluster backend.
+Submission returns without waiting for computation. Run all frontend commands
+for a workflow on one physical frontend; a guard serializes submission and
+inspection through backend tracking persistence.
 
-Each Task has a current condition and a separate planned action, with a concise
-reason, which may summarize only one of several causes. The plan lists the
-targets it would submit, including generated Completion jobs. A reusable Task
-needs no work even after intermediate cleanup;
-a missing retained output may need only a partial rerun, and missing or invalid
-Completion evidence may need only a Completion job. Ordinary targets outside
-Tasks are identified separately.
+A target runs in private staging under `work/`, with a private writable `TMPDIR`
+by default. `Workflow(managed_tmpdir=False)` preserves environment-selected
+`TMPDIR`. Plain command strings are literal shell text; `shell()` uses named
+file placeholders, quotes each substituted path as one shell argument, and uses
+`{{`/`}}` for literal braces. Do not quote the placeholders yourself. Fixed-name
+outputs can be declared without being bound into the command.
 
-Use `--details` to see every inner target and its bookkeeping Completion job,
-with the current backend state and planned treatment: submission or retry,
-active work left alone, up to date, or omitted by Reuse. The default reason is a
-summary; details report all observable direct causes together, including missing
-or unusable Completion evidence, changed declarations or target membership,
-missing or stale boundary files, configured command checks, and backend states
-that prevent Reuse. Upstream cause chains identify planned or active target work,
-changed Completion attempts, and the Tasks they affect transitively. These
-chains include ordinary upstream targets and nonretained branches that impose
-whole-Task ordering. Independent upstream causes appear separately. Relevant
-names and paths accompany the evidence.
+A zero command exit and every declared output being a regular file are required
+before the output set commits. Finishing copies retained files into private
+staging and installs the complete set in `results/hello/` before recording
+Completion. Retained files are independent copies; only declared retained files
+appear in results. Scratch, work outputs, and execution IDs remain in work or
+bookkeeping. A Task may retain no files but still requires checked computation.
 
-Command checks follow `use_spec_hashes`; equal file mtimes remain up to date,
-and an `UNKNOWN` backend state alone does not invalidate valid Completion
-evidence. Missing files do not reveal who removed them. Unusable records may
-leave prior declarations unavailable, and saved command hashes cannot recover
-old command text.
+Results and bookkeeping must survive work removal. An unchanged completed Task
+can be reused without its work. Incomplete attempts, damaged results, changed
+tracked computation, and uncertain submissions currently fail explicitly when
+they require a recovery operation that is not yet available. Generic `gwf clean`
+and `gwf touch` are rejected for managed workflows. Ordinary `gwf.Workflow`
+commands keep their usual behavior.
 
-Failed work and running siblings remain visible together: an ordinary run can
-retry a failed target while leaving active jobs alone. Nonreuse can also mean
-zero new submissions when old jobs are still active. Recovery notes identify
-an active Completion job for an earlier attempt or an active job whose command
-has changed under command tracking. After those jobs settle, invoke `gwf run`
-again to recover the current work and Completion evidence. Ordinary runs leave
-existing jobs and their dependencies in place. With command tracking disabled,
-an active Completion job may belong to an earlier attempt that can no longer be
-identified from the saved evidence. The note then describes possible recovery;
-inspect again after the jobs settle.
+Structure is always tracked. Commands follow gwf's inherited `use_spec_hashes`
+setting (default false); enabling it is recommended. File size and modification
+time checks do not detect changes preserving both, and successful execution does
+not certify output contents. Resources, packages, hidden parameters, and the
+software environment have no independent invalidation component.
 
-Explanation submits no jobs and preserves Completion records, expected attempts,
-and logs. If another invocation holds the physical-frontend submission guard,
-it displays a waiting message until submission and tracking bookkeeping have
-been persisted. There is no built-in lock timeout, and inspection does not wait
-for compute jobs to finish. Ctrl-C exits nonzero and releases any acquired guard,
-preserving Completion records and expected attempts so later invocations can
-proceed. Invalid workflows and backend query errors
-fail before any plan is displayed. Failed or canceled jobs can appear in a
-successful explanation. This command requires `gwflow.Workflow`, including
-empty workflows.
+Work, results, and bookkeeping roots must be disjoint. Configured storage must
+be visible to jobs and support coherent record visibility and atomic directory
+rename on the relevant filesystem. Existing unowned destinations, changed
+recorded locations, malformed records, and symlink traversal are rejected.
+Records are atomically published with file and directory synchronization where
+supported; these guarantees are not universal power-loss certification.
 
-The plan reflects current observations and agrees with run while definitions,
-files, configuration, and backend state remain unchanged. The frontend guard
-does not provide a distributed snapshot: files and backend states can change
-during or after inspection. The plan does not guarantee
-future scheduler admission or strengthen gwf's Completion guarantees. Output is
-human-readable text, not a stable machine-readable format.
+Run the installed-package tests with:
 
-Use whole-workflow `gwf run`: target selectors, `--group`, and `--no-deps` are
-unsupported.
-Submit a given workflow from one physical frontend node. Concurrent `gwf run`
-commands for that workflow are serialized on that node; compute jobs may run
-on other nodes.
-
-For an example with installable task packages and a three-task dependency graph,
-see the [packaged workflow](examples/packaged/README.md).
+```sh
+python -m unittest discover -s tests -v
+python tests/release_smoke.py
+```

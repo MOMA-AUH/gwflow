@@ -7,16 +7,17 @@ from gwf.exceptions import WorkflowError
 from gwf.filtering import GroupFilter, NameFilter, filter_generic
 from gwf.plugins.run import clean_logs, run as gwf_run
 from gwf.scheduling import submit_workflow
+from .submission import submit_plan
 
 from ._frontend import _submission_guard
 from .planning import plan_workflow
 from .workflow import Workflow
 
 
-def _submit_graph(graph, ctx, fs, *, dry_run, force, preserve_logs=False,
+def _submit_graph(graph, ctx, fs, *, dry_run, force,
                   targets=(), group=(), no_deps=False):
     """Submit through gwf's scheduler and persist its tracking on context exit."""
-    if ctx.config.get("clean_logs") and not dry_run and not preserve_logs:
+    if ctx.config.get("clean_logs") and not dry_run:
         clean_logs(ctx.working_dir, graph)
     with create_backend(ctx.backend, working_dir=ctx.working_dir, config=ctx.config) as backend:
         with get_spec_hashes(working_dir=ctx.working_dir, config=ctx.config) as hashes:
@@ -33,19 +34,6 @@ def _submit_graph(graph, ctx, fs, *, dry_run, force, preserve_logs=False,
                             dry_run=dry_run, force=force, no_deps=no_deps)
 
 
-def _submit_plan(plan, ctx, *, dry_run, force):
-    """Apply a validated plan while the caller holds the frontend guard."""
-    fs = CachedFilesystem()
-    graph = Graph.from_targets({target.name: target for target in plan.targets}, fs)
-    if not dry_run:
-        for name, (_, _, completion) in plan.tasks.items():
-            if name not in plan.reused:
-                completion.persist()
-    # Omitted targets still own useful logs, despite leaving the run graph.
-    _submit_graph(graph, ctx, fs, dry_run=dry_run, force=force,
-                  preserve_logs=bool(plan.reused))
-
-
 @pass_context
 def _run(ctx, targets, dry_run, force, no_deps, group):
     workflow = GwfWorkflow.from_context(ctx)
@@ -60,9 +48,8 @@ def _run(ctx, targets, dry_run, force, no_deps, group):
             "selectors and --no-deps are unsupported"
         )
     with _submission_guard(ctx.working_dir):
-        declarations = list(workflow.targets.values())
-        plan = plan_workflow(workflow, declarations, ctx, force=force)
-        _submit_plan(plan, ctx, dry_run=dry_run, force=force)
+        plan = plan_workflow(workflow, ctx, force=force)
+        submit_plan(plan, workflow, ctx, dry_run=dry_run)
 
 
 # Patch the command object too, regardless of plugin discovery order.

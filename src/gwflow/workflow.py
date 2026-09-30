@@ -1,15 +1,16 @@
-"""Task authoring and boundary validation for ordinary gwf targets."""
+"""Logical Task declarations, independent of execution and storage paths."""
 
-from collections import defaultdict
 from collections.abc import Mapping
 from copy import deepcopy
+from dataclasses import dataclass
 from inspect import getfile
-from os import fspath, getcwd
-from os.path import abspath, isabs, join
-from pathlib import Path
+import os
+from pathlib import Path, PurePosixPath
 from sys import _getframe
+from types import MappingProxyType
 
-from gwf import Workflow as GwfWorkflow
+import click
+from gwf import Target as GwfTarget, Workflow as GwfWorkflow
 from gwf.exceptions import WorkflowError
 from gwf.utils import is_valid_name
 
@@ -19,174 +20,165 @@ def _require_name(name, kind):
         raise WorkflowError(f"Invalid {kind} name: {name!r}")
 
 
-def _target_name(task_name, local_name):
-    return f"{task_name}__{local_name}"
+def relative_path(value):
+    try:
+        value = os.fspath(value)
+    except TypeError as exc:
+        raise WorkflowError("Managed output paths must be relative filenames") from exc
+    if (not isinstance(value, str) or not value or value.startswith("/")
+            or ".." in value.split("/") or not PurePosixPath(value).parts
+            or any(ord(char) < 32 for char in value) or any(char in value for char in "*?[]")):
+        raise WorkflowError(f"Invalid managed relative path: {value!r}")
+    return str(PurePosixPath(value))
 
 
-def _bookkeeping_name(task_name):
-    return _target_name(task_name, "gwflow_complete")
+def validate_destinations(paths):
+    seen = set()
+    for path in paths:
+        if path in seen or any(path.startswith(other + "/") or other.startswith(path + "/")
+                               for other in seen):
+            raise WorkflowError(f"Managed output destination collision: {path}")
+        seen.add(path)
 
 
-def _paths(working_dir, declaration):
-    if isinstance(declaration, str) or hasattr(declaration, "__fspath__"):
-        path = fspath(declaration)
-        return {path if isabs(path) else abspath(join(working_dir, path))}
-    if isinstance(declaration, Mapping):
-        declaration = declaration.values()
-    return {path for item in declaration for path in _paths(working_dir, item)}
+@dataclass(frozen=True)
+class TargetOutput:
+    target: object
+    filename: str
+
+
+@dataclass(frozen=True)
+class RetainedOutput:
+    workflow: object
+    task_name: str
+    name: str
+
+
+@dataclass(frozen=True)
+class TaskHandle:
+    outputs: Mapping
+
+
+@dataclass(eq=False)
+class TaskTarget:
+    name: str
+    inputs: list
+    outputs: list
+    options: dict
+    executor: object = None
+    group: str | None = None
+    spec: object = ""
+
+    def output(self, filename):
+        filename = relative_path(filename)
+        if filename not in self.outputs:
+            raise WorkflowError(f"Undeclared output {filename!r} on target {self.name!r}")
+        return TargetOutput(self, filename)
+
+    def __lshift__(self, command):
+        self.spec = command
+        return self
+
+
+class Task:
+    """A reusable definition with explicit inputs and named retained outputs."""
+
+    def __init__(self, inputs, *, working_dir=None, defaults=None, executor=None):
+        self.inputs = list(inputs)
+        self.defaults = dict(defaults or {})
+        self.executor = executor
+        self.targets = {}
+        self.retained = {}
+        # Execution always uses managed staging, regardless of authoring CWD.
+        self.working_dir = working_dir
+
+    def target(self, name, inputs, outputs, *, executor=None, group=None, **options):
+        _require_name(name, "local target")
+        if name.startswith("gwflow_"):
+            raise WorkflowError(f"Local target name {name!r} is reserved for bookkeeping")
+        if name in self.targets:
+            raise WorkflowError(f"Target {name!r} already exists in Task")
+        if not isinstance(outputs, (list, tuple, set, frozenset)):
+            raise WorkflowError("Target outputs must be an explicit finite list of regular files")
+        outputs = [relative_path(path) for path in outputs]
+        if not outputs:
+            raise WorkflowError(f"Task has outputless inner target {name!r}")
+        validate_destinations(outputs)
+        target = TaskTarget(name, list(inputs), outputs, {**self.defaults, **options},
+                            executor=executor or self.executor, group=group)
+        self.targets[name] = target
+        return target
+
+    def retain(self, name, *, source, path):
+        if not isinstance(name, str) or not name:
+            raise WorkflowError("A retained output needs a nonempty public name")
+        if name in self.retained:
+            raise WorkflowError(f"Duplicate retained output name {name!r}")
+        if (not isinstance(source, TargetOutput) or source.target not in self.targets.values()
+                or source.filename not in source.target.outputs):
+            raise WorkflowError("Retained source must be a declared output of this Task")
+        path = relative_path(path)
+        validate_destinations([*(item[1] for item in self.retained.values()), path])
+        self.retained[name] = (source, path)
 
 
 class _TaskTargets(dict):
-    """Make task declarations available when gwf builds its target graph."""
-
-    def __init__(self, workflow):
-        super().__init__()
-        self.workflow = workflow
-
     def values(self):
-        self.workflow._validate_task_boundaries()
+        cli = click.get_current_context(silent=True)
+        if cli is not None and cli.info_name in ("clean", "touch"):
+            raise WorkflowError("Generic clean/touch cannot mutate managed Tasks; use clean-work for work cleanup")
         return super().values()
 
 
-class Task(GwfWorkflow):
-    """An independent definition of ordinary file-producing gwf targets.
-
-    ``inputs`` and ``outputs`` declare the external inputs and retained outputs.
-    The declarations are validated before gwf builds the dependency graph.
-    Unless ``working_dir`` is supplied, targets inherit the registering
-    workflow's working directory.
-    """
-
-    def __init__(self, inputs, outputs, *, working_dir=None, defaults=None, executor=None):
-        kwargs = {
-            "working_dir": getcwd() if working_dir is None else working_dir,
-            "defaults": defaults or {},
-        }
-        if executor is not None:
-            kwargs["executor"] = executor
-        super().__init__(**kwargs)
-        self.inputs = deepcopy(inputs)
-        self.outputs = deepcopy(outputs)
-        self._explicit_working_dir = working_dir is not None
-
-
 class Workflow(GwfWorkflow):
-    """A gwf workflow that accepts named snapshots of Task definitions."""
+    """Register Task factories and select their managed storage locations."""
 
-    def __init__(self, working_dir=None, defaults=None, executor=None, *, completion_defaults=None):
+    def __init__(self, working_dir=None, defaults=None, executor=None, *,
+                 completion_defaults=None, managed_tmpdir=True,
+                 work_root="work", results_root="results", results_staging_root=None):
         if working_dir is None:
             working_dir = str(Path(getfile(_getframe(1))).resolve().parent)
-        kwargs = {"working_dir": working_dir, "defaults": defaults or {}}
+        kwargs = {"working_dir": str(Path(working_dir).absolute()), "defaults": defaults or {}}
         if executor is not None:
             kwargs["executor"] = executor
         super().__init__(**kwargs)
-        self.completion_defaults = deepcopy(completion_defaults) if completion_defaults is not None else {}
+        self.completion_defaults = dict(completion_defaults or {})
+        if type(managed_tmpdir) is not bool:
+            raise WorkflowError("managed_tmpdir must be true or false")
+        self.managed_tmpdir = managed_tmpdir
+        self.work_root = work_root
+        self.results_root = results_root
+        self.results_staging_root = results_staging_root
         self._task_declarations = {}
-        self._reserved_names = set()
-        self.targets = _TaskTargets(self)
-
-    def _validate_task_boundaries(self):
-        """Check task boundaries before gwf submits any target."""
-        produced_by = defaultdict(list)
-        retained = {}
-        for name, declaration in self._task_declarations.items():
-            _, outputs, target_names, working_dir = declaration
-            retained[name] = _paths(working_dir, outputs)
-            for target_name in target_names:
-                for path in self.targets[target_name].flattened_outputs():
-                    produced_by[path].append(name)
-
-        for name, declaration in self._task_declarations.items():
-            inputs, outputs, target_names, working_dir = declaration
-            external = _paths(working_dir, inputs)
-            produced = {
-                path
-                for target_name in target_names
-                for path in self.targets[target_name].flattened_outputs()
-            }
-            for path in _paths(working_dir, outputs) - produced:
-                raise WorkflowError(
-                    f"Task {name!r} declares retained output {path!r} "
-                    "without a producing target"
-                )
-            for path in external:
-                producers = produced_by[path]
-                if len(producers) == 1 and producers[0] != name:
-                    producer = producers[0]
-                    if path not in retained[producer]:
-                        raise WorkflowError(
-                            f"Task {name!r} consumes {path!r} from task "
-                            f"{producer!r}, but it is not a retained output"
-                        )
-            for target_name in target_names:
-                target = self.targets[target_name]
-                if not target.flattened_outputs():
-                    raise WorkflowError(
-                        f"Task {name!r} has outputless inner target {target_name!r}"
-                    )
-                for path in target.flattened_inputs():
-                    if path not in produced and path not in external:
-                        raise WorkflowError(
-                            f"Task {name!r} target {target_name!r} uses {path!r} "
-                            "without declaring it as an external input"
-                        )
+        self._result_dirs = {}
+        self.targets = _TaskTargets()
 
     def _add_target(self, target):
-        if target.name in self._reserved_names:
-            raise WorkflowError(
-                f"Target name {target.name!r} is reserved for task bookkeeping"
-            )
-        super()._add_target(target)
+        raise WorkflowError("Every computation target in gwflow.Workflow must belong to a Task")
 
-    def task_from_template(self, name, task):
-        """Register a named, independent snapshot of ``task``.
-
-        A factory can return a new Task for each instance. Its local target
-        names may then be reused in another instance; file paths stay as
-        supplied by the author.
-        """
-
+    def task_from_template(self, name, task, *, result_dir=None):
         _require_name(name, "task")
         if not isinstance(task, Task):
             raise TypeError("task_from_template requires a Task definition")
         if name in self._task_declarations:
             raise WorkflowError(f"Task name {name!r} already exists in workflow")
-
-        reserved = _bookkeeping_name(name)
-        new_targets = []
-        for local_name, target in task.targets.items():
-            _require_name(local_name, "local target")
-            if local_name == "gwflow_complete":
-                raise WorkflowError(
-                    f"Local target name {local_name!r} is reserved for task bookkeeping"
-                )
-            snapshot = deepcopy(target)
-            snapshot.name = _target_name(name, local_name)
-            if not task._explicit_working_dir:
-                snapshot.working_dir = self.working_dir
-            snapshot.options = {**self.defaults, **snapshot.options}
-            new_targets.append(snapshot)
-
-        proposed = {target.name for target in new_targets}
-        if len(proposed) != len(new_targets):
-            raise WorkflowError(f"Task {name!r} produces duplicate qualified target names")
-        collisions = (proposed | {reserved}) & (
-            set(self.targets) | self._reserved_names
-        )
-        if reserved in proposed:
-            collisions.add(reserved)
-        if collisions:
-            raise WorkflowError(
-                "Task registration name collision: " + ", ".join(sorted(collisions))
+        result_dir = relative_path(name if result_dir is None else result_dir)
+        validate_destinations([*self._result_dirs.values(), result_dir])
+        snapshot = deepcopy(task)
+        names = {f"{name}__{local}" for local in snapshot.targets} | {f"{name}__gwflow_complete"}
+        if names & self.targets.keys():
+            raise WorkflowError("Task registration name collision")
+        for local, target in snapshot.targets.items():
+            target.options = {**self.defaults, **target.options}
+            self.targets[f"{name}__{local}"] = GwfTarget(
+                name=f"{name}__{local}", inputs=[], outputs=[], options=target.options,
+                working_dir=self.working_dir, group=target.group,
             )
-
-        declarations = (
-            deepcopy(task.inputs),
-            deepcopy(task.outputs),
-            tuple(target.name for target in new_targets),
-            task.working_dir if task._explicit_working_dir else self.working_dir,
+        self.targets[f"{name}__gwflow_complete"] = GwfTarget(
+            name=f"{name}__gwflow_complete", inputs=[], outputs=[], options={},
+            working_dir=self.working_dir,
         )
-        for target in new_targets:
-            self._add_target(target)
-        self._task_declarations[name] = declarations
-        self._reserved_names.add(reserved)
+        self._task_declarations[name] = snapshot
+        self._result_dirs[name] = result_dir
+        return TaskHandle(MappingProxyType({key: RetainedOutput(self, name, key)
+                                            for key in snapshot.retained}))
