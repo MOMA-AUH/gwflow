@@ -8,7 +8,7 @@ import sys
 
 from gwf.exceptions import WorkflowError
 
-from . import _files
+from . import _files, admission
 from .commands import Command
 from .lifecycle import Store
 
@@ -85,7 +85,7 @@ def finish(store, attempt):
 
 
 def main():
-    owner_path, task, attempt_id, operation, *args = sys.argv[1:]
+    owner_path, task, attempt_id, operation, token, *args = sys.argv[1:]
     store = Store.for_job(owner_path)
     # Locate the selected record using the already recorded results location.
     current = _files.read_json(store._task_dir(task) / "current.json")
@@ -95,14 +95,25 @@ def main():
     if attempt is None or store.read(attempt, "ready.json", "ready") is None:
         raise WorkflowError("Task initialization is incomplete")
     attempt = store.current(task, attempt["result_dir"])
-    if operation == "execute":
-        execute(store, attempt, args[0])
-    elif operation == "prepare":
-        store.prepare(attempt)
-    elif operation == "finish":
-        finish(store, attempt)
-    else:
-        raise WorkflowError("Unknown managed job operation")
+    local = args[0] if operation == "execute" else "gwflow_prepare" if operation == "prepare" else "gwflow_complete"
+    intent = admission.read_intent(store, attempt, local)
+    if intent is None or intent["admission"] != token:
+        raise WorkflowError("Scheduled job does not own the selected submission generation")
+    store.runtime_admission = token
+    admission.require_dependencies(store, attempt, intent)
+    try:
+        if operation == "execute":
+            execute(store, attempt, local)
+        elif operation == "prepare":
+            store.prepare(attempt)
+        elif operation == "finish":
+            finish(store, attempt)
+        else:
+            raise WorkflowError("Unknown managed job operation")
+    except BaseException:
+        store.publish(attempt, f"admissions/{token}/outcome.json", "job-outcome", **admission.identity(intent), state="failed")
+        raise
+    store.publish(attempt, f"admissions/{token}/outcome.json", "job-outcome", **admission.identity(intent), state="complete")
 
 
 if __name__ == "__main__":

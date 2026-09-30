@@ -29,12 +29,12 @@ def explain(ctx, details, force, task_name):
             if task_name is not None and task.name != task_name:
                 continue
             click.echo(f"Task {task.name}: {task.action}; {task.reason}")
-            if task.action in ("fresh", "prepare"):
-                for local in lifecycle_jobs(task.structure["targets"]):
+            if task.pending:
+                for local in task.pending:
                     click.echo(f"  Would submit {task.name}__{local}")
             if details and task.attempt:
                 click.echo(f"  Attempt: {task.attempt['attempt']}")
                 click.echo(f"  Workspace: {plan.store.workspace(task.attempt)}")
                 click.echo(f"  Results: {plan.store.result_dir(task.attempt)}")
-                for local, job in task.attempt["jobs"].items():
-                    click.echo(f"  {task.name}__{local}: {job}")
+                for local, item in task.submissions.items():
+                    click.echo(f"  {task.name}__{local}: {item.submission or 'not submitted'} ({item.state})")

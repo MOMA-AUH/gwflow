@@ -2,12 +2,11 @@
 
 from dataclasses import dataclass
 
-from gwf import Target
 from gwf.backends import BackendStatus, create_backend
 from gwf.exceptions import WorkflowError
 
-from . import _files, inputs
-from .lifecycle import Store, TaskObservation, declarations, _uuid
+from . import _files, admission, inputs
+from .lifecycle import Store, TaskObservation, declarations
 from .workflow import lifecycle_jobs
 
 
@@ -31,41 +30,36 @@ def plan_workflow(workflow, ctx, *, force=False):
             observation = TaskObservation(name, "fresh", "no completed managed attempt", structure, commands, attempt)
             if attempt is not None:
                 try:
+                    if store.read(attempt, "ready.json", "ready") is None:
+                        raise WorkflowError("Task initialization is not ready; recovery is not yet supported")
                     observation.work_present = _files.exists(store.workspace(attempt))
-                    active, uncertain, states = [], [], {}
-                    acknowledged = True
-                    for local, job in attempt["jobs"].items():
-                        identity = store.job_identity(attempt, local)
-                        intent = store.read(attempt, f"submissions/{local}-intent.json", "submission-intent", **identity)
-                        ack = store.read(attempt, f"submissions/{local}-ack.json", "submission-ack", **identity,
-                                         admission=intent.get("admission") if intent else None)
-                        if intent is not None and (not _uuid(intent.get("admission")) or ack is None or ack.get("job_id") is None):
-                            uncertain.append(job)
-                        target = Target(job, [], [], {})
-                        tracked = backend.get_tracked_id(target) if hasattr(backend, "get_tracked_id") else None
-                        acknowledged &= ack is not None and tracked is not None and ack.get("job_id") == tracked
-                        state = backend.status(target)
-                        states[local] = state
-                        if state in (BackendStatus.SUBMITTED, BackendStatus.RUNNING):
-                            active.append(job)
+                    jobs = admission.observe(store, attempt, backend, ctx.backend)
+                    observation.submissions = jobs
+                    uncertain = [item.submission for item in jobs.values() if item.state == "uncertain"]
+                    active = [item.submission for item in jobs.values() if item.state == "active"]
+                    pending = [local for local, item in jobs.items() if item.state == "pending"]
+                    failed = [local for local, item in jobs.items() if item.state in ("failed", "cancelled")]
                     if uncertain:
                         observation.action, observation.reason = "blocked", "unresolved submission: " + ", ".join(uncertain)
+                    elif (force or structure != attempt["structure"] or
+                          ctx.config.get("use_spec_hashes") and (not attempt.get("command_tracking") or commands != attempt["commands"])):
+                        reason = "active work blocks replacement" if active else "changed structure/commands or force requires a fresh attempt; replacement is not yet supported"
+                        observation.action, observation.reason = "blocked", reason
+                    elif not failed and pending:
+                        if _files.exists(store.attempt_dir(attempt) / "inputs.json"):
+                            store.check_inputs(attempt)
+                        observation.action, observation.reason = "continue", "continue known submissions without repeating admitted work"
+                        observation.pending = pending
                     elif active:
                         observation.action, observation.reason = "active", "queued/running work: " + ", ".join(active)
-                    elif force:
-                        observation.action, observation.reason = "blocked", "fresh-attempt replacement is not yet supported"
-                    elif structure != attempt["structure"]:
-                        observation.action, observation.reason = "blocked", "changed structure requires a fresh attempt; replacement is not yet supported"
-                    elif ctx.config.get("use_spec_hashes") and (not attempt.get("command_tracking") or commands != attempt["commands"]):
-                        observation.action, observation.reason = "blocked", "changed or unrecorded commands require a fresh attempt; replacement is not yet supported"
-                    elif (acknowledged and states["gwflow_prepare"] in (BackendStatus.FAILED, BackendStatus.CANCELLED)
-                          and all(state in (BackendStatus.COMPLETED, BackendStatus.FAILED, BackendStatus.CANCELLED)
-                                  for state in states.values())
+                    elif ((jobs["gwflow_prepare"].state in ("failed", "cancelled")
+                           or jobs["gwflow_prepare"].backend_state in (BackendStatus.FAILED, BackendStatus.CANCELLED))
                           and observation.work_present
                           and not any(_files.exists(store.execution_dir(attempt, local)) for local in attempt["executions"])):
                         if _files.exists(store.attempt_dir(attempt) / "inputs.json"):
                             store.check_inputs(attempt)
                         observation.action, observation.reason = "prepare", "restart interrupted preparation in the same attempt"
+                        observation.pending = lifecycle_jobs(attempt["executions"])
                     elif store.completed(attempt):
                         observation.action, observation.reason = "reuse", "checked Completion and retained metadata match"
                     else:
@@ -74,5 +68,6 @@ def plan_workflow(workflow, ctx, *, force=False):
                     observation.action, observation.reason = "blocked", str(error)
             else:
                 inputs.observe(structure["inputs"], store.locations)
+                observation.pending = lifecycle_jobs(structure["targets"])
             tasks.append(observation)
     return Plan(store, tasks)

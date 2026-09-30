@@ -1,6 +1,6 @@
 """Owned storage and persistent evidence for the managed Task lifecycle."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import hashlib
 import json
 import os
@@ -157,6 +157,8 @@ class TaskObservation:
     commands: dict
     attempt: dict | None = None
     work_present: bool = False
+    submissions: dict = field(default_factory=dict)
+    pending: list = field(default_factory=list)
 
 
 class Store:
@@ -262,6 +264,8 @@ class Store:
 
     def publish(self, attempt, filename, kind, **fields):
         self.validate_roots()
+        if hasattr(self, "runtime_admission"):
+            fields.setdefault("admission", self.runtime_admission)
         _files.publish(self.attempt_dir(attempt) / filename, _record(kind, **self.identity(attempt), **fields))
 
     def current(self, name, result_dir):
@@ -308,7 +312,8 @@ class Store:
             return
         observed = inputs.observe(attempt["structure"]["inputs"], self.locations)
         self.validate_roots()
-        record = _record("inputs", **self.identity(attempt), preparation=attempt["preparation"], inputs=observed)
+        record = _record("inputs", **self.identity(attempt), preparation=attempt["preparation"], inputs=observed,
+                         admission=getattr(self, "runtime_admission", None))
         try:
             _files.publish(path, record, replace=False)
         except FileExistsError:
