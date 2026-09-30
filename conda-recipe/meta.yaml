@@ -1,5 +1,5 @@
 {% set name = "gwflow" %}
-{% set version = "0.2.0" %}
+{% set version = "0.2.1" %}
 
 package:
   name: {{ name }}
@@ -16,7 +16,7 @@ requirements:
   host:
     - python >=3.12,<3.13
     - pip
-    - setuptools >=68
+    - setuptools >=84
   run:
     - python >=3.12,<3.13
     - gwf ==2.1.1
