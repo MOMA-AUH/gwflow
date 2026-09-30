@@ -1,6 +1,7 @@
 """Compact Task status through the ordinary gwf CLI."""
 
 from gwf.backends.local import Client, LocalStatus
+from gwflow.status import status
 
 import test_reuse
 
@@ -41,6 +42,49 @@ class StatusCliTests(test_reuse.LocalBackendTestCase):
         self.assertIn("completed", lines[1])
         self.assertIn("finish", lines[2])
         self.assertIn("submitted", lines[2])
+
+    def test_canceled_state_uses_us_spelling_and_accepts_both_filters(self):
+        with (self.work / "workflow.py").open("a") as stream:
+            stream.write("gwf.target('plain', inputs=[], outputs=['plain.txt']) << 'touch plain.txt'\n")
+        env = self.state_backend({"text__prepare": "CANCELLED", "plain": "CANCELLED"})
+        output = self.cli("-b", "state_fixture", "status", env=env)
+        self.assertRegex(output, r"Task text\s+canceled\s+1 canceled target")
+        self.assertRegex(output, r"prepare\s+canceled")
+        self.assertRegex(output, r"Target plain\s+canceled")
+        self.assertNotIn("cancelled", output)
+        for spelling in ("canceled", "cancelled"):
+            with self.subTest(spelling=spelling):
+                filtered = self.cli("-b", "state_fixture", "status", "--status", spelling, env=env)
+                self.assertIn("Task text", filtered)
+                self.assertIn("Target plain", filtered)
+                self.assertNotIn("finish", filtered)
+                self.assertNotIn("cancelled", filtered)
+                for format in ("default", "summary", "grouped"):
+                    original = self.cli("-b", "state_fixture", "status", "--format", format,
+                                        "--status", spelling, env=env)
+                    self.assertIn("cancelled", original)
+
+    def test_canceled_filter_is_translated_for_plain_gwf_workflows(self):
+        (self.work / "workflow.py").write_text(
+            "from gwf import Workflow\n"
+            "gwf = Workflow()\n"
+            "gwf.target('plain', inputs=[], outputs=['plain.txt']) << 'touch plain.txt'\n"
+        )
+        env = self.state_backend({"plain": "CANCELLED"})
+        output = self.cli("-b", "state_fixture", "status", "--status", "canceled", env=env)
+        self.assertIn("plain", output)
+        self.assertIn("cancelled", output)
+
+    def test_status_advertises_only_the_canonical_spelling(self):
+        help_output = self.cli("status", "--help")
+        self.assertIn("canceled", help_output)
+        self.assertNotIn("cancelled", help_output)
+        invalid = self.cli("status", "--status", "invalid", success=False)
+        self.assertIn("canceled", invalid)
+        self.assertNotIn("cancelled", invalid)
+        parameter = next(param for param in status.params if param.name == "statuses")
+        completions = parameter.type.shell_complete(None, parameter, "cancel")
+        self.assertEqual([item.value for item in completions], ["canceled"])
 
     def test_reused_task_collapses_inner_targets_without_writing_records(self):
         for tracking in (False, True):

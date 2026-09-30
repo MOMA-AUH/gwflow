@@ -139,7 +139,8 @@ class ExplainCliTests(test_reuse.LocalBackendTestCase):
                 env = self.state_backend({"text__prepare": state, "text__finish": "RUNNING"})
                 output = self.cli("-b", "state_fixture", "explain", "--details", env=env)
                 detail = self.target_detail(output, "text__prepare")
-                self.assertIn(state.lower(), detail)
+                self.assertIn("canceled" if state == "CANCELLED" else state.lower(), detail)
+                self.assertNotIn("cancelled", output)
                 self.assertIn("retry" if state in ("FAILED", "CANCELLED") else "left alone", detail)
                 self.assertIn("left alone", self.target_detail(output, "text__finish"))
                 self.assertEqual(self.submissions(output), self.submissions(
@@ -187,7 +188,7 @@ class ExplainCliTests(test_reuse.LocalBackendTestCase):
         for path in ("extra.txt", "extra-output.txt", "result.txt", "side.txt", "input.txt"):
             self.assertIn(str(self.work / path), output)
         for target, state in (("text__prepare", "failed"), ("text__finish", "running"),
-                              ("text__side", "submitted"), ("text__gwflow_complete", "cancelled")):
+                              ("text__side", "submitted"), ("text__gwflow_complete", "canceled")):
             self.assertRegex(output, rf"{target}\W+backend\s+{state}\s+prevents\s+Reuse")
         self.assertEqual(self.submissions(output), self.submissions(
             self.cli("-b", "state_fixture", "run", "--dry-run", env=env)))
@@ -396,7 +397,8 @@ class ExplainCliTests(test_reuse.LocalBackendTestCase):
                     env = self.state_backend({target: state})
                     output = self.cli("-b", "state_fixture", "explain", "--details", env=env)
                     detail = self.target_detail(output, target)
-                    self.assertIn(state.lower(), detail)
+                    self.assertIn("canceled" if state == "CANCELLED" else state.lower(), detail)
+                    self.assertNotIn("cancelled", output)
                     if state in ("UNKNOWN", "COMPLETED"):
                         self.assertIn("Current: reusable", output)
                         self.assertIn("omitted by reuse", detail)

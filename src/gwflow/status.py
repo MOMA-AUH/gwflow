@@ -12,6 +12,7 @@ from gwf.filtering import EndpointFilter, GroupFilter, NameFilter, StatusFilter,
 from gwf.plugins.status import status as gwf_status
 from gwf.scheduling import get_status_map
 
+from ._state import state_name
 from .workflow import Workflow, _bookkeeping_name
 
 
@@ -20,6 +21,14 @@ from .workflow import Workflow, _bookkeeping_name
 # by reference, so this works regardless of which entry point is loaded first.
 # Keep a copy of the original command for the existing non-tree formats.
 _original_status = copy(gwf_status)
+
+
+class _StatusChoice(click.Choice):
+    def convert(self, value, param, ctx):
+        # Accept gwf's spelling without advertising it in choices or completion.
+        if value == "cancelled":
+            value = "canceled"
+        return super().convert(value, param, ctx)
 
 
 _VISUALS = {
@@ -49,7 +58,7 @@ def _task_summary(states, inner_names, reused):
     for state in (Status.FAILED, Status.CANCELLED):
         count = counts[state]
         if count:
-            problems.append(f"{count} {state.name.lower()} target{'s' if count != 1 else ''}")
+            problems.append(f"{count} {state_name(state)} target{'s' if count != 1 else ''}")
     if problems:
         return ", ".join(problems)
     count = len(inner_names)
@@ -88,7 +97,7 @@ def _print_tree(workflow, target_states, selected, backend, *, details, filtered
             state = states[target.name]
             symbol, color = _VISUALS[state]
             tracked_id = backend.get_tracked_id(target) if hasattr(backend, "get_tracked_id") else None
-            _echo_row(symbol, f"Target {target.name}", state.name.lower(),
+            _echo_row(symbol, f"Target {target.name}", state_name(state),
                       f"(id: {tracked_id or 'none'})", color=color)
             continue
 
@@ -99,7 +108,7 @@ def _print_tree(workflow, target_states, selected, backend, *, details, filtered
                        if target in states]
         task_state = _task_state(task_states)
         symbol, color = _VISUALS[task_state]
-        label = "reusable" if reused else task_state.name.lower()
+        label = "reusable" if reused else state_name(task_state)
         _echo_row(symbol, f"Task {name}", label,
                   _task_summary(states, inner_names, reused), color=color)
 
@@ -125,7 +134,7 @@ def _print_tree(workflow, target_states, selected, backend, *, details, filtered
             symbol, child_color = _VISUALS[state]
             target = targets_by_name[target_name]
             tracked_id = backend.get_tracked_id(target) if hasattr(backend, "get_tracked_id") else None
-            _echo_row(symbol, local_name, state.name.lower(),
+            _echo_row(symbol, local_name, state_name(state),
                       f"(id: {tracked_id or 'none'})", indent=prefix, color=child_color)
 
 
@@ -136,12 +145,14 @@ def _print_tree(workflow, target_states, selected, backend, *, details, filtered
               type=click.Choice(("tree", "default", "summary", "grouped")),
               help="How to format status output.")
 @click.option("-s", "--status", "statuses", multiple=True,
-              type=click.Choice(tuple(state.name.lower() for state in Status)))
+              type=_StatusChoice(tuple(state_name(state) for state in Status)),
+              help="Filter by state.")
 @click.option("-g", "--group", multiple=True)
 @click.option("--details", is_flag=True, help="Expand visible Task targets and Completion jobs in tree view.")
 @pass_context
 def tree_status(ctx, targets, endpoints, output_format, statuses, group, details):
     """Show target status, grouped under Tasks in gwflow workflows."""
+    statuses = tuple("cancelled" if name == "canceled" else name for name in statuses)
     if output_format != "tree":
         return click.get_current_context().invoke(
             _original_status, targets=targets, endpoints=endpoints,
