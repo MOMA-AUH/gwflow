@@ -187,6 +187,8 @@ def plan_workflow(workflow, ctx, *, force=False, force_tasks=()):
                         fresh_observation(store, observation, "input metadata changed; a fresh attempt is required")
                     elif not active and store.read(attempt, "completion.json", "completion", operation=attempt["operation"]) is not None:
                         completed_observation(store, observation)
+                    elif not active and store.cleanup_record(attempt) is not None:
+                        completed_observation(store, observation)
                     elif not active and store.repair_intent(attempt) is not None:
                         recover_transfer(store, observation, jobs)
                     elif ((jobs["gwflow_prepare"].state in ("failed", "cancelled")
