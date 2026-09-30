@@ -135,6 +135,7 @@ def plan_workflow(workflow, ctx, *, force=False, force_tasks=()):
                             raise WorkflowError("Task initialization is not ready but has submission evidence")
                     observation.work_present = _files.exists(store.workspace(attempt))
                     jobs = admission.observe(store, attempt, backend, ctx.backend)
+                    finishing = jobs["gwflow_complete"]
                     observation.submissions = jobs
                     uncertain = [item.submission for item in jobs.values() if item.state == "uncertain"]
                     active = [item.submission for item in jobs.values() if item.state == "active"]
@@ -168,7 +169,8 @@ def plan_workflow(workflow, ctx, *, force=False, force_tasks=()):
                         observation.action, observation.reason = "prepare", "restart interrupted preparation in the same attempt"
                         observation.pending = lifecycle_jobs(ordered_targets(attempt["structure"]))
                         observation.retry = ordered_targets(attempt["structure"])
-                    elif (not active and jobs["gwflow_complete"].state in ("failed", "cancelled", "pending")
+                    elif (not active and (finishing.state in ("failed", "cancelled")
+                                          or finishing.state == "pending" and finishing.intent is not None)
                           and all(jobs[local].state == "complete" for local in attempt["executions"])
                           and not _files.exists(store.attempt_dir(attempt) / "completion.json")):
                         recover_transfer(store, observation, jobs)
