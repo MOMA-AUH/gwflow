@@ -202,7 +202,7 @@ class TaskGraphTests(LocalBackendTestCase):
         self.settle()
         failing.unlink()
         self.configure_workflow(right_command=f"echo right >> {trace}; printf repaired > same.txt")
-        self.assertIn("fresh attempt", self.cli("run", success=False))
+        self.assertIn("fresh attempt", self.cli("explain"))
         self.configure(use_spec_hashes=False)
         self.cli("run")
         self.settle()
@@ -210,7 +210,11 @@ class TaskGraphTests(LocalBackendTestCase):
         self.assertEqual(Counter((self.work / "trace").read_text().splitlines()), {"left":1, "right":2, "join":1})
         self.configure_workflow(right_command=original)
         self.configure(use_spec_hashes=True)
-        self.assertIn("fresh attempt", self.cli("run", success=False))
+        self.assertIn("fresh attempt", self.cli("explain"))
+        self.cli("run")
+        self.settle()
+        self.assertEqual((self.work / "results/sample/result.txt").read_text(), "leftright")
+        self.assertEqual(Counter((self.work / "trace").read_text().splitlines()), {"left":2, "right":3, "join":2})
 
     def test_queued_dependents_block_rebinding_without_automatic_cancellation(self):
         from gwf.backends.local import Client, LocalStatus

@@ -21,6 +21,23 @@ def _uuid(value):
     return isinstance(value, str) and re.fullmatch(r"[0-9a-f]{32}", value) is not None
 
 
+def _valid_identity(value):
+    return (isinstance(value, dict) and set(value) == {"device", "inode"}
+            and all(type(number) is int and number >= 0 for number in value.values()))
+
+
+def _initialization_entries(path):
+    with _files.directory(path) as directory:
+        entries = set(os.listdir(directory))
+    for filename in list(entries):
+        if filename.startswith(".pending-") and _uuid(filename.removeprefix(".pending-")):
+            # A killed atomic publish may leave its private regular file.
+            # It is never read as evidence, selected, or deleted here.
+            _files.metadata(path, [filename])
+            entries.remove(filename)
+    return entries
+
+
 def _overlap(left, right):
     return left == right or left in right.parents or right in left.parents
 
@@ -241,6 +258,7 @@ class TaskObservation:
     pending: list = field(default_factory=list)
     retry: list = field(default_factory=list)
     consumers: dict = field(default_factory=dict)
+    removal: dict | None = None
 
 
 class Store:
@@ -270,10 +288,15 @@ class Store:
         if self.owner is not None:
             identities = self.owner.get("root_identity")
             if (not isinstance(identities, dict) or identities.keys() != self.locations.keys()
-                    or any(not isinstance(value, dict) or set(value) != {"device", "inode"}
-                           or any(type(number) is not int or number < 0 for number in value.values())
-                           for value in identities.values())):
+                    or any(not _valid_identity(value) for value in identities.values())):
                 raise WorkflowError("Malformed managed root ownership evidence")
+            pending = self.owner.get("work_recreation")
+            if pending is not None:
+                work = self.locations["work"]
+                if (not isinstance(pending, dict) or not _uuid(pending.get("operation"))
+                        or not _valid_identity(pending.get("identity"))
+                        or pending.get("source") != str(work.with_name(f".{work.name}-gwflow-{pending['operation']}"))):
+                    raise WorkflowError("Malformed work-root recreation evidence")
         self.validate_roots()
 
     @classmethod
@@ -310,8 +333,41 @@ class Store:
             found = _files.identity(path)
             if self.owner is not None:
                 expected = self.owner.get("root_identity", {}).get(key)
-                if expected != found:
+                pending = self.owner.get("work_recreation") if key == "work" else None
+                if expected != found and (pending is None or pending["identity"] != found):
                     raise WorkflowError(f"Managed root identity changed: {path}")
+
+    def work_root_needs_recreation(self):
+        return self.owner is not None and (self.owner.get("work_recreation") is not None
+                                           or not _files.exists(self.locations["work"]))
+
+    def recreate_work_root(self):
+        """Install a durably identified empty root before any result invalidation."""
+        self.validate_roots()
+        if not self.work_root_needs_recreation():
+            return
+        work = self.locations["work"]
+        pending = self.owner.get("work_recreation")
+        if pending is None:
+            operation = uuid4().hex
+            source = work.with_name(f".{work.name}-gwflow-{operation}")
+            with _files.directory(source.parent, create=True) as parent:
+                os.mkdir(source.name, dir_fd=parent)
+                _files.sync_directory(parent)
+            pending = {"operation": operation, "source": str(source), "identity": _files.identity(source)}
+            self.owner = {**self.owner, "work_recreation": pending}
+            _files.publish(self.owner_path, self.owner)
+        source = Path(pending["source"])
+        if _files.exists(work):
+            if _files.identity(work) != pending["identity"] or _files.exists(source):
+                raise WorkflowError("Work-root recreation destination changed")
+        else:
+            if _files.identity(source) != pending["identity"]:
+                raise WorkflowError("Work-root recreation staging ownership changed")
+            _files.commit_directory(source, work)
+        self.owner = {**self.owner, "root_identity": {**self.owner["root_identity"], "work": pending["identity"]}}
+        del self.owner["work_recreation"]
+        _files.publish(self.owner_path, self.owner)
 
     def _task_dir(self, name):
         return self.root / "owners" / self.owner["owner"] / "tasks" / name
@@ -359,7 +415,8 @@ class Store:
         task_dir = self._task_dir(name)
         current = _files.read_json(task_dir / "current.json")
         if current is None:
-            if _files.exists(task_dir) or _files.exists(destination) or _files.exists(self.locations["work"] / name):
+            if (_files.exists(destination) or _files.exists(self.locations["work"] / name)
+                    or _files.exists(task_dir) and not self.unselected_initialization(name)):
                 raise WorkflowError(f"Missing ownership/attempt evidence for Task {name!r}; existing files are not adopted")
             return None
         if (not _matches(current, "current", owner=self.owner["owner"], task=name)
@@ -371,6 +428,30 @@ class Store:
         if attempt.get("result_dir") != result_dir:
             raise WorkflowError(f"Recorded Task results location changed for {name!r}")
         return attempt
+
+    def unselected_initialization(self, name):
+        """Recognize abandoned owned plans, never completed work or submissions."""
+        task_dir = self._task_dir(name)
+        if _files.exists(task_dir / "current.json") or _files.exists(self.locations["work"] / name):
+            return False
+        if _initialization_entries(task_dir) != {"attempts"}:
+            return False
+        with _files.directory(task_dir / "attempts") as directory:
+            attempts = os.listdir(directory)
+        if not attempts or any(not _uuid(value) for value in attempts):
+            return False
+        for attempt_id in attempts:
+            attempt = self.read({"task": name, "attempt": attempt_id}, "attempt.json", "attempt")
+            if attempt is None or not _valid_attempt(attempt) or _files.exists(self.result_dir(attempt)):
+                return False
+            for filename in _initialization_entries(self.attempt_dir(attempt)):
+                if filename == "initialization.json":
+                    record = self.initialization(attempt)
+                    if record["previous"] is not None or record["result_identity"] is not None:
+                        return False
+                elif filename != "attempt.json":
+                    return False
+        return True
 
     def input_baseline(self, attempt):
         record = self.read(attempt, "inputs.json", "inputs", preparation=attempt["preparation"])
@@ -399,7 +480,7 @@ class Store:
             names = sorted(os.listdir(directory))
         if any(not is_valid_name(name) for name in names):
             raise WorkflowError("Malformed recorded Task name")
-        return [self.recorded_current(name) for name in names]
+        return [self.recorded_current(name) for name in names if not self.unselected_initialization(name)]
 
     def producer_attempt(self, attempt, name):
         producer = self.recorded_current(name)
@@ -535,6 +616,66 @@ class Store:
             return False
         return _files.metadata(self.result_dir(attempt), destinations) == completion["outputs"]
 
+    def result_removal(self, attempt):
+        destination = self.result_dir(attempt)
+        if not _files.exists(destination):
+            return None
+        if self.read(attempt, "ready.json", "ready") is None:
+            expected = self.initialization(attempt)["result_identity"]
+            if expected != _files.identity(destination):
+                raise WorkflowError(f"Previous results ownership changed during initialization: {destination}")
+            return expected
+        manifest = self.read(attempt, "manifest.json", "manifest", operation=attempt["operation"])
+        if (manifest is None or manifest.get("destination") != str(destination)
+                or manifest.get("retained") != attempt["structure"]["retained"]
+                or not _valid_metadata(manifest.get("outputs"), [item["path"] for item in attempt["structure"]["retained"].values()])
+                or not isinstance(manifest.get("sources"), dict) or manifest["sources"].keys() != attempt["executions"].keys()
+                or any(not isinstance(source, dict) or source.get("execution") != attempt["executions"][local]
+                       or not _valid_metadata(source.get("outputs"), attempt["structure"]["targets"][local]["outputs"])
+                       for local, source in manifest["sources"].items())
+                or manifest.get("staged_identity") != _files.identity(destination)):
+            raise WorkflowError(f"Cannot establish ownership of previous results: {destination}")
+        return manifest["staged_identity"]
+
+    def initialization(self, attempt):
+        record = self.read(attempt, "initialization.json", "initialization")
+        if (record is None or not {"previous", "result_identity"} <= record.keys()
+                or record.get("destination") != str(self.result_dir(attempt))
+                or record.get("previous") is not None and not _uuid(record["previous"])
+                or record.get("result_identity") is not None and
+                not _valid_identity(record["result_identity"])):
+            raise WorkflowError("Missing or malformed Task initialization evidence")
+        return record
+
+    def initialization_previous(self, attempt):
+        previous = self.initialization(attempt)["previous"]
+        if previous is None:
+            return None
+        record = self.read({"task": attempt["task"], "attempt": previous}, "attempt.json", "attempt")
+        if record is None or not _valid_attempt(record):
+            raise WorkflowError("Missing previous-attempt evidence for initialization")
+        return record
+
+    def finish_initialization(self, attempt):
+        self.validate_roots()
+        record = self.initialization(attempt)
+        if self.current(attempt["task"], attempt["result_dir"]) != attempt:
+            raise WorkflowError("Task selection changed during initialization")
+        if self.read(attempt, "ready.json", "ready") is not None:
+            return attempt
+        if _files.exists(self.attempt_dir(attempt) / "admissions"):
+            raise WorkflowError("Unready Task has submission evidence; initialization cannot remove results")
+        destination = self.result_dir(attempt)
+        if _files.exists(destination):
+            if record["result_identity"] is None:
+                raise WorkflowError("Unexpected unowned results appeared during initialization")
+            _files.remove_directory(destination, record["result_identity"])
+        _files.mkdir(self.workspace(attempt))
+        for local in ordered_targets(attempt["structure"]):
+            self.write_execution(attempt, local, attempt["commands"][local], tracking=attempt["command_tracking"])
+        self.publish(attempt, "ready.json", "ready")
+        return attempt
+
     def initialize(self, observation, result_dir, *, tracking, managed_tmpdir, producers):
         self.validate_roots()
         if self.owner is None:
@@ -545,7 +686,8 @@ class Store:
                                  locations={key: str(path) for key, path in self.locations.items()},
                                  root_identity={key: _files.identity(path) for key, path in self.locations.items()})
             _files.publish(self.owner_path, self.owner)
-        self.current(observation.name, result_dir)
+        if self.current(observation.name, result_dir) != observation.attempt:
+            raise WorkflowError("Task selection changed before initialization")
         attempt_id, operation, preparation = uuid4().hex, uuid4().hex, uuid4().hex
         executions = {local: uuid4().hex for local in ordered_targets(observation.structure)}
         jobs = {local: f"{observation.name}__{local}__{execution}" for local, execution in executions.items()}
@@ -557,10 +699,9 @@ class Store:
                           structure=observation.structure, commands=observation.commands, producers=producers,
                           command_tracking=bool(tracking), fingerprint=fingerprint, managed_tmpdir=managed_tmpdir)
         _files.publish(self.attempt_dir(attempt) / "attempt.json", attempt)
+        self.publish(attempt, "initialization.json", "initialization", destination=str(self.result_dir(attempt)),
+                     previous=observation.attempt["attempt"] if observation.attempt else None,
+                     result_identity=observation.removal)
         _files.publish(self._task_dir(observation.name) / "current.json",
                        _record("current", **self.identity(attempt)))
-        _files.mkdir(self.workspace(attempt))
-        for local in ordered_targets(attempt["structure"]):
-            self.write_execution(attempt, local, observation.commands[local], tracking=attempt["command_tracking"])
-        self.publish(attempt, "ready.json", "ready")
-        return attempt
+        return self.finish_initialization(attempt)

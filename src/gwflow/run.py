@@ -1,5 +1,6 @@
 """The controlled persistence and submission boundary for gwflow workflows."""
 
+import click
 from gwf import Workflow as GwfWorkflow
 from gwf.backends import create_backend
 from gwf.core import CachedFilesystem, Graph, get_spec_hashes, pass_context
@@ -35,9 +36,11 @@ def _submit_graph(graph, ctx, fs, *, dry_run, force,
 
 
 @pass_context
-def _run(ctx, targets, dry_run, force, no_deps, group):
+def _run(ctx, targets, dry_run, force, no_deps, group, force_task=()):
     workflow = GwfWorkflow.from_context(ctx)
     if not isinstance(workflow, Workflow):
+        if force_task:
+            raise WorkflowError("--force-task requires a gwflow.Workflow")
         fs = CachedFilesystem()
         graph = Graph.from_targets(workflow.targets, fs)
         return _submit_graph(graph, ctx, fs, targets=targets, dry_run=dry_run,
@@ -48,10 +51,12 @@ def _run(ctx, targets, dry_run, force, no_deps, group):
             "selectors and --no-deps are unsupported"
         )
     with _submission_guard(ctx.working_dir):
-        plan = plan_workflow(workflow, ctx, force=force)
+        plan = plan_workflow(workflow, ctx, force=force, force_tasks=force_task)
         submit_plan(plan, workflow, ctx, dry_run=dry_run)
 
 
 # Patch the command object too, regardless of plugin discovery order.
+if not any(parameter.name == "force_task" for parameter in gwf_run.params):
+    gwf_run.params.append(click.Option(["--force-task"], multiple=True, help="Start a fresh attempt for a named whole Task."))
 gwf_run.callback = _run
 run = gwf_run

@@ -214,6 +214,35 @@ def consumer_activity(store, backend, name):
     return consumers
 
 
+@dataclass
+class ReplacementActivity:
+    submissions: list
+    consumers: dict
+
+    @property
+    def reason(self):
+        if self.submissions:
+            return "Unresolved or active work blocks replacement: " + ", ".join(self.submissions)
+        if self.consumers:
+            return "Active consumers block replacement: " + ", ".join(self.consumers)
+        return None
+
+
+def replacement_activity(store, attempt, backend, name, consumers):
+    """Observe the attempt and any previous results protected by initialization."""
+    activity = ReplacementActivity([], {})
+    checked = set()
+    while attempt is not None:
+        if attempt["attempt"] in checked:
+            raise WorkflowError("Cyclic previous-attempt initialization evidence")
+        checked.add(attempt["attempt"])
+        activity.submissions.extend(item.submission for item in observe(store, attempt, backend, name).values()
+                                    if item.state in ("active", "uncertain"))
+        activity.consumers.update(consumers.get((attempt["task"], attempt["attempt"]), {}))
+        attempt = store.initialization_previous(attempt) if store.read(attempt, "ready.json", "ready") is None else None
+    return activity
+
+
 def restore_tracking(backend, name, observations):
     """Restore known IDs only during run, so gwf can encode dependency IDs."""
     if isinstance(backend, TrackingBackend):

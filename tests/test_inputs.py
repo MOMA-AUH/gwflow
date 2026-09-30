@@ -98,7 +98,7 @@ class ExternalInputTests(LocalBackendTestCase):
         source = self.work / "input.txt"
         original, info = source.read_bytes(), source.stat()
         source.write_text("different input\n")
-        self.assertIn("fresh attempt", self.cli("run", success=False))
+        self.assertIn("fresh attempt", self.cli("run", "--dry-run"))
         self.assertEqual({path: path.read_bytes() for path in evidence}, evidence)
         source.write_bytes(original)
         os.utime(source, ns=(info.st_atime_ns, info.st_mtime_ns))
@@ -123,8 +123,7 @@ class ExternalInputTests(LocalBackendTestCase):
                 os.utime(source, ns=(info.st_atime_ns, mtime))
                 for command in (("explain",), ("status",)):
                     self.assertIn("fresh attempt", self.cli(*command))
-                self.assertIn("fresh attempt", self.cli("run", "--dry-run", success=False))
-                self.assertIn("fresh attempt", self.cli("run", success=False))
+                self.assertIn("fresh attempt", self.cli("run", "--dry-run"))
                 self.assertEqual({path: path.read_bytes() for path in evidence}, evidence)
         # Deliberately document the accepted metadata-only detection limit.
         source.write_bytes(b"other\n")
@@ -150,7 +149,10 @@ class ExternalInputTests(LocalBackendTestCase):
         self.settle()
         self.assertFalse((self.work / "results/sample").exists())
         self.assertFalse(list((self.work / "work").rglob("out.txt")))
-        self.assertIn("fresh attempt", self.cli("run", success=False))
+        self.assertIn("fresh attempt", self.cli("explain"))
+        self.cli("run")
+        self.settle()
+        self.assertEqual((self.work / "results/sample/result.txt").read_bytes(), b"other\n")
 
     def test_invalid_external_inputs_and_undeclared_bindings_fail_before_submission(self):
         (self.work / "directory").mkdir()
