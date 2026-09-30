@@ -27,7 +27,7 @@ workflow with gwf's CLI.
 For a published release, create an environment with Python 3.12:
 
 ```bash
-conda create -n gwflow python=3.12 gwflow=0.2.1 -c MOMA-AUH -c gwforg -c conda-forge
+conda create -n gwflow python=3.12 gwflow=0.2.2 -c MOMA-AUH -c gwforg -c conda-forge
 conda activate gwflow
 ```
 
