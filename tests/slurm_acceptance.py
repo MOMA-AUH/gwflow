@@ -81,7 +81,7 @@ class Acceptance:
         while time.monotonic() < self.deadline:
             if predicate():
                 return
-            time.sleep(2)
+            time.sleep(5)
         status = self.states(list(jobs.values())) if jobs else {}
         raise TimeoutError(f"Timed out waiting for {description}; Slurm states: {status}")
 
