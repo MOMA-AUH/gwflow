@@ -13,7 +13,8 @@ import sys
 import time
 
 from gwf import Target
-from gwf.backends.local import Client, LocalStatus, create_backend
+from gwf.backends.base import TrackingBackend
+from gwf.backends.local import Client, LocalStatus, LocalOps
 
 
 def wait_for(predicate):
@@ -24,7 +25,7 @@ def wait_for(predicate):
         time.sleep(0.05)
 
 
-class RecoveryBackend:
+class RecoveryBackend(TrackingBackend):
     active = False
 
     def __init__(self, working_dir, port):
@@ -33,34 +34,36 @@ class RecoveryBackend:
         self.work = Path(working_dir)
         self.port = int(port)
         self.options = json.loads((self.work / "injection.json").read_text())
-        self.local = create_backend(working_dir, port=self.port)
+        super().__init__(working_dir, name="local", ops=LocalOps(working_dir, "localhost", self.port, {}))
         self.submitted = False
 
     @property
     def target_defaults(self):
+        if self.options.get("reject_before_admission"):
+            raise RuntimeError("injected pre-admission resource rejection")
         if self.options.get("capture_options"):
             return {"cores": 1, "memory": "1g"}
-        return self.local.target_defaults
+        return super().target_defaults
 
     def status(self, target):
         if self.options.get("hold_observation"):
             (self.work / "observation-held").touch()
             wait_for(lambda: (self.work / "observation-release").exists())
-        return self.local.status(target)
+        return super().status(target)
 
     def submit(self, target, dependencies):
         if self.options.get("capture_options"):
             with (self.work / "submitted-options.jsonl").open("a") as stream:
                 stream.write(json.dumps({"name": target.name, "options": target.options}) + "\n")
-        if target.name == self.options.get("reject"):
+        if target.name == self.options.get("reject") or (self.options.get("reject_prefix") and target.name.startswith(self.options["reject_prefix"] + "__")):
             raise RuntimeError("injected submission failure")
-        if target.name == self.options.get("hold_submission"):
+        if target.name == self.options.get("hold_submission") or (self.options.get("hold_submission_prefix") and target.name.startswith(self.options["hold_submission_prefix"] + "__")):
             (self.work / "submission-held").touch()
             wait_for(lambda: (self.work / "submission-release").exists())
         if self.options.get("job_fault") and target.name.startswith(self.options["job_fault"] + "__"):
             original = shlex.split(target.spec)
             target.spec = shlex.join([sys.executable, str(self.work / "job_fault.py"), str(self.work), *original[1:]])
-        self.local.submit(target, dependencies)
+        super().submit(target, dependencies)
         self.submitted = True
         if self.options.get("lose_tracking") and target.name.startswith(self.options["lose_tracking"] + "__"):
             os._exit(93)
@@ -68,7 +71,7 @@ class RecoveryBackend:
             raise RuntimeError("injected lost acknowledgement after acceptance")
 
     def get_tracked_id(self, target):
-        return self.local.get_tracked_id(target)
+        return super().get_tracked_id(target)
 
     def __enter__(self):
         type(self).active = True
@@ -84,7 +87,7 @@ class RecoveryBackend:
                 # Release an actually running job into failure after planning's
                 # snapshot, before the CLI opens its submitting backend.
                 target = Target(transition, [], [], {})
-                job_id = str(self.local.get_tracked_id(target))
+                job_id = str(super().get_tracked_id(target))
                 (self.work / "old.release").touch()
                 def failed():
                     with Client.connect(port=self.port) as client:
@@ -92,7 +95,7 @@ class RecoveryBackend:
                 wait_for(failed)
                 (self.work / "fail-after-release").unlink()
                 (self.work / "transition-done").touch()
-            self.local.__exit__(*exc)
+            super().__exit__(*exc)
         finally:
             type(self).active = False
 

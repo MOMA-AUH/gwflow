@@ -5,6 +5,8 @@ import os
 import shutil
 import signal
 import subprocess
+import sys
+import shlex
 
 from support import FIXTURES, GWF
 import test_managed
@@ -36,18 +38,21 @@ class ManagedCoordinationTests(LocalBackendTestCase):
         self.addCleanup(self.stop_worker, process)
         return process, output
 
-    def test_lost_acknowledgement_blocks_duplicate_execution(self):
+    def test_saved_tracking_recovers_lost_acknowledgement_without_duplicate_execution(self):
         trace = self.work / "executions"
         import shlex
         self.write_task(f"echo executed >> {shlex.quote(str(trace))}; touch out.txt")
         env = self.inject(lose_ack="sample__write")
         self.assertIn("lost acknowledgement", self.cli("-b", "recovery_fixture", "run", env=env, success=False))
         self.settle()
-        self.assertIn("unresolved submission", self.cli("explain"))
-        for flags in ((), ("--force",)):
-            self.assertIn("unresolved submission", self.cli("run", *flags, success=False))
+        before = {p: p.read_bytes() for p in (self.work / ".gwf/gwflow").rglob("*.json")}
+        self.assertIn("continue", self.cli("explain"))
+        self.assertEqual({p: p.read_bytes() for p in before}, before)
+        self.cli("run")
+        self.finish()
         self.assertEqual(trace.read_text(), "executed\n")
-        self.assertFalse((self.work / "results/sample").exists())
+        self.assertTrue((self.work / "results/sample/result.txt").exists())
+        self.assertIn("reuse", self.cli("explain"))
 
     def test_status_waits_until_submission_tracking_is_saved(self):
         submitter, submitted = self.launch("-b", "recovery_fixture", "run",
@@ -89,3 +94,154 @@ class ManagedCoordinationTests(LocalBackendTestCase):
         completion = next(item["options"] for item in options if item["name"].startswith("sample__gwflow_complete__"))
         self.assertEqual(compute, {"cores":7, "memory":"8g"})
         self.assertEqual(completion, {"cores":1})
+
+    def test_proven_pre_admission_rejection_can_continue(self):
+        self.cli("-b", "recovery_fixture", "run", env=self.inject(reject_before_admission=True), success=False)
+        self.assertIn("continue", self.cli("explain"))
+        self.run_complete()
+        self.assertTrue((self.work / "results/sample/report.txt").exists())
+
+    def test_acknowledgement_recovers_after_frontend_dies_before_tracking_flush(self):
+        trace, held, release = (self.work / name for name in ("executions", "held", "release"))
+        self.write_task(f"echo executed >> {shlex.quote(str(trace))}; touch {shlex.quote(str(held))}; while [ ! -e {shlex.quote(str(release))} ]; do sleep 0.025; done; touch out.txt")
+        submitter, output = self.launch("-b", "recovery_fixture", "run", env=self.inject(hold_tracking=True))
+        self.wait_for(lambda: (self.work / "tracking-held").exists())
+        self.wait_for(held.exists)
+        submitter.kill()
+        submitter.wait(timeout=10)
+        try:
+            self.assertIn("active", self.cli("explain"))
+            self.assertNotIn("Submitted target", self.cli("run"))
+            self.assertIn("active work", self.cli("run", "--force", success=False))
+        finally:
+            release.touch()
+        self.finish()
+        self.assertIn("reuse", self.cli("explain"))
+        self.assertNotIn("Submitted target", self.cli("run"))
+        self.assertEqual(trace.read_text(), "executed\n")
+
+    def test_interruption_after_intent_before_admission_stays_uncertain(self):
+        submitter, output = self.launch("-b", "recovery_fixture", "run",
+                                          env=self.inject(hold_submission_prefix="sample__gwflow_prepare"))
+        self.wait_for(lambda: (self.work / "submission-held").exists())
+        submitter.kill()
+        submitter.wait(timeout=10)
+        for flags in ((), ("--force",), ("--dry-run",)):
+            diagnostic = self.cli("run", *flags, success=False)
+            self.assertIn("Task sample", diagnostic)
+            self.assertIn("unresolved submission: sample__gwflow_prepare__", diagnostic)
+        self.assertFalse((self.work / "results/sample").exists())
+
+    def test_arbitrary_backend_exception_does_not_prove_rejection(self):
+        self.cli("-b", "recovery_fixture", "run", env=self.inject(reject_prefix="sample__gwflow_prepare"), success=False)
+        self.assertIn("unresolved submission", self.cli("run", success=False))
+        self.assertFalse((self.work / "results/sample").exists())
+
+    def slurm_environment(self):
+        binaries = self.work / "slurm-bin"
+        binaries.mkdir()
+        implementation = (FIXTURES / "slurm_command.py").read_text()
+        for command in ("sbatch", "squeue", "sacct", "scancel"):
+            executable = binaries / command
+            executable.write_text(f"#!{sys.executable}\n" + implementation)
+            executable.chmod(0o700)
+        return {**os.environ, "PATH": str(binaries) + os.pathsep + os.environ["PATH"],
+                "GWF_SLURM_FIXTURE_ROOT": str(self.work), "GWF_SLURM_FIXTURE_PORT": str(self.port)}
+
+    def test_pinned_slurm_dependency_contract_and_expired_history_reuse(self):
+        env = self.slurm_environment()
+        self.cli("-b", "slurm", "run", env=env)
+        self.finish()
+        submitted = [json.loads(line) for line in (self.work / "slurm-submitted.jsonl").read_text().splitlines()]
+        self.assertEqual(len(submitted), 3)
+        prep, compute, completion = submitted
+        self.assertEqual(prep["args"], ["--parsable"])
+        self.assertEqual(compute["args"], ["--parsable", "--dependency=afterok:" + prep["id"]])
+        self.assertEqual(completion["args"], ["--parsable", "--dependency=afterok:" + compute["id"]])
+        self.assertIn("#SBATCH --job-name=" + compute["name"], compute["script"])
+        self.assertEqual((self.work / "results/sample/report.txt").read_text(), "hello")
+        (self.work / "forgotten-slurm-history").touch()
+        self.assertIn("reuse", self.cli("-b", "slurm", "explain", env=env))
+        self.assertNotIn("Submitted target", self.cli("-b", "slurm", "run", env=env))
+
+    def test_cancellation_request_and_unknown_status_do_not_prove_inactivity(self):
+        env = self.slurm_environment()
+        held, release = self.work / "held", self.work / "release"
+        self.write_task(f"touch {shlex.quote(str(held))}; while [ ! -e {shlex.quote(str(release))} ]; do sleep 0.025; done; touch out.txt")
+        self.cli("-b", "slurm", "run", env=env)
+        self.wait_for(held.exists)
+        try:
+            self.cli("-b", "slurm", "run", env=env)
+            submitted = [json.loads(line) for line in (self.work / "slurm-submitted.jsonl").read_text().splitlines()]
+            subprocess.run([str(self.work / "slurm-bin/scancel"), "--verbose", submitted[1]["id"]], env=env, check=True)
+            self.assertIn("active work", self.cli("-b", "slurm", "run", "--force", env=env, success=False))
+            (self.work / "forgotten-slurm-history").touch()
+            self.assertIn("unresolved submission", self.cli("-b", "slurm", "run", env=env, success=False))
+            self.assertEqual(len((self.work / "slurm-submitted.jsonl").read_text().splitlines()), 3)
+        finally:
+            release.touch()
+        self.finish()
+        self.assertIn("reuse", self.cli("-b", "slurm", "explain", env=env))
+
+    def test_execution_evidence_resolves_acceptance_after_tracking_and_ack_are_lost(self):
+        held, release, trace = (self.work / name for name in ("held", "release", "executions"))
+        self.write_task(f"echo executed >> {shlex.quote(str(trace))}; touch {shlex.quote(str(held))}; while [ ! -e {shlex.quote(str(release))} ]; do sleep 0.025; done; touch out.txt")
+        self.cli("-b", "recovery_fixture", "run", env=self.inject(lose_tracking="sample__write"), success=False)
+        self.wait_for(held.exists)
+        try:
+            self.assertIn("unresolved submission: sample__write__", self.cli("run", success=False))
+        finally:
+            release.touch()
+        self.settle()
+        self.assertIn("continue", self.cli("explain"))
+        self.run_complete()
+        self.assertEqual(trace.read_text(), "executed\n")
+        self.assertIn("reuse", self.cli("explain"))
+
+    def test_missing_current_intent_does_not_resubmit_archived_admission(self):
+        self.run_complete()
+        # Intent deletion is an explicit persistence fault, not a way to
+        # inspect ordinary lifecycle behavior.
+        for path in (self.work / ".gwf/gwflow").rglob("*-intent.json"):
+            value = json.loads(path.read_text())
+            if "__write__" in value.get("submission", ""):
+                path.unlink()
+                break
+        else:
+            self.fail("No computation intent was available for fault injection")
+        self.assertIn("unresolved submission", self.cli("run", success=False))
+        self.assertEqual((self.work / "results/sample/report.txt").read_text(), "hello")
+
+    def preparation_gate(self, **backend_options):
+        shutil.copy(FIXTURES / "job_fault.py", self.work)
+        (self.work / "job-fault.json").write_text(json.dumps({"gate_before_preparation": True}))
+        return self.inject(job_fault="sample__gwflow_prepare", **backend_options)
+
+    def test_admitted_active_preparation_can_submit_remaining_dependencies(self):
+        env = self.preparation_gate(lose_ack="sample__gwflow_prepare")
+        self.cli("-b", "recovery_fixture", "run", env=env, success=False)
+        self.wait_for(lambda: (self.work / "preparation-held").exists())
+        try:
+            submitted = self.cli("run")
+            self.assertIn("Submitted target sample__write__", submitted)
+            self.assertNotIn("Submitted target sample__gwflow_prepare__", submitted)
+            self.assertFalse((self.work / "results/sample").exists())
+        finally:
+            (self.work / "preparation-release").touch()
+        self.finish()
+        self.assertIn("reuse", self.cli("explain"))
+
+    def test_confirmed_cancelled_preparation_can_retry(self):
+        from gwf.backends.local import Client, LocalStatus
+        self.cli("-b", "recovery_fixture", "run", env=self.preparation_gate())
+        self.wait_for(lambda: (self.work / "preparation-held").exists())
+        with Client.connect(port=self.port) as client:
+            running = [job_id for job_id, state in client.status().items() if state == LocalStatus.RUNNING]
+            self.assertEqual(len(running), 1)
+            client.cancel(int(running[0]))
+        self.settle()
+        self.assertIn("restart interrupted preparation", self.cli("explain"))
+        self.cli("run")
+        self.settle()
+        self.assertEqual((self.work / "results/sample/report.txt").read_text(), "hello")
+        self.assertIn("reuse", self.cli("explain"))

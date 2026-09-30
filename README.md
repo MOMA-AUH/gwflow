@@ -98,6 +98,22 @@ they require a recovery operation that is not yet available. Generic `gwf clean`
 and `gwf touch` are rejected for managed workflows. Ordinary `gwf.Workflow`
 commands keep their usual behavior.
 
+Interrupted submissions are reconciled by ordinary `gwf run`. Each backend
+admission has a unique job name and durable intent identifying its backend,
+operation, and dependency generations. Acknowledged IDs, saved gwf tracking,
+and matching execution evidence let submission continue without repeating
+accepted work. The pinned local and Slurm backends can also recover activity
+from an acknowledged ID when frontend tracking was interrupted.
+
+A failure known to precede the backend call permits another admission. An
+arbitrary backend exception, missing ID, or `UNKNOWN` scheduler state does not
+prove rejection or inactivity. Unresolved submissions block run with the Task
+and submission name; no uncertainty override is provided. Status and explain
+show the same decision without modifying managed records. Later matching
+execution evidence can resolve uncertainty, and expired scheduler history does
+not invalidate checked Completion. Preparation retries require confirmed
+inactivity; computation retries remain part of the implementation queue.
+
 Structure is always tracked. Commands follow gwf's inherited `use_spec_hashes`
 setting (default false); enabling it is recommended. File size and modification
 time checks do not detect changes preserving both, and successful execution does
