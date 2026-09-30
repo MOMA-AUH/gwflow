@@ -1,7 +1,7 @@
 """Compact Task status through the ordinary gwf CLI."""
 
 from collections import Counter
-from copy import copy
+from contextlib import nullcontext
 
 import click
 
@@ -9,18 +9,13 @@ from gwf import Workflow as GwfWorkflow
 from gwf.backends import create_backend
 from gwf.core import CachedFilesystem, Graph, Status, get_spec_hashes, pass_context
 from gwf.filtering import EndpointFilter, GroupFilter, NameFilter, StatusFilter, filter_generic
-from gwf.plugins.status import status as gwf_status
+from gwf.plugins.status import FORMATS, status as gwf_status
 from gwf.scheduling import get_status_map
 
+from ._frontend import _submission_guard
 from ._state import state_name
+from .planning import plan_workflow
 from .workflow import Workflow, _bookkeeping_name
-
-
-# gwf 2.1.1 registers its own `status` entry point after external plugins in
-# some environments. Patch that command object as well: Click keeps the object
-# by reference, so this works regardless of which entry point is loaded first.
-# Keep a copy of the original command for the existing non-tree formats.
-_original_status = copy(gwf_status)
 
 
 class _StatusChoice(click.Choice):
@@ -150,24 +145,28 @@ def _print_tree(workflow, target_states, selected, backend, *, details, filtered
 @click.option("-g", "--group", multiple=True)
 @click.option("--details", is_flag=True, help="Expand visible Task targets and Completion jobs in tree view.")
 @pass_context
-def tree_status(ctx, targets, endpoints, output_format, statuses, group, details):
+def managed_status(ctx, targets, endpoints, output_format, statuses, group, details):
     """Show target status, grouped under Tasks in gwflow workflows."""
     statuses = tuple("cancelled" if name == "canceled" else name for name in statuses)
-    if output_format != "tree":
-        return click.get_current_context().invoke(
-            _original_status, targets=targets, endpoints=endpoints,
-            format=output_format, status=statuses, group=group)
-
     workflow = GwfWorkflow.from_context(ctx)
-    if not isinstance(workflow, Workflow):
-        return click.get_current_context().invoke(
-            _original_status, targets=targets, endpoints=endpoints,
-            format="default", status=statuses, group=group)
-
-    fs = CachedFilesystem()
-    graph = Graph.from_targets(workflow.targets, fs)
-    with create_backend(ctx.backend, working_dir=ctx.working_dir, config=ctx.config) as backend:
-        with get_spec_hashes(working_dir=ctx.working_dir, config=ctx.config) as hashes:
+    managed = isinstance(workflow, Workflow)
+    guard = (_submission_guard(
+        ctx.working_dir,
+        waiting_message="Waiting for another invocation to finish submission bookkeeping...",
+    ) if managed else nullcontext())
+    with guard:
+        fs = CachedFilesystem()
+        if managed:
+            declarations = list(workflow.targets.values())
+            plan = plan_workflow(workflow, declarations, ctx)
+            graph = Graph.from_targets({target.name: target for target in plan.status_targets}, fs)
+        else:
+            graph = Graph.from_targets(workflow.targets, fs)
+            if output_format == "tree":
+                output_format = "default"
+        with create_backend(ctx.backend, working_dir=ctx.working_dir, config=ctx.config) as backend:
+            # Inspection reads hashes without closing their writing context.
+            hashes = get_spec_hashes(working_dir=ctx.working_dir, config=ctx.config)
             states = get_status_map(graph, fs, hashes, backend)
             filters = []
             if statuses:
@@ -179,11 +178,17 @@ def tree_status(ctx, targets, endpoints, output_format, statuses, group, details
             if group:
                 filters.append(GroupFilter(group))
             selected = set(filter_generic(graph, filters))
-            _print_tree(workflow, states, selected, backend, details=details,
-                        filtered=bool(statuses or targets or endpoints or group))
+            if output_format == "tree":
+                _print_tree(workflow, states, selected, backend, details=details,
+                            filtered=bool(statuses or targets or endpoints or group))
+            else:
+                FORMATS[output_format](
+                    {target: state for target, state in states.items() if target in selected}, backend,
+                )
 
 
-gwf_status.params = tree_status.params
-gwf_status.callback = tree_status.callback
-gwf_status.help = tree_status.help
+# Patch the command object too, regardless of plugin discovery order.
+gwf_status.params = managed_status.params
+gwf_status.callback = managed_status.callback
+gwf_status.help = managed_status.help
 status = gwf_status

@@ -6,6 +6,40 @@ import test_reuse
 
 
 class ExecutionModeCliTests(test_reuse.LocalBackendTestCase):
+    def test_plain_gwf_run_loads_once_and_preserves_selection(self):
+        (self.work / "workflow.py").write_text(
+            "from pathlib import Path\n"
+            "from gwf import Workflow\n"
+            "with Path('loads.txt').open('a') as stream: stream.write('loaded\\n')\n"
+            "gwf = Workflow()\n"
+            "gwf.target('selected', inputs=[], outputs=['selected.txt']) << 'touch selected.txt'\n"
+            "gwf.target('other', inputs=[], outputs=['other.txt']) << 'touch other.txt'\n"
+        )
+        output = self.cli("run", "selected")
+        self.finish()
+        self.assertEqual((self.work / "loads.txt").read_text(), "loaded\n")
+        self.assertIn("Submitted target selected", output)
+        self.assertNotIn("Submitted target other", output)
+        self.assertTrue((self.work / "selected.txt").exists())
+        self.assertFalse((self.work / "other.txt").exists())
+        self.assertEqual(self.records(), {})
+        for output_format in ("tree", "default", "summary", "grouped"):
+            with self.subTest(output_format=output_format):
+                (self.work / "loads.txt").unlink()
+                self.cli("status", "--format", output_format)
+                self.assertEqual((self.work / "loads.txt").read_text(), "loaded\n")
+
+    def test_declaration_inspection_cannot_publish_attempts_before_validation(self):
+        with (self.work / "workflow.py").open("a") as stream:
+            stream.write(
+                "list(gwf.targets.values())\n"
+                "raise RuntimeError('invalid workflow after declaration inspection')\n"
+            )
+        output = self.cli("run", success=False)
+        self.assertIn("invalid workflow after declaration inspection", output)
+        self.assertEqual(self.records(), {})
+        self.assertFalse((self.work / "trace.txt").exists())
+
     def records(self):
         directory = self.work / ".gwf" / "gwflow"
         return {str(path.relative_to(directory)): path.read_bytes()

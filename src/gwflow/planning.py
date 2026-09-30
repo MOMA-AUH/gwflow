@@ -1,55 +1,22 @@
-"""Materialize task reuse for the pinned gwf 2.1.1 CLI.
+"""Shared, non-persisting workflow planning using the pinned gwf scheduler."""
 
-The target collection is read during Graph construction, after Click has
-selected the backend and command options. Planning uses gwf's own scheduler;
-its backend context closes before the CLI opens the submitting context.
-"""
-
-from contextlib import contextmanager
 from copy import copy
 from dataclasses import dataclass, field
-import fcntl
-from pathlib import Path
-
-import click
 
 from gwf import Target
 from gwf.backends import BackendStatus, create_backend
 from gwf.core import (
     CachedFilesystem,
-    Context,
     Graph,
     NoopSpecHashes,
     UnresolvedInputError,
     get_spec_hashes,
     hash_spec,
 )
-from gwf.exceptions import WorkflowError
 from gwf.scheduling import SUBMITTED_STATES, schedule, should_run
 
 from ._state import state_name
 from .completion import Completion
-
-
-@contextmanager
-def _submission_guard(working_dir, *, waiting_message=None):
-    # gwf saves command hashes and backend tracking on context exit. Keep
-    # concurrent runs out until those writes finish, not just until planning
-    # or submission returns. The OS releases this lock on CLI interruption;
-    # jobs neither inherit nor wait for it.
-    path = Path(working_dir) / ".gwf" / "gwflow-submission.lock"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("a") as lock:
-        try:
-            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError:
-            if waiting_message is not None:
-                click.echo(waiting_message, err=True)
-            fcntl.flock(lock, fcntl.LOCK_EX)
-        try:
-            yield
-        finally:
-            fcntl.flock(lock, fcntl.LOCK_UN)
 
 
 def _execution_targets(graph, tasks, upstream, expanded, working_dir):
@@ -73,47 +40,12 @@ def _execution_targets(graph, tasks, upstream, expanded, working_dir):
     return targets
 
 
-def materialize(workflow, targets):
-    cli = click.get_current_context(silent=True)
-    if cli is None or not isinstance(cli.obj, Context) or cli.info_name not in ("run", "status"):
-        return targets
-    inspecting = cli.info_name == "status"
-    if not inspecting and (cli.params.get("targets") or cli.params.get("group") or cli.params.get("no_deps")):
-        raise WorkflowError(
-            "gwflow supports whole-workflow run only; "
-            "selectors and --no-deps are unsupported"
-        )
-    if not workflow._task_declarations:
-        return targets
-
-    ctx = cli.obj
-    if not inspecting:
-        # Click closes the run context after gwf has closed its submitting
-        # backend and hash contexts. Acquire before reading expected attempts
-        # or backend tracking, including for repeated materialization.
-        guards = cli.meta.setdefault("gwflow_submission_guards", set())
-        if ctx.working_dir not in guards:
-            cli.with_resource(_submission_guard(ctx.working_dir))
-            guards.add(ctx.working_dir)
-    plan = plan_workflow(workflow, targets, ctx, force=cli.params.get("force", False),
-                         status_projection=inspecting)
-    if not inspecting:
-        if not cli.params.get("dry_run"):
-            for name, (_, _, completion) in plan.tasks.items():
-                if name not in plan.reused:
-                    completion.persist()
-        if plan.reused:
-            # gwf removes logs absent from its execution graph. Keep omitted
-            # targets' logs without dumping this temporary config to disk.
-            ctx.config["clean_logs"] = "false"
-    return plan.targets
-
-
 @dataclass
 class _Plan:
     """Private result of ordinary gwf scheduling, before submission writes."""
 
     targets: list
+    status_targets: list
     tasks: dict = field(default_factory=dict)
     reused: set = field(default_factory=set)
     submissions: set = field(default_factory=set)
@@ -265,9 +197,8 @@ def _upstream_chains(tasks, producers, upstream, owners, planned, pending, submi
     return {name: trace(name) for name in tasks}
 
 
-def plan_workflow(workflow, targets, ctx, *, force=False, status_projection=False, details=False):
+def plan_workflow(workflow, targets, ctx, *, force=False, details=False):
     """Plan while the caller holds the submission guard; never persist attempts."""
-    inspecting = status_projection
     fs = CachedFilesystem()
     graph = Graph.from_targets(targets, fs)
     tasks = {}
@@ -372,23 +303,6 @@ def plan_workflow(workflow, targets, ctx, *, force=False, status_projection=Fals
             _execution_targets(graph, tasks, upstream, set(tasks), ctx.working_dir), fs,
         )
 
-        if inspecting:
-            # Keep the submitted finalizer's identity, output and command so
-            # gwf can use its backend status and saved spec hash. Its original
-            # inputs include removable intermediates and are irrelevant after
-            # the task has qualified for reuse.
-            omitted = {
-                target.name for name in reusable for target in tasks[name][1]
-            }
-            projected = {
-                target.name: target for target in targets if target.name not in omitted
-            }
-            for name in reusable:
-                finalizer = tasks[name][2].target(tasks[name][1], ctx.working_dir)
-                finalizer.inputs = []
-                projected[finalizer.name] = finalizer
-            return _Plan(targets=list(projected.values()))
-
         expanded = set(tasks) - reusable
         while True:
             replaced = {
@@ -468,8 +382,19 @@ def plan_workflow(workflow, targets, ctx, *, force=False, status_projection=Fals
         _upstream_chains(tasks, producers, upstream, owners, planned, pending, submissions)
         if details else {}
     )
+    # Status retains authored targets for incomplete Tasks and represents
+    # reusable Tasks by their existing Completion job. Derive this projection
+    # from the same final reuse decisions used by run and explain.
+    reused = set(tasks) - expanded
+    omitted = {target.name for name in reused for target in tasks[name][1]}
+    projected = {target.name: target for target in targets if target.name not in omitted}
+    for name in reused:
+        finalizer = tasks[name][2].target(tasks[name][1], ctx.working_dir)
+        finalizer.inputs = []
+        projected[finalizer.name] = finalizer
     return _Plan(
-        targets=list(execution.values()), tasks=tasks, reused=set(tasks) - expanded,
+        targets=list(execution.values()), status_targets=list(projected.values()),
+        tasks=tasks, reused=reused,
         submissions=submissions, reasons=reasons, observed=observed,
         target_reasons=target_reasons, evidence=evidence,
         upstream_chains=upstream_chains,

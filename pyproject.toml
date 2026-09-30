@@ -12,6 +12,7 @@ license = {file = "LICENSE"}
 dependencies = ["gwf==2.1.1"]
 
 [project.entry-points."gwf.plugins"]
+run = "gwflow.run:run"
 explain = "gwflow.explain:explain"
 status = "gwflow.status:status"
 

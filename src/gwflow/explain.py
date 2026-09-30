@@ -8,7 +8,8 @@ from gwf.core import pass_context
 from gwf.exceptions import WorkflowError
 
 from ._state import state_name
-from .reuse import _submission_guard, plan_workflow
+from ._frontend import _submission_guard
+from .planning import plan_workflow
 from .workflow import Workflow, _bookkeeping_name
 
 

@@ -159,6 +159,37 @@ class RecoveryCliTests(test_reuse.LocalBackendTestCase):
         self.addCleanup(self.stop_worker, process)
         return process, output
 
+    def test_status_waits_for_tracking_then_observes_without_changing_attempts(self):
+        (self.work / "allow-work").touch()
+        submitter = self.launch(self.inject(hold_tracking=True))
+        self.wait_for(lambda: (self.work / "tracking-held").exists())
+        self.started("old", "sibling", "unrelated")
+        records = {task: self.records(task) for task in ("retry", "unrelated")}
+        output = self.work / "status-output.txt"
+        with output.open("w") as stream:
+            inspector = subprocess.Popen(
+                [test_reuse.GWF, "status", "--details"], cwd=self.work,
+                stdout=stream, stderr=subprocess.STDOUT, text=True,
+            )
+        self.addCleanup(self.stop_worker, inspector)
+        try:
+            self.wait_for(lambda: "waiting" in output.read_text().lower()
+                          or inspector.poll() is not None)
+            self.assertIsNone(inspector.poll(), output.read_text())
+            self.assertNotIn("Task retry", output.read_text())
+        finally:
+            (self.work / "tracking-release").touch()
+            self.release("old", "sibling", "unrelated")
+        out, err = submitter.communicate(timeout=10)
+        self.assertEqual(submitter.returncode, 0, out + err)
+        inspector.wait(timeout=10)
+        self.assertEqual(inspector.returncode, 0, output.read_text())
+        self.assertIn("Task retry", output.read_text())
+        # Completion jobs may finish now; only compare expected attempts.
+        for task, before in records.items():
+            self.assertEqual(self.records(task)["expected.json"], before["expected.json"])
+        self.finish()
+
     def test_explain_waits_for_tracking_then_inspects_running_jobs(self):
         self.configure(use_spec_hashes=True)
         (self.work / "allow-work").touch()
