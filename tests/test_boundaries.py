@@ -149,10 +149,13 @@ class BoundaryCliTests(unittest.TestCase):
                     [GWF, "run"], cwd=work, capture_output=True, text=True, timeout=30
                 )
                 self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
+                result = work / "result.txt"
                 deadline = time.monotonic() + 20
-                while time.monotonic() < deadline and not (work / "result.txt").exists():
+                while time.monotonic() < deadline:
+                    if result.exists() and result.read_text() == "HELLO\n":
+                        break
                     time.sleep(0.1)
-                self.assertEqual((work / "result.txt").read_text(), "HELLO\n")
+                self.assertEqual(result.read_text(), "HELLO\n")
             finally:
                 self.stop_worker(worker)
 
