@@ -5,8 +5,8 @@ work storage, while named retained files are copied into stable results storage.
 Checked completion evidence lets a Task remain reusable after its work is removed.
 
 The development branch is migrating to v0.3.0. The current managed lifecycle
-supports input-free, single-target Tasks on one filesystem. External inputs,
-Task graphs, retries, repair, force, and managed cleanup are being added in
+supports single-target Tasks with external inputs on one filesystem. Task graphs,
+computation retries, repair, force, and managed cleanup are being added in
 [the implementation queue](https://github.com/MOMA-AUH/gwflow/issues/62).
 Existing v0.2 factories and records are not converted or adopted. The older
 examples will be migrated with the complete workflow demonstration.
@@ -55,6 +55,34 @@ by default. `Workflow(managed_tmpdir=False)` preserves environment-selected
 file placeholders, quotes each substituted path as one shell argument, and uses
 `{{`/`}}` for literal braces. Do not quote the placeholders yourself. Fixed-name
 outputs can be declared without being bound into the command.
+
+Declare external files in both the Task boundary and each target that reads them:
+
+```python
+task = Task(inputs=["input.txt"])
+read = task.target("read", inputs=["input.txt"], outputs=["copy.txt"])
+read << shell("cat {source} > {copy}", source="input.txt", copy=read.output("copy.txt"))
+task.retain("copy", source=read.output("copy.txt"), path="copy.txt")
+gwf.task_from_template("copy", task)
+```
+
+Relative input paths are Workflow-relative. Commands receive absolute declared
+paths, including symlink aliases; files are read in place without automatic
+copying or linking into work. Inputs must resolve to regular files outside this
+Workflow's managed storage. Boundary declarations and target inputs are required
+even when a command binds a file.
+
+A scheduled preparation job precedes computation and records each input alias,
+resolved destination, byte size, and nanosecond mtime. It observes changes made
+before it runs. Its first committed baseline is immutable, including across
+preparation retries. An interrupted preparation can restart when all admitted
+jobs are confirmed inactive and computation has not started. Changed inputs
+block continuation and results installation with a fresh-attempt diagnostic;
+automatic fresh-attempt replacement is a later lifecycle slice. Neither input
+locking nor snapshots nor an atomic observation of multiple files is promised.
+`preparation_defaults` and `completion_defaults` overlay Workflow defaults for
+the respective scheduled jobs, independently of Task computation defaults.
+Inspect preparation logs with `gwf logs copy__gwflow_prepare --no-pager`.
 
 A zero command exit and every declared output being a regular file are required
 before the output set commits. Finishing copies retained files into private

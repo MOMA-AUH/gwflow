@@ -13,7 +13,7 @@ from gwf.scheduling import get_status_map
 from ._frontend import _submission_guard
 from ._state import state_name
 from .planning import plan_workflow
-from .workflow import Workflow
+from .workflow import Workflow, lifecycle_jobs
 
 
 class _StatusChoice(click.Choice):
@@ -58,19 +58,19 @@ def managed_status(ctx, targets, endpoints, output_format, statuses, group, deta
     with _submission_guard(ctx.working_dir, waiting_message="Waiting for frontend submission bookkeeping..."):
         plan = plan_workflow(workflow, ctx)
         for task in plan.tasks:
-            public = [f"{task.name}__{local}" for local in [*task.structure["targets"], "gwflow_complete"]]
+            public = [f"{task.name}__{local}" for local in lifecycle_jobs(task.structure["targets"])]
             if targets and not any(fnmatchcase(name, pattern) for name in [task.name, *public] for pattern in targets):
                 continue
             if group and not any((target.group or "none") in group
                                  for target in workflow._task_declarations[task.name].targets.values()):
                 continue
-            state = {"fresh": "shouldrun", "reuse": "completed", "active": "running", "blocked": "failed"}[task.action]
+            state = {"prepare": "shouldrun", "fresh": "shouldrun", "reuse": "completed", "active": "running", "blocked": "failed"}[task.action]
             if statuses and state not in statuses:
                 continue
             label = ("reusable work-present" if task.work_present else "reusable work-cleaned") if task.action == "reuse" else task.action
             click.echo(f"Task {task.name}: {label}; {task.reason}")
             if details:
-                for local in [*task.structure["targets"], "gwflow_complete"]:
+                for local in lifecycle_jobs(task.structure["targets"]):
                     job = task.attempt["jobs"][local] if task.attempt else "not submitted"
                     click.echo(f"  {task.name}__{local}: {job}")
                 if task.attempt:

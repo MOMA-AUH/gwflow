@@ -229,15 +229,15 @@ class ManagedCliTests(LocalBackendTestCase):
         self.assertFalse((self.work / "results/sample").exists())
         self.assertEqual((outside / "out.txt").read_text(), "not-produced")
 
-    def test_unknown_bindings_and_unsupported_inputs_fail_before_initialization(self):
+    def test_unknown_bindings_and_undeclared_inputs_fail_before_initialization(self):
         self.write_task("unused")
         workflow = self.work / "workflow.py"
         original = workflow.read_text()
         workflow.write_text(original.replace("target << 'unused'", "other = Task(inputs=[]).target('other', inputs=[], outputs=['out.txt'])\ntarget << shell('cat {outside}', outside=other.output('out.txt'))"))
         self.assertIn("not a declared input or output", self.cli("run", success=False))
         self.assertFalse((self.work / "work").exists())
-        workflow.write_text(original.replace("Task(inputs=[])", "Task(inputs=['input.txt'])"))
-        self.assertIn("External inputs", self.cli("run", success=False))
+        workflow.write_text(original.replace("target('write', inputs=[]", "target('write', inputs=['input.txt']"))
+        self.assertIn("undeclared Task boundary input", self.cli("run", success=False))
         self.assertFalse((self.work / "work").exists())
 
     def test_legacy_and_truncated_records_cannot_supply_ownership(self):
