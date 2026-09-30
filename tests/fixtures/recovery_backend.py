@@ -40,6 +40,9 @@ class RecoveryBackend:
         return self.local.target_defaults
 
     def status(self, target):
+        if self.options.get("hold_observation"):
+            (self.work / "observation-held").touch()
+            wait_for(lambda: (self.work / "observation-release").exists())
         return self.local.status(target)
 
     def submit(self, target, dependencies):
