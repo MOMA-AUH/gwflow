@@ -145,6 +145,23 @@ class TransferRecoveryTests(LocalBackendTestCase):
         self.settle()
         self.assert_results(result)
 
+    def test_rejected_recovery_still_checks_queued_consumers_before_resubmission(self):
+        self.add_consumer()
+        self.cli("-b", "recovery_fixture", "run", env=self.fault(crash_after_results_install=True))
+        self.settle()
+        result = self.work / "results/samples/a/report"
+        (result / "renamed.txt").write_text("damaged but protected")
+        workflow = self.work / "workflow.py"
+        workflow.write_text(workflow.read_text().split("from gwflow import shell")[0])
+        self.cli("-b", "recovery_fixture", "run", env=self.inject(reject_before_admission=True), success=False)
+        env = self.inject(queued_prefix="c__gwflow_prepare")
+        self.assertIn("Active consumers block replacement: c", self.cli("-b", "recovery_fixture", "run", env=env, success=False))
+        self.assertEqual((result / "renamed.txt").read_text(), "damaged but protected")
+        self.assertEqual((self.work / "trace").read_text().splitlines(), ["compute"])
+        self.cli("run")
+        self.settle()
+        self.assert_results(result)
+
     def test_missing_transfer_ownership_leaves_installed_results_untouched(self):
         self.cli("-b", "recovery_fixture", "run", env=self.fault(crash_after_results_install=True))
         self.settle()

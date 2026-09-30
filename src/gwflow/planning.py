@@ -168,7 +168,7 @@ def plan_workflow(workflow, ctx, *, force=False, force_tasks=()):
                         observation.action, observation.reason = "prepare", "restart interrupted preparation in the same attempt"
                         observation.pending = lifecycle_jobs(ordered_targets(attempt["structure"]))
                         observation.retry = ordered_targets(attempt["structure"])
-                    elif (not active and jobs["gwflow_complete"].state in ("failed", "cancelled")
+                    elif (not active and jobs["gwflow_complete"].state in ("failed", "cancelled", "pending")
                           and all(jobs[local].state == "complete" for local in attempt["executions"])
                           and not _files.exists(store.attempt_dir(attempt) / "completion.json")):
                         recover_transfer(store, observation, jobs)
