@@ -32,6 +32,7 @@ def execute(store, attempt, local):
     else:
         command = Command(declaration["template"], declaration["bindings"]).render(
             lambda reference: (reference["external"] if "external" in reference
+                               else store.retained_path(attempt, reference) if "task" in reference
                                else staging / reference["file"] if reference["target"] == local
                                else store.execution_dir(attempt, reference["target"]) / "committed" / reference["file"]))
     environment = os.environ.copy()
@@ -88,7 +89,8 @@ def finish(store, attempt):
     _files.commit_directory(staging, store.result_dir(attempt))
     destination_metadata = _files.metadata(store.result_dir(attempt), copied)
     store.publish(attempt, "installed.json", "installed", operation=attempt["operation"], outputs=destination_metadata)
-    store.publish(attempt, "completion.json", "completion", operation=attempt["operation"], outputs=destination_metadata)
+    store.publish(attempt, "completion.json", "completion", operation=attempt["operation"], outputs=destination_metadata,
+                  producers=attempt["producers"])
 
 
 def main():

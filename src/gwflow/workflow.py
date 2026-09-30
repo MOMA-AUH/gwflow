@@ -53,6 +53,11 @@ class RetainedOutput:
     task_name: str
     name: str
 
+    def __deepcopy__(self, memo):
+        # Registration snapshots declarations, but a reference retains the
+        # identity of the Workflow that issued it.
+        return self
+
 
 @dataclass(frozen=True)
 class TaskHandle:

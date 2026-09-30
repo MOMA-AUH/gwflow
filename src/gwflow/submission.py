@@ -11,6 +11,7 @@ from gwf.core import get_spec_hashes
 from gwf.exceptions import WorkflowError
 
 from . import _files, admission
+from .lifecycle import producer_names
 
 from .workflow import lifecycle_jobs
 
@@ -69,14 +70,18 @@ def submit_plan(plan, workflow, ctx, *, dry_run):
             if task.action == "fresh":
                 attempt = plan.store.initialize(task, workflow._result_dirs[task.name],
                                                 tracking=ctx.config.get("use_spec_hashes"),
-                                                managed_tmpdir=workflow.managed_tmpdir)
+                                                managed_tmpdir=workflow.managed_tmpdir,
+                                                producers={name: plan.store.recorded_current(name)["attempt"]
+                                                           for name in producer_names(task.structure)})
             selected.append((task, attempt))
     if not selected:
         return
+    submitted = {task.name: dict(task.submissions) for task in plan.tasks}
     with create_backend(ctx.backend, working_dir=ctx.working_dir, config=ctx.config) as backend:
         with get_spec_hashes(working_dir=ctx.working_dir, config=ctx.config) as hashes:
             for task, attempt in selected:
                 observed = dict(task.submissions)
+                submitted[task.name] = observed
                 if task.retry:
                     observed = admission.observe(plan.store, attempt, backend, ctx.backend)
                     if any(item.state == "uncertain" for item in observed.values()):
@@ -85,6 +90,7 @@ def submit_plan(plan, workflow, ctx, *, dry_run):
                     if task.action != "prepare" or _files.exists(plan.store.attempt_dir(attempt) / "inputs.json"):
                         plan.store.check_inputs(attempt)
                     attempt = plan.store.replace_executions(task, tracking=ctx.config.get("use_spec_hashes"))
+                    submitted[task.name] = observed
                 admission.restore_tracking(backend, ctx.backend, observed)
                 for item in observed.values():
                     if item.reconcile:
@@ -92,6 +98,16 @@ def submit_plan(plan, workflow, ctx, *, dry_run):
                 for local in task.pending:
                     plan.store.validate_roots()
                     dependencies, references = [], []
+                    if local == "gwflow_prepare":
+                        for name in attempt["producers"]:
+                            previous = submitted[name].get("gwflow_complete")
+                            if previous is None or previous.state in ("pending", "uncertain", "failed", "cancelled"):
+                                raise WorkflowError(f"Producer {name} has no available Completion submission")
+                            if previous.state != "complete":
+                                if previous.job_id is None:
+                                    raise WorkflowError(f"Unresolved producer Completion submission: {previous.submission}")
+                                admission.restore_tracking(backend, ctx.backend, {name: previous})
+                                dependencies.append(Target(previous.submission, [], [], {}))
                     for previous in admission.predecessors(attempt, local):
                         item = observed[previous]
                         references.append({"local": previous, **admission.identity(item.intent)})

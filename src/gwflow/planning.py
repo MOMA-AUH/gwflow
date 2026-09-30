@@ -6,7 +6,7 @@ from gwf.backends import BackendStatus, create_backend
 from gwf.exceptions import WorkflowError
 
 from . import _files, admission, inputs
-from .lifecycle import Store, TaskObservation, declarations, ordered_targets, target_dependencies
+from .lifecycle import Store, TaskObservation, declarations, ordered_tasks, ordered_targets, target_dependencies
 from .workflow import lifecycle_jobs
 
 
@@ -75,10 +75,11 @@ def plan_workflow(workflow, ctx, *, force=False):
     if set(workflow.targets) != expected:
         raise WorkflowError("Every computation target in gwflow.Workflow must belong to a registered Task")
     store = Store.for_workflow(workflow)
-    declared = {name: declarations(task, store) for name, task in workflow._task_declarations.items()}
+    declared = {name: declarations(task, store, workflow) for name, task in workflow._task_declarations.items()}
     tasks = []
     with create_backend(ctx.backend, working_dir=ctx.working_dir, config=ctx.config) as backend:
-        for name, (structure, commands) in declared.items():
+        for name in ordered_tasks(declared):
+            structure, commands = declared[name]
             attempt = store.current(name, workflow._result_dirs[name])
             observation = TaskObservation(name, "fresh", "no completed managed attempt", structure, commands, attempt)
             if attempt is not None:
@@ -125,7 +126,11 @@ def plan_workflow(workflow, ctx, *, force=False):
                 except (WorkflowError, OSError) as error:
                     observation.action, observation.reason = "blocked", str(error)
             else:
-                inputs.observe(structure["inputs"], store.locations)
+                inputs.observe([value for value in structure["inputs"] if isinstance(value, str)], store.locations)
                 observation.pending = lifecycle_jobs(ordered_targets(structure))
             tasks.append(observation)
+        consumers = admission.consumer_activity(store, backend, ctx.backend)
+        for observation in tasks:
+            if observation.attempt is not None:
+                observation.consumers = consumers.get((observation.name, observation.attempt["attempt"]), {})
     return Plan(store, tasks)
