@@ -171,8 +171,22 @@ outstanding acceptance work.
 Container commands use `--cleanenv` and the image environment; ordinary inherited
 `PYTHONPATH` is excluded while deliberate Apptainer environment overrides remain
 usable. Managed TMPDIR is explicitly supplied in writable execution-private
-storage and remains until eligible work cleanup. Commands that ignore TMPDIR
-retain ordinary deployment scratch behavior. Missing Apptainer, unusable images,
+storage alongside execution work, takes precedence over deployment TMPDIR
+settings, and remains until eligible work cleanup. Concurrent executions get
+separate directories even when they write the same temporary basename.
+
+With `Workflow(managed_tmpdir=False)`, a set job-environment `TMPDIR` is explicitly
+forwarded and its directory is requested writable inside the container. The
+deployment supplies that directory, which may be node-local and may contain
+spaces in its pathname. It is outside gwflow's cleanup ownership. If job TMPDIR
+is unset, gwflow leaves image/Apptainer defaults in effect. Host targets keep
+their ordinary inherited TMPDIR behavior under the same opt-out.
+
+Ordinary system temporary directories are not redirected to managed work.
+Commands that ignore TMPDIR retain deployment scratch behavior, and their
+temporary files carry no managed-cleanup promise. Tools must honor TMPDIR or be
+configured to use it. These settings add no independent environment Reuse key.
+Missing Apptainer, unusable images,
 missing image software, and nonzero exits fail through normal target logs with
 target/image diagnostics and no host fallback. Files written before failure
 cannot establish successful execution or Completion; zero exit still requires

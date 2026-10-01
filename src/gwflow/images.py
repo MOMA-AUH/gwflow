@@ -63,6 +63,8 @@ def invocation(image, work, temporary, environment, command, source_directories=
     for source in source_directories:
         arguments.extend(["--mount", mount(source, readonly=True)])
     arguments.extend(["--mount", mount(work)])
+    if temporary is None:
+        temporary = environment.get("TMPDIR")
     if temporary is not None:
         arguments.extend(["--mount", mount(temporary)])
         environment["APPTAINERENV_TMPDIR"] = str(temporary)
