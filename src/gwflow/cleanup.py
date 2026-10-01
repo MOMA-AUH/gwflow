@@ -49,7 +49,7 @@ def observe(store, attempt, backend, backend_name, *, explicit=False):
         observation.directories[str(workspace)] = identity
         observation.directories.update(store.staging_directories(attempt))
         for path, identity in observation.directories.items():
-            if _files.exists(path) and store.storage.identity(path) != identity:
+            if _files.exists(path) and not _files.same_directory(_files.identity(path), identity):
                 raise WorkflowError(f"Disposable directory ownership changed: {path}")
         if record is not None and record["directories"] != observation.directories:
             raise WorkflowError("Cleanup ownership evidence changed")
@@ -82,7 +82,7 @@ def remove(store, observation, backend, backend_name):
             rechecked = observe(store, attempt, backend, backend_name, explicit=observation.explicit)
             if rechecked.action != "eligible":
                 return rechecked
-            store.storage.remove(path, identity)
+            _files.remove_directory(path, identity)
     store.publish(attempt, "cleanup.json", "cleanup", state="removed", **fields)
     checked.action, checked.reason = "removed", "removed owned disposable work; results and bookkeeping preserved"
     return checked

@@ -55,9 +55,16 @@ def directory(path, *, create=False):
 
 
 def identity(path):
+    """Track a directory within trusted storage; device numbers are host-local."""
     with directory(path) as fd:
         info = os.fstat(fd)
-        return {"device": info.st_dev, "inode": info.st_ino}
+        return {"inode": info.st_ino}
+
+
+def same_directory(left, right):
+    """Compare recovery records, including older records with a device field."""
+    return (isinstance(left, dict) and isinstance(right, dict)
+            and "inode" in left and left["inode"] == right.get("inode"))
 
 
 def exists(path):
@@ -171,7 +178,7 @@ def commit_directory(source, destination, *, expected=None):
     source, destination = Path(source), Path(destination)
     with directory(source) as staged:
         info = os.fstat(staged)
-        if expected is not None and expected != {"device": info.st_dev, "inode": info.st_ino}:
+        if expected is not None and not same_directory({"inode": info.st_ino}, expected):
             raise WorkflowError(f"Managed staging ownership changed: {source}")
         sync_directory(staged)
     with directory(source.parent) as src, directory(destination.parent, create=True) as dst:
@@ -202,7 +209,7 @@ def remove_directory(path, expected):
             raise WorkflowError(f"Cannot remove managed directory {path}: {error}") from error
         try:
             info = os.fstat(child)
-            if {"device": info.st_dev, "inode": info.st_ino} != expected:
+            if not same_directory({"inode": info.st_ino}, expected):
                 raise WorkflowError(f"Managed directory ownership changed before removal: {path}")
             _remove_contents(child)
             current = os.stat(path.name, dir_fd=parent, follow_symlinks=False)

@@ -14,7 +14,6 @@ from gwf.utils import is_valid_name
 
 from . import _files, images, inputs, staging
 from .commands import Command, shell
-from .storage_identity import StorageIdentity, allocate_witness
 from .workflow import RetainedOutput, TargetOutput, relative_path, validate_destinations
 
 
@@ -23,7 +22,7 @@ def _uuid(value):
 
 
 def _valid_identity(value):
-    return (isinstance(value, dict) and set(value) == {"device", "inode"}
+    return (isinstance(value, dict) and set(value) in ({"inode"}, {"device", "inode"})
             and all(type(number) is int and number >= 0 for number in value.values()))
 
 
@@ -303,10 +302,6 @@ class Store:
               or self.owner.get("locations") != {key: str(path) for key, path in self.locations.items()}):
             raise WorkflowError("Managed ownership or recorded storage locations do not match; relocation/adoption is unsupported")
         if self.owner is not None:
-            identities = self.owner.get("root_identity")
-            if (not isinstance(identities, dict) or identities.keys() != self.locations.keys()
-                    or any(not _valid_identity(value) for value in identities.values())):
-                raise WorkflowError("Malformed managed root ownership evidence")
             for key in ("work", "results", "staging"):
                 pending = self.owner.get(f"{key}_recreation")
                 if pending is not None:
@@ -343,19 +338,10 @@ class Store:
             raise WorkflowError("Results staging must share the results filesystem; configure results_staging_root")
 
     def validate_roots(self):
-        self.storage = StorageIdentity(self.locations, self.owner)
-
-    def ensure_root_witnesses(self):
-        """Upgrade proven legacy roots at a writing frontend, never in previews."""
-        self.validate_roots()
-        witnesses = dict(self.owner.get("root_witnesses", {}))
-        for key, path in self.locations.items():
-            if key not in witnesses and _files.exists(path):
-                witnesses[key] = allocate_witness(path)
-        if witnesses != self.owner.get("root_witnesses"):
-            self.owner = {**self.owner, "root_witnesses": witnesses}
-            _files.publish(self.owner_path, self.owner)
-        self.validate_roots()
+        for path in self.locations.values():
+            if _files.exists(path):
+                with _files.directory(path):
+                    pass
 
     def root_needs_recreation(self, key):
         return self.owner is not None and (self.owner.get(f"{key}_recreation") is not None
@@ -374,22 +360,17 @@ class Store:
             with _files.directory(source.parent, create=True) as parent:
                 os.mkdir(source.name, dir_fd=parent)
                 _files.sync_directory(parent)
-            pending = {"operation": operation, "source": str(source), "identity": self.storage.identity(source),
-                       "witness": allocate_witness(source)}
+            pending = {"operation": operation, "source": str(source), "identity": _files.identity(source)}
             self.owner = {**self.owner, f"{key}_recreation": pending}
             _files.publish(self.owner_path, self.owner)
         source = Path(pending["source"])
         if _files.exists(root):
-            if self.storage.identity(root) != pending["identity"] or _files.exists(source):
+            if not _files.same_directory(_files.identity(root), pending["identity"]) or _files.exists(source):
                 raise WorkflowError(f"{key.capitalize()}-root recreation destination changed")
         else:
-            if self.storage.identity(source) != pending["identity"]:
+            if not _files.same_directory(_files.identity(source), pending["identity"]):
                 raise WorkflowError(f"{key.capitalize()}-root recreation staging ownership changed")
-            self.storage.commit(source, root, expected=pending["identity"])
-        self.owner = {**self.owner, "root_identity": {**self.owner["root_identity"], key: pending["identity"]}}
-        witnesses = dict(self.owner.get("root_witnesses", {}))
-        witnesses[key] = pending.get("witness") or allocate_witness(root)
-        self.owner["root_witnesses"] = witnesses
+            _files.commit_directory(source, root, expected=pending["identity"])
         del self.owner[f"{key}_recreation"]
         _files.publish(self.owner_path, self.owner)
         self.validate_roots()
@@ -452,14 +433,14 @@ class Store:
                 os.mkdir(source.name, dir_fd=parent)
                 _files.sync_directory(parent)
             self.publish(attempt, "staging.json", "staging-directory", operation=attempt["operation"],
-                         allocation=allocation, source=str(source), destination=str(destination), identity=self.storage.identity(source))
+                         allocation=allocation, source=str(source), destination=str(destination), identity=_files.identity(source))
             record = self.staging_record(attempt)
         source = Path(record["source"])
         if _files.exists(destination):
-            if self.storage.identity(destination) != record["identity"] or _files.exists(source):
+            if not _files.same_directory(_files.identity(destination), record["identity"]) or _files.exists(source):
                 raise WorkflowError("Transfer staging directory ownership changed")
         else:
-            self.storage.commit(source, destination, expected=record["identity"])
+            _files.commit_directory(source, destination, expected=record["identity"])
         return destination
 
     def staging_directories(self, attempt):
@@ -788,7 +769,7 @@ class Store:
         if (manifest.get("sources") != sources
                 or manifest.get("retained") != attempt["structure"]["retained"]
                 or manifest.get("destination") != str(self.result_dir(attempt))
-                or manifest.get("staged_identity") != self.storage.identity(self.result_dir(attempt))):
+                or not _files.same_directory(manifest.get("staged_identity"), _files.identity(self.result_dir(attempt)))):
             return False
         return _files.metadata(self.result_dir(attempt), destinations) == completion["outputs"]
 
@@ -798,15 +779,16 @@ class Store:
             return None
         if self.read(attempt, "ready.json", "ready") is None:
             expected = self.initialization(attempt)["result_identity"]
-            if expected != self.storage.identity(destination):
+            if not _files.same_directory(expected, _files.identity(destination)):
                 raise WorkflowError(f"Previous results ownership changed during initialization: {destination}")
             return expected
         if not _files.exists(self.record_path(attempt, "completion.json")):
             transfer = self.transfer_ownership(attempt)
-            if transfer is not None and self.storage.identity(destination) in (transfer["staged_identity"], transfer["replaces"]):
-                return self.storage.identity(destination)
+            if transfer is not None and any(_files.same_directory(_files.identity(destination), identity)
+                                            for identity in (transfer["staged_identity"], transfer["replaces"])):
+                return _files.identity(destination)
             repair = self.repair_intent(attempt)
-            if repair is not None and repair["result_identity"] == self.storage.identity(destination):
+            if repair is not None and _files.same_directory(repair["result_identity"], _files.identity(destination)):
                 return repair["result_identity"]
         manifest = self.read(attempt, "manifest.json", "manifest", operation=attempt["operation"])
         if (manifest is None or manifest.get("destination") != str(destination)
@@ -816,7 +798,7 @@ class Store:
                 or any(not isinstance(source, dict) or source.get("execution") != attempt["executions"][local]
                        or not _valid_metadata(source.get("outputs"), attempt["structure"]["targets"][local]["outputs"])
                        for local, source in manifest["sources"].items())
-                or manifest.get("staged_identity") != self.storage.identity(destination)):
+                or not _files.same_directory(manifest.get("staged_identity"), _files.identity(destination))):
             raise WorkflowError(f"Cannot establish ownership of previous results: {destination}")
         return manifest["staged_identity"]
 
@@ -852,12 +834,12 @@ class Store:
         if _files.exists(destination):
             if record["result_identity"] is None:
                 raise WorkflowError("Unexpected unowned results appeared during initialization")
-            self.storage.remove(destination, record["result_identity"])
+            _files.remove_directory(destination, record["result_identity"])
         _files.mkdir(self.workspace(attempt))
         for local in ordered_targets(attempt["structure"]):
             self.write_execution(attempt, local, attempt["commands"][local], tracking=attempt["command_tracking"])
         self.publish(attempt, "ready.json", "ready", workspace=str(self.workspace(attempt)),
-                     workspace_identity=self.storage.identity(self.workspace(attempt)))
+                     workspace_identity=_files.identity(self.workspace(attempt)))
         return attempt
 
     def initialize(self, observation, result_dir, *, tracking, managed_tmpdir, producers):
@@ -867,9 +849,7 @@ class Store:
             for path in self.locations.values():
                 _files.mkdir(path)
             self.owner = _record("owner", owner=owner, task=None, working_dir=str(self.working_dir),
-                                 locations={key: str(path) for key, path in self.locations.items()},
-                                 root_identity={key: _files.identity(path) for key, path in self.locations.items()},
-                                 root_witnesses={key: allocate_witness(path) for key, path in self.locations.items()})
+                                 locations={key: str(path) for key, path in self.locations.items()})
             _files.publish(self.owner_path, self.owner)
             self.validate_roots()
         if self.current(observation.name, result_dir) != observation.attempt:

@@ -71,62 +71,74 @@ class StoragePlacementTests(LocalBackendTestCase):
         self.finish()
         self.assert_results(result)
         self.assertEqual((self.work / "trace").read_text().splitlines(), ["compute", "compute"])
+        self.assertFalse(list(self.work.rglob(".gwflow-root-*")))
+        owner = json.loads((self.work / ".gwf/gwflow/owner.json").read_text())
+        self.assertNotIn("root_identity", owner)
+        self.assertNotIn("root_witnesses", owner)
 
-    def test_legacy_roots_upgrade_before_repair_on_another_worker(self):
+    def test_legacy_device_numbers_work_without_record_migration(self):
         self.run_complete()
-        path = self.work / ".gwf/gwflow/owner.json"
-        owner = json.loads(path.read_text())
-        for key, witness in owner.pop("root_witnesses").items():
-            (Path(owner["locations"][key]) / witness["name"]).rmdir()
-        path.write_text(json.dumps(owner))
-        before = path.read_bytes()
+        root = self.work / ".gwf/gwflow"
+        def legacy(value):
+            if isinstance(value, dict):
+                if set(value) == {"inode"}:
+                    return {"device": 987654, **value}
+                return {key: legacy(item) for key, item in value.items()}
+            if isinstance(value, list):
+                return [legacy(item) for item in value]
+            return value
+        for path in root.rglob("*.json"):
+            path.write_text(json.dumps(legacy(json.loads(path.read_text()))))
+        owner_path = root / "owner.json"
+        owner = json.loads(owner_path.read_text())
+        owner["root_identity"] = {key: {"device": 987654, "inode": Path(path).stat().st_ino}
+                                  for key, path in owner["locations"].items()}
+        owner_path.write_text(json.dumps(owner))
+        before = {str(path): path.read_bytes() for path in root.rglob("*.json")}
+        for command in (("status",), ("explain",), ("run", "--dry-run"), ("run",)):
+            self.assertNotIn("Submitted target", self.cli(*command))
+        self.assertEqual({str(path): path.read_bytes() for path in root.rglob("*.json")}, before)
         result = self.work / "results/samples/a/report"
         (result / "renamed.txt").unlink()
-        self.cli("run", "--dry-run")
-        self.assertEqual(path.read_bytes(), before)
-        self.assertFalse(list(self.work.rglob(".gwflow-root-*")))
         shutil.copy(FIXTURES / "job_fault.py", self.work)
         (self.work / "job-fault.json").write_text(json.dumps({"device_offset": 10000}))
         self.cli("-b", "recovery_fixture", "run", env=self.inject(job_fault="a"))
         self.finish()
         self.assert_results(result)
-        upgraded = json.loads(path.read_text())
-        self.assertEqual(upgraded["root_identity"], owner["root_identity"])
-        self.assertEqual(upgraded["root_witnesses"].keys(), owner["locations"].keys())
+        self.cli("clean-work", "--delete")
+        self.assertNotIn("Submitted target", self.cli("run"))
+        self.assertEqual(owner_path.read_bytes(), before[str(owner_path)])
+        self.assertFalse(list(self.work.rglob(".gwflow-root-*")))
         self.assertEqual((self.work / "trace").read_text().splitlines(), ["compute"])
 
-    def test_changed_root_witness_blocks_mutation_without_adopting_storage(self):
+    def test_obsolete_root_metadata_does_not_require_markers(self):
         self.run_complete()
         owner_path = self.work / ".gwf/gwflow/owner.json"
         owner = json.loads(owner_path.read_text())
-        witness = self.work / "results" / owner["root_witnesses"]["results"]["name"]
-        saved = witness.with_name("saved-witness")
-        witness.rename(saved)
-        result = self.work / "results/samples/a/report"
-        for replacement in ("missing", "new directory", "symlink"):
-            with self.subTest(replacement=replacement):
-                if replacement == "new directory":
-                    witness.mkdir()
-                elif replacement == "symlink":
-                    witness.symlink_to(saved, target_is_directory=True)
-                output = self.cli("run", "--force", success=False)
-                self.assertRegex(output, "identity changed|symlink")
-                self.assert_results(result)
-                if witness.is_symlink():
-                    witness.unlink()
-                elif witness.exists():
-                    witness.rmdir()
-        saved.rename(witness)
+        owner["root_identity"] = {key: {"device": 987654, "inode": 1} for key in owner["locations"]}
+        owner["root_witnesses"] = {key: {"name": ".gwflow-root-" + "a" * 32, "inode": 2}
+                                   for key in owner["locations"]}
+        owner_path.write_text(json.dumps(owner))
         self.assertNotIn("Submitted target", self.cli("run"))
+        self.cli("run", "--force")
+        self.finish()
+        self.assert_results(self.work / "results/samples/a/report")
+        self.assertFalse(list(self.work.rglob(".gwflow-root-*")))
 
-    def test_copied_root_with_witness_is_not_adopted(self):
+    def test_replaced_root_at_configured_path_is_trusted(self):
         self.run_complete()
-        original, saved = self.work / "results", self.work / "saved-results"
-        original.rename(saved)
-        shutil.copytree(saved, original)
-        self.assertIn("Managed root identity changed", self.cli("run", "--force", success=False))
-        self.assert_results(original / "samples/a/report")
-        self.assert_results(saved / "samples/a/report")
+        root, saved = self.work / "results", self.work / "saved-results"
+        root.rename(saved)
+        root.mkdir()
+        for child in saved.iterdir():
+            child.rename(root / child.name)
+        self.assertNotEqual(root.stat().st_ino, saved.stat().st_ino)
+        self.assertNotIn("Submitted target", self.cli("run"))
+        self.cli("clean-work", "--delete")
+        self.cli("run", "--force")
+        self.finish()
+        self.assert_results(root / "samples/a/report")
+        self.assertFalse(list(self.work.rglob(".gwflow-root-*")))
 
     def test_work_on_separate_filesystem_keeps_sources_and_uses_default_staging(self):
         remote = self.separate_filesystem()

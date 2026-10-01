@@ -1,8 +1,10 @@
 {
   "path_normalization": "<REPO> replaces the absolute checkout root; other paths and recorded observations are unchanged.",
   "date": "2026-10-01",
-  "base_commit": "af7e581f16042faf3939ed74c8a37f7c75b8f0ae",
-  "implementation": "Working-tree BeeGFS storage identity correction; installed into .conda-env",
+  "implementation": "Trusted configured roots; no root markers or device translation; existing recovery records compare directory inodes",
+  "base_commit": "f02bf8684458371ffa4412ce46aec56d472975eb",
+  "source_sha256": "5686daf9a18ce0423b4f9f15879bdd2fee3bb5bbb515624106f3c7fee3a2d28b",
+  "source_hash_method": "Sorted src/gwflow/*.py basenames and bytes, each followed by a NUL byte",
   "environment": {
     "backend": "slurm",
     "platform": "Linux-5.14.0-687.48.1.el9_8.x86_64-x86_64-with-glibc2.34",
@@ -35,17 +37,16 @@
       }
     }
   },
-  "scheduler": "/usr/bin/sbatch, without a node-selection wrapper",
   "frontend_bookkeeping_identity": {
     "device": 48,
-    "inode": 7100686252526973093
+    "inode": 9696892507093986088
   },
   "worker_probe": {
-    "node": "cn-1047",
+    "node": "cn-1055",
     "python": "3.12.14 (main, Sep  2 2026, 23:27:36) [GCC 15.3.0]",
     "bookkeeping_identity": {
       "device": 49,
-      "inode": 7100686252526973093
+      "inode": 9696892507093986088
     },
     "packages": {
       "gwf": "2.1.1",
@@ -55,6 +56,27 @@
     },
     "apptainer_path": "<REPO>/build/validation/runtime/usr/bin/apptainer",
     "apptainer": "apptainer version 1.5.4-1"
+  },
+  "root_markers_created": 0,
+  "owners_without_root_fingerprints": 5,
+  "installed_suite": {
+    "run": 252,
+    "failures": 0,
+    "errors": 0,
+    "skips": 0,
+    "execution": "13 storage tests separately; remaining 239 across four isolated processes",
+    "process_exit_codes": [
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "release_smoke": {
+    "run": 1,
+    "failures": 0,
+    "errors": 0,
+    "skips": 0
   },
   "slurm_summary": {
     "run": 5,
@@ -80,340 +102,249 @@
     "deployment": {
       "outcome": "passed",
       "jobs": {
-        "1259508": {
-          "target": "deployment__gwflow_prepare__7bfbf04bdc304575924da7a4382a11e2__6f8b7bce9f314209ab6525e9a60c0b66",
+        "1274534": {
+          "target": "deployment__gwflow_prepare__d7f75eddfae84904b0237518d9dffc5f__a444c6884c354cd69eb52fdde6138458",
           "state": "COMPLETED",
           "exit_code": "0:0",
-          "node": "cn-1047"
+          "node": "cn-1096"
         },
-        "1259509": {
-          "target": "deployment__probe__2ae2b8a8b8244e008a57a66ca4eb2d9d__7e4a4231cc6a4ff1b1421e53e9b2c0bc",
+        "1274535": {
+          "target": "deployment__probe__9e73f9162ed04eb4b3de430cf98eeeee__9ddf4d81f09f46cdb0f52f4363164750",
           "state": "COMPLETED",
           "exit_code": "0:0",
-          "node": "cn-1047"
+          "node": "cn-1055"
         },
-        "1259510": {
-          "target": "deployment__gwflow_complete__5c6c58c8b58d4b36b165c9a952274f11__98139bf71e7041d3a7ffd3f5551b16c0",
+        "1274536": {
+          "target": "deployment__gwflow_complete__45b8c16bc2254c40b245f72ba910da5a__0f0e941b737d4721bf560b960f4c4934",
           "state": "COMPLETED",
           "exit_code": "0:0",
-          "node": "cn-1047"
+          "node": "cn-1103"
         }
       }
     },
     "image": {
       "outcome": "passed",
       "jobs": {
-        "1259512": {
-          "target": "sample__gwflow_prepare__631f4e15e7754644b9f6e616e2442901__41207134db3c402c9e1e513c704a8d99",
+        "1274539": {
+          "target": "sample__gwflow_prepare__1ebe587ba372450c9ce03058e9dd6d3e__1d9df1d87d3f4dd4b49e0f16a4fe919e",
           "state": "COMPLETED",
           "exit_code": "0:0",
-          "node": "cn-1047"
+          "node": "cn-1097"
         },
-        "1259513": {
-          "target": "sample__compute__ad6c28cb26514b2d86a1247d68c412cb__32825719fb2e43bc95fdf3ffddd9cf35",
+        "1274540": {
+          "target": "sample__compute__0558b17c35b84df1810f1584dd8114fe__db30b7785884469aa3853afeeaa6eb9f",
           "state": "COMPLETED",
           "exit_code": "0:0",
-          "node": "cn-1086"
+          "node": "cn-1097"
         },
-        "1259514": {
-          "target": "sample__gwflow_complete__6a511b8cf2d04b619d14bdd023b80a9d__3cbdb2f3e3cc41fe80f67aba868320d1",
+        "1274541": {
+          "target": "sample__gwflow_complete__da25ff506aba464ea03a4cda87bbbfa1__5226c164ae644c76882c66b65aeb147c",
           "state": "COMPLETED",
           "exit_code": "0:0",
-          "node": "cn-1047"
+          "node": "cn-1097"
         }
       }
     },
     "packaged": {
       "outcome": "passed",
       "jobs": {
-        "1259530": {
-          "target": "A__gwflow_prepare__4bf5134d12074120aa32748de3365c42__27a519ea48634336ba8fcee08b655cf3",
+        "1274550": {
+          "target": "A__gwflow_prepare__308f23b09f2d4b1ab2ab3c2c09d221d9__b82cff29ca6d4a10979d635580452d4c",
           "state": "COMPLETED",
           "exit_code": "0:0",
-          "node": "cn-1047"
+          "node": "cn-1055"
         },
-        "1259531": {
-          "target": "A__clean__dde7771e7ab840afab0a173b16a0c650__14025bd89fbf4e6aa6dbc15f40730197",
+        "1274551": {
+          "target": "A__clean__e09e1c7d1ae440faa40f88755fb3a390__8e74c1bea5c848e2a4ad47d04b82ca38",
           "state": "COMPLETED",
           "exit_code": "0:0",
-          "node": "cn-1047"
+          "node": "cn-1093"
         },
-        "1259532": {
-          "target": "A__aggregate__4e11054566de41d7b686230dcc32e0bd__9ed6b5e46ad0414e981472203a9174c4",
+        "1274552": {
+          "target": "A__aggregate__9e72eab988b947d192ca5a183b5e4343__dc9245004530424d8cc56e1f3ec268ae",
           "state": "COMPLETED",
           "exit_code": "0:0",
-          "node": "cn-1047"
+          "node": "cn-1093"
         },
-        "1259533": {
-          "target": "A__gwflow_complete__f6dc223493bd49e4a3f150418873ba61__4b1ec63883ef4516a33441626296ae6f",
+        "1274553": {
+          "target": "A__gwflow_complete__c7a875459c8848f78277012ae9cd0f7d__27c1314dd0014c468ae6de64c0663f9a",
           "state": "COMPLETED",
           "exit_code": "0:0",
-          "node": "cn-1040"
+          "node": "cn-1091"
         },
-        "1259534": {
-          "target": "B__gwflow_prepare__be46b73c9a7243bb9b2100d28d59fdb4__333cc3bbf2c9490ea0bcdfca376b711d",
+        "1274554": {
+          "target": "B__gwflow_prepare__50baf1d385904574b89358a93671edb8__778c342de7674e7082a74eb5d9eacf86",
           "state": "COMPLETED",
           "exit_code": "0:0",
-          "node": "cn-1047"
+          "node": "cn-1093"
         },
-        "1259535": {
-          "target": "B__clean__b0138fbd193141dfa5ce8ee8bdbd4412__cb9918b9fbe140bcbfdd3526ce5d3184",
+        "1274555": {
+          "target": "B__clean__2957feb146c243b2ba3556f8441b7a61__17342ac547fa421e94c74d8eb84d439d",
           "state": "COMPLETED",
           "exit_code": "0:0",
-          "node": "cn-1047"
+          "node": "cn-1097"
         },
-        "1259536": {
-          "target": "B__aggregate__5d6a7ac6750d420ead5faf70bb53b1dc__70cc7f12e4e545e9b6d518aee97f7673",
+        "1274556": {
+          "target": "B__aggregate__78aec626a9304ceea85f48c5bb2ec5fc__5f5ab74f03f14f72ad39d32e13e609a2",
           "state": "COMPLETED",
           "exit_code": "0:0",
-          "node": "cn-1047"
+          "node": "cn-1097"
         },
-        "1259537": {
-          "target": "B__gwflow_complete__37bb2964187e4137a58c812d3d1014de__1fe2cd109b0947cf8b8d89faf31c3975",
+        "1274557": {
+          "target": "B__gwflow_complete__907c1d02100146c3a3d8007795208910__74d8e1f0af534df996a658765a7cd2f4",
           "state": "COMPLETED",
           "exit_code": "0:0",
-          "node": "cn-1040"
+          "node": "cn-1093"
         },
-        "1259835": {
-          "target": "C__gwflow_prepare__b64c654b8bac45d6baace5c121621a80__8fb8ba8158bd42049f3494487f83c9d4",
+        "1274586": {
+          "target": "C__gwflow_prepare__0ac7b7dfd57340afbb0ce9f09af48119__1e60af231af34b9d83a96fb272c2972d",
           "state": "COMPLETED",
           "exit_code": "0:0",
-          "node": "cn-1040"
+          "node": "cn-1091"
         },
-        "1259836": {
-          "target": "C__join__15162107f5914da681acc15cc75ef6ef__1f9ed9f7309545319129894036df5c49",
+        "1274587": {
+          "target": "C__join__d92e0c4ff1de437c8a4910c3d9f2b065__af79799ae7974c4c83da5782dc2d496d",
           "state": "COMPLETED",
           "exit_code": "0:0",
-          "node": "cn-1044"
+          "node": "cn-1091"
         },
-        "1259838": {
-          "target": "C__finalize__55ec5e982da642b09c76fbf13247df7b__a9f9a4bd843f419a97e39e11ee7b5db4",
+        "1274588": {
+          "target": "C__finalize__171c5e2f329a4393a80ce3c21e6c1e9b__f5e457c5f71b4817aa8fcae666127234",
           "state": "COMPLETED",
           "exit_code": "0:0",
-          "node": "cn-1044"
+          "node": "cn-1091"
         },
-        "1259844": {
-          "target": "C__gwflow_complete__c9a7e9c0248f417f8c558e1ae7f977f4__dd8647bf14b045538967b008488decf2",
+        "1274589": {
+          "target": "C__gwflow_complete__729228ab65f2429cb5c3ada611f1eadf__f8ecd49b34784514b28259c4a09f267d",
           "state": "COMPLETED",
           "exit_code": "0:0",
-          "node": "cn-1044"
+          "node": "cn-1050"
         }
       }
     },
     "repair": {
       "outcome": "passed",
       "jobs": {
-        "1260430": {
-          "target": "sample__gwflow_prepare__0456e871b3514068b244f8f86f03e0a4__07968818a5924c9689755bb3cba0f770",
+        "1274597": {
+          "target": "sample__gwflow_prepare__c20b5a594a5b46f89b1c1be319444e7a__b7764f355a72416289f63b64cc5f990a",
           "state": "COMPLETED",
           "exit_code": "0:0",
-          "node": "cn-1058"
+          "node": "cn-1091"
         },
-        "1260431": {
-          "target": "sample__left__fe1c59b2a4bb43b184ec88193a7e70f8__f418b9cc676d4433a2f59b975df9e18c",
+        "1274598": {
+          "target": "sample__left__21ab4e6f5f6b4cac8e53ed96dc8d951b__b69cb5b692a4492197de58cbae550210",
           "state": "COMPLETED",
           "exit_code": "0:0",
-          "node": "cn-1047"
+          "node": "cn-1097"
         },
-        "1260432": {
-          "target": "sample__right__9ad43ef21258427da717edf3c2e24215__51c16b3b27ee4913908b4250bcb5f3a5",
+        "1274599": {
+          "target": "sample__right__5aba85fdb30c426aab0b74e2c581cc10__088ca58c24e44b2495b8163b7a47d779",
           "state": "COMPLETED",
           "exit_code": "0:0",
-          "node": "cn-1047"
+          "node": "cn-1093"
         },
-        "1260433": {
-          "target": "sample__join__391a6391c5694e51ad85e57710ac18a1__16176493c5184ca4b164e3a9d25f239e",
+        "1274600": {
+          "target": "sample__join__97f6c10bba3045e0b350d997e038c969__5d93310e3c6541e4bfbc9c5633bfbc7a",
           "state": "COMPLETED",
           "exit_code": "0:0",
-          "node": "cn-1043"
+          "node": "cn-1091"
         },
-        "1260434": {
-          "target": "sample__gwflow_complete__08b1eee445e64f0793354dacd998c6cd__6d49dff522344fe293557a97c88a0ade",
+        "1274601": {
+          "target": "sample__gwflow_complete__df021169ee41460ca7b6b72137a44404__f44731d434c24863be2c2eda24d6f8fa",
           "state": "COMPLETED",
           "exit_code": "0:0",
-          "node": "cn-1043"
+          "node": "cn-1091"
         },
-        "1261027": {
-          "target": "sample__gwflow_prepare__b42f2c17fc234f1da5b60be89a00c2d5__8a7cf610f5b5462ab7458437593c462e",
+        "1274644": {
+          "target": "sample__gwflow_prepare__33acf6d5239c41be9b3114b8a5c954b2__9c732faf3a6d43508fb852ca07cf26ec",
           "state": "COMPLETED",
           "exit_code": "0:0",
-          "node": "cn-1043"
+          "node": "cn-1056"
         },
-        "1261028": {
-          "target": "sample__left__8ddd48c1f87f4323a71f0d19b46b8533__349c303e5f534fa19268e8fffaac33a4",
+        "1274645": {
+          "target": "sample__left__715a65e9a0ad4effa11553858d50815d__c719d18144644c4da21b2eca0c96fc76",
           "state": "COMPLETED",
           "exit_code": "0:0",
-          "node": "cn-1043"
+          "node": "cn-1050"
         },
-        "1261029": {
-          "target": "sample__right__2bf17376ba67491ea6c06c27aa79b66c__daa745b201174ee8bd5e291eb12e8f11",
+        "1274646": {
+          "target": "sample__right__f434fc861e2c438db6998bc70be11014__a45c8d57c3224550868b19eb1c7a46b4",
           "state": "COMPLETED",
           "exit_code": "0:0",
-          "node": "cn-1044"
+          "node": "cn-1097"
         },
-        "1261030": {
-          "target": "sample__join__af7801e150894cb8b54f67f8fa8fba64__eaffa524357f4be1853a52d346eb6a6d",
+        "1274647": {
+          "target": "sample__join__baa3b243c3c84349ad9bbef8c3d2bb58__342426efa43b4959aa63e27cf6d1cb7b",
           "state": "COMPLETED",
           "exit_code": "0:0",
-          "node": "cn-1043"
+          "node": "cn-1050"
         },
-        "1261031": {
-          "target": "sample__gwflow_complete__7221929be85749cbaf70059817ce3b75__d000bcac1a8248708248323b7844d1d3",
+        "1274648": {
+          "target": "sample__gwflow_complete__723f2ae7cd2945ec905a211c9ab84eba__8a6f32ff7ccc44e6a5f3301c1ea44b28",
           "state": "COMPLETED",
           "exit_code": "0:0",
-          "node": "cn-1043"
+          "node": "cn-1055"
         }
       }
     },
     "retry": {
       "outcome": "passed",
       "jobs": {
-        "1261034": {
-          "target": "sample__gwflow_prepare__8f674fd190584c76bec1aeba88e0a215__0a883c46eaf349c7b7f2f83a56a46684",
+        "1274660": {
+          "target": "sample__gwflow_prepare__25f661616b16493fa504559b331c97a8__411a37862553429085a94bb433ca6e0e",
           "state": "COMPLETED",
           "exit_code": "0:0",
-          "node": "cn-1043"
+          "node": "cn-1055"
         },
-        "1261035": {
-          "target": "sample__left__228cfc154d41453b8a90288797deebac__8deaa218fcde4c6894f18e1ba9bd42a4",
+        "1274661": {
+          "target": "sample__left__19ccf44465034765bf89b5614ebdfe7d__04db9ead884a44229eeabc561ce31259",
           "state": "COMPLETED",
           "exit_code": "0:0",
-          "node": "cn-1043"
+          "node": "cn-1055"
         },
-        "1261036": {
-          "target": "sample__right__4f3aeaa41bb5427a99c6a2dce38f6493__07b7863b8eed424ba07aa1201272e5cf",
+        "1274662": {
+          "target": "sample__right__52b34cd8ae9a4ddb8b8f34f7b4ab6f7a__c39034027db546acbb64ecba6693842b",
           "state": "FAILED",
           "exit_code": "1:0",
-          "node": "cn-1045"
+          "node": "cn-1091"
         },
-        "1261037": {
-          "target": "sample__join__29ba40b3a22b4a008ded5ecb5a2377fb__d68fd29454ed462baa53d8395295cf69",
+        "1274663": {
+          "target": "sample__join__289f7fe7927547cbafa9e358fe92b492__5cb3089101bd4a288dec96758915f5a2",
           "state": "CANCELLED",
           "exit_code": "0:0",
           "node": "None assigned"
         },
-        "1261038": {
-          "target": "sample__gwflow_complete__960d89d70679417a9e4eca756402194f__fbed6a4a31ba42fa9bfef9ee61230624",
+        "1274664": {
+          "target": "sample__gwflow_complete__a98696a0ee064d9faf6f7569a03b04a1__972fb46a3b4341d992749a5115fd8479",
           "state": "CANCELLED",
           "exit_code": "0:0",
           "node": "None assigned"
         },
-        "1261039": {
-          "target": "sample__right__c573937281bd4b559942beba62dc0607__934e1012498e4dfaa8f9fd11eaa259ee",
+        "1274669": {
+          "target": "sample__right__a64e1ba90957481ba18d64a28da51ceb__145b48c4ded44bb285e7cbfa24c699bd",
           "state": "COMPLETED",
           "exit_code": "0:0",
-          "node": "cn-1041"
+          "node": "cn-1091"
         },
-        "1261040": {
-          "target": "sample__join__dc61780df9144763be82f813b52f8f77__d490e535c9e94bee89dd65860dd33dd3",
+        "1274670": {
+          "target": "sample__join__8ff8e340b9c44de88a028edf8e3bc383__b1d740315a2c4131876a2cb43f48bce0",
           "state": "COMPLETED",
           "exit_code": "0:0",
-          "node": "cn-1041"
+          "node": "cn-1091"
         },
-        "1261041": {
-          "target": "sample__gwflow_complete__960d89d70679417a9e4eca756402194f__48fdc6b9fce1407db3deb824334100dc",
+        "1274671": {
+          "target": "sample__gwflow_complete__a98696a0ee064d9faf6f7569a03b04a1__06443e58e3ca47159cd8a08ef2a05c4b",
           "state": "COMPLETED",
           "exit_code": "0:0",
-          "node": "cn-1041"
+          "node": "cn-1091"
         }
       }
     }
   },
-  "original_example": {
-    "jobs": {
-      "1259517": {
-        "state": "COMPLETED",
-        "exit_code": "0:0",
-        "node": "cn-1047"
-      },
-      "1259518": {
-        "state": "COMPLETED",
-        "exit_code": "0:0",
-        "node": "cn-1047"
-      },
-      "1259519": {
-        "state": "COMPLETED",
-        "exit_code": "0:0",
-        "node": "cn-1047"
-      },
-      "1259520": {
-        "state": "COMPLETED",
-        "exit_code": "0:0",
-        "node": "cn-1047"
-      },
-      "1259521": {
-        "state": "COMPLETED",
-        "exit_code": "0:0",
-        "node": "cn-1047"
-      },
-      "1259522": {
-        "state": "COMPLETED",
-        "exit_code": "0:0",
-        "node": "cn-1047"
-      },
-      "1259523": {
-        "state": "COMPLETED",
-        "exit_code": "0:0",
-        "node": "cn-1047"
-      },
-      "1259524": {
-        "state": "COMPLETED",
-        "exit_code": "0:0",
-        "node": "cn-1047"
-      },
-      "1259525": {
-        "state": "COMPLETED",
-        "exit_code": "0:0",
-        "node": "cn-1040"
-      },
-      "1259526": {
-        "state": "COMPLETED",
-        "exit_code": "0:0",
-        "node": "cn-1040"
-      },
-      "1259527": {
-        "state": "COMPLETED",
-        "exit_code": "0:0",
-        "node": "cn-1044"
-      },
-      "1259528": {
-        "state": "COMPLETED",
-        "exit_code": "0:0",
-        "node": "cn-1044"
-      }
-    },
-    "report": "product,sales,returns,net\napples,17,2,15\npears,8,1,7\n",
-    "final_status": {
-      "A": "reusable",
-      "B": "reusable",
-      "C": "reusable"
-    },
-    "unchanged_run_submissions": 0,
-    "existing_attempts_preserved": true
-  },
-  "focused_storage_tests": {
-    "run": 13,
-    "failures": 0,
-    "errors": 0,
-    "skips": 0
-  },
-  "release_smoke": {
-    "run": 1,
-    "failures": 0,
-    "errors": 0,
-    "skips": 0
-  },
-  "installed_suite": {
-    "run": 252,
-    "failures": 0,
-    "errors": 0,
-    "skips": 0,
-    "execution": "27 tests passed sequentially; the remaining 225 passed across four isolated processes",
-    "process_exit_codes": [
-      0,
-      0,
-      0,
-      0
-    ]
+  "existing_example": {
+    "obsolete_empty_markers_removed": 4,
+    "reuse_output": "Task A: reuse; checked Completion and retained metadata match\nTask B: reuse; checked Completion and retained metadata match\nTask C: reuse; checked Completion and retained metadata match\n",
+    "status_output": "+ Task A                       reusable         work-cleaned\n+ Task B                       reusable         work-cleaned\n+ Task C                       reusable         work-cleaned\n",
+    "unchanged_run_submissions": 0
   }
 }

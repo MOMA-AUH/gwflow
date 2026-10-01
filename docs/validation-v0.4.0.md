@@ -71,52 +71,54 @@ were canceled before any container command ran. The initializing frontend
 directories. Comparing those host-local numbers as persistent identities was
 incorrect, including in transfer, repair, and cleanup.
 
-Managed roots now carry independently allocated empty `.gwflow-root-<UUID>`
-ownership directories. Their names and inode numbers, together with each root's
-inode, establish shared-root identity. Each process checks those witnesses and
-translates its local device numbers into the original recorded namespace. The
-mapping must preserve which roots share a filesystem. Descriptor-relative rename
-and deletion continue to check actual local device/inode pairs. Replaced roots,
-missing or substituted witnesses, and symlink traversal still fail closed.
-Task result directories still contain only their declared retained files.
+The current implementation trusts the configured storage locations and creates
+no root marker files or folders. Directory inode numbers in existing recovery
+records identify staged transfers, retained sets, and disposable work within
+those locations. Device numbers are compared only within a running process for
+filesystem placement and rename/removal checks, never across hosts. Users are
+responsible for keeping the configured paths on the intended shared storage;
+replacement of an entire root is no longer detected. Symlink traversal and
+changes during rename or deletion remain checked.
 
-This does not depend on filesystem UUIDs or extended attributes: this BeeGFS
-mount reports `f_fsid=0` and rejects user extended attributes. Existing records
-can be upgraded by an ordinary run on a host where their old device/inode
-checks pass. It adds root witnesses before submitting jobs, without resetting
-attempts or deleting results. Inspection commands remain read-only.
+Older records with device numbers are read without migration. Root identities
+and witness metadata from the initial development implementation are ignored;
+its empty `.gwflow-root-*` directories can be removed. Inspection commands remain
+read-only. The separate root-witness and device-translation module was removed.
 
 `tests/test_storage.py` reproduces the original failure through real local
 workers whose Python filesystem observations report distinct device numbers for
 each process. It covers computation, result transfer, repair, cleanup, reuse,
-root recreation, and forced fresh execution. Additional cases cover legacy
-upgrades, substituted ownership witnesses, and copied replacement roots.
+root recreation, and forced fresh execution. Additional cases cover reuse and
+repair of older records without rewriting them, obsolete marker metadata, and
+replacement of a configured root while preserving its Task directories. The
+tests also check that no root markers are created.
 
 The live deployment case records the worker's bookkeeping device/inode values
 alongside the frontend device number in the validation evidence. The corrected
 Slurm checks use `/usr/bin/sbatch` directly, without the old node wrapper.
 
-The original failed example was retried with its existing attempts. All twelve
-jobs `1259517`–`1259528` completed successfully on `cn-1047`, `cn-1040`, and
-`cn-1044`. Its report contained `apples,17,2,15` and `pears,8,1,7`; all three
-Tasks then reported reusable and an unchanged run submitted no jobs. The live
-deployment probe on `cn-1047` observed device `49` and inode
-`7100686252526973093`, while the frontend's ownership record retained device
-`48` and the same inode.
+The initial marker-based implementation and its original-example recovery are
+preserved in the [earlier validation record](https://github.com/MOMA-AUH/gwflow/blob/f02bf8684458371ffa4412ce46aec56d472975eb/docs/validation-beegfs-identity.json).
+The current [correction evidence](validation-beegfs-identity.json) records the
+simplified implementation's validation separately.
 
-All five live Slurm cases passed: deployment, image execution, packaged
-producer-cleanup/consumer reuse, image-aware repair, and partial retry. The
-[correction evidence](validation-beegfs-identity.json) records the exact job IDs,
-nodes, terminal states, software versions, original-example report, and the
-cross-node device/inode observations. The retry case's deliberate failure and
-dependency cancellations are expected; its subsequent recovery passed.
+All 252 installed-package tests passed without skips with real Apptainer images:
+the 13 storage tests ran separately, and the remaining 239 ran across four
+isolated processes. The installed packaged smoke test also passed. The installed
+modules match the source, and the removed storage-identity module is absent from
+the rebuilt package.
 
-All 252 installed-package tests passed without skips with the prepared Apptainer
-images. The run completed 27 tests sequentially and the remaining 225 across
-four isolated test processes. The 13-test storage suite and standalone installed
-package smoke check also passed. The installed modules were verified to match
-the working-tree source. These are local implementation checks, not a release
-publication or a new CI result.
+All five fresh Slurm cases passed with unrestricted node selection: deployment,
+image execution, packaged producer cleanup and consumer reuse, image-aware
+repair checks, and partial retry. The probe on `cn-1055` saw device `49` while
+the frontend saw device `48`, both for inode `9696892507093986088`. None of the
+cases created root markers or root fingerprints in their owner records. Slurm
+requeued some jobs before they completed; the retry case's deliberate failure
+and dependent cancellations are expected.
+
+The original packaged example also reused all three Tasks without submitting
+jobs after its four obsolete empty markers were removed. Its existing records
+and retained results were preserved.
 
 ## Repeatable local checks
 
