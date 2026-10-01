@@ -43,6 +43,11 @@ was the upstream `apptainer-1.5.4-1.x86_64.rpm`, unpacked below the ignored
 the extracted configuration and state directories; system Apptainer was not
 modified. `apptainer --version` reported `1.5.4-1`.
 
+Installed-package validation uses a built wheel with source metadata `0.3.1`
+and the new image-aware record requirements, plus summary/report packages
+`0.2.0`. This development slice does not change release versions; all test state
+is freshly created by the implementation under test.
+
 The fixture's recorded OCI base was `docker.io/library/python:3.12-slim-bookworm`,
 digest `sha256:392307d22300de8b5986851a12d9176dfc0fc073e65bf6523ebd7dcbeb23564e`.
 The extracted default configuration enabled home, temporary, proc, sys, dev,
@@ -66,6 +71,8 @@ Focused evidence in [test_containers.py](../tests/test_containers.py) covers:
   resolved image and finishes; jobs do not reobserve image identity.
 - Nonzero exits after writing outputs, missing image software, missing/invalid
   outputs, and unusable images refusing Completion with normal target/image logs.
+- An empty computation-job PATH makes missing Apptainer fail without fallback;
+  the same deployment condition permits an ordinary host Bash command.
 - Rejection of unsupported earlier attempt evidence, preserving its files.
 
 The preparation gate and execution-environment fault controls are test-only

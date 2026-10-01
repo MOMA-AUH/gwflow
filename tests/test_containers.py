@@ -124,6 +124,7 @@ class ContainerRuntimeTests(LocalBackendTestCase):
                 before = self.snapshot()
                 preview = self.cli("explain")
                 self.assertIn("changed images: compute", preview)
+                self.assertIn(str(self.image.resolve()), preview)
                 self.assertIn("remove previous results", preview)
                 self.cli("status", "--details")
                 self.cli("run", "--dry-run")

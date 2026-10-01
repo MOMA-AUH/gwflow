@@ -32,8 +32,14 @@ def definition_change(store, observation, selected, *, force_option, tracking, i
     if force_option:
         return f"requested {force_option}"
     if observation.images != attempt["images"]:
-        changed = sorted(local for local in observation.images.keys() | attempt["images"].keys()
-                         if observation.images.get(local) != attempt["images"].get(local))
+        changed = []
+        for local in sorted(observation.images.keys() | attempt["images"].keys()):
+            previous, current = attempt["images"].get(local), observation.images.get(local)
+            if previous != current:
+                before = previous["path"] if previous else "host"
+                after = current["path"] if current else "host"
+                paths = after if before == after else f"{before} -> {after}"
+                changed.append(f"{local} ({paths})")
         return "changed images: " + ", ".join(changed)
     if observation.structure != attempt["structure"]:
         labels = {"inputs": "external inputs", "targets": "target membership or file declarations", "retained": "retained mappings"}
