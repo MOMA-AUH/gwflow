@@ -275,6 +275,30 @@ class FinishingInspectionTests(LocalBackendTestCase):
     preview = LifecycleInspectionTests.preview
     run_previewed = LifecycleInspectionTests.run_previewed
 
+    def test_repair_and_fresh_fallback_identify_missing_and_changed_retained_files(self):
+        self.run_complete()
+        root = self.work / "results/samples/a/report"
+        missing, changed = root / "renamed.txt", root / "nested/two.txt"
+        missing.unlink()
+        before = changed.stat()
+        changed.write_text("edited result")
+        os.utime(changed, ns=(before.st_atime_ns, before.st_mtime_ns + 1000))
+        preview = self.preview()
+        self.assertIn("missing retained output: " + str(missing), preview)
+        self.assertIn(str(changed), preview)
+        self.assertIn("size", preview)
+        self.assertIn("mtime", preview)
+        self.run_previewed(preview)
+        self.finish()
+        self.cli("clean-work", "--delete")
+        missing.unlink()
+        preview = self.preview()
+        self.assertIn("Task a: fresh;", preview)
+        self.assertIn("missing retained output: " + str(missing), preview)
+        self.run_previewed(preview)
+        self.finish()
+        self.assertEqual((self.work / "trace").read_text().splitlines(), ["compute", "compute"])
+
     def test_interrupted_transfer_previews_only_finishing_and_preserves_computation(self):
         self.cli("-b", "recovery_fixture", "run", env=self.fault(crash_during_copy=True))
         self.settle()

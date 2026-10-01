@@ -724,6 +724,28 @@ class Store:
             sources[local] = {"execution": target["execution"], "outputs": target["outputs"]}
         return sources
 
+    def retained_changes(self, attempt):
+        """Explain missing or changed retained metadata without trusting file presence."""
+        completion = self.read(attempt, "completion.json", "completion", operation=attempt["operation"])
+        paths = [item["path"] for item in attempt["structure"]["retained"].values()]
+        if completion is None or not _valid_metadata(completion.get("outputs"), paths):
+            return ["Completion has no valid retained metadata"]
+        changes = []
+        for relative in paths:
+            path = self.result_dir(attempt) / relative
+            try:
+                if not _files.exists(path):
+                    changes.append(f"missing retained output: {path}")
+                    continue
+                observed = _files.metadata(self.result_dir(attempt), [relative])[relative]
+                previous = completion["outputs"][relative]
+                fields = [f"{key}: {previous[key]} -> {value}" for key, value in observed.items() if previous[key] != value]
+                if fields:
+                    changes.append(f"retained metadata changed: {path} ({', '.join(fields)})")
+            except (WorkflowError, OSError) as error:
+                changes.append(f"retained output unavailable: {path}: {error}")
+        return changes
+
     def completed(self, attempt):
         self.check_inputs(attempt)
         operation = attempt["operation"]

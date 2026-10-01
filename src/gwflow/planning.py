@@ -30,7 +30,7 @@ def tracked_commands_match(store, attempt, commands):
 def definition_change(store, observation, selected, *, force_option, tracking, initializing):
     attempt = observation.attempt
     if force_option:
-        return f"requested {force_option}; fresh computation is required"
+        return f"requested {force_option}"
     if observation.structure != attempt["structure"]:
         labels = {"inputs": "external inputs", "targets": "target membership or file declarations", "retained": "retained mappings"}
         changed = [label for key, label in labels.items() if observation.structure[key] != attempt["structure"][key]]
@@ -105,7 +105,7 @@ def fresh_observation(store, observation, reason):
         raise WorkflowError("Unresolved or active work blocks replacement: " + ", ".join(active))
     inputs.observe([value for value in observation.structure["inputs"] if isinstance(value, str)], store.locations)
     observation.removal = store.result_removal(observation.attempt) if observation.attempt else None
-    observation.action, observation.reason = "fresh", reason
+    observation.action, observation.reason = "fresh", reason + "; fresh attempt required"
     if observation.removal is not None:
         observation.reason += f"; remove previous results at {store.result_dir(observation.attempt)} before submission"
     observation.pending = lifecycle_jobs(ordered_targets(observation.structure))
@@ -138,7 +138,7 @@ def recover_transfer(store, observation, jobs):
                             for filename in ("manifest.json", "installed.json", "completion.json"))
                 and retry_observation(store, observation, jobs)):
             return
-        fresh_observation(store, observation, "transfer sources cannot be recovered; fresh computation is required")
+        fresh_observation(store, observation, "transfer sources cannot be recovered")
         return
     observation.action, observation.reason = "transfer", recovery.reason
     observation.pending = ["gwflow_complete"]
@@ -152,6 +152,7 @@ def completed_observation(store, observation):
     if completed:
         observation.action, observation.reason = "reuse", "checked Completion and retained metadata match"
         return
+    retained_changes = store.retained_changes(observation.attempt)
     if store.cleanup_record(observation.attempt) is not None:
         # A discarded baseline can explain a change when still readable, but
         # cannot be required to start fresh after explicit cleanup.
@@ -160,15 +161,17 @@ def completed_observation(store, observation):
         except (WorkflowError, OSError):
             changes = []
         reason = ("input metadata changed: " + "; ".join(changes) if changes else
-                  "work marked for cleanup; fresh computation is required")
-        fresh_observation(store, observation, reason)
+                  "work marked for cleanup")
+        fresh_observation(store, observation, "; ".join([reason, *retained_changes]))
         return
     try:
         transfer.repair_sources(store, observation.attempt)
     except transfer.InvalidSources:
-        fresh_observation(store, observation, "retained repair sources are unavailable or invalid; fresh computation is required")
+        fresh_observation(store, observation, "; ".join(["retained repair sources are unavailable or invalid", *retained_changes]))
         return
     observation.action, observation.reason = "repair", "restore damaged retained results from checked work under the same attempt"
+    if retained_changes:
+        observation.reason += "; " + "; ".join(retained_changes)
     observation.pending = ["gwflow_complete"]
 
 
