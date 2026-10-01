@@ -4,6 +4,8 @@ import json
 import os
 from pathlib import Path
 
+from gwf.exceptions import WorkflowError
+
 from . import _files
 from .workflow import relative_path, validate_destinations
 
@@ -12,8 +14,17 @@ def reference_key(reference):
     return json.dumps(reference, sort_keys=True)
 
 
-def default_layout(references, outputs, retained_path):
-    names = [relative_path(Path(value if isinstance(value, str) else
+def input_layout(references, outputs, retained_path, overrides):
+    assigned = {}
+    for name, reference in overrides.items():
+        if reference not in references:
+            raise WorkflowError("stage_as must reference an already-declared target input")
+        key = reference_key(reference)
+        if key in assigned:
+            raise WorkflowError("stage_as assigns multiple paths to one logical input")
+        assigned[key] = relative_path(name)
+    names = [assigned.get(reference_key(value)) or
+             relative_path(Path(value if isinstance(value, str) else
                                 value["file"] if "target" in value else retained_path(value)).name)
              for value in references]
     validate_destinations([*names, *outputs])

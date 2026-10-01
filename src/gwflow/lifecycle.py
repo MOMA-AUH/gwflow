@@ -148,8 +148,12 @@ def declarations(task, store, workflow):
         incoming.sort(key=lambda item: json.dumps(item, sort_keys=True))
         targets[name] = {"inputs": incoming, "outputs": sorted(outputs)}
         if target.image is not None:
-            layout = staging.default_layout(incoming, outputs, lambda reference:
-                                            workflow._task_declarations[reference["task"]].retained[reference["output"]][1])
+            overrides = {path: (_target_reference(task, value) if isinstance(value, TargetOutput)
+                                else _boundary_reference(value, store, workflow))
+                         for path, value in target.stage_as.items()}
+            layout = staging.input_layout(incoming, outputs, lambda reference:
+                                          workflow._task_declarations[reference["task"]].retained[reference["output"]][1],
+                                          overrides)
             if layout:
                 targets[name]["staged"] = layout
         if isinstance(target.spec, str):

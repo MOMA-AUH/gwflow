@@ -7,22 +7,42 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
+from gwf.exceptions import WorkflowError
+from gwflow import Task
+
 from support import LocalBackendTestCase
+import test_containers
+import test_managed_recovery
 
 
-def write_workflow(work, sources, *, command, outputs=("out.txt",), bound=True):
+def write_workflow(work, sources, *, command, outputs=("out.txt",), bound=True, stage_as=None):
     image = os.environ.get("GWFLOW_TEST_SIF", "unavailable.sif")
     bindings = ", ".join(f"source{index}={value!r}" for index, value in enumerate(sources))
     expression = f"shell({command!r}, {bindings})" if bound else repr(command)
+    staging = "" if stage_as is None else f", stage_as={stage_as!r}"
     (work / "workflow.py").write_text(
         "from gwflow import Task, Workflow, shell\n"
         "gwf = Workflow()\n"
         f"task = Task(inputs={sources!r})\n"
-        f"target = task.target('read', inputs={sources!r}, outputs={list(outputs)!r}, image={image!r})\n"
+        f"target = task.target('read', inputs={sources!r}, outputs={list(outputs)!r}, image={image!r}{staging})\n"
         f"target << {expression}\n"
         f"task.retain('result', source=target.output({outputs[0]!r}), path='result.txt')\n"
         "gwf.task_from_template('sample', task)\n"
     )
+
+
+class StagingAuthoringTests(unittest.TestCase):
+    def test_nonempty_staging_requires_an_image(self):
+        with self.assertRaisesRegex(WorkflowError, "stage_as.*image"):
+            Task(inputs=["input.txt"]).target("read", inputs=["input.txt"], outputs=["out.txt"],
+                                             stage_as={"renamed.txt": "input.txt"})
+        Task(inputs=["input.txt"]).target("read", inputs=["input.txt"], outputs=["out.txt"], stage_as={})
+
+    def test_stage_as_requires_a_mapping(self):
+        for value in (False, "file", 1, [("same", "input.txt"), ("same", "extra.txt")]):
+            with self.subTest(value=value), self.assertRaisesRegex(WorkflowError, "stage_as.*mapping"):
+                Task(inputs=["input.txt"]).target("read", inputs=["input.txt"], outputs=["out.txt"],
+                                                 image="tool.sif", stage_as=value)
 
 
 class DefaultStagingAuthoringTests(LocalBackendTestCase):
@@ -45,9 +65,32 @@ class DefaultStagingAuthoringTests(LocalBackendTestCase):
                 self.assertFalse((self.work / "work").exists())
                 self.assertFalse((self.work / "results").exists())
 
+    def test_invalid_overrides_fail_before_submission(self):
+        cases = (
+            {"unused.txt": "undeclared.txt"},
+            {"one.txt": "input.txt", "two.txt": "./input.txt"},
+            {"extra.txt": "input.txt"},
+            {"out.txt": "input.txt"},
+            {"out.txt/nested": "input.txt"},
+            {"dir": "input.txt", "dir/nested.txt": "extra.txt"},
+            {"./same.txt": "input.txt", "same.txt": "extra.txt"},
+            *({name: "input.txt"} for name in ("", ".", "/absolute.txt", "../escape.txt", "a/../b", "bad\nname", "bad?.txt")),
+        )
+        cases = [*((layout, ("out.txt",)) for layout in cases), ({"parent": "input.txt"}, ("parent/out.txt",))]
+        for layout, outputs in cases:
+            with self.subTest(layout=layout, outputs=outputs):
+                write_workflow(self.work, ["input.txt", "extra.txt"], stage_as=layout, outputs=outputs, command="true", bound=False)
+                output = self.cli("run", success=False)
+                self.assertRegex(output, "stage_as|collision|Invalid managed relative path")
+                self.assertFalse((self.work / ".gwf/gwflow").exists())
+
 
 @unittest.skipUnless(os.environ.get("GWFLOW_TEST_SIF"), "set GWFLOW_TEST_SIF for real Apptainer execution")
 class ContainerStagingTests(LocalBackendTestCase):
+    snapshot = test_containers.ContainerRuntimeTests.snapshot
+    attempt = test_containers.ContainerRuntimeTests.attempt
+    inject = test_managed_recovery.ManagedCoordinationTests.inject
+
     def configure_workflow(self):
         write_workflow(self.work, ["input.txt"], command=(
             'test -L input.txt; test -L {source0}; '
@@ -102,6 +145,69 @@ class ContainerStagingTests(LocalBackendTestCase):
         self.assertEqual(result.read_text(), "hello\ncompanion changed\nneighbor changed\n")
         self.cli("clean-work", "--delete")
         self.assertNotIn("Submitted target", self.cli("run"))
+
+    def test_custom_paths_disambiguate_basenames_and_place_declared_companions_together(self):
+        sources = ["sales/summary.csv", "returns/summary.csv", "genome.fa", "genome.index", "extra.txt"]
+        for name, value in zip(sources[:4], ("sales\n", "returns\n", "reference\n", "index\n")):
+            path = self.work / name
+            path.parent.mkdir(exist_ok=True)
+            path.write_text(value)
+        layout = {"sales data/summary.csv": sources[0], "returns data/summary.csv": sources[1],
+                  "ref's $data/genome.fa": sources[2], "ref's $data/genome.fa.fai": sources[3]}
+        checks = "".join(f"test -L {{source{index}}}; test {{source{index}}} = \"$PWD\"/{shlex.quote(name)}; "
+                         for index, name in enumerate([*layout, "extra.txt"]))
+        write_workflow(self.work, sources, stage_as=layout, command=(
+            checks + 'test ! -e genome.fa; test ! -e summary.csv; '
+            'cat {source0} {source1} {source2} {source2}.fai {source4} > out.txt'
+        ))
+        self.run_complete()
+        self.assertEqual((self.work / "results/sample/result.txt").read_text(), "sales\nreturns\nreference\nindex\nextra\n")
+        self.assertNotIn("Submitted target", self.cli("run"))
+
+    def test_effective_layout_changes_refresh_but_equivalent_mappings_reuse(self):
+        self.configure(use_spec_hashes=True)
+        command = 'printf "SOURCE=%s\\n" {source0}; cat {source0} {source1} > out.txt'
+        sources = ["input.txt", "extra.txt"]
+        write_workflow(self.work, sources, command=command)
+        self.run_complete()
+        previous = self.attempt()
+        for layout in ({"input.txt": "input.txt", "extra.txt": "extra.txt"},
+                       {"./extra.txt": "./extra.txt", "./input.txt": "./input.txt"}):
+            with self.subTest(equivalent=layout):
+                write_workflow(self.work, sources, command=command, stage_as=layout)
+                self.assertNotIn("Submitted target", self.cli("run"))
+                self.assertEqual(self.attempt(), previous)
+        self.configure(use_spec_hashes=False)
+        write_workflow(self.work, sources, command=command, stage_as={"new dir/input.txt": "input.txt"})
+        before = self.snapshot()
+        for arguments in (("explain",), ("status", "--details"), ("run", "--dry-run")):
+            self.assertIn("changed declared structure: target membership or file declarations", self.cli(*arguments))
+            self.assertEqual(self.snapshot(), before)
+        self.run_complete()
+        self.assertNotEqual(self.attempt(), previous)
+        self.assertEqual((self.work / "results/sample/result.txt").read_text(), "hello\nextra\n")
+        self.assertIn("/new dir/input.txt", self.cli("logs", "sample__read", "--no-pager"))
+        self.assertNotIn("Submitted target", self.cli("run"))
+
+    def test_layout_replacement_keeps_activity_and_ownership_guards(self):
+        command = "cat {source0} > out.txt"
+        write_workflow(self.work, ["input.txt"], command=command)
+        self.run_complete()
+        write_workflow(self.work, ["input.txt"], command=command, stage_as={"new/input.txt": "input.txt"})
+        for guard in ("activity", "ownership"):
+            with self.subTest(guard=guard):
+                if guard == "activity":
+                    backend, env = ("-b", "recovery_fixture"), self.inject(queued_prefix="sample")
+                    reason = "work blocks replacement"
+                else:
+                    manifest = next((self.work / ".gwf/gwflow").glob("owners/*/tasks/sample/attempts/*/**/manifest.json"))
+                    manifest.write_text("{truncated")
+                    backend, env, reason = (), None, "ownership"
+                before = self.snapshot()
+                for arguments, success in ((("explain",), True), (("status", "--details"), True),
+                                           (("run", "--dry-run"), False), (("run",), False)):
+                    self.assertIn(reason, self.cli(*backend, *arguments, env=env, success=success))
+                    self.assertEqual(self.snapshot(), before)
 
 
 @unittest.skipUnless(os.environ.get("GWFLOW_TEST_SIF"), "set GWFLOW_TEST_SIF for real Apptainer execution")
