@@ -2,10 +2,11 @@
 
 This record follows the incremental implementation of
 [the v0.4 specification, #92](https://github.com/MOMA-AUH/gwflow/issues/92).
-The first slice, [#93](https://github.com/MOMA-AUH/gwflow/issues/93), validates
-no-input image execution, frontend image identity, failure, and cleanup/Reuse.
-Staging, combined workflows, and final live Slurm acceptance remain for the
-dependent implementation tickets. This is implementation validation, without
+The first slices, [#93](https://github.com/MOMA-AUH/gwflow/issues/93) and
+[#94](https://github.com/MOMA-AUH/gwflow/issues/94), validate image execution,
+frontend image identity, external-input staging, failure, and cleanup/Reuse.
+Combined workflows and final live Slurm acceptance remain for the dependent
+implementation tickets. This is implementation validation, without
 release publication or deployment provisioning.
 
 ## Repeatable local checks
@@ -20,6 +21,7 @@ mkdir -p build/validation
 apptainer build build/validation/basic.sif tests/fixtures/container.def
 export GWFLOW_TEST_SIF="$PWD/build/validation/basic.sif"
 python -m unittest discover -s tests -p test_containers.py -v
+python -m unittest discover -s tests -p test_staging.py -v
 python -m unittest discover -s tests -v
 python tests/release_smoke.py
 ```
@@ -79,10 +81,39 @@ The preparation gate and execution-environment fault controls are test-only
 backend fixtures. They control timing/environment around real scheduled host
 lifecycle processes; they do not simulate Apptainer's command execution.
 
+The #93 final-commit [CI run](https://github.com/MOMA-AUH/gwflow/actions/runs/36877118052)
+passed all 215 tests against the pip-installed package with Apptainer 1.5.4 and no
+skips. The Conda artifact suite passed with eight explicit container-test skips,
+and its packaged smoke passed. The separate local installed-package suite also
+passed all 215 tests.
+
+The #94 checks in [test_staging.py](../tests/test_staging.py) use the same real
+Apptainer runtime and fixture. All five focused tests passed on 2026-10-01:
+
+- A source parent containing execution work remains readable, rejects writes
+  through the staged source link, and permits writes in work and private TMPDIR.
+  Copying the input into work produces an editable copy and retained output.
+- An input alias through a symlinked parent reaches a destination outside the
+  alias directory. Source-parent paths containing commas, quotes, spaces, colons,
+  and dollar signs, and staged basenames containing shell punctuation, work.
+- Only declared inputs receive staged symlinks. An undeclared neighboring file
+  can be read through the source-directory mount, but changing it does not
+  invalidate Reuse. An explicitly declared companion does invalidate on change;
+  duplicate/reordered declarations preserve equivalent structure.
+- An additional read-only site directory supplied through `APPTAINER_BINDPATH`
+  remains accessible alongside gwflow's requested mounts.
+- Invalid names and default-name/output collisions fail before managed storage
+  initialization. These declaration checks do not require a container runtime.
+
+The mount evidence comes from command reads, attempted source writes, writable
+copies, scratch files, and retained results, rather than inspecting generated
+Apptainer arguments. The checks preserve ordinary default and deployment mounts;
+they do not establish universal confinement against every possible site alias.
+
 ## Limits and remaining evidence
 
-This first slice does not establish input staging or source-mount permissions,
-mixed graphs, opted-out scratch, the packaged container A/B/C demonstration, or
+These first slices do not establish custom staging, mixed graphs, opted-out
+scratch, the packaged container A/B/C demonstration, or
 live Slurm container acceptance. Those are required by the remaining tickets and
 must be recorded before declaring the parent specification complete. The runtime
 record establishes no broader Apptainer or non-Linux compatibility claim.

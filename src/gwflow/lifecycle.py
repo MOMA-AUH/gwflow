@@ -12,7 +12,7 @@ from uuid import uuid4
 from gwf.exceptions import WorkflowError
 from gwf.utils import is_valid_name
 
-from . import _files, images, inputs
+from . import _files, images, inputs, staging
 from .commands import Command, shell
 from .workflow import RetainedOutput, TargetOutput, relative_path, validate_destinations
 
@@ -147,6 +147,10 @@ def declarations(task, store, workflow):
                 incoming.append(reference)
         incoming.sort(key=lambda item: json.dumps(item, sort_keys=True))
         targets[name] = {"inputs": incoming, "outputs": sorted(outputs)}
+        if target.image is not None:
+            layout = staging.external_layout(incoming, outputs)
+            if layout:
+                targets[name]["staged"] = layout
         if isinstance(target.spec, str):
             commands[name] = {"literal": target.spec}
         elif isinstance(target.spec, Command):
@@ -229,6 +233,9 @@ def _valid_attempt(attempt):
                     or attempt["jobs"][local] != f"{attempt['task']}__{local}__{attempt['executions'][local]}"):
                 return False
             validate_destinations(target["outputs"])
+            layout = staging.external_layout(target["inputs"], target["outputs"]) if local in attempt["images"] else {}
+            if target.get("staged", {}) != layout:
+                return False
             if not valid_command(commands[local], target, local):
                 return False
         for name, item in retained.items():

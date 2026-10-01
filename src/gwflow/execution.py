@@ -10,6 +10,7 @@ from gwf.exceptions import WorkflowError
 from . import _files, admission, images
 from .commands import Command
 from .lifecycle import Store, target_dependencies
+from .staging import stage_external
 from .transfer import finish
 
 
@@ -25,13 +26,17 @@ def execute(store, attempt, local):
         raise WorkflowError("Target execution storage already exists; unchecked work cannot be adopted")
     _files.mkdir(staging)
     _files.mkdir(temporary)
+    staged_inputs, source_directories = stage_external(
+        attempt["structure"]["targets"][local].get("staged", {}),
+        store.input_baseline(attempt)["inputs"], staging,
+    )
     execution = store.execution(attempt, local)
     declaration = execution["command"]
     if "literal" in declaration:
         command = declaration["literal"]
     else:
         command = Command(declaration["template"], declaration["bindings"]).render(
-            lambda reference: (reference["external"] if "external" in reference
+            lambda reference: (staged_inputs.get(reference["external"], reference["external"]) if "external" in reference
                                else store.retained_path(attempt, reference) if "task" in reference
                                else staging / reference["file"] if reference["target"] == local
                                else store.execution_dir(attempt, reference["target"]) / "committed" / reference["file"]))
@@ -45,7 +50,7 @@ def execute(store, attempt, local):
         context += f" image {image['path']}"
         print(context, file=sys.stderr, flush=True)
         arguments = images.invocation(image, staging, temporary if attempt["managed_tmpdir"] else None,
-                                      environment, command)
+                                      environment, command, source_directories)
     try:
         result = subprocess.run(arguments, cwd=staging, env=environment)
     except OSError as error:
