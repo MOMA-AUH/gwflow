@@ -30,8 +30,10 @@ from test_example import PackagedContainerExampleTests
 class DeploymentTests(LocalBackendTestCase):
     def configure_workflow(self):
         program = (
-            "import importlib.metadata as m,json,platform,shutil,subprocess,sys; "
+            "import importlib.metadata as m,json,os,platform,shutil,subprocess,sys; "
             "print(json.dumps({'node':platform.node(),'python':sys.version,"
+            f"'bookkeeping_identity':{{'device':os.stat({str(self.work / '.gwf')!r}).st_dev,"
+            f"'inode':os.stat({str(self.work / '.gwf')!r}).st_ino}},"
             "'packages':{n:m.version(n) for n in ('gwf','gwflow','gwflow-summary-task','gwflow-report-task')},"
             "'apptainer_path':shutil.which('apptainer'),"
             "'apptainer':subprocess.check_output(['apptainer','--version'],text=True).strip()}))"
@@ -236,6 +238,7 @@ def main():
     scratch.mkdir()
     tempfile.tempdir = str(scratch)
     metadata = {"backend": args.backend, "platform": platform.platform(), "python": sys.version,
+                "frontend_node": platform.node(), "frontend_device": root.stat().st_dev,
                 "apptainer": version, "apptainer_path": shutil.which("apptainer"),
                 "packages": {name: importlib.metadata.version(name) for name in
                              ("gwf", "gwflow", "gwflow-summary-task", "gwflow-report-task")}}

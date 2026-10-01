@@ -14,6 +14,7 @@ from gwf.utils import is_valid_name
 
 from . import _files, images, inputs, staging
 from .commands import Command, shell
+from .storage_identity import StorageIdentity, allocate_witness
 from .workflow import RetainedOutput, TargetOutput, relative_path, validate_destinations
 
 
@@ -342,15 +343,19 @@ class Store:
             raise WorkflowError("Results staging must share the results filesystem; configure results_staging_root")
 
     def validate_roots(self):
+        self.storage = StorageIdentity(self.locations, self.owner)
+
+    def ensure_root_witnesses(self):
+        """Upgrade proven legacy roots at a writing frontend, never in previews."""
+        self.validate_roots()
+        witnesses = dict(self.owner.get("root_witnesses", {}))
         for key, path in self.locations.items():
-            if not _files.exists(path):
-                continue
-            found = _files.identity(path)
-            if self.owner is not None:
-                expected = self.owner.get("root_identity", {}).get(key)
-                pending = self.owner.get(f"{key}_recreation") if key != "book" else None
-                if expected != found and (pending is None or pending["identity"] != found):
-                    raise WorkflowError(f"Managed root identity changed: {path}")
+            if key not in witnesses and _files.exists(path):
+                witnesses[key] = allocate_witness(path)
+        if witnesses != self.owner.get("root_witnesses"):
+            self.owner = {**self.owner, "root_witnesses": witnesses}
+            _files.publish(self.owner_path, self.owner)
+        self.validate_roots()
 
     def root_needs_recreation(self, key):
         return self.owner is not None and (self.owner.get(f"{key}_recreation") is not None
@@ -369,20 +374,25 @@ class Store:
             with _files.directory(source.parent, create=True) as parent:
                 os.mkdir(source.name, dir_fd=parent)
                 _files.sync_directory(parent)
-            pending = {"operation": operation, "source": str(source), "identity": _files.identity(source)}
+            pending = {"operation": operation, "source": str(source), "identity": self.storage.identity(source),
+                       "witness": allocate_witness(source)}
             self.owner = {**self.owner, f"{key}_recreation": pending}
             _files.publish(self.owner_path, self.owner)
         source = Path(pending["source"])
         if _files.exists(root):
-            if _files.identity(root) != pending["identity"] or _files.exists(source):
+            if self.storage.identity(root) != pending["identity"] or _files.exists(source):
                 raise WorkflowError(f"{key.capitalize()}-root recreation destination changed")
         else:
-            if _files.identity(source) != pending["identity"]:
+            if self.storage.identity(source) != pending["identity"]:
                 raise WorkflowError(f"{key.capitalize()}-root recreation staging ownership changed")
-            _files.commit_directory(source, root)
+            self.storage.commit(source, root, expected=pending["identity"])
         self.owner = {**self.owner, "root_identity": {**self.owner["root_identity"], key: pending["identity"]}}
+        witnesses = dict(self.owner.get("root_witnesses", {}))
+        witnesses[key] = pending.get("witness") or allocate_witness(root)
+        self.owner["root_witnesses"] = witnesses
         del self.owner[f"{key}_recreation"]
         _files.publish(self.owner_path, self.owner)
+        self.validate_roots()
 
     def _task_dir(self, name):
         return self.root / "owners" / self.owner["owner"] / "tasks" / name
@@ -442,14 +452,14 @@ class Store:
                 os.mkdir(source.name, dir_fd=parent)
                 _files.sync_directory(parent)
             self.publish(attempt, "staging.json", "staging-directory", operation=attempt["operation"],
-                         allocation=allocation, source=str(source), destination=str(destination), identity=_files.identity(source))
+                         allocation=allocation, source=str(source), destination=str(destination), identity=self.storage.identity(source))
             record = self.staging_record(attempt)
         source = Path(record["source"])
         if _files.exists(destination):
-            if _files.identity(destination) != record["identity"] or _files.exists(source):
+            if self.storage.identity(destination) != record["identity"] or _files.exists(source):
                 raise WorkflowError("Transfer staging directory ownership changed")
         else:
-            _files.commit_directory(source, destination, expected=record["identity"])
+            self.storage.commit(source, destination, expected=record["identity"])
         return destination
 
     def staging_directories(self, attempt):
@@ -778,7 +788,7 @@ class Store:
         if (manifest.get("sources") != sources
                 or manifest.get("retained") != attempt["structure"]["retained"]
                 or manifest.get("destination") != str(self.result_dir(attempt))
-                or manifest.get("staged_identity") != _files.identity(self.result_dir(attempt))):
+                or manifest.get("staged_identity") != self.storage.identity(self.result_dir(attempt))):
             return False
         return _files.metadata(self.result_dir(attempt), destinations) == completion["outputs"]
 
@@ -788,15 +798,15 @@ class Store:
             return None
         if self.read(attempt, "ready.json", "ready") is None:
             expected = self.initialization(attempt)["result_identity"]
-            if expected != _files.identity(destination):
+            if expected != self.storage.identity(destination):
                 raise WorkflowError(f"Previous results ownership changed during initialization: {destination}")
             return expected
         if not _files.exists(self.record_path(attempt, "completion.json")):
             transfer = self.transfer_ownership(attempt)
-            if transfer is not None and _files.identity(destination) in (transfer["staged_identity"], transfer["replaces"]):
-                return _files.identity(destination)
+            if transfer is not None and self.storage.identity(destination) in (transfer["staged_identity"], transfer["replaces"]):
+                return self.storage.identity(destination)
             repair = self.repair_intent(attempt)
-            if repair is not None and repair["result_identity"] == _files.identity(destination):
+            if repair is not None and repair["result_identity"] == self.storage.identity(destination):
                 return repair["result_identity"]
         manifest = self.read(attempt, "manifest.json", "manifest", operation=attempt["operation"])
         if (manifest is None or manifest.get("destination") != str(destination)
@@ -806,7 +816,7 @@ class Store:
                 or any(not isinstance(source, dict) or source.get("execution") != attempt["executions"][local]
                        or not _valid_metadata(source.get("outputs"), attempt["structure"]["targets"][local]["outputs"])
                        for local, source in manifest["sources"].items())
-                or manifest.get("staged_identity") != _files.identity(destination)):
+                or manifest.get("staged_identity") != self.storage.identity(destination)):
             raise WorkflowError(f"Cannot establish ownership of previous results: {destination}")
         return manifest["staged_identity"]
 
@@ -842,12 +852,12 @@ class Store:
         if _files.exists(destination):
             if record["result_identity"] is None:
                 raise WorkflowError("Unexpected unowned results appeared during initialization")
-            _files.remove_directory(destination, record["result_identity"])
+            self.storage.remove(destination, record["result_identity"])
         _files.mkdir(self.workspace(attempt))
         for local in ordered_targets(attempt["structure"]):
             self.write_execution(attempt, local, attempt["commands"][local], tracking=attempt["command_tracking"])
         self.publish(attempt, "ready.json", "ready", workspace=str(self.workspace(attempt)),
-                     workspace_identity=_files.identity(self.workspace(attempt)))
+                     workspace_identity=self.storage.identity(self.workspace(attempt)))
         return attempt
 
     def initialize(self, observation, result_dir, *, tracking, managed_tmpdir, producers):
@@ -858,8 +868,10 @@ class Store:
                 _files.mkdir(path)
             self.owner = _record("owner", owner=owner, task=None, working_dir=str(self.working_dir),
                                  locations={key: str(path) for key, path in self.locations.items()},
-                                 root_identity={key: _files.identity(path) for key, path in self.locations.items()})
+                                 root_identity={key: _files.identity(path) for key, path in self.locations.items()},
+                                 root_witnesses={key: allocate_witness(path) for key, path in self.locations.items()})
             _files.publish(self.owner_path, self.owner)
+            self.validate_roots()
         if self.current(observation.name, result_dir) != observation.attempt:
             raise WorkflowError("Task selection changed before initialization")
         attempt_id, operation, preparation = uuid4().hex, uuid4().hex, uuid4().hex

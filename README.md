@@ -166,10 +166,11 @@ The frontend and computation nodes must see the image, inputs, and managed
 storage. The supported validation profile is Linux local workers and Slurm,
 Python 3.12, gwf 2.1.1, and Apptainer 1.5.4. See the
 [container validation instructions](docs/validation-v0.4.0.md) for the tested
-deployment and repeatable checks. Managed storage must expose consistent device
-and inode identities across frontend and execution hosts. A shared pathname alone
-does not establish that: validation found a BeeGFS client with a different device
-number, and the existing ownership guard refused preparation on that node.
+deployment and repeatable checks. Managed storage must expose the same directory
+inodes and ownership markers across frontend and execution hosts. Local device
+numbers may differ, including on BeeGFS clients. gwflow verifies the shared roots
+and translates device numbers into the recorded storage namespace. Local rename
+and removal checks still compare actual device and inode numbers.
 
 Container commands use `--cleanenv` and the image environment; ordinary inherited
 `PYTHONPATH` is excluded while deliberate Apptainer environment overrides remain
@@ -603,7 +604,17 @@ staged directory is renamed into results on the same filesystem. Source work
 files remain intact. Transfer preserves modification times where supported and
 records actual destination metadata separately, including filesystem precision
 differences or unsupported timestamp preservation. Results contain only retained
-files and their grouping directories.
+files and their grouping directories inside each Task's results directory.
+
+Each managed storage root also contains an empty `.gwflow-root-<UUID>` directory
+that witnesses its ownership. Keep these directories together with the managed
+records. Missing, replaced, or symlinked witnesses block use of that root. They
+do not require extended attributes or a filesystem-provided UUID.
+
+Existing records without witnesses can be upgraded by ordinary `gwf run` from a
+host on which their original device/inode checks still pass. The upgrade records
+witnesses before submitting jobs and preserves attempts, results, and directory
+identity records. Status, explain, and dry-run do not perform this upgrade.
 
 Equivalent resolved root spellings and root aliases are accepted. After initial
 use, changing recorded roots or an existing Task's `result_dir` is rejected;

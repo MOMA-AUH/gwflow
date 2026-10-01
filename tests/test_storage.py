@@ -49,6 +49,85 @@ class StoragePlacementTests(LocalBackendTestCase):
         self.assertEqual(sorted(str(path.relative_to(root)) for path in root.rglob('*') if path.is_file()),
                          ["nested/two.txt", "renamed.txt"])
 
+    def test_worker_device_numbers_do_not_change_shared_directory_ownership(self):
+        shutil.copy(FIXTURES / "job_fault.py", self.work)
+        (self.work / "job-fault.json").write_text(json.dumps({"device_offset": 10000}))
+        env = self.inject(job_fault="a")
+        self.cli("-b", "recovery_fixture", "run", env=env)
+        self.settle()
+        result = self.work / "results/samples/a/report"
+        self.assertTrue(result.exists(), self.cli("logs", "a__gwflow_prepare", "--stderr", "--no-pager"))
+        self.assert_results(result)
+        self.assertNotIn("Submitted target", self.cli("run"))
+        (result / "renamed.txt").unlink()
+        self.cli("-b", "recovery_fixture", "run", env=env)
+        self.finish()
+        self.assert_results(result)
+        self.assertEqual((self.work / "trace").read_text().splitlines(), ["compute"])
+        self.cli("clean-work", "--delete")
+        self.assertNotIn("Submitted target", self.cli("run"))
+        shutil.rmtree(self.work / "work")
+        self.cli("-b", "recovery_fixture", "run", "--force", env=env)
+        self.finish()
+        self.assert_results(result)
+        self.assertEqual((self.work / "trace").read_text().splitlines(), ["compute", "compute"])
+
+    def test_legacy_roots_upgrade_before_repair_on_another_worker(self):
+        self.run_complete()
+        path = self.work / ".gwf/gwflow/owner.json"
+        owner = json.loads(path.read_text())
+        for key, witness in owner.pop("root_witnesses").items():
+            (Path(owner["locations"][key]) / witness["name"]).rmdir()
+        path.write_text(json.dumps(owner))
+        before = path.read_bytes()
+        result = self.work / "results/samples/a/report"
+        (result / "renamed.txt").unlink()
+        self.cli("run", "--dry-run")
+        self.assertEqual(path.read_bytes(), before)
+        self.assertFalse(list(self.work.rglob(".gwflow-root-*")))
+        shutil.copy(FIXTURES / "job_fault.py", self.work)
+        (self.work / "job-fault.json").write_text(json.dumps({"device_offset": 10000}))
+        self.cli("-b", "recovery_fixture", "run", env=self.inject(job_fault="a"))
+        self.finish()
+        self.assert_results(result)
+        upgraded = json.loads(path.read_text())
+        self.assertEqual(upgraded["root_identity"], owner["root_identity"])
+        self.assertEqual(upgraded["root_witnesses"].keys(), owner["locations"].keys())
+        self.assertEqual((self.work / "trace").read_text().splitlines(), ["compute"])
+
+    def test_changed_root_witness_blocks_mutation_without_adopting_storage(self):
+        self.run_complete()
+        owner_path = self.work / ".gwf/gwflow/owner.json"
+        owner = json.loads(owner_path.read_text())
+        witness = self.work / "results" / owner["root_witnesses"]["results"]["name"]
+        saved = witness.with_name("saved-witness")
+        witness.rename(saved)
+        result = self.work / "results/samples/a/report"
+        for replacement in ("missing", "new directory", "symlink"):
+            with self.subTest(replacement=replacement):
+                if replacement == "new directory":
+                    witness.mkdir()
+                elif replacement == "symlink":
+                    witness.symlink_to(saved, target_is_directory=True)
+                output = self.cli("run", "--force", success=False)
+                self.assertRegex(output, "identity changed|symlink")
+                self.assert_results(result)
+                if witness.is_symlink():
+                    witness.unlink()
+                elif witness.exists():
+                    witness.rmdir()
+        saved.rename(witness)
+        self.assertNotIn("Submitted target", self.cli("run"))
+
+    def test_copied_root_with_witness_is_not_adopted(self):
+        self.run_complete()
+        original, saved = self.work / "results", self.work / "saved-results"
+        original.rename(saved)
+        shutil.copytree(saved, original)
+        self.assertIn("Managed root identity changed", self.cli("run", "--force", success=False))
+        self.assert_results(original / "samples/a/report")
+        self.assert_results(saved / "samples/a/report")
+
     def test_work_on_separate_filesystem_keeps_sources_and_uses_default_staging(self):
         remote = self.separate_filesystem()
         self.configure_workflow(settings=f"work_root={str(remote / 'scratch')!r}")

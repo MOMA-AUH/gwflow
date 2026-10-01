@@ -35,8 +35,8 @@ def _manifest(store, attempt, sources, record):
     return manifest
 
 
-def _checked_set(root, manifest):
-    return (_files.identity(root) == manifest["staged_identity"]
+def _checked_set(store, root, manifest):
+    return (store.storage.identity(root) == manifest["staged_identity"]
             and _files.file_set(root) == set(manifest["outputs"])
             and _files.metadata(root, manifest["outputs"]) == manifest["outputs"])
 
@@ -87,25 +87,25 @@ def inspect(store, attempt):
     sources = _sources(store, attempt, check_files=False)
     record = store.transfer_ownership(attempt)
     staging = store.staging_record(attempt)
-    if staging is not None and _files.exists(staging["destination"]) and _files.identity(staging["destination"]) != staging["identity"]:
+    if staging is not None and _files.exists(staging["destination"]) and store.storage.identity(staging["destination"]) != staging["identity"]:
         raise WorkflowError("Transfer staging directory ownership changed")
     repair = store.repair_intent(attempt)
     if repair is not None and repair["sources"] != sources:
         raise InvalidSources("Repair source execution evidence changed")
     destination = store.result_dir(attempt)
-    identity = _files.identity(destination) if _files.exists(destination) else None
+    identity = store.storage.identity(destination) if _files.exists(destination) else None
     installed = identity is not None and record is not None and identity == record["staged_identity"]
     old = identity is not None and (repair is not None and identity == repair["result_identity"]
                                     or record is not None and identity == record["replaces"])
     if identity is not None and not (installed or old):
         raise WorkflowError("Cannot establish ownership of installed transfer results")
     if record is not None and _files.exists(Path(record["staging"])):
-        if _files.identity(Path(record["staging"])) != record["staged_identity"]:
+        if store.storage.identity(Path(record["staging"])) != record["staged_identity"]:
             raise WorkflowError("Transfer staging ownership changed")
     try:
         manifest = _manifest(store, attempt, sources, record)
         root = destination if installed else Path(manifest["staging"])
-        if _checked_set(root, manifest):
+        if _checked_set(store, root, manifest):
             if installed:
                 if repair is not None:
                     _installation(store, attempt, manifest)
@@ -126,12 +126,12 @@ def _prepare(store, attempt, previous, removal):
     sources = _sources(store, attempt, check_files=True)
     directory = store.ensure_staging(attempt)
     if previous is not None and _files.exists(Path(previous["staging"])):
-        _files.remove_directory(Path(previous["staging"]), previous["staged_identity"])
+        store.storage.remove(Path(previous["staging"]), previous["staged_identity"])
     copy = uuid4().hex
     staging = directory / copy
     _files.mkdir(staging)
     store.publish(attempt, "transfer.json", "transfer", operation=attempt["operation"], copy=copy,
-                  staging=str(staging), destination=str(store.result_dir(attempt)), staged_identity=_files.identity(staging),
+                  staging=str(staging), destination=str(store.result_dir(attempt)), staged_identity=store.storage.identity(staging),
                   replaces=removal)
     retained = attempt["structure"]["retained"]
     for item in retained.values():
@@ -155,7 +155,7 @@ def _prepare(store, attempt, previous, removal):
     store.publish(attempt, "manifest.json", "manifest", operation=attempt["operation"],
                   sources=sources, retained=retained, outputs=copied, destination=str(store.result_dir(attempt)),
                   copy=copy, staging=str(staging),
-                  staged_identity=_files.identity(staging), replaces=removal)
+                  staged_identity=store.storage.identity(staging), replaces=removal)
     return _manifest(store, attempt, sources, store.transfer_ownership(attempt))
 
 
@@ -168,19 +168,19 @@ def finish(store, attempt):
         raise WorkflowError("Current Task attempt changed before results commit")
     store.check_inputs(attempt)
     if recovery.action == "complete":
-        if not _checked_set(store.result_dir(attempt), manifest):
+        if not _checked_set(store, store.result_dir(attempt), manifest):
             raise WorkflowError("Installed transfer changed before Completion")
     else:
         staging = Path(manifest["staging"])
-        if not _checked_set(staging, manifest):
+        if not _checked_set(store, staging, manifest):
             raise WorkflowError("Prepared transfer changed before installation")
         if store.repair_intent(attempt) is not None:
             store.publish(attempt, "installation.json", "installation", operation=attempt["operation"],
                           copy=manifest["copy"], staged_identity=manifest["staged_identity"],
                           destination=manifest["destination"], removal=recovery.removal)
         if recovery.removal is not None:
-            _files.remove_directory(store.result_dir(attempt), recovery.removal)
-        _files.commit_directory(staging, store.result_dir(attempt), expected=manifest["staged_identity"])
+            store.storage.remove(store.result_dir(attempt), recovery.removal)
+        store.storage.commit(staging, store.result_dir(attempt), expected=manifest["staged_identity"])
     destination_metadata = _files.metadata(store.result_dir(attempt), manifest["outputs"])
     store.publish(attempt, "installed.json", "installed", operation=attempt["operation"], outputs=destination_metadata)
     store.publish(attempt, "completion.json", "completion", operation=attempt["operation"], outputs=destination_metadata,

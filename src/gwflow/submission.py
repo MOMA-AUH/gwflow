@@ -93,6 +93,8 @@ def submit_plan(plan, workflow, ctx, *, dry_run):
         if recreate:
             for key in recreate:
                 plan.store.recreate_root(key)
+    if plan.store.owner is not None:
+        plan.store.ensure_root_witnesses()
     selected = []
     for task in plan.tasks:
         if task.action in ("fresh", "initialize", "prepare", "continue", "retry", "transfer", "repair"):
