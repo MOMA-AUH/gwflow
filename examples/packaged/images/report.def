@@ -1,0 +1,12 @@
+Bootstrap: docker
+From: python:3.12-slim-bookworm
+
+%files
+    examples/packaged/packages/report-task /opt/report-task
+
+%post
+    python -m pip install --no-deps /opt/report-task
+
+%test
+    python -c 'import importlib.util; assert importlib.util.find_spec("gwflow") is None'
+    python -m report_task --help

@@ -10,6 +10,7 @@ graphs and retained-output consumers, and
 [#96](https://github.com/MOMA-AUH/gwflow/issues/96) covers custom staged names.
 [#97](https://github.com/MOMA-AUH/gwflow/issues/97) covers environment and scratch.
 [#98](https://github.com/MOMA-AUH/gwflow/issues/98) validates failure, retry and repair.
+[#99](https://github.com/MOMA-AUH/gwflow/issues/99) adds the packaged container demonstration.
 Final live Slurm acceptance remains for the dependent
 implementation tickets. This is implementation validation, without
 release publication or deployment provisioning.
@@ -24,12 +25,17 @@ python -m pip install .
 python -m pip install ./examples/packaged/packages/summary-task ./examples/packaged/packages/report-task
 mkdir -p build/validation
 apptainer build build/validation/basic.sif tests/fixtures/container.def
+apptainer build build/validation/summary.sif examples/packaged/images/summary.def
+apptainer build build/validation/report.sif examples/packaged/images/report.def
 export GWFLOW_TEST_SIF="$PWD/build/validation/basic.sif"
+export GWFLOW_TEST_SUMMARY_SIF="$PWD/build/validation/summary.sif"
+export GWFLOW_TEST_REPORT_SIF="$PWD/build/validation/report.sif"
 python -m unittest discover -s tests -p test_containers.py -v
 python -m unittest discover -s tests -p test_staging.py -v
 python -m unittest discover -s tests -p test_container_graphs.py -v
 python -m unittest discover -s tests -p test_container_environment.py -v
 python -m unittest discover -s tests -p test_container_recovery.py -v
+python -m unittest discover -s tests -p test_example.py -v
 python -m unittest discover -s tests -v
 python tests/release_smoke.py
 ```
@@ -53,10 +59,12 @@ was the upstream `apptainer-1.5.4-1.x86_64.rpm`, unpacked below the ignored
 the extracted configuration and state directories; system Apptainer was not
 modified. `apptainer --version` reported `1.5.4-1`.
 
-Installed-package validation uses a built wheel with source metadata `0.3.1`
+The #93–98 installed-package validation used a built wheel with source metadata `0.3.1`
 and the new image-aware record requirements, plus summary/report packages
-`0.2.0`. This development slice does not change release versions; all test state
-is freshly created by the implementation under test.
+`0.2.0`. The #99 package metadata advances to gwflow `0.4.0` and example packages
+`0.3.0`, which require gwflow `>=0.4,<0.5`. These are local/CI artifacts, without
+a release tag or publication. All test state is freshly created by the
+implementation under test.
 
 The fixture's recorded OCI base was `docker.io/library/python:3.12-slim-bookworm`,
 digest `sha256:392307d22300de8b5986851a12d9176dfc0fc073e65bf6523ebd7dcbeb23564e`.
@@ -227,10 +235,30 @@ writing output, and zero-exit missing/nonregular output sets. The full host grap
 transfer, repair and inspection suites continue to test the shared lifecycle's
 additional interruption boundaries. No separate container recovery loop is added.
 
+The #98 final-commit [CI run](https://github.com/MOMA-AUH/gwflow/actions/runs/36891933045)
+passed all 247 tests against the pip-installed package with real Apptainer and
+no skips. The Conda artifact suite passed with 36 explicit runtime skips and
+its packaged smoke. The seven new recovery checks and two host recovery
+regressions also passed locally.
+
+The #99 demonstration in [test_example.py](../tests/test_example.py) uses separate
+prepared summary/report images and independently installed host factories.
+The image build tests check that gwflow is absent and the package command module
+loads. The workflow completes A/B, verifies a byte/mtime-preserving cleanup
+preview, deletes their work, then adds C via retained references. Only C computes;
+its staged `sales/summary.csv` and `returns/summary.csv` symlinks resolve to the
+respective retained files. The exact report has rows `apples,17,2,15` and
+`pears,8,1,7`; A/B work remains absent, normal logs remain readable, and unchanged
+runs submit no jobs. The original installed host scenario remains covered.
+See the [public demonstration instructions](../examples/packaged/README.md) for
+image preparation and local/Slurm usage. CI prepares all three images for the
+installed-package suite; the Conda artifact job explicitly skips runtime cases
+while checking the complete host suite and packaged smoke.
+
 ## Limits and remaining evidence
 
-These slices do not establish the packaged container A/B/C demonstration or
-live Slurm container acceptance. Those are required by the remaining tickets and
+These slices do not establish live Slurm container acceptance. That is required
+by the final validation ticket and
 must be recorded before declaring the parent specification complete. The runtime
 record establishes no broader Apptainer or non-Linux compatibility claim.
 
