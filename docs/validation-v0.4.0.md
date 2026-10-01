@@ -9,6 +9,7 @@ frontend image identity, external-input staging, failure, and cleanup/Reuse.
 graphs and retained-output consumers, and
 [#96](https://github.com/MOMA-AUH/gwflow/issues/96) covers custom staged names.
 [#97](https://github.com/MOMA-AUH/gwflow/issues/97) covers environment and scratch.
+[#98](https://github.com/MOMA-AUH/gwflow/issues/98) validates failure, retry and repair.
 Final live Slurm acceptance remains for the dependent
 implementation tickets. This is implementation validation, without
 release publication or deployment provisioning.
@@ -28,6 +29,7 @@ python -m unittest discover -s tests -p test_containers.py -v
 python -m unittest discover -s tests -p test_staging.py -v
 python -m unittest discover -s tests -p test_container_graphs.py -v
 python -m unittest discover -s tests -p test_container_environment.py -v
+python -m unittest discover -s tests -p test_container_recovery.py -v
 python -m unittest discover -s tests -v
 python tests/release_smoke.py
 ```
@@ -189,10 +191,45 @@ run no-input commands in real Apptainer to demonstrate the scratch variants:
   `/tmp`; those files survive eligible work cleanup, while managed scratch does
   not. This demonstrates the documented boundary for commands ignoring TMPDIR.
 
+The #97 final-commit [CI run](https://github.com/MOMA-AUH/gwflow/actions/runs/36888907567)
+passed all 240 tests against the pip-installed package with real Apptainer and
+no skips. The Conda artifact suite passed with 29 explicit runtime skips plus
+packaged smoke. The five new environment checks and existing host TMPDIR check
+also passed together locally.
+
+The #98 checks in [test_container_recovery.py](../tests/test_container_recovery.py)
+exercise the existing recovery lifecycle with actual container computation:
+
+- One branch succeeds while another writes a partial output and fails. The
+  dependent does not run and no retained result appears. Correcting the untracked
+  deployment condition permits ordinary same-attempt retry; only the failed
+  branch and its dependent compute, using new work and TMPDIR. Abandoned files
+  remain owned until eligible cleanup.
+- Damaged retained results repair from checked work without repeating commands.
+  A deterministic interruption during copying leaves old results intact. Recovery
+  retains the attempt and restores the original metadata, even with Apptainer
+  unavailable in the finishing job's PATH.
+- Unavailable images block repair, partial retry, and transfer continuation without
+  changing existing results or evidence. Restoring matching identity restores
+  the corresponding decision. Changing image metadata after a preview makes a
+  subsequent run refresh the entire Task, including successful siblings.
+- Prepared transfer continuation observes images at the frontend. A scheduled
+  host finishing operation held at a fixture gate completes even if the image
+  becomes unavailable afterward; scheduled operations add no identity recheck.
+- Controlled queued/running dependents block retry replacement. Active producer
+  work defers repair; active or uncertain consumers, including removed declarations,
+  and insufficient ownership prevent repair replacement. Preview and refused-run
+  snapshots preserve managed file contents and timestamps.
+
+The launch and output failure cases remain covered by `test_containers.py`:
+missing Apptainer, unusable SIF, missing image software, nonzero exits after
+writing output, and zero-exit missing/nonregular output sets. The full host graph,
+transfer, repair and inspection suites continue to test the shared lifecycle's
+additional interruption boundaries. No separate container recovery loop is added.
+
 ## Limits and remaining evidence
 
-These slices do not establish the full retry/repair matrix,
-the packaged container A/B/C demonstration, or
+These slices do not establish the packaged container A/B/C demonstration or
 live Slurm container acceptance. Those are required by the remaining tickets and
 must be recorded before declaring the parent specification complete. The runtime
 record establishes no broader Apptainer or non-Linux compatibility claim.

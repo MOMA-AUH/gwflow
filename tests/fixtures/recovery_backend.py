@@ -49,6 +49,8 @@ class RecoveryBackend(TrackingBackend):
     def status(self, target):
         if self.options.get("queued_prefix") and target.name.startswith(self.options["queued_prefix"] + "__"):
             return BackendStatus.SUBMITTED
+        if self.options.get("running_prefix") and target.name.startswith(self.options["running_prefix"] + "__"):
+            return BackendStatus.RUNNING
         if self.options.get("hold_observation"):
             (self.work / "observation-held").touch()
             wait_for(lambda: (self.work / "observation-release").exists())

@@ -432,6 +432,14 @@ valid baselines for every selected execution. Interrupted output sets without
 success evidence are rerun, and abandoned work remains owned for later cleanup.
 Status, explain, and dry-run show planned retries without allocating executions.
 
+The same retry rules apply to container commands. Correcting a deployment
+problem while keeping the selected image identity unchanged permits an ordinary
+retry with fresh private work and TMPDIR, preserving eligible successful siblings.
+Nonzero commands, unusable images, missing image software or Apptainer, and
+invalid output sets establish no successful execution; there is no host fallback.
+A changed selected image instead requires a fresh whole-Task attempt, including
+previously successful targets, independently of command hashes.
+
 An ordinary run starts a fresh attempt when declared structure, tracked commands,
 input metadata, or a bound producer attempt changes. Declaration order alone does
 not count as a change. Refresh selected exact Task names, or every Task, with:
@@ -480,6 +488,16 @@ Restored metadata that still matches permits consumer reuse. Different destinati
 timestamp precision can instead require new consumer computation, even though the
 producer attempt stays the same. Missing results or staging roots are recreated
 only after guarded ownership and inactivity checks.
+
+Container result repair is a host-side transfer from checked work; it does not
+rerun authored commands or require Apptainer in the finishing job. All selected
+images must still be observable with matching identity at the frontend.
+An unavailable image blocks repair or continuation while preserving existing
+results; restoring matching identity resumes the usual decision. A changed image
+requires fresh computation instead of repairing from older work. Previews make
+the same distinction without mutations, and run observes metadata again.
+Already scheduled lifecycle jobs do not recheck image identity, so deployments
+must keep the selected images stable after submission.
 
 Use `gwf clean-work` to preview completed-work cleanup. It lists recorded Tasks,
 attempt UUIDs, workspace and staging locations, eligibility, and reasons. Add
