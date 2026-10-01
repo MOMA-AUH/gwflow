@@ -43,11 +43,11 @@ switch omits C's declaration so it can be added later:
 
 ```sh
 GWFLOW_EXAMPLE_REPORT=0 gwf -b local run
-GWFLOW_EXAMPLE_REPORT=0 gwf -b local status --details
+GWFLOW_EXAMPLE_REPORT=0 gwf -b local status
 ```
 
 Submission returns immediately. Wait until status reports both Tasks as
-`reusable work-present`, then preview and delete their eligible work:
+`reusable` with `work-present`, then preview and delete their eligible work:
 
 ```sh
 GWFLOW_EXAMPLE_REPORT=0 gwf -b local clean-work
@@ -59,9 +59,12 @@ inspect status until it also becomes reusable:
 
 ```sh
 gwf -b local run
-gwf -b local status --details
+gwf -b local status
 cat results/net/net.csv
 ```
+
+Use `gwf -b local status --details` when debugging to include lifecycle reasons,
+attempts, paths, execution submissions, and log locations.
 
 Only C computes, using the producers' retained files while A/B work remains
 absent. The exact report is:

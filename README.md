@@ -46,7 +46,7 @@ Run and inspect through gwf:
 gwf explain --details
 gwf run --dry-run
 gwf run
-gwf status --details
+gwf status
 gwf logs hello__write --no-pager
 ```
 
@@ -55,13 +55,45 @@ Submission returns without waiting for computation. Run all frontend commands
 for a workflow on one physical frontend; a guard serializes submission and
 inspection through backend tracking persistence.
 
-`gwf status` separates current condition from the next planned action. It
-distinguishes reusable work-present/work-cleaned Tasks, incomplete computation,
-results transfer (including active finishing), repair-needed results, deferred
-producer inputs, and blocked activity. `--details` adds attempt UUIDs, workspace,
-results and staging paths, expected producer attempts, active consumers, and the
-mapping from public Task/local target names to execution submissions, backend job
-IDs, and log files.
+`gwf status` shows a compact colored tree. Reusable and pending Tasks stay on one
+line; submitted, running, failed, canceled, and blocked Tasks expand their local
+target names. Selecting a Task also expands it. For example:
+
+```text
++ Task sample_a                reusable         work-cleaned
+~ Task sample_b                running          1/3 targets completed
+  |-- + align                 completed
+  |-- ~ sort                  running
+  `-- . index                 pending
+```
+
+Colors distinguish pending (magenta), submitted (cyan), running (blue), reusable
+or completed (green), failed or canceled (red), and blocked or recovery conditions
+(yellow). Symbols and labels remain readable when piped or with `gwf --no-color
+status`. Counts include computation targets only. Preparation and completion jobs
+appear when running or problematic, explicitly selected, or requested with
+`--details`. Work-cleaned reuse, results transfer, repair-needed results, deferred
+producer inputs, and blocked activity remain distinct; finishing computation alone
+does not mark a Task reusable.
+
+Use `gwf status --details` for debugging. It expands the tree and adds the current
+condition, next planned action, full reason, attempt UUIDs, workspace, results and
+staging paths, expected producer attempts, active consumers, and the mapping from
+public Task/local target names to execution submissions, backend job IDs, and logs.
+
+Task names and public names such as `sample_b__sort` accept glob patterns. `--group`
+filters target groups (also accepting patterns). In tree view, `--status` matches
+Task or target states, retaining the parent Task for context; pending, waiting,
+repair and transfer recovery use `shouldrun`, reusable uses `completed`, and blocked
+uses `failed`. A matching Task expands its selected children, including siblings
+in other states. A failed target remains failed when a retry is planned.
+`--endpoints` shows Tasks whose retained outputs have no declared consumers.
+
+For managed workflows, `--format default` lists public computation targets,
+`--format summary` counts those targets by state, and `--format grouped` counts
+them by target group. In these formats, state filters apply to individual targets;
+lifecycle jobs are excluded, and `--details` requires the tree format. Ordinary
+gwf workflows retain their original formats and target endpoint filtering.
 
 `gwf explain` and `gwf run --dry-run` report the same lifecycle decisions used by
 run: Reuse, same-attempt retry or preparation, submission continuation, transfer,
