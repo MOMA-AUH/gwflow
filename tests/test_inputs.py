@@ -121,7 +121,8 @@ class ExternalInputTests(LocalBackendTestCase):
             with self.subTest(content=content, mtime=mtime):
                 source.write_bytes(content)
                 os.utime(source, ns=(info.st_atime_ns, mtime))
-                for command in (("explain",), ("status",)):
+                self.assertRegex(self.cli("status"), r"Task sample\s+pending\s+0/1 target completed; fresh computation required")
+                for command in (("explain",), ("status", "--details")):
                     self.assertIn("fresh attempt", self.cli(*command))
                 self.assertIn("fresh attempt", self.cli("run", "--dry-run"))
                 self.assertEqual({path: path.read_bytes() for path in evidence}, evidence)

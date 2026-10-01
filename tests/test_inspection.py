@@ -105,16 +105,18 @@ class LifecycleInspectionTests(LocalBackendTestCase):
         self.assertEqual(self.cli("logs", "sample__right", "--no-pager"), latest_log)
 
     def test_compact_status_distinguishes_condition_from_next_action_and_cleaned_work(self):
-        self.assertIn("Task a: incomplete computation; next: fresh", self.cli("status"))
+        self.assertRegex(self.cli("status"), r"Task a\s+pending\s+0/1 target completed")
+        self.assertIn("Next: fresh", self.cli("status", "a", "--details"))
         self.run_complete()
-        self.assertIn("Task a: reusable work-present; next: reuse", self.cli("status"))
+        self.assertRegex(self.cli("status"), r"Task a\s+reusable\s+1/1 target completed; work-present")
         (self.work / "results/a/result.txt").unlink()
-        self.assertIn("Task a: repair-needed; next: repair", self.cli("status"))
+        self.assertRegex(self.cli("status"), r"Task a\s+repair needed\s+retained results damaged")
+        self.assertIn("Next: repair", self.cli("status", "a", "--details"))
         self.cli("run")
         self.finish()
         self.cli("clean-work", "--delete", "--task", "a")
         before = self.snapshot()
-        self.assertIn("Task a: reusable work-cleaned; next: reuse", self.cli("status"))
+        self.assertRegex(self.cli("status"), r"Task a\s+reusable\s+work-cleaned")
         self.assertEqual(self.snapshot(), before)
 
     def test_changed_structure_and_commands_have_specific_reasons(self):
@@ -178,7 +180,7 @@ class LifecycleInspectionTests(LocalBackendTestCase):
         self.assertNotIn("Would submit", preview)
         self.run_previewed(preview, success=False)
         self.assertFalse((self.work / "trace").exists())
-        self.assertIn("Task a: blocked activity", self.cli("status"))
+        self.assertRegex(self.cli("status"), r"Task a\s+blocked")
 
     def test_active_work_previews_no_duplicate_admission_and_force_reports_conflicts(self):
         held, release = self.work / "held", self.work / "release"
@@ -195,7 +197,7 @@ class LifecycleInspectionTests(LocalBackendTestCase):
             preview = self.preview("--force-task", "a", success=False)
             self.assertIn("active work blocks replacement", preview)
             self.run_previewed(preview, "--force-task", "a", success=False)
-            self.assertIn("Task a: incomplete computation (active)", self.cli("status"))
+            self.assertRegex(self.cli("status"), r"Task a\s+running")
         finally:
             release.touch()
         self.finish()
@@ -304,7 +306,8 @@ class FinishingInspectionTests(LocalBackendTestCase):
         self.settle()
         preview = self.preview()
         self.assertIn("Task a: transfer;", preview)
-        self.assertIn("Task a: results transfer; next: transfer", self.cli("status"))
+        self.assertRegex(self.cli("status"), r"Task a\s+results transfer\s+recovery needed")
+        self.assertIn("Next: transfer", self.cli("status", "--details"))
         self.run_previewed(preview)
         self.settle()
         self.assertEqual((self.work / "trace").read_text().splitlines(), ["compute"])
@@ -315,7 +318,8 @@ class FinishingInspectionTests(LocalBackendTestCase):
         try:
             preview = self.preview()
             self.assertIn("Task a: active;", preview)
-            self.assertIn("Task a: results transfer (active); next: active", self.cli("status"))
+            self.assertRegex(self.cli("status"), r"Task a\s+results transfer\s+running")
+            self.assertNotIn("reusable", self.cli("status"))
             self.run_previewed(preview)
         finally:
             (self.work / "manifest-release").touch()
