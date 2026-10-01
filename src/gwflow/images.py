@@ -49,15 +49,20 @@ def valid(observations, targets):
                     and type(value["mtime_ns"]) is int for value in observations.values()))
 
 
-def mount(path):
+def mount(path, *, readonly=False):
     value = io.StringIO()
-    csv.writer(value, lineterminator="").writerow(["type=bind", f"src={path}", f"dst={path}"])
+    fields = ["type=bind", f"src={path}", f"dst={path}"]
+    if readonly:
+        fields.append("ro")
+    csv.writer(value, lineterminator="").writerow(fields)
     return value.getvalue()
 
 
-def invocation(image, work, temporary, environment, command):
-    arguments = ["apptainer", "exec", "--cleanenv", "--no-eval", "--pwd", str(work),
-                 "--mount", mount(work)]
+def invocation(image, work, temporary, environment, command, source_directories=()):
+    arguments = ["apptainer", "exec", "--cleanenv", "--no-eval", "--pwd", str(work)]
+    for source in source_directories:
+        arguments.extend(["--mount", mount(source, readonly=True)])
+    arguments.extend(["--mount", mount(work)])
     if temporary is not None:
         arguments.extend(["--mount", mount(temporary)])
         environment["APPTAINERENV_TMPDIR"] = str(temporary)

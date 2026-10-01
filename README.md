@@ -179,6 +179,32 @@ cannot establish successful execution or Completion; zero exit still requires
 the complete declared regular-file output set. Existing work cleanup and Reuse
 apply to container Tasks as well.
 
+Declared external inputs of a container target are staged as symlinks in its
+private work directory, using the declared input basenames. `shell()` bindings
+continue to name the original inputs and render to these staged files, with the
+same quoting contract. Literal commands may use their basenames directly. The
+effective layout is tracked as Task structure even when command hashes are off.
+Duplicate basenames, invalid managed relative paths, and input/output collisions
+(including file/directory ancestry) are rejected before submission.
+
+For a tool expecting `genome.fa` beside `genome.fa.fai`, declare both source files
+in the Task boundary and target inputs. Both are then staged under those names;
+gwflow does not discover companions or silently rename conflicting inputs.
+Targets without `image=` continue reading their inputs in place.
+
+gwflow stages links to the checked resolved sources and requests their parent
+directories read-only, plus writable private work and managed TMPDIR. Sources
+behind file or parent-directory symlinks remain readable. A source directory may
+contain the private work directory: its source mount stays read-only while the
+explicit work and scratch mounts are writable. Tools needing writable input
+data must copy it into private work themselves.
+
+Ordinary Apptainer, site, and environment mounts remain in effect. Source-directory
+mounts can expose neighboring files; accessibility does not add a declared
+dependency or a Reuse key. These requested permissions do not promise individual
+file isolation or audit every alternate writable alias supplied by the deployment.
+Deployment owners are responsible for conflicting mount settings.
+
 Declare external files in both the Task boundary and each target that reads them:
 
 ```python
