@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from gwf.backends import BackendStatus, create_backend
 from gwf.exceptions import WorkflowError
 
-from . import _files, admission, inputs, transfer
+from . import _files, admission, images, inputs, transfer
 from .lifecycle import Store, TaskObservation, declarations, ordered_tasks, ordered_targets, producer_names, target_dependencies
 from .workflow import lifecycle_jobs
 
@@ -31,6 +31,10 @@ def definition_change(store, observation, selected, *, force_option, tracking, i
     attempt = observation.attempt
     if force_option:
         return f"requested {force_option}"
+    if observation.images != attempt["images"]:
+        changed = sorted(local for local in observation.images.keys() | attempt["images"].keys()
+                         if observation.images.get(local) != attempt["images"].get(local))
+        return "changed images: " + ", ".join(changed)
     if observation.structure != attempt["structure"]:
         labels = {"inputs": "external inputs", "targets": "target membership or file declarations", "retained": "retained mappings"}
         changed = [label for key, label in labels.items() if observation.structure[key] != attempt["structure"][key]]
@@ -202,6 +206,13 @@ def plan_workflow(workflow, ctx, *, force=False, force_tasks=()):
             structure, commands = declared[name]
             attempt = store.current(name, workflow._result_dirs[name])
             observation = TaskObservation(name, "fresh", "no completed managed attempt", structure, commands, attempt)
+            try:
+                observation.images = images.observe(workflow._task_declarations[name], store.working_dir)
+            except WorkflowError as error:
+                observation.action, observation.reason = "blocked", str(error)
+                tasks.append(observation)
+                selected[name] = observation
+                continue
             if attempt is not None:
                 try:
                     initializing = store.read(attempt, "ready.json", "ready") is None

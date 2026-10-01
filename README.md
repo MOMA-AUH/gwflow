@@ -12,7 +12,7 @@ producers, cleaning their work, then computing a new consumer from retained
 results. The [validation record](docs/validation-v0.3.0.md) maps the release
 acceptance matrix to tests and infrastructure observations.
 
-Factories must use the managed API. Existing v0.2 factories and records have no
+Factories must use the managed API. Unsupported pre-1.0 factories and records have no
 automatic conversion, migration, or adoption path; initialized storage cannot be
 relocated. Ordinary authored top-level targets are not supported in a managed
 Workflow.
@@ -128,6 +128,56 @@ by default. `Workflow(managed_tmpdir=False)` preserves environment-selected
 file placeholders, quotes each substituted path as one shell argument, and uses
 `{{`/`}}` for literal braces. Do not quote the placeholders yourself. Fixed-name
 outputs can be declared without being bound into the command.
+
+Targets can select a deployment-provided local Apptainer SIF explicitly:
+
+```python
+task = Task(inputs=[])
+run = task.target("compute", inputs=[], outputs=["out.txt"], image="images/tool.sif")
+run << "image-tool > out.txt"
+task.retain("result", source=run.output("out.txt"), path="out.txt")
+gwf.task_from_template("container_example", task)
+```
+
+The image must provide `/bin/bash` and every authored-command dependency; it
+does not need gwflow or the host Python environment. Only the authored command
+runs in Apptainer, with `/bin/bash -e` and private work as its current directory.
+Preparation, output checks, transfer, and Completion run on the host. Omit
+`image` to keep host execution. Image selection is per target, without Task or
+Workflow defaults or image acquisition. Container targets and their Task's
+preparation/completion jobs require gwf's ordinary `Bash` executor; inherited
+custom executors at these boundaries are rejected before submission.
+
+Relative images resolve from the Workflow directory, including symlinks and
+paths containing spaces. The frontend records the resolved absolute path, size,
+and modification time and schedules that resolved path. Every selected image
+must be observable even to reuse a completed Task or repair results. Unavailable
+images block the plan and preserve existing results; restoring matching metadata
+resumes normal decisions. A changed image requires a fresh whole-Task attempt,
+including previous-result removal under the existing ownership and activity
+guards, independently of command tracking. Equivalent aliases do not invalidate
+Reuse. Status, explain, and dry-run describe these decisions without launching
+Apptainer or updating evidence. Run observes again.
+
+Scheduled jobs do not recheck image identity. Deployments must keep resolved
+images stable after submission: these observations are neither content hashes
+nor snapshots, and changes preserving all tracked fields can go undetected.
+The frontend and computation nodes must see the image, inputs, and managed
+storage. The supported validation profile is Linux local workers and Slurm,
+Python 3.12, gwf 2.1.1, and Apptainer 1.5.4. See the
+[container validation instructions](docs/validation-v0.4.0.md) for evidence and
+outstanding acceptance work.
+
+Container commands use `--cleanenv` and the image environment; ordinary inherited
+`PYTHONPATH` is excluded while deliberate Apptainer environment overrides remain
+usable. Managed TMPDIR is explicitly supplied in writable execution-private
+storage and remains until eligible work cleanup. Commands that ignore TMPDIR
+retain ordinary deployment scratch behavior. Missing Apptainer, unusable images,
+missing image software, and nonzero exits fail through normal target logs with
+target/image diagnostics and no host fallback. Files written before failure
+cannot establish successful execution or Completion; zero exit still requires
+the complete declared regular-file output set. Existing work cleanup and Reuse
+apply to container Tasks as well.
 
 Declare external files in both the Task boundary and each target that reads them:
 
@@ -392,7 +442,8 @@ time checks do not detect changes preserving both, and successful execution does
 not certify output contents. Resources, packages, hidden parameters, and the
 software environment have no independent invalidation component. Package code,
 tool versions or runtime environment changes can therefore leave a Task reusable
-when its declared structure, tracked commands and file metadata stay unchanged.
+when its declared structure, tracked commands, selected image identity, and file
+metadata stay unchanged.
 Parameters matter only through those tracked effects. Use `gwf run --force-task
 NAME` (or `--force` for all Tasks) when such an untracked change requires new
 computation.

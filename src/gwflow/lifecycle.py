@@ -12,7 +12,7 @@ from uuid import uuid4
 from gwf.exceptions import WorkflowError
 from gwf.utils import is_valid_name
 
-from . import _files, inputs
+from . import _files, images, inputs
 from .commands import Command, shell
 from .workflow import RetainedOutput, TargetOutput, relative_path, validate_destinations
 
@@ -65,8 +65,8 @@ def _valid_metadata(observations, paths):
                     for value in observations.values()))
 
 
-def _fingerprint(structure, commands, tracking):
-    definition = {"structure": structure, "commands": commands if tracking else None}
+def _fingerprint(structure, commands, tracking, image_observations):
+    definition = {"structure": structure, "commands": commands if tracking else None, "images": image_observations}
     return hashlib.sha256(json.dumps(definition, sort_keys=True).encode()).hexdigest()
 
 
@@ -119,6 +119,7 @@ def _target_reference(task, reference):
 
 def declarations(task, store, workflow):
     """Canonical logical structure and commands; generated paths never enter."""
+    images.validate_executors(task, workflow)
     boundary = []
     for value in task.inputs:
         reference = _boundary_reference(value, store, workflow)
@@ -201,6 +202,7 @@ def _valid_attempt(attempt):
         structure, commands = attempt["structure"], attempt["commands"]
         targets, retained = structure["targets"], structure["retained"]
         if (not isinstance(structure["inputs"], list)
+                or not images.valid(attempt["images"], targets)
                 or any(not (isinstance(path, str) and Path(path).is_absolute()
                             or isinstance(path, dict) and set(path) == {"task", "output"}
                             and isinstance(path["task"], str) and is_valid_name(path["task"])
@@ -240,7 +242,7 @@ def _valid_attempt(attempt):
             return False
         if attempt["jobs"]["gwflow_complete"] != f"{attempt['task']}__gwflow_complete__{attempt['operation']}":
             return False
-        expected = _fingerprint(structure, commands, attempt["command_tracking"])
+        expected = _fingerprint(structure, commands, attempt["command_tracking"], attempt["images"])
         return attempt["fingerprint"] == expected and relative_path(attempt["result_dir"]) == attempt["result_dir"]
     except (KeyError, TypeError, ValueError, AttributeError, WorkflowError):
         return False
@@ -254,6 +256,7 @@ class TaskObservation:
     structure: dict
     commands: dict
     attempt: dict | None = None
+    images: dict = field(default_factory=dict)
     work_present: bool = False
     submissions: dict = field(default_factory=dict)
     pending: list = field(default_factory=list)
@@ -534,7 +537,7 @@ class Store:
             raise WorkflowError(f"Invalid current-attempt evidence for Task {name!r}")
         attempt = self.read(current, "attempt.json", "attempt")
         if attempt is None or not _valid_attempt(attempt):
-            raise WorkflowError(f"Missing or malformed managed attempt for Task {name!r}")
+            raise WorkflowError(f"Missing, malformed or unsupported managed attempt for Task {name!r}; existing data is not adopted")
         if attempt.get("result_dir") != result_dir:
             raise WorkflowError(f"Recorded Task results location changed for {name!r}")
         return attempt
@@ -852,10 +855,11 @@ class Store:
         jobs = {local: f"{observation.name}__{local}__{execution}" for local, execution in executions.items()}
         jobs["gwflow_prepare"] = f"{observation.name}__gwflow_prepare__{preparation}"
         jobs["gwflow_complete"] = f"{observation.name}__gwflow_complete__{operation}"
-        fingerprint = _fingerprint(observation.structure, observation.commands, tracking)
+        fingerprint = _fingerprint(observation.structure, observation.commands, tracking, observation.images)
         attempt = _record("attempt", owner=self.owner["owner"], task=observation.name, attempt=attempt_id,
                           operation=operation, preparation=preparation, executions=executions, jobs=jobs, result_dir=result_dir,
                           structure=observation.structure, commands=observation.commands, producers=producers,
+                          images=observation.images,
                           command_tracking=bool(tracking), fingerprint=fingerprint, managed_tmpdir=managed_tmpdir)
         _files.publish(self.attempt_dir(attempt) / "attempt.json", attempt)
         self.publish(attempt, "initialization.json", "initialization", destination=str(self.result_dir(attempt)),

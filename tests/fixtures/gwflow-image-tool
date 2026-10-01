@@ -1,0 +1,4 @@
+#!/bin/bash
+set -e
+python -c 'import importlib.util; assert importlib.util.find_spec("gwflow") is None'
+printf '%s\n' "$GWFLOW_IMAGE_VALUE"

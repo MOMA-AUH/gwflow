@@ -70,6 +70,7 @@ class TaskTarget:
     inputs: list
     outputs: list
     options: dict
+    image: str | None = None
     executor: object = None
     group: str | None = None
     spec: object = ""
@@ -97,7 +98,7 @@ class Task:
         # Execution always uses managed staging, regardless of authoring CWD.
         self.working_dir = working_dir
 
-    def target(self, name, inputs, outputs, *, executor=None, group=None, **options):
+    def target(self, name, inputs, outputs, *, image=None, executor=None, group=None, **options):
         _require_name(name, "local target")
         if name.startswith("gwflow_"):
             raise WorkflowError(f"Local target name {name!r} is reserved for bookkeeping")
@@ -109,8 +110,15 @@ class Task:
         if not outputs:
             raise WorkflowError(f"Task has outputless inner target {name!r}")
         validate_destinations(outputs)
+        if image is not None:
+            try:
+                image = os.fspath(image)
+            except TypeError as error:
+                raise WorkflowError("image must be a local SIF pathname") from error
+            if not isinstance(image, str) or not image or "://" in image or "\0" in image:
+                raise WorkflowError("image must be a local SIF pathname")
         target = TaskTarget(name, list(inputs), outputs, {**self.defaults, **options},
-                            executor=executor or self.executor, group=group)
+                            image=image, executor=executor or self.executor, group=group)
         self.targets[name] = target
         return target
 

@@ -7,7 +7,7 @@ import sys
 
 from gwf.exceptions import WorkflowError
 
-from . import _files, admission
+from . import _files, admission, images
 from .commands import Command
 from .lifecycle import Store, target_dependencies
 from .transfer import finish
@@ -38,9 +38,20 @@ def execute(store, attempt, local):
     environment = os.environ.copy()
     if attempt["managed_tmpdir"]:
         environment["TMPDIR"] = str(temporary)
-    result = subprocess.run(["/bin/bash", "-e", "-c", command], cwd=staging, env=environment)
+    image = attempt["images"].get(local)
+    context = f"Task {attempt['task']} target {local}"
+    arguments = ["/bin/bash", "-e", "-c", command]
+    if image is not None:
+        context += f" image {image['path']}"
+        print(context, file=sys.stderr, flush=True)
+        arguments = images.invocation(image, staging, temporary if attempt["managed_tmpdir"] else None,
+                                      environment, command)
+    try:
+        result = subprocess.run(arguments, cwd=staging, env=environment)
+    except OSError as error:
+        raise WorkflowError(f"{context} launch failed: {error}") from error
     if result.returncode:
-        raise WorkflowError(f"Task {attempt['task']} target {local} command failed with exit {result.returncode}")
+        raise WorkflowError(f"{context} command failed with exit {result.returncode}")
     store.validate_roots()
     paths = attempt["structure"]["targets"][local]["outputs"]
     observed = _files.metadata(staging, paths, sync=True)
