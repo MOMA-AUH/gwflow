@@ -15,12 +15,42 @@ class Plan:
     store: Store
     tasks: list[TaskObservation]
 
+    @property
+    def blocked(self):
+        return [task for task in self.tasks if task.action == "blocked"]
+
 
 def tracked_commands_match(store, attempt, commands):
     if not attempt["command_tracking"] or commands != attempt["commands"]:
         return False
     return all(store.execution(attempt, local)["command_tracking"]
                and store.execution(attempt, local)["command"] == commands[local] for local in commands)
+
+
+def definition_change(store, observation, selected, *, force_option, tracking, initializing):
+    attempt = observation.attempt
+    if force_option:
+        return f"requested {force_option}; fresh computation is required"
+    if observation.structure != attempt["structure"]:
+        labels = {"inputs": "external inputs", "targets": "target membership or file declarations", "retained": "retained mappings"}
+        changed = [label for key, label in labels.items() if observation.structure[key] != attempt["structure"][key]]
+        return "changed declared structure: " + ", ".join(changed)
+    for producer in producer_names(observation.structure):
+        upstream = selected[producer]
+        expected = attempt["producers"].get(producer)
+        if upstream.action == "fresh":
+            return f"producer {producer} will start a fresh attempt; expected producer attempt was {expected}"
+        if upstream.attempt["attempt"] != expected:
+            return f"producer {producer} attempt changed: expected {expected}, current {upstream.attempt['attempt']}"
+    if tracking:
+        changed = [local for local, command in observation.commands.items() if command != attempt["commands"][local]]
+        if changed:
+            return "changed commands: " + ", ".join(changed)
+        if not attempt["command_tracking"]:
+            return "command tracking enabled; previous commands were not tracked"
+        if not initializing and not tracked_commands_match(store, attempt, observation.commands):
+            return "selected execution commands differ or lack a tracked baseline"
+    return None
 
 
 def retry_targets(store, attempt, jobs):
@@ -81,15 +111,21 @@ def fresh_observation(store, observation, reason):
     observation.pending = lifecycle_jobs(ordered_targets(observation.structure))
 
 
-def input_metadata_changed(store, attempt):
+def input_metadata_changes(store, attempt):
     if not _files.exists(store.attempt_dir(attempt) / "inputs.json"):
-        return False
+        return []
     baseline = store.input_baseline(attempt)
     try:
         observed = store.observe_inputs(attempt)
     except WorkflowError as error:
         raise WorkflowError(f"Inputs unavailable; a fresh attempt requires valid inputs: {error}") from error
-    return baseline["inputs"] != observed
+    changes = []
+    for path, metadata in observed.items():
+        previous = baseline["inputs"][path]
+        fields = [f"{key}: {previous[key]!r} -> {value!r}" for key, value in metadata.items() if previous[key] != value]
+        if fields:
+            changes.append(f"{path} ({', '.join(fields)})")
+    return changes
 
 
 def recover_transfer(store, observation, jobs):
@@ -115,6 +151,17 @@ def completed_observation(store, observation):
         completed = False
     if completed:
         observation.action, observation.reason = "reuse", "checked Completion and retained metadata match"
+        return
+    if store.cleanup_record(observation.attempt) is not None:
+        # A discarded baseline can explain a change when still readable, but
+        # cannot be required to start fresh after explicit cleanup.
+        try:
+            changes = input_metadata_changes(store, observation.attempt)
+        except (WorkflowError, OSError):
+            changes = []
+        reason = ("input metadata changed: " + "; ".join(changes) if changes else
+                  "work marked for cleanup; fresh computation is required")
+        fresh_observation(store, observation, reason)
         return
     try:
         transfer.repair_sources(store, observation.attempt)
@@ -169,13 +216,10 @@ def plan_workflow(workflow, ctx, *, force=False, force_tasks=()):
                     failed = [local for local, item in jobs.items() if item.state in ("failed", "cancelled") and local not in pending]
                     if uncertain:
                         observation.action, observation.reason = "blocked", "unresolved submission: " + ", ".join(uncertain)
-                    elif (force or name in force_tasks or structure != attempt["structure"] or
-                          any(selected[producer].action == "fresh" or selected[producer].attempt["attempt"] != attempt["producers"].get(producer)
-                              for producer in producer_names(structure)) or
-                          ctx.config.get("use_spec_hashes") and
-                          (commands != attempt["commands"] or not attempt["command_tracking"] or
-                           not initializing and not tracked_commands_match(store, attempt, commands))):
-                        fresh_observation(store, observation, "force or changed structure, commands, or producer identity requires a fresh attempt")
+                    elif change := definition_change(store, observation, selected,
+                                                      force_option="--force" if force else "--force-task" if name in force_tasks else None,
+                                                      tracking=ctx.config.get("use_spec_hashes"), initializing=initializing):
+                        fresh_observation(store, observation, change)
                     elif initializing:
                         observation.removal = store.result_removal(attempt)
                         observation.action, observation.reason = "initialize", "resume selected initialization; remove previous results before submission"
@@ -185,8 +229,8 @@ def plan_workflow(workflow, ctx, *, force=False, force_tasks=()):
                         observation.action, observation.reason = "deferred", "producer results need recovery; a later invocation must replan input validity after restored metadata is available"
                     elif not active and store.cleanup_record(attempt) is not None:
                         completed_observation(store, observation)
-                    elif input_metadata_changed(store, attempt):
-                        fresh_observation(store, observation, "input metadata changed; a fresh attempt is required")
+                    elif changes := input_metadata_changes(store, attempt):
+                        fresh_observation(store, observation, "input metadata changed: " + "; ".join(changes))
                     elif not active and store.read(attempt, "completion.json", "completion", operation=attempt["operation"]) is not None:
                         completed_observation(store, observation)
                     elif not active and store.repair_intent(attempt) is not None:

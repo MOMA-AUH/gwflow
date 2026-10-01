@@ -8,7 +8,7 @@ import click
 
 
 @contextmanager
-def _submission_guard(working_dir, *, waiting_message=None):
+def _submission_guard(working_dir, *, waiting_message="Waiting for frontend submission bookkeeping..."):
     # gwf saves command hashes and backend tracking on context exit. Keep
     # concurrent runs out until those writes finish, not just until planning
     # or submission returns. The OS releases this lock on CLI interruption;
@@ -26,4 +26,3 @@ def _submission_guard(working_dir, *, waiting_message=None):
             yield
         finally:
             fcntl.flock(lock, fcntl.LOCK_UN)
-
