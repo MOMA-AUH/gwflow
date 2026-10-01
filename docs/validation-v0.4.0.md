@@ -6,7 +6,9 @@ The first slices, [#93](https://github.com/MOMA-AUH/gwflow/issues/93) and
 [#94](https://github.com/MOMA-AUH/gwflow/issues/94), validate image execution,
 frontend image identity, external-input staging, failure, and cleanup/Reuse.
 [#95](https://github.com/MOMA-AUH/gwflow/issues/95) extends those checks to mixed
-graphs and retained-output consumers. Final live Slurm acceptance remains for the dependent
+graphs and retained-output consumers, and
+[#96](https://github.com/MOMA-AUH/gwflow/issues/96) covers custom staged names.
+Final live Slurm acceptance remains for the dependent
 implementation tickets. This is implementation validation, without
 release publication or deployment provisioning.
 
@@ -138,9 +140,31 @@ use installed public workflows and real Apptainer commands to validate:
   permits retry without recomputing the producer. Invalid declarations,
   ownership references, and cycles fail before storage initialization.
 
+The #95 final-commit [CI run](https://github.com/MOMA-AUH/gwflow/actions/runs/36883623269)
+passed all 229 tests against the pip-installed package with real Apptainer and
+no skips. The Conda artifact suite passed with 21 explicit runtime skips, plus
+its packaged smoke. Local validation passed the nine new mixed-graph checks and
+24 existing staging/graph/dependency regressions.
+
+The #96 additions to [test_staging.py](../tests/test_staging.py) exercise
+`stage_as` through public authoring and real container commands:
+
+- Equal input basenames use distinct directories; an explicitly declared data
+  and index pair appears together. Commands observe symlinks, original bindings
+  resolve to the custom paths, unmapped inputs keep defaults, and obsolete
+  default aliases are absent. Nested names, spaces, quotes, and dollar signs work.
+- Undeclared references, duplicate logical assignments, invalid relative paths,
+  identical normalized destinations, default/override collisions, and ancestry
+  conflicts among inputs and with outputs fail before managed initialization.
+  A non-mapping value or nonempty mapping on a host target is an authoring error.
+- Reordered mappings and explicit default names preserve the existing attempt.
+  A changed effective layout refreshes it with command hashes disabled. Explain,
+  detailed status and dry-run preserve all managed file bytes and mtimes.
+  Controlled active work and malformed ownership block actual replacement too.
+
 ## Limits and remaining evidence
 
-These slices do not establish custom staging, opted-out
+These slices do not establish opted-out
 scratch, the packaged container A/B/C demonstration, or
 live Slurm container acceptance. Those are required by the remaining tickets and
 must be recorded before declaring the parent specification complete. The runtime

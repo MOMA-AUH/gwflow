@@ -2,7 +2,7 @@
 
 from collections.abc import Mapping
 from copy import deepcopy
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from inspect import getfile
 import os
 from pathlib import Path, PurePosixPath
@@ -71,6 +71,7 @@ class TaskTarget:
     outputs: list
     options: dict
     image: str | None = None
+    stage_as: dict = field(default_factory=dict)
     executor: object = None
     group: str | None = None
     spec: object = ""
@@ -98,7 +99,7 @@ class Task:
         # Execution always uses managed staging, regardless of authoring CWD.
         self.working_dir = working_dir
 
-    def target(self, name, inputs, outputs, *, image=None, executor=None, group=None, **options):
+    def target(self, name, inputs, outputs, *, image=None, stage_as=None, executor=None, group=None, **options):
         _require_name(name, "local target")
         if name.startswith("gwflow_"):
             raise WorkflowError(f"Local target name {name!r} is reserved for bookkeeping")
@@ -117,8 +118,13 @@ class Task:
                 raise WorkflowError("image must be a local SIF pathname") from error
             if not isinstance(image, str) or not image or "://" in image or "\0" in image:
                 raise WorkflowError("image must be a local SIF pathname")
+        if stage_as is not None and not isinstance(stage_as, Mapping):
+            raise WorkflowError("stage_as must be a mapping of staged paths to declared inputs")
+        stage_as = dict(stage_as or {})
+        if stage_as and image is None:
+            raise WorkflowError("stage_as requires image= on the target")
         target = TaskTarget(name, list(inputs), outputs, {**self.defaults, **options},
-                            image=image, executor=executor or self.executor, group=group)
+                            image=image, stage_as=stage_as, executor=executor or self.executor, group=group)
         self.targets[name] = target
         return target
 

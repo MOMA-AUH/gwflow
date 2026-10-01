@@ -186,13 +186,43 @@ producer's retained pathname, rather than the public output name. `shell()` bind
 continue to name the original inputs and render to these staged files, with the
 same quoting contract. Literal commands may use their basenames directly. The
 effective layout is tracked as Task structure even when command hashes are off.
-Duplicate basenames, invalid managed relative paths, and input/output collisions
-(including file/directory ancestry) are rejected before submission.
+Duplicate effective paths, invalid managed relative paths, and input/output
+collisions (including file/directory ancestry) are rejected before submission.
 
 For a tool expecting `genome.fa` beside `genome.fa.fai`, declare both source files
 in the Task boundary and target inputs. Both are then staged under those names;
 gwflow does not discover companions or silently rename conflicting inputs.
 Targets without `image=` continue reading their inputs in place.
+
+Use `stage_as={relative_path: original_input}` to choose names or subdirectories
+for already-declared target inputs. Unmapped inputs keep their default basenames.
+For example, two `summary.csv` inputs can be assigned `sales/summary.csv` and
+`returns/summary.csv`. An explicitly declared companion pair can share a directory:
+
+```python
+reference, index = "data/reference.fasta", "indexes/reference.index"
+task = Task(inputs=[reference, index])
+read = task.target("read", inputs=task.inputs, outputs=["out.txt"],
+                   image="images/tool.sif",
+                   stage_as={"ref/genome.fa": reference, "ref/genome.fa.fai": index})
+read << shell("cat {reference} {reference}.fai > {out}",
+              reference=reference, out=read.output("out.txt"))
+task.retain("result", source=read.output("out.txt"), path="out.txt")
+gwf.task_from_template("companions", task)
+```
+
+Bindings still name the original input; the command receives its staged path,
+quoted as a shell argument. Relative nested names and spaces are supported.
+Each logical input has exactly one effective staged path: overrides replace
+defaults and add neither dependencies nor extra aliases. Undeclared references,
+multiple assignments to one input, and collisions between defaults, overrides,
+or outputs are errors. Paths follow the existing managed relative-path rules;
+file/directory ancestry collisions are also rejected.
+
+Changing the effective layout requires a fresh Task attempt under the existing
+activity and ownership guards. Mapping order and an explicit override equal to
+its default do not independently invalidate Reuse. Nonempty `stage_as` without
+`image=` is an authoring error.
 
 Host and container targets can be connected within one Task using the same
 references. For example, with two deployment-provided images containing Bash
