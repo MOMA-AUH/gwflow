@@ -15,6 +15,44 @@ graphs and retained-output consumers, and
 records the live backend validation below. This is implementation validation, without
 release publication or deployment provisioning.
 
+## Final acceptance
+
+The #92 implementation and its ten-scenario acceptance matrix are complete as
+of 2026-10-01. All eight implementation issues are closed through the merged
+PRs below. Each PR passed its installed-package and Conda CI checks before merge
+and received separate Standards and Spec reviews with no outstanding findings.
+
+| Issue | Delivered behavior | Merged PR |
+| --- | --- | --- |
+| [#93](https://github.com/MOMA-AUH/gwflow/issues/93) | Explicit image execution, frontend image identity and Reuse | [#101](https://github.com/MOMA-AUH/gwflow/pull/101) |
+| [#94](https://github.com/MOMA-AUH/gwflow/issues/94) | External-input symlinks and requested source/work mounts | [#102](https://github.com/MOMA-AUH/gwflow/pull/102) |
+| [#95](https://github.com/MOMA-AUH/gwflow/issues/95) | Mixed graphs, retained consumers and image-change propagation | [#103](https://github.com/MOMA-AUH/gwflow/pull/103) |
+| [#96](https://github.com/MOMA-AUH/gwflow/issues/96) | Explicit staged names, companion layouts and structural tracking | [#104](https://github.com/MOMA-AUH/gwflow/pull/104) |
+| [#97](https://github.com/MOMA-AUH/gwflow/issues/97) | Container environment and managed or deployment-selected scratch | [#105](https://github.com/MOMA-AUH/gwflow/pull/105) |
+| [#98](https://github.com/MOMA-AUH/gwflow/issues/98) | Shared failure, fresh-work retry and retained-result repair | [#106](https://github.com/MOMA-AUH/gwflow/pull/106) |
+| [#99](https://github.com/MOMA-AUH/gwflow/issues/99) | Installed container packages and producer-cleanup-consumer example | [#107](https://github.com/MOMA-AUH/gwflow/pull/107) |
+| [#100](https://github.com/MOMA-AUH/gwflow/issues/100) | Repeatable runtime acceptance and recorded local/Slurm evidence | [#108](https://github.com/MOMA-AUH/gwflow/pull/108) |
+
+The final implementation revision, `14f449884aab2460d42605ae219163ffe24422c0`,
+passed [CI run 36903314583](https://github.com/MOMA-AUH/gwflow/actions/runs/36903314583)
+before its squash merge as `673c75fe8098242de2a1acb413ed907f3f9957df`:
+all 248 pip-installed tests passed without skips, followed by all 13 consolidated
+local acceptance cases. The built Conda artifact passed its 248-test suite with
+37 explicit container-runtime skips, plus the installed packaged smoke test.
+Those skips are not container evidence; real Apptainer execution is covered by
+the pip job and the separately recorded live backend runs.
+
+All 13 live acceptance cases passed on each backend, with exact software, image,
+job and result observations in the [runtime record](validation-v0.4.0-runtime.json).
+The [parent acceptance matrix](#parent-acceptance-matrix) maps every scenario to
+its behavioral evidence and identifies deterministic fixtures. The
+[deployment observations and limits](#deployment-observations-and-limits) remain
+part of this acceptance: in particular, the validated Slurm nodes expose matching
+managed-directory identities, ordinary site binds must not conflict with the
+requested mounts, and deployments keep selected images stable after submission.
+This completes implementation acceptance; no release tag or package publication
+is recorded here.
+
 ## Repeatable local checks
 
 Use Python 3.12, gwf 2.1.1, and deployment-provided Apptainer 1.5.4 on Linux.
