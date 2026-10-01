@@ -12,7 +12,7 @@ from gwf.scheduling import get_status_map
 
 from ._frontend import _submission_guard
 from ._state import state_name
-from .inspection import dependency_details
+from .inspection import blockage_line, condition, task_details
 from .planning import plan_workflow
 from .workflow import Workflow, lifecycle_jobs
 
@@ -58,6 +58,8 @@ def managed_status(ctx, targets, endpoints, output_format, statuses, group, deta
         return _plain_status(workflow, ctx, targets, endpoints, output_format, statuses, group)
     with _submission_guard(ctx.working_dir, waiting_message="Waiting for frontend submission bookkeeping..."):
         plan = plan_workflow(workflow, ctx)
+        if plan.blocked:
+            click.echo(blockage_line(plan))
         for task in plan.tasks:
             public = [f"{task.name}__{local}" for local in lifecycle_jobs(task.structure["targets"])]
             if targets and not any(fnmatchcase(name, pattern) for name in [task.name, *public] for pattern in targets):
@@ -68,17 +70,10 @@ def managed_status(ctx, targets, endpoints, output_format, statuses, group, deta
             state = {"repair": "shouldrun", "transfer": "shouldrun", "deferred": "shouldrun", "initialize": "shouldrun", "retry": "shouldrun", "continue": "shouldrun", "prepare": "shouldrun", "fresh": "shouldrun", "reuse": "completed", "active": "running", "blocked": "failed"}[task.action]
             if statuses and state not in statuses:
                 continue
-            label = ("reusable work-present" if task.work_present else "reusable work-cleaned") if task.action == "reuse" else task.action
-            click.echo(f"Task {task.name}: {label}; {task.reason}")
+            click.echo(f"Task {task.name}: {condition(task)}; next: {task.action}; {task.reason}")
             if details:
-                for local in lifecycle_jobs(task.structure["targets"]):
-                    item = task.submissions.get(local)
-                    job = item.submission if item and item.intent else "not submitted"
-                    click.echo(f"  {task.name}__{local}: {job}")
-                if task.attempt:
-                    click.echo(f"  Attempt: {task.attempt['attempt']}; workspace: {plan.store.workspace(task.attempt)}")
-                    for line in dependency_details(task):
-                        click.echo(f"  {line}")
+                for line in task_details(plan.store, task):
+                    click.echo(f"  {line}")
 
 
 gwf_status.params = managed_status.params

@@ -12,6 +12,7 @@ from gwf.exceptions import WorkflowError
 
 from . import _files, admission, transfer
 from .lifecycle import producer_names
+from .inspection import action_line, blockage_line
 
 from .workflow import lifecycle_jobs
 
@@ -53,16 +54,13 @@ def _log_aliases(working_dir, public_name, job_name):
 
 
 def submit_plan(plan, workflow, ctx, *, dry_run):
-    blocked = [task for task in plan.tasks if task.action == "blocked"]
-    if blocked:
-        raise WorkflowError("; ".join(f"Task {task.name}: {task.reason}" for task in blocked))
     for task in plan.tasks:
-        if task.action == "deferred":
-            logger.info("Task %s: %s", task.name, task.reason)
+        logger.info(action_line(task))
+    if plan.blocked:
+        logger.info(blockage_line(plan))
+        raise WorkflowError("; ".join(f"Task {task.name}: {task.reason}" for task in plan.blocked))
     if dry_run:
         for task in plan.tasks:
-            if task.action in ("fresh", "initialize"):
-                logger.info("Task %s: %s", task.name, task.reason)
             for local in task.pending:
                 logger.info("Would submit %s__%s", task.name, local)
             if task.action == "prepare":

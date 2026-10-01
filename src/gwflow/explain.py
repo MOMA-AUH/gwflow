@@ -6,9 +6,9 @@ from gwf.core import pass_context
 from gwf.exceptions import WorkflowError
 
 from ._frontend import _submission_guard
-from .inspection import dependency_details
+from .inspection import action_line, blockage_line, task_details
 from .planning import plan_workflow
-from .workflow import Workflow, lifecycle_jobs
+from .workflow import Workflow
 
 
 @click.command()
@@ -27,18 +27,15 @@ def explain(ctx, details, force, force_task, task_name):
         if task_name is not None and task_name not in workflow._task_declarations:
             raise WorkflowError(f"Unknown Task name {task_name!r}")
         click.echo("Managed whole-workflow plan")
+        if plan.blocked:
+            click.echo(blockage_line(plan))
         for task in plan.tasks:
             if task_name is not None and task.name != task_name:
                 continue
-            click.echo(f"Task {task.name}: {task.action}; {task.reason}")
-            if task.pending:
+            click.echo(action_line(task))
+            if task.pending and not plan.blocked:
                 for local in task.pending:
                     click.echo(f"  Would submit {task.name}__{local}")
-            if details and task.attempt:
-                click.echo(f"  Attempt: {task.attempt['attempt']}")
-                click.echo(f"  Workspace: {plan.store.workspace(task.attempt)}")
-                click.echo(f"  Results: {plan.store.result_dir(task.attempt)}")
-                for line in dependency_details(task):
+            if details:
+                for line in task_details(plan.store, task):
                     click.echo(f"  {line}")
-                for local, item in task.submissions.items():
-                    click.echo(f"  {task.name}__{local}: {item.submission or 'not submitted'} ({item.state})")

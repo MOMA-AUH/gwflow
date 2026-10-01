@@ -8,7 +8,8 @@ The development branch is migrating to v0.3.0. The current managed lifecycle
 supports Task graphs, named Task dependencies, external inputs, and partial
 retries, fresh attempts, separate work/results filesystems, and interrupted
 transfer recovery, repair, and completed or explicitly selected inactive-work
-cleanup. The remaining inspection improvements are being added in
+cleanup, with status and explanations for the full lifecycle. The packaged
+demonstration and final integration checks remain in
 [the implementation queue](https://github.com/MOMA-AUH/gwflow/issues/62).
 Existing v0.2 factories and records are not converted or adopted. The older
 examples will be migrated with the complete workflow demonstration.
@@ -50,6 +51,41 @@ Use the normal gwf backend configuration and local workers or cluster backend.
 Submission returns without waiting for computation. Run all frontend commands
 for a workflow on one physical frontend; a guard serializes submission and
 inspection through backend tracking persistence.
+
+`gwf status` separates current condition from the next planned action. It
+distinguishes reusable work-present/work-cleaned Tasks, incomplete computation,
+results transfer (including active finishing), repair-needed results, deferred
+producer inputs, and blocked activity. `--details` adds attempt UUIDs, workspace,
+results and staging paths, expected producer attempts, active consumers, and the
+mapping from public Task/local target names to execution submissions, backend job
+IDs, and log files.
+
+`gwf explain` and `gwf run --dry-run` report the same lifecycle decisions used by
+run: Reuse, same-attempt retry or preparation, submission continuation, transfer,
+repair, fresh computation, and deferred decisions. Reasons identify changed input
+paths and metadata fields, declared structure, commands, and producer identities.
+Fresh plans disclose previous-result removal. A fresh UUID is allocated only by
+run; the detailed view identifies an existing attempt separately from that plan.
+If any Task blocks submission, the whole-workflow preview says no jobs will be
+submitted, even if other Tasks have pending work.
+
+Use `gwf explain TASK` or `gwf status TASK` to narrow the display. These filters
+still validate and plan the entire workflow. Explain accepts the same `--force`
+and repeatable `--force-task` options as run; a display filter does not choose
+which Tasks are forced or bypass dependencies.
+
+Status, explain, dry-run, and cleanup preview wait for frontend bookkeeping
+transitions and do not allocate attempts, reset baselines, move results, or remove
+work. Scheduler and filesystem observations are **not a distributed snapshot**:
+jobs and external files can change after observation, and run or cleanup rechecks
+the relevant evidence before acting. Repair may defer an existing consumer until
+a later invocation can compare restored metadata.
+
+Public log names such as `hello__write` follow the selected execution generation.
+Logs remain under `.gwf/logs/` after cleanup; execution-specific logs from earlier
+retries and attempts also remain. Use the execution submission name from a saved
+detailed view as the `gwf logs` argument to read that historical log. Human-readable
+inspection output is the supported interface, not a stable machine-readable schema.
 
 A target runs in private staging under `work/`, with a private writable `TMPDIR`
 by default. `Workflow(managed_tmpdir=False)` preserves environment-selected
@@ -144,7 +180,7 @@ can be reused without its work. A subsequent fresh attempt recreates an absent
 work root with new recorded ownership before removing any previous results.
 Interrupted recreation can resume; an unexplained replacement root is rejected.
 Incomplete attempts, damaged results, and uncertain submissions fail explicitly when
-they require a recovery operation that is not yet available. Generic `gwf clean`
+the required ownership or execution evidence cannot establish a safe next action. Generic `gwf clean`
 and `gwf touch` are rejected for managed workflows. Ordinary `gwf.Workflow`
 commands keep their usual behavior.
 
