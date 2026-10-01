@@ -8,6 +8,7 @@ frontend image identity, external-input staging, failure, and cleanup/Reuse.
 [#95](https://github.com/MOMA-AUH/gwflow/issues/95) extends those checks to mixed
 graphs and retained-output consumers, and
 [#96](https://github.com/MOMA-AUH/gwflow/issues/96) covers custom staged names.
+[#97](https://github.com/MOMA-AUH/gwflow/issues/97) covers environment and scratch.
 Final live Slurm acceptance remains for the dependent
 implementation tickets. This is implementation validation, without
 release publication or deployment provisioning.
@@ -26,6 +27,7 @@ export GWFLOW_TEST_SIF="$PWD/build/validation/basic.sif"
 python -m unittest discover -s tests -p test_containers.py -v
 python -m unittest discover -s tests -p test_staging.py -v
 python -m unittest discover -s tests -p test_container_graphs.py -v
+python -m unittest discover -s tests -p test_container_environment.py -v
 python -m unittest discover -s tests -v
 python tests/release_smoke.py
 ```
@@ -162,10 +164,35 @@ The #96 additions to [test_staging.py](../tests/test_staging.py) exercise
   detailed status and dry-run preserve all managed file bytes and mtimes.
   Controlled active work and malformed ownership block actual replacement too.
 
+The #96 final-commit [CI run](https://github.com/MOMA-AUH/gwflow/actions/runs/36886393557)
+passed all 235 tests against the pip-installed package with real Apptainer and
+no skips. The Conda artifact suite passed with 24 explicit runtime skips and
+its packaged smoke. The local complete staging test file passed all 11 tests.
+
+The #97 checks in [test_container_environment.py](../tests/test_container_environment.py)
+run no-input commands in real Apptainer to demonstrate the scratch variants:
+
+- Two commands held concurrently by file gates write the same basename in
+  different private TMPDIRs below the configured execution-work root. Managed
+  scratch overrides inherited TMPDIR and an explicit Apptainer TMPDIR override.
+  Files persist after command exit and cleanup preview, and disappear after
+  eligible work deletion. Retained results remain reusable.
+- With the opt-out, a job TMPDIR containing spaces is writable and survives work
+  cleanup. These tests disable automatic temporary-directory mounts using
+  `APPTAINER_NO_MOUNT=tmp`, so gwflow's requested mount supplies the access.
+- Image environment values and a literal explicit Apptainer override containing
+  dollars/quotes remain usable; ordinary inherited PYTHONPATH is absent inside
+  the container. A host target retains its ordinary environment.
+- With job TMPDIR unset and the opt-out, the fixture leaves TMPDIR unset and its
+  Python uses `/tmp`. Ordinary default mounts remain enabled in this case.
+  Both opted-out and managed commands can write a test-owned path under system
+  `/tmp`; those files survive eligible work cleanup, while managed scratch does
+  not. This demonstrates the documented boundary for commands ignoring TMPDIR.
+
 ## Limits and remaining evidence
 
-These slices do not establish opted-out
-scratch, the packaged container A/B/C demonstration, or
+These slices do not establish the full retry/repair matrix,
+the packaged container A/B/C demonstration, or
 live Slurm container acceptance. Those are required by the remaining tickets and
 must be recorded before declaring the parent specification complete. The runtime
 record establishes no broader Apptainer or non-Linux compatibility claim.
