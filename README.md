@@ -165,8 +165,11 @@ nor snapshots, and changes preserving all tracked fields can go undetected.
 The frontend and computation nodes must see the image, inputs, and managed
 storage. The supported validation profile is Linux local workers and Slurm,
 Python 3.12, gwf 2.1.1, and Apptainer 1.5.4. See the
-[container validation instructions](docs/validation-v0.4.0.md) for evidence and
-outstanding acceptance work.
+[container validation instructions](docs/validation-v0.4.0.md) for the tested
+deployment and repeatable checks. Managed storage must expose consistent device
+and inode identities across frontend and execution hosts. A shared pathname alone
+does not establish that: validation found a BeeGFS client with a different device
+number, and the existing ownership guard refused preparation on that node.
 
 Container commands use `--cleanenv` and the image environment; ordinary inherited
 `PYTHONPATH` is excluded while deliberate Apptainer environment overrides remain
