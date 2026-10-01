@@ -179,8 +179,10 @@ cannot establish successful execution or Completion; zero exit still requires
 the complete declared regular-file output set. Existing work cleanup and Reuse
 apply to container Tasks as well.
 
-Declared external inputs of a container target are staged as symlinks in its
-private work directory, using the declared input basenames. `shell()` bindings
+Declared inputs of a container target are staged as symlinks in its
+private work directory, using the declared input basenames. Target-output
+references use their output filename; retained-output references use the
+producer's retained pathname, rather than the public output name. `shell()` bindings
 continue to name the original inputs and render to these staged files, with the
 same quoting contract. Literal commands may use their basenames directly. The
 effective layout is tracked as Task structure even when command hashes are off.
@@ -191,6 +193,43 @@ For a tool expecting `genome.fa` beside `genome.fa.fai`, declare both source fil
 in the Task boundary and target inputs. Both are then staged under those names;
 gwflow does not discover companions or silently rename conflicting inputs.
 Targets without `image=` continue reading their inputs in place.
+
+Host and container targets can be connected within one Task using the same
+references. For example, with two deployment-provided images containing Bash
+and the commands shown:
+
+```python
+task = Task(inputs=[])
+seed = task.target("seed", inputs=[], outputs=["seed.txt"])
+seed << "printf 'hello\\n' > seed.txt"
+upper = task.target("upper", inputs=[seed.output("seed.txt")],
+                    outputs=["upper.txt"], image="images/text.sif")
+upper << shell("tr '[:lower:]' '[:upper:]' < {source} > {out}",
+               source=seed.output("seed.txt"), out=upper.output("upper.txt"))
+count = task.target("count", inputs=[upper.output("upper.txt")],
+                    outputs=["count.txt"], image="images/count.sif")
+count << shell("wc -c < {source} > {out}",
+               source=upper.output("upper.txt"), out=count.output("count.txt"))
+report = task.target("report", inputs=[count.output("count.txt")], outputs=["report.txt"])
+report << shell("cat {source} > {out}",
+                source=count.output("count.txt"), out=report.output("report.txt"))
+task.retain("report", source=report.output("report.txt"), path="report.txt")
+producer = gwf.task_from_template("mixed", task)
+```
+
+Another Task can declare `producer.outputs["report"]` in its boundary and target
+inputs, bind that same reference in `shell()`, and select its own image. Its
+staged link reads the selected producer's checked retained result, so the
+producer's eligible work can be cleaned before adding the consumer. Within a
+Task, staged references read checked committed upstream outputs. Internal
+intermediates remain unavailable as cross-Task dependencies.
+
+Changing any selected image refreshes the whole owning Task and its consumers,
+even if the producer recreates identical retained-file metadata and command
+hashes are disabled. Unrelated Tasks remain reusable. Adding or removing image
+selection is also tracked; equivalent aliases preserve Reuse. Existing active
+job, active consumer, uncertain admission, and ownership protections apply to
+image-driven replacement, including consumers removed from the current workflow.
 
 gwflow stages links to the checked resolved sources and requests their parent
 directories read-only, plus writable private work and managed TMPDIR. Sources

@@ -5,7 +5,8 @@ This record follows the incremental implementation of
 The first slices, [#93](https://github.com/MOMA-AUH/gwflow/issues/93) and
 [#94](https://github.com/MOMA-AUH/gwflow/issues/94), validate image execution,
 frontend image identity, external-input staging, failure, and cleanup/Reuse.
-Combined workflows and final live Slurm acceptance remain for the dependent
+[#95](https://github.com/MOMA-AUH/gwflow/issues/95) extends those checks to mixed
+graphs and retained-output consumers. Final live Slurm acceptance remains for the dependent
 implementation tickets. This is implementation validation, without
 release publication or deployment provisioning.
 
@@ -22,6 +23,7 @@ apptainer build build/validation/basic.sif tests/fixtures/container.def
 export GWFLOW_TEST_SIF="$PWD/build/validation/basic.sif"
 python -m unittest discover -s tests -p test_containers.py -v
 python -m unittest discover -s tests -p test_staging.py -v
+python -m unittest discover -s tests -p test_container_graphs.py -v
 python -m unittest discover -s tests -v
 python tests/release_smoke.py
 ```
@@ -110,9 +112,35 @@ copies, scratch files, and retained results, rather than inspecting generated
 Apptainer arguments. The checks preserve ordinary default and deployment mounts;
 they do not establish universal confinement against every possible site alias.
 
+The #94 final-commit [CI run](https://github.com/MOMA-AUH/gwflow/actions/runs/36880284278)
+passed all 220 tests against the pip-installed package with Apptainer and no
+skips. The Conda artifact suite passed with 12 explicit runtime skips, and its
+packaged smoke passed.
+
+The #95 checks in [test_container_graphs.py](../tests/test_container_graphs.py)
+use installed public workflows and real Apptainer commands to validate:
+
+- Host → container → container → host references, using two distinct SIF paths;
+  the fixture contents are identical, and each command reports its selected path.
+  Both container steps read staged links and refuse source writes.
+- A newly added container consumer reads the producer's retained result after
+  eligible producer work cleanup. Only that consumer computes; unchanged runs
+  submit nothing and producer work remains absent.
+- Image changes refresh every producer target and its consumer, with command
+  hashes disabled and equal retained size/mtime. An unrelated Task stays reusable.
+  Equivalent aliases reuse; adding/removing image selection refreshes.
+- Backend fixtures supply controlled active-job, removed-active-consumer, and
+  uncertain-admission observations. Image changes cannot bypass them. Damaged
+  ownership also blocks replacement. Explain, detailed status, dry-run, and run
+  preserve the prior files and records when replacement is refused.
+- A scheduled consumer held after preparation refuses a wrong-generation
+  producer Completion record before its command can run. Restoring that evidence
+  permits retry without recomputing the producer. Invalid declarations,
+  ownership references, and cycles fail before storage initialization.
+
 ## Limits and remaining evidence
 
-These first slices do not establish custom staging, mixed graphs, opted-out
+These slices do not establish custom staging, opted-out
 scratch, the packaged container A/B/C demonstration, or
 live Slurm container acceptance. Those are required by the remaining tickets and
 must be recorded before declaring the parent specification complete. The runtime
