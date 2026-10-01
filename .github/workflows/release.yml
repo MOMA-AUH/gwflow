@@ -90,4 +90,5 @@ jobs:
             sleep 30
           done
           conda list -p "$RUNNER_TEMP/gwflow-published-test" --json | python -c 'import json, sys; package = next(p for p in json.load(sys.stdin) if p["name"] == "gwflow"); assert package["base_url"].rstrip("/").casefold().endswith("/moma-auh"), package'
+          conda run -p "$RUNNER_TEMP/gwflow-published-test" python -m pip install ./examples/packaged/packages/summary-task ./examples/packaged/packages/report-task
           conda run -p "$RUNNER_TEMP/gwflow-published-test" python tests/release_smoke.py

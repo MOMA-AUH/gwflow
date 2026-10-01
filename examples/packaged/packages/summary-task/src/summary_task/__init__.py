@@ -1,21 +1,23 @@
 """Reusable task for summarizing transaction amounts by product."""
 
-from os import fspath
 from shlex import quote
 from sys import executable
 
-from gwflow import Task
+from gwflow import Task, shell
 
 
-def summarize(source, intermediate, result):
+def summarize(source):
     """Clean a transaction CSV, then retain its per-product totals."""
-    source, intermediate, result = map(fspath, (source, intermediate, result))
-    task = Task(inputs=[source], outputs=[result])
+    task = Task(inputs=[source])
     command = f"{quote(executable)} -m summary_task"
-    task.target("clean", inputs=[source], outputs=[intermediate]) << (
-        f"{command} clean {quote(source)} {quote(intermediate)}"
+    clean = task.target("clean", inputs=[source], outputs=["cleaned.csv"])
+    clean << shell(
+        f"{command} clean {{source}} {{destination}}", source=source, destination=clean.output("cleaned.csv")
     )
-    task.target("aggregate", inputs=[intermediate], outputs=[result]) << (
-        f"{command} aggregate {quote(intermediate)} {quote(result)}"
+    aggregate = task.target("aggregate", inputs=[clean.output("cleaned.csv")], outputs=["summary.csv"])
+    aggregate << shell(
+        f"{command} aggregate {{source}} {{destination}}",
+        source=clean.output("cleaned.csv"), destination=aggregate.output("summary.csv"),
     )
+    task.retain("summary", source=aggregate.output("summary.csv"), path="summary.csv")
     return task
