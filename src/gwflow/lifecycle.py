@@ -148,7 +148,8 @@ def declarations(task, store, workflow):
         incoming.sort(key=lambda item: json.dumps(item, sort_keys=True))
         targets[name] = {"inputs": incoming, "outputs": sorted(outputs)}
         if target.image is not None:
-            layout = staging.external_layout(incoming, outputs)
+            layout = staging.default_layout(incoming, outputs, lambda reference:
+                                            workflow._task_declarations[reference["task"]].retained[reference["output"]][1])
             if layout:
                 targets[name]["staged"] = layout
         if isinstance(target.spec, str):
@@ -233,8 +234,8 @@ def _valid_attempt(attempt):
                     or attempt["jobs"][local] != f"{attempt['task']}__{local}__{attempt['executions'][local]}"):
                 return False
             validate_destinations(target["outputs"])
-            layout = staging.external_layout(target["inputs"], target["outputs"]) if local in attempt["images"] else {}
-            if target.get("staged", {}) != layout:
+            if not staging.valid_layout(target.get("staged", {}),
+                                        target["inputs"] if local in attempt["images"] else [], target["outputs"]):
                 return False
             if not valid_command(commands[local], target, local):
                 return False

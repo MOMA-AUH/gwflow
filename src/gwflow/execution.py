@@ -10,7 +10,7 @@ from gwf.exceptions import WorkflowError
 from . import _files, admission, images
 from .commands import Command
 from .lifecycle import Store, target_dependencies
-from .staging import stage_external
+from .staging import reference_key, stage
 from .transfer import finish
 
 
@@ -26,20 +26,34 @@ def execute(store, attempt, local):
         raise WorkflowError("Target execution storage already exists; unchecked work cannot be adopted")
     _files.mkdir(staging)
     _files.mkdir(temporary)
-    staged_inputs, source_directories = stage_external(
-        attempt["structure"]["targets"][local].get("staged", {}),
-        store.input_baseline(attempt)["inputs"], staging,
+    baseline = store.input_baseline(attempt)["inputs"]
+
+    def source_path(reference):
+        if isinstance(reference, str):
+            return baseline[reference]["resolved"]
+        if "task" in reference:
+            return store.retained_path(attempt, reference)
+        return store.execution_dir(attempt, reference["target"]) / "committed" / reference["file"]
+
+    staged_inputs, source_directories = stage(
+        attempt["structure"]["targets"][local].get("staged", {}), staging, source_path,
     )
+
+    def command_path(reference):
+        logical = reference.get("external", reference)
+        if path := staged_inputs.get(reference_key(logical)):
+            return path
+        if isinstance(logical, str):
+            return logical
+        if logical.get("target") == local:
+            return staging / logical["file"]
+        return source_path(logical)
     execution = store.execution(attempt, local)
     declaration = execution["command"]
     if "literal" in declaration:
         command = declaration["literal"]
     else:
-        command = Command(declaration["template"], declaration["bindings"]).render(
-            lambda reference: (staged_inputs.get(reference["external"], reference["external"]) if "external" in reference
-                               else store.retained_path(attempt, reference) if "task" in reference
-                               else staging / reference["file"] if reference["target"] == local
-                               else store.execution_dir(attempt, reference["target"]) / "committed" / reference["file"]))
+        command = Command(declaration["template"], declaration["bindings"]).render(command_path)
     environment = os.environ.copy()
     if attempt["managed_tmpdir"]:
         environment["TMPDIR"] = str(temporary)
