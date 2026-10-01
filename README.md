@@ -7,8 +7,8 @@ Checked completion evidence lets a Task remain reusable after its work is remove
 The development branch is migrating to v0.3.0. The current managed lifecycle
 supports Task graphs, named Task dependencies, external inputs, and partial
 retries, fresh attempts, separate work/results filesystems, and interrupted
-transfer recovery, repair, and completed-work cleanup. Explicit older/failed
-attempt cleanup and the remaining inspection improvements are being added in
+transfer recovery, repair, and completed or explicitly selected inactive-work
+cleanup. The remaining inspection improvements are being added in
 [the implementation queue](https://github.com/MOMA-AUH/gwflow/issues/62).
 Existing v0.2 factories and records are not converted or adopted. The older
 examples will be migrated with the complete workflow demonstration.
@@ -276,6 +276,31 @@ was interrupted. Once work is marked for removal, it cannot supply a later repai
 missing or changed results require fresh computation. Work cleanup therefore gives
 up repair sources, while permitting new consumers to use retained results without
 recreating completed producer work.
+
+To remove work that default cleanup protects, select exact recorded attempt UUIDs
+with repeatable `--attempt` options. Find the UUIDs and workspace/staging paths in
+`clean-work` preview or the current attempt in `explain --details`:
+
+```console
+gwf clean-work --attempt UUID
+gwf clean-work --delete --attempt UUID --attempt ANOTHER_UUID
+```
+
+This deliberately permits inactive failed, superseded, or repairable work to be
+removed. Each selected attempt's preview explains the loss of successful
+intermediate progress, diagnostics stored inside work, and repair sources.
+Failed work cannot continue after cleanup intent is recorded; its next computation
+uses a fresh attempt and repeats successful intermediate steps too. Cleaning older
+attempts leaves current results reusable. Cleaning repair sources can require
+fresh computation if retained results are missing or damaged; cleanup itself does
+not change those results.
+
+Do not combine `--attempt` with `--task`. Unknown selections fail before deletion.
+Explicit selection never overrides ownership or inactivity checks: active, queued,
+or transferring work and unresolved submissions cause a nonzero refusal. Logs,
+external inputs, retained results, and required bookkeeping survive. Interrupted
+explicit cleanup resumes by repeating the same `--attempt` selection with
+`--delete`, even if the attempt is no longer current.
 
 Structure is always tracked. Commands follow gwf's inherited `use_spec_hashes`
 setting (default false); enabling it is recommended. File size and modification

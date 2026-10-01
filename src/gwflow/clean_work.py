@@ -1,4 +1,4 @@
-"""Preview or delete completed owned work under the shared frontend guard."""
+"""Preview or delete owned work under the shared frontend guard."""
 
 import click
 from gwf import Workflow as GwfWorkflow
@@ -17,6 +17,9 @@ def display(store, observation):
     click.echo(f"Task {attempt['task']} attempt {attempt['attempt']}: {observation.action}; {observation.reason}")
     click.echo(f"  Workspace: {store.workspace(attempt)}")
     click.echo(f"  Staging group: {store.locations['staging'] / attempt['attempt']}")
+    if observation.explicit:
+        click.echo("  Consequences: removes successful intermediate progress, diagnostics within work, and repair sources; "
+                   "incomplete computation will need a fresh attempt. Current results and logs are preserved.")
     for path in observation.directories:
         if path != str(store.workspace(attempt)):
             click.echo(f"  Staging: {path}")
@@ -25,9 +28,12 @@ def display(store, observation):
 @click.command("clean-work")
 @click.option("--delete", is_flag=True, help="Delete eligible owned work without an interactive prompt.")
 @click.option("--task", multiple=True, help="Limit completed-work cleanup to exact Task names.")
+@click.option("--attempt", "attempt_ids", multiple=True, help="Select exact recorded inactive attempts, giving up retry progress and repair sources.")
 @pass_context
-def clean_work(ctx, delete, task):
-    """Preview cleanup of completed work; retained results are preserved."""
+def clean_work(ctx, delete, task, attempt_ids):
+    """Preview completed work or explicitly selected inactive attempts."""
+    if task and attempt_ids:
+        raise WorkflowError("Cannot combine --task and --attempt")
     workflow = GwfWorkflow.from_context(ctx)
     if not isinstance(workflow, Workflow):
         raise WorkflowError("gwf clean-work requires a gwflow.Workflow")
@@ -40,16 +46,20 @@ def clean_work(ctx, delete, task):
         known = set(workflow._task_declarations) | {attempt["task"] for attempt in attempts}
         if set(task) - known:
             raise WorkflowError("Unknown Task names for --task: " + ", ".join(sorted(set(task) - known)))
-        selected = [attempt for attempt in attempts if not task or attempt["task"] in task]
+        unknown = set(attempt_ids) - {attempt["attempt"] for attempt in attempts}
+        if unknown:
+            raise WorkflowError("Unknown attempts for --attempt: " + ", ".join(sorted(unknown)))
+        selected = [attempt for attempt in attempts if attempt["attempt"] in attempt_ids] if attempt_ids else [
+            attempt for attempt in attempts if not task or attempt["task"] in task]
         with create_backend(ctx.backend, working_dir=ctx.working_dir, config=ctx.config) as backend:
-            observations = [cleanup.observe(store, attempt, backend, ctx.backend) for attempt in selected]
-        click.echo("Completed-work cleanup" if delete else "Cleanup preview; use --delete to remove eligible work")
+            observations = [cleanup.observe(store, attempt, backend, ctx.backend, explicit=bool(attempt_ids)) for attempt in selected]
+        click.echo("Work cleanup" if delete else "Cleanup preview; use --delete to remove eligible work")
         if not observations:
             click.echo("No recorded attempts selected")
         if delete and any(item.action == "blocked" for item in observations):
             for item in observations:
                 display(store, item)
-            raise WorkflowError("Cleanup refused for ownership or unresolved activity")
+            raise WorkflowError("Cleanup refused for ownership or activity")
         if delete:
             with create_backend(ctx.backend, working_dir=ctx.working_dir, config=ctx.config) as backend:
                 observations = [cleanup.remove(store, item, backend, ctx.backend) if item.action == "eligible" else item
