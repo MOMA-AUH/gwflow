@@ -164,6 +164,40 @@ class ManagedCoordinationTests(LocalBackendTestCase):
         self.assertIn("reuse", self.cli("-b", "slurm", "explain", env=env))
         self.assertNotIn("Submitted target", self.cli("-b", "slurm", "run", env=env))
 
+    def test_slurm_wrapper_failure_cannot_publish_completion(self):
+        self.write_task("printf unchecked > out.txt; exit 7")
+        env = self.slurm_environment()
+        self.cli("-b", "slurm", "run", env=env)
+        self.settle()
+        submitted = [json.loads(line) for line in (self.work / "slurm-submitted.jsonl").read_text().splitlines()]
+        compute = next(item for item in submitted if item["name"].startswith("sample__write__"))
+        state = subprocess.run([str(self.work / "slurm-bin/sacct"), "--jobs", compute["id"]],
+                               env=env, capture_output=True, text=True, check=True).stdout
+        self.assertIn("FAILED", state)
+        self.assertFalse((self.work / "results/sample").exists())
+        self.assertIn("Task sample: retry;", self.cli("-b", "slurm", "explain", env=env))
+
+    def test_slurm_acknowledgement_survives_frontend_loss_before_tracking(self):
+        held, release = self.work / "held", self.work / "release"
+        self.write_task(f"touch {shlex.quote(str(held))}; while [ ! -e {shlex.quote(str(release))} ]; do sleep 0.025; done; printf checked > out.txt")
+        env = self.slurm_environment()
+        submitter = subprocess.run([
+            sys.executable, str(FIXTURES / "frontend_fault.py"), str(self.work), "after_computation_ack", "sample",
+            "-b", "slurm", "run",
+        ], cwd=self.work, capture_output=True, text=True, env=env, timeout=30)
+        try:
+            self.assertEqual(submitter.returncode, 109, submitter.stdout + submitter.stderr)
+            self.wait_for(held.exists)
+            output = self.cli("-b", "slurm", "run", env=env)
+            self.assertNotIn("Submitted target sample__write", output)
+            self.assertIn("Submitted target sample__gwflow_complete", output)
+            self.assertIn("active work", self.cli("-b", "slurm", "run", "--force", env=env, success=False))
+        finally:
+            release.touch()
+        self.finish()
+        self.assertEqual((self.work / "results/sample/result.txt").read_text(), "checked")
+        self.assertEqual(len((self.work / "slurm-submitted.jsonl").read_text().splitlines()), 3)
+
     def test_cancellation_request_and_unknown_status_do_not_prove_inactivity(self):
         env = self.slurm_environment()
         held, release = self.work / "held", self.work / "release"

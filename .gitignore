@@ -11,8 +11,8 @@ __pycache__/
 # Local development environment and example outputs.
 /.conda-env/
 /examples/uppercase/.gwf/
-/examples/uppercase/alpha.*
-/examples/uppercase/beta.*
+/examples/uppercase/work/
+/examples/uppercase/results/
 /examples/packaged/.gwf/
 /examples/packaged/work/
 /examples/packaged/results/

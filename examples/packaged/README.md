@@ -1,62 +1,84 @@
 # Packaged workflow
 
-This example assembles three gwflow tasks from two installable Python packages.
-Tasks **A** and **B** are separate instances of the `summary_task.summarize`
-factory. They clean and total sales and returns independently. Task **C** comes
-from `report_task.net_report` and calculates net sales from their retained
-outputs.
+This example assembles three managed Tasks from two independently installable
+Python packages. A and B use `summary_task.summarize(source)` to clean and total
+sales and returns. C uses `report_task.net_report(sales, returns)` with the
+**named retained references** returned by registering A and B. Factories declare
+local outputs and retained mappings; the pipeline chooses each `result_dir`.
 
-| Task | External input | Internal intermediate | Retained output |
+| Task | Input | Private intermediate | Retained file |
 | --- | --- | --- | --- |
-| A | `data/sales.csv` | `work/A.cleaned.csv` | `results/sales.csv` |
-| B | `data/returns.csv` | `work/B.cleaned.csv` | `results/returns.csv` |
-| C | Both summaries | `work/C.joined.csv` | `results/net.csv` |
+| A | `data/sales.csv` | `cleaned.csv` | `results/sales/summary.csv` |
+| B | `data/returns.csv` | `cleaned.csv` | `results/returns/summary.csv` |
+| C | A/B `outputs["summary"]` references | `joined.csv` | `results/net/net.csv` |
 
-Each task has two ordinary gwf targets. A and B can run concurrently; C waits
-for both tasks to complete. The package source trees are separate from the
-pipeline, and each package has its own `pyproject.toml` and version. The packages
-are kept in this repository for convenience; they do not need separate GitHub
-repositories.
+Each Task contains two computation targets. A and B are independent. C's
+preparation waits for checked Completion of both producers, including all their
+branches and retained-set installation. Results contain just these three CSVs;
+execution identities and bookkeeping live outside results.
 
-## Run locally
+From the repository root, install into a Python 3.12 environment containing
+pinned gwf 2.1.1:
 
-First activate a Python 3.12 environment with gwflow and gwf 2.1.1 installed,
-as described in the [project README](../../README.md#install). From this
-directory, install the two task packages:
-
-```bash
-python -m pip install -e packages/summary-task
-python -m pip install -e packages/report-task
+```sh
+python -m pip install .
+python -m pip install ./examples/packaged/packages/summary-task ./examples/packaged/packages/report-task
+cd examples/packaged
+gwf config set use_spec_hashes true
 ```
 
-Editable installs pick up changes to package source during development. To test
-the installation behavior used for a release, omit `-e`. Both packages install
-into the same environment as gwflow.
+The example packages are version 0.2.0 and require gwflow 0.3.x. Use `-e` for
+editable package development if desired. Package version or implementation
+changes have no independent invalidation; changed generated commands are tracked
+when hashes are enabled. Use explicit force for otherwise untracked changes.
 
-Start local workers in one terminal:
+Start local workers in a second terminal, in this directory and environment:
 
-```bash
+```sh
 gwf -b local workers -n 2
 ```
 
-Then, in another terminal in this directory, run the workflow and inspect its
-retained report:
+Back in the first terminal, complete only A and B. The example's environment
+switch omits C's declaration so it can be added later:
 
-```bash
-gwf -b local run
-gwf -b local status
-cat results/net.csv
+```sh
+GWFLOW_EXAMPLE_REPORT=0 gwf -b local run
+GWFLOW_EXAMPLE_REPORT=0 gwf -b local status --details
 ```
 
-The final report contains `apples,17,2,15` and `pears,8,1,7` under the
-`product,sales,returns,net` header. After all three tasks have completed,
-delete only their intermediates and run again:
+Submission returns immediately. Wait until status reports both Tasks as
+`reusable work-present`, then preview and delete their eligible work:
 
-```bash
-rm work/A.cleaned.csv work/B.cleaned.csv work/C.joined.csv
-gwf -b local run
+```sh
+GWFLOW_EXAMPLE_REPORT=0 gwf -b local clean-work
+GWFLOW_EXAMPLE_REPORT=0 gwf -b local clean-work --delete
 ```
 
-The second run submits no targets and does not recreate the deleted files.
-Keep `.gwf/`: it contains the completion records needed for reuse. Inputs and
-retained outputs remain in place.
+Unset `GWFLOW_EXAMPLE_REPORT` if it was exported in your shell. Now add C and
+inspect status until it also becomes reusable:
+
+```sh
+gwf -b local run
+gwf -b local status --details
+cat results/net/net.csv
+```
+
+Only C computes, using the producers' retained files while A/B work remains
+absent. The exact report is:
+
+```csv
+product,sales,returns,net
+apples,17,2,15
+pears,8,1,7
+```
+
+A subsequent unchanged `gwf -b local run` submits no jobs. Starting with C enabled
+also works: all Tasks are submitted together with producer dependencies. Keep
+results and `.gwf/` for reuse. Cleanup gives up intermediate retry/repair sources;
+if retained results later become damaged, cleaned producers must compute afresh.
+
+For Slurm, use the configured backend and shared storage visible to compute nodes.
+Site resources belong in Workflow defaults; gwf 2.1.1 calls the partition option
+`queue`. See the [managed lifecycle documentation](../../README.md) for storage
+placement, force, repair, uncertainty and operational assumptions, and the
+[validation record](../../docs/validation-v0.3.0.md) for tested infrastructure.

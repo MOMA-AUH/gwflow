@@ -42,6 +42,13 @@ class FreshAttemptTests(LocalBackendTestCase):
                 for name in ("a", "b", "c")}
 
     def test_selected_force_refreshes_consumers_even_with_identical_metadata(self):
+        self.check_selected_force()
+
+    def test_producer_identity_invalidates_consumers_with_command_tracking(self):
+        self.configure(use_spec_hashes=True)
+        self.check_selected_force()
+
+    def check_selected_force(self):
         self.run_complete()
         before = self.attempts()
         result = self.work / "results/a/result.txt"
@@ -62,6 +69,36 @@ class FreshAttemptTests(LocalBackendTestCase):
         self.assertNotEqual(after["c"], before["c"])
         self.assertEqual((result.stat().st_size, result.stat().st_mtime_ns), (info.st_size, info.st_mtime_ns))
         self.assertEqual(Counter((self.work / "trace").read_text().splitlines()), {"a": 2, "b": 1, "c": 2})
+
+    def test_untracked_runtime_package_parameter_and_environment_need_force(self):
+        self.configure(use_spec_hashes=True)
+        package = self.work / "task_package.py"
+        parameter = self.work / "hidden_parameter"
+        environment = self.work / "runtime_environment"
+        package.write_text("from pathlib import Path\nimport os, sys\nprint('v1', Path(sys.argv[1]).read_text(), os.environ['TASK_MODE'])\n")
+        parameter.write_text("first")
+        environment.write_text("export TASK_MODE=old\n")
+        command = (f". {shlex.quote(str(environment))}; {shlex.quote(sys.executable)} "
+                   f"{shlex.quote(str(package))} {shlex.quote(str(parameter))} > out.txt")
+        (self.work / "workflow.py").write_text(
+            "from gwflow import Task, Workflow\ngwf = Workflow()\n"
+            "task = Task(inputs=[])\n"
+            "target = task.target('compute', inputs=[], outputs=['out.txt'])\n"
+            f"target << {command!r}\n"
+            "task.retain('value', source=target.output('out.txt'), path='out.txt')\n"
+            "gwf.task_from_template('runtime', task)\n"
+        )
+        self.run_complete()
+        result = self.work / "results/runtime/out.txt"
+        self.assertEqual(result.read_text(), "v1 first old\n")
+        package.write_text(package.read_text().replace("'v1'", "'version2'"))
+        parameter.write_text("second")
+        environment.write_text("export TASK_MODE=new\n")
+        self.assertNotIn("Submitted target", self.cli("run"))
+        self.assertEqual(result.read_text(), "v1 first old\n")
+        self.cli("run", "--force-task", "runtime")
+        self.finish()
+        self.assertEqual(result.read_text(), "version2 second new\n")
 
     def interrupted_initialization(self, phase):
         self.run_complete()

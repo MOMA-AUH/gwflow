@@ -4,15 +4,18 @@ gwflow adds managed Tasks to [gwf](https://gwf.app/): computation runs in dispos
 work storage, while named retained files are copied into stable results storage.
 Checked completion evidence lets a Task remain reusable after its work is removed.
 
-The development branch is migrating to v0.3.0. The current managed lifecycle
-supports Task graphs, named Task dependencies, external inputs, and partial
-retries, fresh attempts, separate work/results filesystems, and interrupted
-transfer recovery, repair, and completed or explicitly selected inactive-work
-cleanup, with status and explanations for the full lifecycle. The packaged
-demonstration and final integration checks remain in
-[the implementation queue](https://github.com/MOMA-AUH/gwflow/issues/62).
-Existing v0.2 factories and records are not converted or adopted. The older
-examples will be migrated with the complete workflow demonstration.
+The v0.3.0 managed lifecycle supports Task graphs, named Task dependencies,
+external inputs, partial retries, fresh attempts, separate work/results
+filesystems, interrupted transfer recovery, repair, and work cleanup. The
+[packaged A/B/C example](examples/packaged/README.md) demonstrates completing two
+producers, cleaning their work, then computing a new consumer from retained
+results. The [validation record](docs/validation-v0.3.0.md) maps the release
+acceptance matrix to tests and infrastructure observations.
+
+Factories must use the managed API. Existing v0.2 factories and records have no
+automatic conversion, migration, or adoption path; initialized storage cannot be
+relocated. Ordinary authored top-level targets are not supported in a managed
+Workflow.
 
 Install with Python 3.12 and gwf 2.1.1:
 
@@ -157,6 +160,12 @@ staging and installs the complete set in `results/hello/` before recording
 Completion. Retained files are independent copies; only declared retained files
 appear in results. Scratch, work outputs, and execution IDs remain in work or
 bookkeeping. A Task may retain no files but still requires checked computation.
+
+This Completion is checked evidence for the exact attempt and successful
+executions, its input baseline and complete installed retained set. Existing
+files, timestamp freshness, or a scheduler's success state alone cannot establish
+it. Compared with the earlier gwf-style freshness behavior, the managed lifecycle
+requires this execution and installation evidence before a Task can be reused.
 
 An ordinary `gwf run` recovers interrupted finishing under the same Task attempt
 without repeating verified computation. Partial copying restarts as a complete
@@ -339,10 +348,22 @@ explicit cleanup resumes by repeating the same `--attempt` selection with
 `--delete`, even if the attempt is no longer current.
 
 Structure is always tracked. Commands follow gwf's inherited `use_spec_hashes`
-setting (default false); enabling it is recommended. File size and modification
+setting (default false); enable it explicitly in the workflow directory:
+
+```sh
+gwf config set use_spec_hashes true
+```
+
+Enabling command hashes is recommended; the inherited default is unchanged.
+File size and modification
 time checks do not detect changes preserving both, and successful execution does
 not certify output contents. Resources, packages, hidden parameters, and the
-software environment have no independent invalidation component.
+software environment have no independent invalidation component. Package code,
+tool versions or runtime environment changes can therefore leave a Task reusable
+when its declared structure, tracked commands and file metadata stay unchanged.
+Parameters matter only through those tracked effects. Use `gwf run --force-task
+NAME` (or `--force` for all Tasks) when such an untracked change requires new
+computation.
 
 Storage placement belongs to the pipeline; the same Task factory and named
 output references work with different initial roots:
@@ -386,6 +407,7 @@ supported; these guarantees are not universal power-loss certification.
 Run the installed-package tests with:
 
 ```sh
+python -m pip install ./examples/packaged/packages/summary-task ./examples/packaged/packages/report-task
 python -m unittest discover -s tests -v
 python tests/release_smoke.py
 ```
