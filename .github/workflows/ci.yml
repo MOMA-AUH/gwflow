@@ -29,6 +29,10 @@ jobs:
           apptainer --version
           apptainer build "$RUNNER_TEMP/gwflow-test.sif" tests/fixtures/container.def
           echo "GWFLOW_TEST_SIF=$RUNNER_TEMP/gwflow-test.sif" >> "$GITHUB_ENV"
+          apptainer build "$RUNNER_TEMP/summary.sif" examples/packaged/images/summary.def
+          apptainer build "$RUNNER_TEMP/report.sif" examples/packaged/images/report.def
+          echo "GWFLOW_TEST_SUMMARY_SIF=$RUNNER_TEMP/summary.sif" >> "$GITHUB_ENV"
+          echo "GWFLOW_TEST_REPORT_SIF=$RUNNER_TEMP/report.sif" >> "$GITHUB_ENV"
       - name: Run installed-package and local-backend tests
         shell: bash -l {0}
         run: conda run -n gwflow-tests python -m unittest discover -s tests -v

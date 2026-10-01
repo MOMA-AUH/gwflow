@@ -3,19 +3,23 @@
 from shlex import quote
 from sys import executable
 
-from gwflow import Task, shell
 
-
-def net_report(sales, returns):
+def net_report(sales, returns, *, image=None):
     """Join two retained summaries, then retain the net sales report."""
+    from gwflow import Task, shell
+
     task = Task(inputs=[sales, returns])
-    command = f"{quote(executable)} -m report_task"
-    join = task.target("join", inputs=[sales, returns], outputs=["joined.csv"])
+    interpreter = "python" if image is not None else quote(executable)
+    command = f"{interpreter} -m report_task"
+    join = task.target(
+        "join", inputs=[sales, returns], outputs=["joined.csv"], image=image,
+        stage_as={"sales/summary.csv": sales, "returns/summary.csv": returns} if image is not None else {},
+    )
     join << shell(
         f"{command} join {{sales}} {{returns}} {{destination}}",
         sales=sales, returns=returns, destination=join.output("joined.csv"),
     )
-    finalize = task.target("finalize", inputs=[join.output("joined.csv")], outputs=["net.csv"])
+    finalize = task.target("finalize", inputs=[join.output("joined.csv")], outputs=["net.csv"], image=image)
     finalize << shell(
         f"{command} finalize {{source}} {{destination}}",
         source=join.output("joined.csv"), destination=finalize.output("net.csv"),

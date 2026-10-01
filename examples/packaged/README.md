@@ -27,7 +27,7 @@ cd examples/packaged
 gwf config set use_spec_hashes true
 ```
 
-The example packages are version 0.2.0 and require gwflow 0.3.x. Use `-e` for
+The example packages are version 0.3.0 and require gwflow 0.4.x. Use `-e` for
 editable package development if desired. Package version or implementation
 changes have no independent invalidation; changed generated commands are tracked
 when hashes are enabled. Use explicit force for otherwise untracked changes.
@@ -84,4 +84,73 @@ For Slurm, use the configured backend and shared storage visible to compute node
 Site resources belong in Workflow defaults; gwf 2.1.1 calls the partition option
 `queue`. See the [managed lifecycle documentation](../../README.md) for storage
 placement, force, repair, uncertainty and operational assumptions, and the
-[validation record](../../docs/validation-v0.3.0.md) for tested infrastructure.
+[validation record](../../docs/validation-v0.4.0.md) for tested infrastructure.
+
+## Prepared container images
+
+`container-workflow.py` selects images through ordinary factory arguments:
+
+```python
+sales = gwf.task_from_template(
+    "A", summarize("data/sales.csv", image="images/summary.sif"), result_dir="sales",
+)
+returns = gwf.task_from_template(
+    "B", summarize("data/returns.csv", image="images/summary.sif"), result_dir="returns",
+)
+gwf.task_from_template(
+    "C", net_report(sales.outputs["summary"], returns.outputs["summary"],
+                    image="images/report.sif"), result_dir="net",
+)
+```
+
+The factories pass the image to each computation target. The report factory's
+join target uses `stage_as={"sales/summary.csv": sales,
+"returns/summary.csv": returns}` so the identically named retained inputs remain
+distinct. Shell bindings still use the original retained references. Relative
+image paths resolve from the workflow directory.
+
+On Linux with deployment-provided Apptainer 1.5.4, prepare images from the
+repository root after installing the host packages above:
+
+```sh
+mkdir -p build/packaged-container-demo/images
+cp examples/packaged/container-workflow.py build/packaged-container-demo/workflow.py
+cp -r examples/packaged/data build/packaged-container-demo/
+apptainer build build/packaged-container-demo/images/summary.sif examples/packaged/images/summary.def
+apptainer build build/packaged-container-demo/images/report.sif examples/packaged/images/report.def
+cd build/packaged-container-demo
+gwf config set use_spec_hashes true
+```
+
+Use a fresh demonstration directory for v0.4 state; existing older managed
+records are not migrated. Building these images is fixture/deployment setup,
+requiring network access to the Python base image and package build requirements.
+gwflow itself accepts already prepared local SIF paths and does not acquire them.
+Each image provides Bash, Python 3.12, and its independently installed command
+package. Image build tests verify that the command module loads without gwflow
+installed. Factories need gwflow on the host; their container commands run
+`python -m summary_task` or `python -m report_task` using the image interpreter.
+Keep the images stable and available throughout the demonstration.
+
+Run the same local-worker sequence above in this fresh directory: complete A/B
+with `GWFLOW_EXAMPLE_REPORT=0`, preview `clean-work`, delete eligible work, then
+run with C enabled. The preview preserves work, results and records. Deletion
+retains checked Completion and normal `gwf logs A__clean --stderr --no-pager`
+access. Only C computes, producing the exact CSV shown above; A/B work stays
+absent, and a subsequent unchanged run submits no jobs.
+
+For Slurm, put the whole demonstration directory on shared storage visible at
+the same paths on compute nodes. Apptainer must be on the job PATH, and the host
+Python environment with gwf, gwflow and both factory packages must also be
+available there. Set suitable site resources in the copied workflow, for example:
+
+```python
+gwf = Workflow(defaults={"queue": "short", "cores": 1,
+                         "memory": "256m", "walltime": "00:02:00"})
+```
+
+Replace `-b local` with `-b slurm` for run, status and cleanup; do not start local
+workers. Wait for the same reusable states before deleting work or adding C.
+The queue and resource values are deployment choices, not portable defaults.
+Ordinary Apptainer site mounts remain enabled. Final cross-backend observations
+are recorded in the linked v0.4 validation record.

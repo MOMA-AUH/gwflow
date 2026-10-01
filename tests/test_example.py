@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import shutil
 import json
+import unittest
 
 import test_managed_recovery
 
@@ -72,3 +73,26 @@ class PackagedExampleTests(LocalBackendTestCase):
                 self.assertEqual(item["args"], ["--parsable"])
         self.assertEqual((self.work / "results/net/net.csv").read_text().splitlines(),
                          ["product,sales,returns,net", "apples,17,2,15", "pears,8,1,7"])
+
+
+@unittest.skipUnless(os.environ.get("GWFLOW_TEST_SUMMARY_SIF") and os.environ.get("GWFLOW_TEST_REPORT_SIF"),
+                     "set prepared summary/report SIFs for real packaged container execution")
+class PackagedContainerExampleTests(LocalBackendTestCase):
+    def configure_workflow(self):
+        shutil.copy(EXAMPLE / "container-workflow.py", self.work / "workflow.py")
+        shutil.copytree(EXAMPLE / "data", self.work / "data")
+        (self.work / "images").mkdir()
+        for name in ("summary", "report"):
+            (self.work / "images" / f"{name}.sif").symlink_to(os.environ[f"GWFLOW_TEST_{name.upper()}_SIF"])
+
+    def test_packaged_containers_clean_producers_then_compute_only_the_new_consumer(self):
+        PackagedExampleTests.test_installed_producers_clean_then_new_consumer_computes_only_once(self)
+        for target in ("A__clean", "B__aggregate", "C__join"):
+            self.assertIn(" image ", self.cli("logs", target, "--stderr", "--no-pager"))
+        workspace = Path(next(line.split("Workspace: ", 1)[1]
+                              for line in self.cli("explain", "C", "--details").splitlines() if "Workspace: " in line))
+        for name in ("sales", "returns"):
+            staged = list(workspace.rglob(f"{name}/summary.csv"))
+            self.assertEqual(len(staged), 1)
+            self.assertTrue(staged[0].is_symlink())
+            self.assertTrue(staged[0].samefile(self.work / "results" / name / "summary.csv"))
