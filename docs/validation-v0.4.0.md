@@ -11,8 +11,8 @@ graphs and retained-output consumers, and
 [#97](https://github.com/MOMA-AUH/gwflow/issues/97) covers environment and scratch.
 [#98](https://github.com/MOMA-AUH/gwflow/issues/98) validates failure, retry and repair.
 [#99](https://github.com/MOMA-AUH/gwflow/issues/99) adds the packaged container demonstration.
-Final live Slurm acceptance remains for the dependent
-implementation tickets. This is implementation validation, without
+[#100](https://github.com/MOMA-AUH/gwflow/issues/100) consolidates the checks and
+records the live backend validation below. This is implementation validation, without
 release publication or deployment provisioning.
 
 ## Repeatable local checks
@@ -255,12 +255,179 @@ image preparation and local/Slurm usage. CI prepares all three images for the
 installed-package suite; the Conda artifact job explicitly skips runtime cases
 while checking the complete host suite and packaged smoke.
 
-## Limits and remaining evidence
+The #99 final-commit [CI run](https://github.com/MOMA-AUH/gwflow/actions/runs/36894760576)
+passed all 248 tests against the pip-installed package with real Apptainer and
+no skips. The Conda artifact suite passed with 37 explicit runtime skips and its
+packaged smoke. All four local example tests and the package typecheck passed.
 
-These slices do not establish live Slurm container acceptance. That is required
-by the final validation ticket and
-must be recorded before declaring the parent specification complete. The runtime
-record establishes no broader Apptainer or non-Linux compatibility claim.
+## Repeatable live backend acceptance
+
+[validate_containers.py](../tests/validate_containers.py) reuses the existing
+public CLI assertions against actual local workers or Slurm. It does not select
+a backend fixture. Prepare/install the three images and distributions as above,
+then run from the repository root:
+
+```sh
+python tests/validate_containers.py --backend local --root build/validation/local-acceptance
+python tests/validate_containers.py --backend slurm --queue short --root build/validation/slurm-acceptance
+```
+
+Each root must be new; the Slurm root, installed host environment and all SIFs
+must be visible at the same paths on execution nodes. Each Slurm job requests
+one CPU, 256 MB and two minutes through public Workflow defaults. Select the
+site queue explicitly; `--case NAME` limits a diagnostic run. A wait defaults to
+600 seconds and can be changed with `--timeout`. The runner stops at the first
+failure, preserves its evidence, and does not automatically cancel jobs. Inspect
+any outstanding job IDs before a rerun. Missing images/runtime fail preflight;
+skipped tests are not acceptance.
+
+The evidence directory retains generated workflows, managed records and normal
+logs, retained results, per-case `transcript.jsonl`, software/image observations
+in `environment.json`, and `summary.json`. Transcripts record public commands,
+outputs, image path/size/mtime observations, and real Slurm accounting including
+IDs, node, state and exit status. The deployment case runs a host target that
+reports the actual job's Python, package and Apptainer versions. CI also runs
+this harness with local workers after the installed-package suite; its Conda
+job continues the artifact installation, host suite and packaged smoke.
+
+The trace-writing mixed/refresh/recovery cases add their test directory through
+ordinary `APPTAINER_BINDPATH`, retaining any existing site binds. Those authored
+traces and deployment fault files are outside private work; the earlier `/tmp`
+harness reached them through Apptainer's default temporary mount. The permission
+case adds no such bind: requesting the same source parent both writable through
+a site bind and read-only through gwflow is a deployment conflict, not a valid
+permission test. All source-write refusal assertions remain in the live cases.
+
+### Deployment observations and limits
+
+The reference run uses installed gwflow `0.4.0` from source commit `ec06a4f`,
+gwf `2.1.1`, summary/report distributions `0.3.0`, Python `3.12.14` on Linux,
+and Slurm `25.11.6`.
+All three SIFs also contain Python `3.12.14`. The basic SIF contains no gwflow
+distribution; summary/report SIFs contain only their respective example command
+distribution, not gwflow. The runtime is upstream Apptainer `1.5.4-1`, extracted
+into the isolated validation directory described above. No image preparation,
+package installation or host interpreter injection happens during computation.
+
+The runtime configuration enables proc/sys/dev/devpts/home/tmp mounts, disables
+hostfs mounting, and includes `/etc/localtime` and `/etc/hosts` binds. User binds,
+overlay and underlay are enabled. Environment cases deliberately supply polluted
+host PYTHONPATH and image-value settings, explicit Apptainer overrides, and both
+managed and opted-out scratch; those assertions run inside real containers.
+
+Shared BeeGFS directory identity needs particular attention on this deployment.
+Frontend `cn-1036` and compute node `cn-1058` report device `48`; `cn-1053` reports
+device `49` for the same directory and identical inode. Diagnostic Slurm jobs
+`1258516` and `1258523` confirmed those observations. Initial preparation job
+`1258408` on `cn-1053` was refused by the existing managed-root identity guard.
+No ownership check was weakened and no old records were adopted. Acceptance is
+restricted to hosts exposing matching managed-directory identities; this record
+does not certify arbitrary BeeGFS clients or heterogeneous mount identities.
+
+The accepted Slurm run uses a validation-only PATH wrapper around the real
+`/usr/bin/sbatch` to select `cn-1058` explicitly with its documented
+[node-list option](https://slurm.schedmd.com/sbatch.html):
+
+```sh
+mkdir -p build/validation/slurm-bin
+cat > build/validation/slurm-bin/sbatch <<'SH'
+#!/bin/bash
+exec /usr/bin/sbatch --nodelist=cn-1058 "$@"
+SH
+chmod +x build/validation/slurm-bin/sbatch
+PATH="$PWD/build/validation/slurm-bin:$PATH" python tests/validate_containers.py \
+  --backend slurm --queue short --root build/validation/slurm-acceptance
+```
+
+This is site-specific validation setup, not a new backend or a simulated
+scheduler. Use nodes compatible with your own deployment. An earlier diagnostic
+attempt used an ineffective `SBATCH_NODELIST` environment setting; its two
+superseded probe jobs `1258536` and `1258537` were cancelled by the validation
+operator. Those attempts are excluded from passing evidence. Actual placements
+and terminal states are recorded for the accepted run. Slurm requeued some jobs
+before their computation logs appeared, with a delayed next start; intermediate
+pending states are not counted as passes. Acceptance uses terminal accounting
+and the behavioral assertions after dependencies finish.
+
+Slurm also replaces the submitter's TMPDIR with a node-local job directory.
+The first opt-out check incorrectly expected the frontend's temporary path and
+failed in job `1258747`, with its dependent `1258748` cancelled. The corrected
+Slurm-specific assertion observes the host job environment immediately around
+real Apptainer execution using a test-only launch wrapper. Job `1258771` reported
+`/tmp/1258771` both on the host and inside the container, and the host read the
+container's scratch marker at command exit. Jobs `1258770`–`1258772` completed;
+managed cleanup and the unchanged zero-submission run passed. This validates
+forwarding of the actual job TMPDIR, including when it differs from the frontend.
+Node-local scratch lifetime remains a site responsibility. The local opt-out
+test separately proves that gwflow cleanup preserves a shared external scratch
+file. The wrapper observes environment and file behavior; it executes the real
+runtime with unchanged arguments and propagates its exit status.
+
+### Accepted results
+
+On 2026-10-01, all 13 cases passed on local workers and all 13 passed on real
+Slurm. The [runtime record](validation-v0.4.0-runtime.json) preserves exact
+software and image observations, each accepted case's job identifiers and
+terminal states, both exact packaged reports, and the excluded diagnostics.
+The Slurm evidence combines the first nine passed cases, the corrected job-TMPDIR
+case, and the three subsequent recovery/packaged cases. Its recorded initial-run
+failure is explicitly excluded from the accepted case set.
+
+| Live case | Slurm job evidence | Outcome |
+| --- | --- | --- |
+| Deployment and image execution | `1258554`–`1258556`, `1258561`–`1258563` | Installed host versions verified; image-only command, scratch cleanup and Reuse passed. |
+| Source/work overlap | `1258570`–`1258572` | Readable source, refused writes, writable nested work and TMPDIR. |
+| Aliases and companions | `1258594`–`1258596`, `1258608`–`1258610` | Resolved external alias and explicitly named duplicate/companion layouts passed. |
+| Mixed execution | `1258614`–`1258622` | Host → image → image → host, checked results and unchanged Reuse. |
+| Image refresh | 21 exact IDs in the runtime record, from `1258635` through `1258686` | Whole producer and consumer refresh, independent Task Reuse, zero-submission final run. |
+| Environment and scratch | `1258731`–`1258736`, `1258739`–`1258744`, `1258770`–`1258772` | Clean environment, concurrent separate managed scratch, cleanup and actual job-TMPDIR forwarding. |
+| Failure and retry | `1258792`–`1258796`, `1258806`–`1258808` | Intentional nonzero container exit refused Completion; successful sibling preserved and retry storage fresh. |
+| Unavailable-image repair decision | `1258816`–`1258820`, `1258840`–`1258844` | Missing image blocked without mutation; restoration enabled repair planning, and a later image change refreshed the whole Task. |
+| Packaged A/B then C | `1258870`–`1258877`, `1258896`–`1258899` | A/B work deleted; only C computed; exact report rows; A/B work stayed absent and unchanged run submitted nothing. |
+
+The accepted 90 Slurm jobs comprise 87 `COMPLETED`, one intentionally `FAILED`
+and its two dependency-cancelled jobs. All cases passed their behavioral
+assertions, including recovery from that intended failure. None of those
+accepted-case jobs was cancelled by the validation operator. These results are
+integration readiness evidence, without a release tag or package publication.
+
+## Parent acceptance matrix
+
+"Real container" below means Apptainer executed authored software. "Live Slurm"
+means the scheduler admitted and ran jobs; fixtures are identified separately.
+
+| #92 scenario | Evidence and boundary |
+| --- | --- |
+| 1. Select an image | Live `image` and `mixed` cases use image-only software without gwflow installed and two selected SIF paths within one Task. Host preparation, output checks and transfer establish retained results. Package images contain independently installed software. |
+| 2. Host and mixed execution | Live `mixed` exchanges host/container/host output references. `test_containers.py` checks host execution with Apptainer absent, effective executor rejection including inherited settings, and `test_staging.py` rejects host staging before initialization. The missing-PATH case uses an execution-environment fixture around a real command. |
+| 3. Equal basenames and companions | Live `companions` and `packaged` check distinct staged names, symlinks, original bindings, declared index companions and spaces/punctuation. `test_staging.py` checks invalid/default/ancestry collisions, duplicate assignments and effective-layout identity through the installed authoring/CLI boundary. |
+| 4. Links and permissions | Live `aliases` and `overlap` read resolved sources, refuse source writes and permit private work/TMPDIR writes, including work beneath a source parent. Focused local tests also cover site binds and declared versus incidental neighbors. |
+| 5. Environment and scratch | Live `environment`, `scratch` and `opt_out` check clean environment, explicit overrides, concurrent separate fixed-name files and actual job scratch forwarding. Local opt-out checks additionally verify cleanup non-adoption of external files; Slurm's node-local scratch observation is described above. `test_container_environment.py` also runs real containers with unset opt-out TMPDIR and hardcoded `/tmp` writes. |
+| 6. Clean producers, add consumer | Live `packaged` checks preview snapshots, A/B deletion, surviving logs/Completion, C-only work via named retained references, two explicit summary paths, exact report rows and unchanged zero-submission runs. |
+| 7. Image changes | Live `refresh` checks multiple images, whole-Task refresh with hashes disabled, consumer invalidation and unrelated Reuse. `test_containers.py` independently changes size, mtime and resolved path, and checks equivalent aliases using actual containers. Backend fixtures control active/uncertain admissions in `test_container_graphs.py`; they are not live scheduler fault injections. |
+| 8. Unavailable images and previews | Live `repair` blocks unavailable-image repair without changing snapshots, restores matching identity, previews repair, then refreshes after image change. `test_containers.py` and `test_container_recovery.py` cover unavailable Reuse/retry/continuation and frontend-only observation; deterministic gates hold scheduled host processes while images change. |
+| 9. Fail without partial success | Live `retry` writes partial output then exits 7; no retained result or Completion is accepted. Real local tests additionally cover missing Apptainer/software, unusable SIF, and zero-exit missing/nonregular outputs. PATH/launch timing controls are fixture inputs, not simulated Apptainer execution. |
+| 10. Retry and repair | Live `retry` preserves its successful sibling and attempt while giving retry new work/TMPDIR. Focused real local recovery tests repair damaged results without recomputation, including interrupted transfer and a finishing job without Apptainer. Active jobs/consumers, uncertain admission and damaged ownership are exercised using deterministic backend/evidence fault inputs. |
+
+All acceptance state is newly created by v0.4. The focused
+`test_older_attempt_without_image_evidence_is_rejected_without_deletion` deliberately
+removes required evidence and verifies clear refusal with byte/mtime preservation.
+It is a rejection test, not a migration or cross-version reuse matrix. Existing
+host graph, transfer, storage, inspection and ordinary-gwf tests remain in both
+installed-package suites.
+
+Documentation coverage is in the main [README](../README.md): explicit authoring
+and executor rules; input naming and tracked companions; requested mounts and
+deployment conflicts; clean environment and scratch ownership; launch/output
+failure and shared recovery; deployment visibility and image stability; and
+frontend pathname/size/mtime limits. The [packaged guide](../examples/packaged/README.md)
+provides repeatable authoring, image preparation, local and Slurm commands.
+
+## Limits
+
+This record establishes no broader Apptainer or non-Linux compatibility claim,
+and no universal cluster, filesystem, or mount-confinement guarantee. The accepted
+mount-identity profile and fixture versus live evidence are stated above.
 
 Image identity is a frontend pathname/size/mtime observation, not a snapshot or
 content digest. Deployments keep images stable after submission. Changes

@@ -1,0 +1,1494 @@
+{
+  "date": "2026-10-01",
+  "slurm_version": "25.11.6",
+  "installed_source_commit": "ec06a4fd3fd84377acf91987c79ffec7b20d6daa",
+  "image_software": {
+    "basic": {
+      "python": "3.12.14",
+      "packages": {}
+    },
+    "summary": {
+      "python": "3.12.14",
+      "packages": {
+        "gwflow-summary-task": "0.3.0"
+      }
+    },
+    "report": {
+      "python": "3.12.14",
+      "packages": {
+        "gwflow-report-task": "0.3.0"
+      }
+    }
+  },
+  "backends": {
+    "local": {
+      "environment": {
+        "backend": "local",
+        "platform": "Linux-5.14.0-687.48.1.el9_8.x86_64-x86_64-with-glibc2.34",
+        "python": "3.12.14 (main, Sep  2 2026, 23:27:36) [GCC 15.3.0]",
+        "apptainer": "apptainer version 1.5.4-1",
+        "apptainer_path": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/runtime/usr/bin/apptainer",
+        "packages": {
+          "gwf": "2.1.1",
+          "gwflow": "0.4.0",
+          "gwflow-summary-task": "0.3.0",
+          "gwflow-report-task": "0.3.0"
+        },
+        "images": {
+          "GWFLOW_TEST_SIF": {
+            "path": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/basic.sif",
+            "size": 44408832,
+            "mtime_ns": 1790864154000000000
+          },
+          "GWFLOW_TEST_SUMMARY_SIF": {
+            "path": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/summary.sif",
+            "size": 48836608,
+            "mtime_ns": 1790873132000000000
+          },
+          "GWFLOW_TEST_REPORT_SIF": {
+            "path": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/report.sif",
+            "size": 48836608,
+            "mtime_ns": 1790873143000000000
+          }
+        }
+      },
+      "validation_runs": [
+        {
+          "evidence_directory": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-local-accepted",
+          "summary": {
+            "run": 13,
+            "failures": 0,
+            "errors": 0,
+            "skips": 0,
+            "cases": [
+              "deployment",
+              "image",
+              "overlap",
+              "aliases",
+              "companions",
+              "mixed",
+              "refresh",
+              "environment",
+              "scratch",
+              "opt_out",
+              "retry",
+              "repair",
+              "packaged"
+            ]
+          },
+          "accepted_cases": [
+            "deployment",
+            "image",
+            "overlap",
+            "aliases",
+            "companions",
+            "mixed",
+            "refresh",
+            "environment",
+            "scratch",
+            "opt_out",
+            "retry",
+            "repair",
+            "packaged"
+          ]
+        }
+      ],
+      "cases": {
+        "deployment": {
+          "outcome": "passed",
+          "evidence_directory": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-local-accepted/deployment",
+          "submissions": 3,
+          "case_image_observations": []
+        },
+        "image": {
+          "outcome": "passed",
+          "evidence_directory": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-local-accepted/image",
+          "submissions": 3,
+          "case_image_observations": [
+            {
+              "resolved": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-local-accepted/image/prepared image.sif",
+              "size": 44408832,
+              "mtime_ns": 1790874775000000000
+            }
+          ]
+        },
+        "overlap": {
+          "outcome": "passed",
+          "evidence_directory": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-local-accepted/overlap",
+          "submissions": 3,
+          "case_image_observations": []
+        },
+        "aliases": {
+          "outcome": "passed",
+          "evidence_directory": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-local-accepted/aliases",
+          "submissions": 3,
+          "case_image_observations": []
+        },
+        "companions": {
+          "outcome": "passed",
+          "evidence_directory": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-local-accepted/companions",
+          "submissions": 3,
+          "case_image_observations": []
+        },
+        "mixed": {
+          "outcome": "passed",
+          "evidence_directory": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-local-accepted/mixed",
+          "submissions": 9,
+          "case_image_observations": [
+            {
+              "resolved": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-local-accepted/mixed/second image.sif",
+              "size": 44408832,
+              "mtime_ns": 1790874809000000000
+            },
+            {
+              "resolved": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-local-accepted/mixed/first image.sif",
+              "size": 44408832,
+              "mtime_ns": 1790874809000000000
+            }
+          ]
+        },
+        "refresh": {
+          "outcome": "passed",
+          "evidence_directory": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-local-accepted/refresh",
+          "submissions": 21,
+          "case_image_observations": [
+            {
+              "resolved": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-local-accepted/refresh/first image.sif",
+              "size": 44408832,
+              "mtime_ns": 1790874823000000000
+            },
+            {
+              "resolved": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-local-accepted/refresh/second image.sif",
+              "size": 44408832,
+              "mtime_ns": 1790874823000000000
+            },
+            {
+              "resolved": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-local-accepted/refresh/second image.sif",
+              "size": 44408832,
+              "mtime_ns": 1790874822000000000
+            }
+          ]
+        },
+        "environment": {
+          "outcome": "passed",
+          "evidence_directory": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-local-accepted/environment",
+          "submissions": 6,
+          "case_image_observations": []
+        },
+        "scratch": {
+          "outcome": "passed",
+          "evidence_directory": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-local-accepted/scratch",
+          "submissions": 6,
+          "case_image_observations": []
+        },
+        "opt_out": {
+          "outcome": "passed",
+          "evidence_directory": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-local-accepted/opt_out",
+          "submissions": 3,
+          "case_image_observations": []
+        },
+        "retry": {
+          "outcome": "passed",
+          "evidence_directory": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-local-accepted/retry",
+          "submissions": 8,
+          "case_image_observations": [
+            {
+              "resolved": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-local-accepted/retry/prepared image.sif",
+              "size": 44408832,
+              "mtime_ns": 1790874915000000000
+            }
+          ]
+        },
+        "repair": {
+          "outcome": "passed",
+          "evidence_directory": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-local-accepted/repair",
+          "submissions": 10,
+          "case_image_observations": [
+            {
+              "resolved": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-local-accepted/repair/prepared image.sif",
+              "size": 44408832,
+              "mtime_ns": 1790874940000000000
+            },
+            {
+              "resolved": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-local-accepted/repair/saved.sif",
+              "size": 44408832,
+              "mtime_ns": 1790874940000000000
+            },
+            {
+              "resolved": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-local-accepted/repair/prepared image.sif",
+              "size": 44408832,
+              "mtime_ns": 1790874939000000000
+            }
+          ]
+        },
+        "packaged": {
+          "outcome": "passed",
+          "evidence_directory": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-local-accepted/packaged",
+          "submissions": 12,
+          "case_image_observations": [
+            {
+              "resolved": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/report.sif",
+              "size": 48836608,
+              "mtime_ns": 1790873143000000000
+            },
+            {
+              "resolved": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/summary.sif",
+              "size": 48836608,
+              "mtime_ns": 1790873132000000000
+            }
+          ]
+        }
+      },
+      "job_environment": {
+        "node": "cn-1036",
+        "python": "3.12.14 (main, Sep  2 2026, 23:27:36) [GCC 15.3.0]",
+        "packages": {
+          "gwf": "2.1.1",
+          "gwflow": "0.4.0",
+          "gwflow-summary-task": "0.3.0",
+          "gwflow-report-task": "0.3.0"
+        },
+        "apptainer_path": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/runtime/usr/bin/apptainer",
+        "apptainer": "apptainer version 1.5.4-1"
+      },
+      "packaged_report": [
+        "product,sales,returns,net",
+        "apples,17,2,15",
+        "pears,8,1,7"
+      ]
+    },
+    "slurm": {
+      "environment": {
+        "backend": "slurm",
+        "platform": "Linux-5.14.0-687.48.1.el9_8.x86_64-x86_64-with-glibc2.34",
+        "python": "3.12.14 (main, Sep  2 2026, 23:27:36) [GCC 15.3.0]",
+        "apptainer": "apptainer version 1.5.4-1",
+        "apptainer_path": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/runtime/usr/bin/apptainer",
+        "packages": {
+          "gwf": "2.1.1",
+          "gwflow": "0.4.0",
+          "gwflow-summary-task": "0.3.0",
+          "gwflow-report-task": "0.3.0"
+        },
+        "images": {
+          "GWFLOW_TEST_SIF": {
+            "path": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/basic.sif",
+            "size": 44408832,
+            "mtime_ns": 1790864154000000000
+          },
+          "GWFLOW_TEST_SUMMARY_SIF": {
+            "path": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/summary.sif",
+            "size": 48836608,
+            "mtime_ns": 1790873132000000000
+          },
+          "GWFLOW_TEST_REPORT_SIF": {
+            "path": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/report.sif",
+            "size": 48836608,
+            "mtime_ns": 1790873143000000000
+          }
+        }
+      },
+      "validation_runs": [
+        {
+          "evidence_directory": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-slurm-accepted",
+          "summary": {
+            "run": 10,
+            "failures": 1,
+            "errors": 0,
+            "skips": 0,
+            "cases": [
+              "deployment",
+              "image",
+              "overlap",
+              "aliases",
+              "companions",
+              "mixed",
+              "refresh",
+              "environment",
+              "scratch",
+              "opt_out",
+              "retry",
+              "repair",
+              "packaged"
+            ]
+          },
+          "accepted_cases": [
+            "deployment",
+            "image",
+            "overlap",
+            "aliases",
+            "companions",
+            "mixed",
+            "refresh",
+            "environment",
+            "scratch"
+          ]
+        },
+        {
+          "evidence_directory": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-slurm-scratch-probe",
+          "summary": {
+            "run": 1,
+            "failures": 0,
+            "errors": 0,
+            "skips": 0,
+            "cases": [
+              "opt_out"
+            ]
+          },
+          "accepted_cases": [
+            "opt_out"
+          ]
+        },
+        {
+          "evidence_directory": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-slurm-recovery",
+          "summary": {
+            "run": 3,
+            "failures": 0,
+            "errors": 0,
+            "skips": 0,
+            "cases": [
+              "retry",
+              "repair",
+              "packaged"
+            ],
+            "outcomes": {
+              "retry": "passed",
+              "repair": "passed",
+              "packaged": "passed"
+            }
+          },
+          "accepted_cases": [
+            "retry",
+            "repair",
+            "packaged"
+          ]
+        }
+      ],
+      "cases": {
+        "deployment": {
+          "outcome": "passed",
+          "evidence_directory": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-slurm-accepted/deployment",
+          "submissions": 3,
+          "case_image_observations": [],
+          "jobs": [
+            {
+              "id": "1258554",
+              "target": [
+                "deployment",
+                "gwflow_prepare"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258555",
+              "target": [
+                "deployment",
+                "probe"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258556",
+              "target": [
+                "deployment",
+                "gwflow_complete"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            }
+          ]
+        },
+        "image": {
+          "outcome": "passed",
+          "evidence_directory": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-slurm-accepted/image",
+          "submissions": 3,
+          "case_image_observations": [
+            {
+              "resolved": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-slurm-accepted/image/prepared image.sif",
+              "size": 44408832,
+              "mtime_ns": 1790874913000000000
+            }
+          ],
+          "jobs": [
+            {
+              "id": "1258561",
+              "target": [
+                "sample",
+                "gwflow_prepare"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258562",
+              "target": [
+                "sample",
+                "compute"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258563",
+              "target": [
+                "sample",
+                "gwflow_complete"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            }
+          ]
+        },
+        "overlap": {
+          "outcome": "passed",
+          "evidence_directory": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-slurm-accepted/overlap",
+          "submissions": 3,
+          "case_image_observations": [],
+          "jobs": [
+            {
+              "id": "1258570",
+              "target": [
+                "sample",
+                "gwflow_prepare"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258572",
+              "target": [
+                "sample",
+                "gwflow_complete"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258571",
+              "target": [
+                "sample",
+                "read"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            }
+          ]
+        },
+        "aliases": {
+          "outcome": "passed",
+          "evidence_directory": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-slurm-accepted/aliases",
+          "submissions": 3,
+          "case_image_observations": [],
+          "jobs": [
+            {
+              "id": "1258594",
+              "target": [
+                "sample",
+                "gwflow_prepare"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258595",
+              "target": [
+                "sample",
+                "read"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258596",
+              "target": [
+                "sample",
+                "gwflow_complete"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            }
+          ]
+        },
+        "companions": {
+          "outcome": "passed",
+          "evidence_directory": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-slurm-accepted/companions",
+          "submissions": 3,
+          "case_image_observations": [],
+          "jobs": [
+            {
+              "id": "1258608",
+              "target": [
+                "sample",
+                "gwflow_prepare"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258609",
+              "target": [
+                "sample",
+                "read"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258610",
+              "target": [
+                "sample",
+                "gwflow_complete"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            }
+          ]
+        },
+        "mixed": {
+          "outcome": "passed",
+          "evidence_directory": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-slurm-accepted/mixed",
+          "submissions": 9,
+          "case_image_observations": [
+            {
+              "resolved": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-slurm-accepted/mixed/second image.sif",
+              "size": 44408832,
+              "mtime_ns": 1790875315000000000
+            },
+            {
+              "resolved": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-slurm-accepted/mixed/first image.sif",
+              "size": 44408832,
+              "mtime_ns": 1790875315000000000
+            }
+          ],
+          "jobs": [
+            {
+              "id": "1258614",
+              "target": [
+                "independent",
+                "gwflow_prepare"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258615",
+              "target": [
+                "independent",
+                "compute"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258616",
+              "target": [
+                "independent",
+                "gwflow_complete"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258617",
+              "target": [
+                "producer",
+                "gwflow_prepare"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258618",
+              "target": [
+                "producer",
+                "host"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258619",
+              "target": [
+                "producer",
+                "first"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258620",
+              "target": [
+                "producer",
+                "second"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258621",
+              "target": [
+                "producer",
+                "last"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258622",
+              "target": [
+                "producer",
+                "gwflow_complete"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            }
+          ]
+        },
+        "refresh": {
+          "outcome": "passed",
+          "evidence_directory": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-slurm-accepted/refresh",
+          "submissions": 21,
+          "case_image_observations": [
+            {
+              "resolved": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-slurm-accepted/refresh/second image.sif",
+              "size": 44408832,
+              "mtime_ns": 1790875481000000000
+            },
+            {
+              "resolved": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-slurm-accepted/refresh/first image.sif",
+              "size": 44408832,
+              "mtime_ns": 1790875481000000000
+            },
+            {
+              "resolved": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-slurm-accepted/refresh/second image.sif",
+              "size": 44408832,
+              "mtime_ns": 1790875480000000000
+            }
+          ],
+          "jobs": [
+            {
+              "id": "1258635",
+              "target": [
+                "independent",
+                "gwflow_prepare"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258636",
+              "target": [
+                "independent",
+                "compute"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258637",
+              "target": [
+                "independent",
+                "gwflow_complete"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258638",
+              "target": [
+                "producer",
+                "gwflow_prepare"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258639",
+              "target": [
+                "producer",
+                "host"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258640",
+              "target": [
+                "producer",
+                "first"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258641",
+              "target": [
+                "producer",
+                "second"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258643",
+              "target": [
+                "producer",
+                "gwflow_complete"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258644",
+              "target": [
+                "consumer",
+                "gwflow_prepare"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258645",
+              "target": [
+                "consumer",
+                "read"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258646",
+              "target": [
+                "consumer",
+                "gwflow_complete"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258642",
+              "target": [
+                "producer",
+                "last"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258678",
+              "target": [
+                "producer",
+                "gwflow_prepare"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258679",
+              "target": [
+                "producer",
+                "host"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258681",
+              "target": [
+                "producer",
+                "second"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258682",
+              "target": [
+                "producer",
+                "last"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258683",
+              "target": [
+                "producer",
+                "gwflow_complete"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258685",
+              "target": [
+                "consumer",
+                "read"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258686",
+              "target": [
+                "consumer",
+                "gwflow_complete"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258680",
+              "target": [
+                "producer",
+                "first"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258684",
+              "target": [
+                "consumer",
+                "gwflow_prepare"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            }
+          ]
+        },
+        "environment": {
+          "outcome": "passed",
+          "evidence_directory": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-slurm-accepted/environment",
+          "submissions": 6,
+          "case_image_observations": [],
+          "jobs": [
+            {
+              "id": "1258731",
+              "target": [
+                "container",
+                "gwflow_prepare"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258732",
+              "target": [
+                "container",
+                "compute"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258733",
+              "target": [
+                "container",
+                "gwflow_complete"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258734",
+              "target": [
+                "host",
+                "gwflow_prepare"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258735",
+              "target": [
+                "host",
+                "compute"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258736",
+              "target": [
+                "host",
+                "gwflow_complete"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            }
+          ]
+        },
+        "scratch": {
+          "outcome": "passed",
+          "evidence_directory": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-slurm-accepted/scratch",
+          "submissions": 6,
+          "case_image_observations": [],
+          "jobs": [
+            {
+              "id": "1258739",
+              "target": [
+                "left",
+                "gwflow_prepare"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258740",
+              "target": [
+                "left",
+                "compute"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258741",
+              "target": [
+                "left",
+                "gwflow_complete"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258742",
+              "target": [
+                "right",
+                "gwflow_prepare"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258743",
+              "target": [
+                "right",
+                "compute"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258744",
+              "target": [
+                "right",
+                "gwflow_complete"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            }
+          ]
+        },
+        "opt_out": {
+          "outcome": "passed",
+          "evidence_directory": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-slurm-scratch-probe/opt_out",
+          "submissions": 3,
+          "case_image_observations": [],
+          "jobs": [
+            {
+              "id": "1258771",
+              "target": [
+                "sample",
+                "compute"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258772",
+              "target": [
+                "sample",
+                "gwflow_complete"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258770",
+              "target": [
+                "sample",
+                "gwflow_prepare"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            }
+          ],
+          "host_job_tmpdir": "/tmp/1258771",
+          "container_tmpdir": "/tmp/1258771",
+          "host_scratch_content_at_command_exit": "external\n"
+        },
+        "retry": {
+          "outcome": "passed",
+          "evidence_directory": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-slurm-recovery/retry",
+          "submissions": 8,
+          "case_image_observations": [
+            {
+              "resolved": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-slurm-recovery/retry/prepared image.sif",
+              "size": 44408832,
+              "mtime_ns": 1790876775000000000
+            }
+          ],
+          "jobs": [
+            {
+              "id": "1258792",
+              "target": [
+                "sample",
+                "gwflow_prepare"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258793",
+              "target": [
+                "sample",
+                "left"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258794",
+              "target": [
+                "sample",
+                "right"
+              ],
+              "state": "FAILED",
+              "exit": "1:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258795",
+              "target": [
+                "sample",
+                "join"
+              ],
+              "state": "CANCELLED",
+              "exit": "0:0",
+              "node": "None assigned"
+            },
+            {
+              "id": "1258796",
+              "target": [
+                "sample",
+                "gwflow_complete"
+              ],
+              "state": "CANCELLED",
+              "exit": "0:0",
+              "node": "None assigned"
+            },
+            {
+              "id": "1258806",
+              "target": [
+                "sample",
+                "right"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258807",
+              "target": [
+                "sample",
+                "join"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258808",
+              "target": [
+                "sample",
+                "gwflow_complete"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            }
+          ]
+        },
+        "repair": {
+          "outcome": "passed",
+          "evidence_directory": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-slurm-recovery/repair",
+          "submissions": 10,
+          "case_image_observations": [
+            {
+              "resolved": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-slurm-recovery/repair/prepared image.sif",
+              "size": 44408832,
+              "mtime_ns": 1790876903000000000
+            },
+            {
+              "resolved": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-slurm-recovery/repair/saved.sif",
+              "size": 44408832,
+              "mtime_ns": 1790876903000000000
+            },
+            {
+              "resolved": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-slurm-recovery/repair/prepared image.sif",
+              "size": 44408832,
+              "mtime_ns": 1790876902000000000
+            }
+          ],
+          "jobs": [
+            {
+              "id": "1258816",
+              "target": [
+                "sample",
+                "gwflow_prepare"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258817",
+              "target": [
+                "sample",
+                "left"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258818",
+              "target": [
+                "sample",
+                "right"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258819",
+              "target": [
+                "sample",
+                "join"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258820",
+              "target": [
+                "sample",
+                "gwflow_complete"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258840",
+              "target": [
+                "sample",
+                "gwflow_prepare"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258841",
+              "target": [
+                "sample",
+                "left"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258842",
+              "target": [
+                "sample",
+                "right"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258843",
+              "target": [
+                "sample",
+                "join"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258844",
+              "target": [
+                "sample",
+                "gwflow_complete"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            }
+          ]
+        },
+        "packaged": {
+          "outcome": "passed",
+          "evidence_directory": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-slurm-recovery/packaged",
+          "submissions": 12,
+          "case_image_observations": [
+            {
+              "resolved": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/summary.sif",
+              "size": 48836608,
+              "mtime_ns": 1790873132000000000
+            },
+            {
+              "resolved": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/report.sif",
+              "size": 48836608,
+              "mtime_ns": 1790873143000000000
+            }
+          ],
+          "jobs": [
+            {
+              "id": "1258870",
+              "target": [
+                "A",
+                "gwflow_prepare"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258871",
+              "target": [
+                "A",
+                "clean"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258872",
+              "target": [
+                "A",
+                "aggregate"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258873",
+              "target": [
+                "A",
+                "gwflow_complete"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258874",
+              "target": [
+                "B",
+                "gwflow_prepare"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258875",
+              "target": [
+                "B",
+                "clean"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258876",
+              "target": [
+                "B",
+                "aggregate"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258877",
+              "target": [
+                "B",
+                "gwflow_complete"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258896",
+              "target": [
+                "C",
+                "gwflow_prepare"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258897",
+              "target": [
+                "C",
+                "join"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258898",
+              "target": [
+                "C",
+                "finalize"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            },
+            {
+              "id": "1258899",
+              "target": [
+                "C",
+                "gwflow_complete"
+              ],
+              "state": "COMPLETED",
+              "exit": "0:0",
+              "node": "cn-1058"
+            }
+          ]
+        }
+      },
+      "job_environment": {
+        "node": "cn-1058",
+        "python": "3.12.14 (main, Sep  2 2026, 23:27:36) [GCC 15.3.0]",
+        "packages": {
+          "gwf": "2.1.1",
+          "gwflow": "0.4.0",
+          "gwflow-summary-task": "0.3.0",
+          "gwflow-report-task": "0.3.0"
+        },
+        "apptainer_path": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/runtime/usr/bin/apptainer",
+        "apptainer": "apptainer version 1.5.4-1"
+      },
+      "packaged_report": [
+        "product,sales,returns,net",
+        "apples,17,2,15",
+        "pears,8,1,7"
+      ]
+    }
+  },
+  "excluded_diagnostics": {
+    "directory_identity": {
+      "frontend": {
+        "node": "cn-1036",
+        "device": 48
+      },
+      "matching_compute": {
+        "node": "cn-1058",
+        "device": 48
+      },
+      "rejected_compute": {
+        "node": "cn-1053",
+        "device": 49
+      },
+      "same_inode": 6903857720227174129,
+      "refused_preparation_job": "1258408",
+      "probe_jobs": [
+        "1258516",
+        "1258523"
+      ]
+    },
+    "ineffective_node_environment": {
+      "operator_cancelled_probe_jobs": [
+        "1258536",
+        "1258537"
+      ]
+    },
+    "frontend_tmpdir_assumption": {
+      "failed_computation_job": "1258747",
+      "dependent_cancelled_job": "1258748",
+      "reason": "Slurm opt-out validation must compare against the actual job TMPDIR, not the frontend TMPDIR."
+    }
+  }
+}
