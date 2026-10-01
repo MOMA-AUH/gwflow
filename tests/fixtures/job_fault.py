@@ -121,6 +121,8 @@ os.unlink, os.rmdir = unlink, rmdir
 shutil.copyfileobj = copyfileobj
 if options.get("gate_before_preparation"):
     gate("preparation")
+if "execution_path" in options:
+    os.environ["PATH"] = options["execution_path"]
 # The backend passes the original interpreter's '-m gwflow.execution' arguments.
 sys.argv = [sys.argv[3], *sys.argv[4:]]
 runpy.run_module("gwflow.execution", run_name="__main__")

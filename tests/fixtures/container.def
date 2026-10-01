@@ -1,0 +1,8 @@
+Bootstrap: docker
+From: python:3.12-slim-bookworm
+
+%files
+    tests/fixtures/gwflow-image-tool /usr/local/bin/gwflow-image-tool
+
+%environment
+    export GWFLOW_IMAGE_VALUE=from-image

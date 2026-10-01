@@ -1,0 +1,94 @@
+# v0.4 container validation
+
+This record follows the incremental implementation of
+[the v0.4 specification, #92](https://github.com/MOMA-AUH/gwflow/issues/92).
+The first slice, [#93](https://github.com/MOMA-AUH/gwflow/issues/93), validates
+no-input image execution, frontend image identity, failure, and cleanup/Reuse.
+Staging, combined workflows, and final live Slurm acceptance remain for the
+dependent implementation tickets. This is implementation validation, without
+release publication or deployment provisioning.
+
+## Repeatable local checks
+
+Use Python 3.12, gwf 2.1.1, and deployment-provided Apptainer 1.5.4 on Linux.
+Install the artifacts and prepare a test image from the repository root:
+
+```sh
+python -m pip install .
+python -m pip install ./examples/packaged/packages/summary-task ./examples/packaged/packages/report-task
+mkdir -p build/validation
+apptainer build build/validation/basic.sif tests/fixtures/container.def
+export GWFLOW_TEST_SIF="$PWD/build/validation/basic.sif"
+python -m unittest discover -s tests -p test_containers.py -v
+python -m unittest discover -s tests -v
+python tests/release_smoke.py
+```
+
+Image preparation is fixture/deployment setup, not a gwflow acquisition feature.
+The fixture uses the official Python image and adds `gwflow-image-tool`, an
+image-only command that checks gwflow is absent and prints the image's configured
+environment value. The build requires network access to the base image registry.
+The runtime tests use real Apptainer and local workers, including paths with
+spaces, and explicitly skip if `GWFLOW_TEST_SIF` is unset. A set but unusable
+fixture fails. CI's installed-package job prepares this image and runs those
+checks; its built Conda artifact job continues the complete host suite and
+packaged example smoke. Skipped container tests do not count as runtime evidence.
+
+## Local runtime observations
+
+On 2026-10-01, the focused container checks ran on Linux with Python 3.12.14,
+gwf 2.1.1 and the development implementation. The isolated validation runtime
+was the upstream `apptainer-1.5.4-1.x86_64.rpm`, unpacked below the ignored
+`build/validation/runtime` directory. Its `usr/etc` and `usr/var` links point to
+the extracted configuration and state directories; system Apptainer was not
+modified. `apptainer --version` reported `1.5.4-1`.
+
+Installed-package validation uses a built wheel with source metadata `0.3.1`
+and the new image-aware record requirements, plus summary/report packages
+`0.2.0`. This development slice does not change release versions; all test state
+is freshly created by the implementation under test.
+
+The fixture's recorded OCI base was `docker.io/library/python:3.12-slim-bookworm`,
+digest `sha256:392307d22300de8b5986851a12d9176dfc0fc073e65bf6523ebd7dcbeb23564e`.
+The extracted default configuration enabled home, temporary, proc, sys, dev,
+and devpts mounts, disabled `mount hostfs`, and retained `/etc/localtime` and
+`/etc/hosts` binds. No gwflow-specific site bind or container environment was
+needed. The tests deliberately set host `PYTHONPATH` pollution.
+
+Focused evidence in [test_containers.py](../tests/test_containers.py) covers:
+
+- Image-only command execution without gwflow in the image; private writable
+  scratch; checked retained output; zero-submission Reuse before and after work
+  cleanup.
+- Independent size, modification-time, and resolved-path changes, including
+  equal-metadata alias retargeting, with command tracking disabled. Preview
+  snapshots preserve evidence, work, and results; a later run starts fresh.
+- Equivalent aliases with command tracking enabled; temporarily unavailable
+  images blocking every frontend decision without deleting results; matching
+  restoration resuming Reuse.
+- A deterministic preparation gate followed by alias retargeting and image
+  metadata change. The already scheduled command still executes the original
+  resolved image and finishes; jobs do not reobserve image identity.
+- Nonzero exits after writing outputs, missing image software, missing/invalid
+  outputs, and unusable images refusing Completion with normal target/image logs.
+- An empty computation-job PATH makes missing Apptainer fail without fallback;
+  the same deployment condition permits an ordinary host Bash command.
+- Rejection of unsupported earlier attempt evidence, preserving its files.
+
+The preparation gate and execution-environment fault controls are test-only
+backend fixtures. They control timing/environment around real scheduled host
+lifecycle processes; they do not simulate Apptainer's command execution.
+
+## Limits and remaining evidence
+
+This first slice does not establish input staging or source-mount permissions,
+mixed graphs, opted-out scratch, the packaged container A/B/C demonstration, or
+live Slurm container acceptance. Those are required by the remaining tickets and
+must be recorded before declaring the parent specification complete. The runtime
+record establishes no broader Apptainer or non-Linux compatibility claim.
+
+Image identity is a frontend pathname/size/mtime observation, not a snapshot or
+content digest. Deployments keep images stable after submission. Changes
+preserving all observed identity fields can remain undetected, and successful
+execution does not certify scientific correctness. Unsupported pre-1.0 records
+are rejected without migration, adoption, or data deletion.
