@@ -61,10 +61,14 @@ def identity(path):
         return {"inode": info.st_ino}
 
 
+def valid_identity(value):
+    return (isinstance(value, dict) and set(value) == {"inode"}
+            and type(value["inode"]) is int and value["inode"] >= 0)
+
+
 def same_directory(left, right):
-    """Compare recovery records, including older records with a device field."""
-    return (isinstance(left, dict) and isinstance(right, dict)
-            and "inode" in left and left["inode"] == right.get("inode"))
+    """Only matching current-format identities establish directory ownership."""
+    return valid_identity(left) and valid_identity(right) and left == right
 
 
 def exists(path):
