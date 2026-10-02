@@ -15,6 +15,12 @@ from support import LocalBackendTestCase
 
 
 class ManagedAuthoringTests(unittest.TestCase):
+    def test_task_rejects_retired_working_directory_option(self):
+        for working_dir in (None, "."):
+            with self.subTest(working_dir=working_dir), self.assertRaisesRegex(
+                    TypeError, "unexpected keyword argument 'working_dir'"):
+                Task(inputs=[], working_dir=working_dir)
+
     def test_invalid_output_paths_and_collisions_fail_during_authoring(self):
         for outputs in ([""], ["."], ["/outside"], ["../outside"], ["a/../b"], ["*.txt"],
                         [], ["a", "a"], ["a", "a/b"], ["a/b", "a//b"]):

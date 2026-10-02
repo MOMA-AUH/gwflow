@@ -20,6 +20,13 @@ automatic conversion, migration, or adoption path; initialized storage cannot be
 relocated. Ordinary authored top-level targets are not supported in a managed
 Workflow.
 
+The obsolete `Task(working_dir=...)` argument is no longer accepted, including
+`working_dir=None`. Remove it from Task factories: host and container computation
+execute in private managed work. `Workflow(working_dir=...)` remains available for
+workflow-relative path resolution; it does not select a computation working
+directory. Managed temporary directories and the `managed_tmpdir` opt-out are
+unchanged.
+
 Install with Python 3.12 and gwf 2.1.1:
 
 ```sh
