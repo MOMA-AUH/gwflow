@@ -4,6 +4,10 @@ gwflow adds managed Tasks to [gwf](https://gwf.app/): computation runs in dispos
 work storage, while named retained files are copied into stable results storage.
 Checked completion evidence lets a Task remain reusable after its work is removed.
 
+The v0.4.1 release removes the ignored `Task(working_dir=...)` option and requires
+the current inode-only storage identity records for managed operations. See the
+compatibility and transition guidance below before upgrading existing runs.
+
 The v0.4.0 release adds per-target Apptainer images, declared-input staging with
 custom names, and image-aware Reuse to the managed lifecycle. Tasks can combine
 host and container commands while keeping named dependencies, partial retries,
@@ -12,8 +16,9 @@ repair, and work cleanup. The
 [packaged A/B/C example](examples/packaged/README.md) demonstrates completing two
 producers, cleaning their work, then computing a new consumer from retained
 results with host or container execution. The
-[validation record](docs/validation-v0.4.0.md) maps the release acceptance matrix
-to tests and infrastructure observations, including the BeeGFS storage correction.
+[v0.4.0 validation record](docs/validation-v0.4.0.md) maps that release's acceptance
+matrix to tests and infrastructure observations, including the BeeGFS storage
+correction; it is historical evidence, not a guarantee of current compatibility.
 
 Before v1.0, each release supports one authoring interface and one durable record
 format: the ones documented by that release. Factories must use the managed API.
