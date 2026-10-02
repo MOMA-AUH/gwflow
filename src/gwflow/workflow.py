@@ -90,14 +90,12 @@ class TaskTarget:
 class Task:
     """A reusable definition with explicit inputs and named retained outputs."""
 
-    def __init__(self, inputs, *, working_dir=None, defaults=None, executor=None):
+    def __init__(self, inputs, *, defaults=None, executor=None):
         self.inputs = list(inputs)
         self.defaults = dict(defaults or {})
         self.executor = executor
         self.targets = {}
         self.retained = {}
-        # Execution always uses managed staging, regardless of authoring CWD.
-        self.working_dir = working_dir
 
     def target(self, name, inputs, outputs, *, image=None, stage_as=None, executor=None, group=None, **options):
         _require_name(name, "local target")
