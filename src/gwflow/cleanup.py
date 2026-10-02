@@ -49,7 +49,7 @@ def observe(store, attempt, backend, backend_name, *, explicit=False):
         observation.directories[str(workspace)] = identity
         observation.directories.update(store.staging_directories(attempt))
         for path, identity in observation.directories.items():
-            if _files.exists(path) and _files.identity(path) != identity:
+            if _files.exists(path) and not _files.same_directory(_files.identity(path), identity):
                 raise WorkflowError(f"Disposable directory ownership changed: {path}")
         if record is not None and record["directories"] != observation.directories:
             raise WorkflowError("Cleanup ownership evidence changed")

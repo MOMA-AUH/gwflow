@@ -15,6 +15,12 @@ graphs and retained-output consumers, and
 records the live backend validation below. This is implementation validation, without
 release publication or deployment provisioning.
 
+In the committed JSON records, `<REPO>` stands for the absolute checkout root.
+This removes machine-specific checkout paths while preserving comparisons between
+observed paths. Raw logs remain in the ignored `build/validation/` directory.
+When preparing additional records, follow the
+[validation evidence convention](../AGENTS.md#validation-evidence).
+
 ## Final acceptance
 
 The #92 implementation and its ten-scenario acceptance matrix are complete as
@@ -51,7 +57,68 @@ part of this acceptance: in particular, the validated Slurm nodes expose matchin
 managed-directory identities, ordinary site binds must not conflict with the
 requested mounts, and deployments keep selected images stable after submission.
 This completes implementation acceptance; no release tag or package publication
-is recorded here.
+is recorded here. The original matching-device restriction was subsequently
+identified as a gwflow bug; the [BeeGFS correction](#beegfs-directory-identity-correction)
+below supersedes that restriction.
+
+## BeeGFS directory-identity correction
+
+An ordinary packaged-example run on 2026-10-01 exposed the limitation outside
+the validation-only node selection. Preparation jobs `1259351` and `1259355`
+failed on `cn-1047` with `Managed root identity changed`; their dependent jobs
+were canceled before any container command ran. The initializing frontend
+`cn-1036` sees BeeGFS device `48`, while `cn-1047` sees device `49` for the same
+directories. Comparing those host-local numbers as persistent identities was
+incorrect, including in transfer, repair, and cleanup.
+
+The current implementation trusts the configured storage locations and creates
+no root marker files or folders. Directory inode numbers in existing recovery
+records identify staged transfers, retained sets, and disposable work within
+those locations. Device numbers are compared only within a running process for
+filesystem placement and rename/removal checks, never across hosts. Users are
+responsible for keeping the configured paths on the intended shared storage;
+replacement of an entire root is no longer detected. Symlink traversal and
+changes during rename or deletion remain checked.
+
+Older records with device numbers are read without migration. Root identities
+and witness metadata from the initial development implementation are ignored;
+its empty `.gwflow-root-*` directories can be removed. Inspection commands remain
+read-only. The separate root-witness and device-translation module was removed.
+
+`tests/test_storage.py` reproduces the original failure through real local
+workers whose Python filesystem observations report distinct device numbers for
+each process. It covers computation, result transfer, repair, cleanup, reuse,
+root recreation, and forced fresh execution. Additional cases cover reuse and
+repair of older records without rewriting them, obsolete marker metadata, and
+replacement of a configured root while preserving its Task directories. The
+tests also check that no root markers are created.
+
+The live deployment case records the worker's bookkeeping device/inode values
+alongside the frontend device number in the validation evidence. The corrected
+Slurm checks use `/usr/bin/sbatch` directly, without the old node wrapper.
+
+The initial marker-based implementation and its original-example recovery are
+preserved in the [earlier validation record](https://github.com/MOMA-AUH/gwflow/blob/f02bf8684458371ffa4412ce46aec56d472975eb/docs/validation-beegfs-identity.json).
+The current [correction evidence](validation-beegfs-identity.json) records the
+simplified implementation's validation separately.
+
+All 252 installed-package tests passed without skips with real Apptainer images:
+the 13 storage tests ran separately, and the remaining 239 ran across four
+isolated processes. The installed packaged smoke test also passed. The installed
+modules match the source, and the removed storage-identity module is absent from
+the rebuilt package.
+
+All five fresh Slurm cases passed with unrestricted node selection: deployment,
+image execution, packaged producer cleanup and consumer reuse, image-aware
+repair checks, and partial retry. The probe on `cn-1055` saw device `49` while
+the frontend saw device `48`, both for inode `9696892507093986088`. None of the
+cases created root markers or root fingerprints in their owner records. Slurm
+requeued some jobs before they completed; the retry case's deliberate failure
+and dependent cancellations are expected.
+
+The original packaged example also reused all three Tasks without submitting
+jobs after its four obsolete empty markers were removed. Its existing records
+and retained results were preserved.
 
 ## Repeatable local checks
 
@@ -353,14 +420,15 @@ overlay and underlay are enabled. Environment cases deliberately supply polluted
 host PYTHONPATH and image-value settings, explicit Apptainer overrides, and both
 managed and opted-out scratch; those assertions run inside real containers.
 
-Shared BeeGFS directory identity needs particular attention on this deployment.
+The original validation found a BeeGFS directory-identity bug on this deployment.
 Frontend `cn-1036` and compute node `cn-1058` report device `48`; `cn-1053` reports
 device `49` for the same directory and identical inode. Diagnostic Slurm jobs
 `1258516` and `1258523` confirmed those observations. Initial preparation job
 `1258408` on `cn-1053` was refused by the existing managed-root identity guard.
-No ownership check was weakened and no old records were adopted. Acceptance is
-restricted to hosts exposing matching managed-directory identities; this record
-does not certify arbitrary BeeGFS clients or heterogeneous mount identities.
+No ownership check was weakened and no old records were adopted. That acceptance
+was restricted to hosts exposing matching device numbers. The subsequent
+[directory-identity correction](#beegfs-directory-identity-correction) removes
+this restriction while preserving ownership checks.
 
 The accepted Slurm run uses a validation-only PATH wrapper around the real
 `/usr/bin/sbatch` to select `cn-1058` explicitly with its documented
@@ -377,8 +445,8 @@ PATH="$PWD/build/validation/slurm-bin:$PATH" python tests/validate_containers.py
   --backend slurm --queue short --root build/validation/slurm-acceptance
 ```
 
-This is site-specific validation setup, not a new backend or a simulated
-scheduler. Use nodes compatible with your own deployment. An earlier diagnostic
+This was site-specific validation setup, not a new backend or a simulated
+scheduler; it is not required after the directory-identity correction. An earlier diagnostic
 attempt used an ineffective `SBATCH_NODELIST` environment setting; its two
 superseded probe jobs `1258536` and `1258537` were cancelled by the validation
 operator. Those attempts are excluded from passing evidence. Actual placements

@@ -12,6 +12,7 @@ import runpy
 import shutil
 import sys
 import time
+from types import SimpleNamespace
 
 
 work = Path(sys.argv[1])
@@ -119,6 +120,16 @@ os.link, os.replace, os.rename = link, replace, rename
 os.utime = utime
 os.unlink, os.rmdir = unlink, rmdir
 shutil.copyfileobj = copyfileobj
+if options.get("device_offset"):
+    device_offset = options["device_offset"] + os.getpid()
+    def shifted_stat(function):
+        def observe(*args, **kwargs):
+            info = function(*args, **kwargs)
+            fields = {name: getattr(info, name) for name in dir(info) if name.startswith("st_")}
+            fields["st_dev"] += device_offset
+            return SimpleNamespace(**fields)
+        return observe
+    os.stat, os.fstat = shifted_stat(os.stat), shifted_stat(os.fstat)
 if options.get("gate_before_preparation"):
     gate("preparation")
 if "execution_path" in options:

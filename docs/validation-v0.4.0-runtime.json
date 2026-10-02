@@ -1,4 +1,5 @@
 {
+  "path_normalization": "<REPO> replaces the absolute checkout root; other paths and recorded observations are unchanged.",
   "date": "2026-10-01",
   "slurm_version": "25.11.6",
   "installed_source_commit": "ec06a4fd3fd84377acf91987c79ffec7b20d6daa",
@@ -27,7 +28,7 @@
         "platform": "Linux-5.14.0-687.48.1.el9_8.x86_64-x86_64-with-glibc2.34",
         "python": "3.12.14 (main, Sep  2 2026, 23:27:36) [GCC 15.3.0]",
         "apptainer": "apptainer version 1.5.4-1",
-        "apptainer_path": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/runtime/usr/bin/apptainer",
+        "apptainer_path": "<REPO>/build/validation/runtime/usr/bin/apptainer",
         "packages": {
           "gwf": "2.1.1",
           "gwflow": "0.4.0",
@@ -36,17 +37,17 @@
         },
         "images": {
           "GWFLOW_TEST_SIF": {
-            "path": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/basic.sif",
+            "path": "<REPO>/build/validation/basic.sif",
             "size": 44408832,
             "mtime_ns": 1790864154000000000
           },
           "GWFLOW_TEST_SUMMARY_SIF": {
-            "path": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/summary.sif",
+            "path": "<REPO>/build/validation/summary.sif",
             "size": 48836608,
             "mtime_ns": 1790873132000000000
           },
           "GWFLOW_TEST_REPORT_SIF": {
-            "path": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/report.sif",
+            "path": "<REPO>/build/validation/report.sif",
             "size": 48836608,
             "mtime_ns": 1790873143000000000
           }
@@ -54,7 +55,7 @@
       },
       "validation_runs": [
         {
-          "evidence_directory": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-local-accepted",
+          "evidence_directory": "<REPO>/build/validation/v04-local-accepted",
           "summary": {
             "run": 13,
             "failures": 0,
@@ -96,17 +97,17 @@
       "cases": {
         "deployment": {
           "outcome": "passed",
-          "evidence_directory": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-local-accepted/deployment",
+          "evidence_directory": "<REPO>/build/validation/v04-local-accepted/deployment",
           "submissions": 3,
           "case_image_observations": []
         },
         "image": {
           "outcome": "passed",
-          "evidence_directory": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-local-accepted/image",
+          "evidence_directory": "<REPO>/build/validation/v04-local-accepted/image",
           "submissions": 3,
           "case_image_observations": [
             {
-              "resolved": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-local-accepted/image/prepared image.sif",
+              "resolved": "<REPO>/build/validation/v04-local-accepted/image/prepared image.sif",
               "size": 44408832,
               "mtime_ns": 1790874775000000000
             }
@@ -114,34 +115,34 @@
         },
         "overlap": {
           "outcome": "passed",
-          "evidence_directory": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-local-accepted/overlap",
+          "evidence_directory": "<REPO>/build/validation/v04-local-accepted/overlap",
           "submissions": 3,
           "case_image_observations": []
         },
         "aliases": {
           "outcome": "passed",
-          "evidence_directory": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-local-accepted/aliases",
+          "evidence_directory": "<REPO>/build/validation/v04-local-accepted/aliases",
           "submissions": 3,
           "case_image_observations": []
         },
         "companions": {
           "outcome": "passed",
-          "evidence_directory": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-local-accepted/companions",
+          "evidence_directory": "<REPO>/build/validation/v04-local-accepted/companions",
           "submissions": 3,
           "case_image_observations": []
         },
         "mixed": {
           "outcome": "passed",
-          "evidence_directory": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-local-accepted/mixed",
+          "evidence_directory": "<REPO>/build/validation/v04-local-accepted/mixed",
           "submissions": 9,
           "case_image_observations": [
             {
-              "resolved": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-local-accepted/mixed/second image.sif",
+              "resolved": "<REPO>/build/validation/v04-local-accepted/mixed/second image.sif",
               "size": 44408832,
               "mtime_ns": 1790874809000000000
             },
             {
-              "resolved": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-local-accepted/mixed/first image.sif",
+              "resolved": "<REPO>/build/validation/v04-local-accepted/mixed/first image.sif",
               "size": 44408832,
               "mtime_ns": 1790874809000000000
             }
@@ -149,21 +150,21 @@
         },
         "refresh": {
           "outcome": "passed",
-          "evidence_directory": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-local-accepted/refresh",
+          "evidence_directory": "<REPO>/build/validation/v04-local-accepted/refresh",
           "submissions": 21,
           "case_image_observations": [
             {
-              "resolved": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-local-accepted/refresh/first image.sif",
+              "resolved": "<REPO>/build/validation/v04-local-accepted/refresh/first image.sif",
               "size": 44408832,
               "mtime_ns": 1790874823000000000
             },
             {
-              "resolved": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-local-accepted/refresh/second image.sif",
+              "resolved": "<REPO>/build/validation/v04-local-accepted/refresh/second image.sif",
               "size": 44408832,
               "mtime_ns": 1790874823000000000
             },
             {
-              "resolved": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-local-accepted/refresh/second image.sif",
+              "resolved": "<REPO>/build/validation/v04-local-accepted/refresh/second image.sif",
               "size": 44408832,
               "mtime_ns": 1790874822000000000
             }
@@ -171,29 +172,29 @@
         },
         "environment": {
           "outcome": "passed",
-          "evidence_directory": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-local-accepted/environment",
+          "evidence_directory": "<REPO>/build/validation/v04-local-accepted/environment",
           "submissions": 6,
           "case_image_observations": []
         },
         "scratch": {
           "outcome": "passed",
-          "evidence_directory": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-local-accepted/scratch",
+          "evidence_directory": "<REPO>/build/validation/v04-local-accepted/scratch",
           "submissions": 6,
           "case_image_observations": []
         },
         "opt_out": {
           "outcome": "passed",
-          "evidence_directory": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-local-accepted/opt_out",
+          "evidence_directory": "<REPO>/build/validation/v04-local-accepted/opt_out",
           "submissions": 3,
           "case_image_observations": []
         },
         "retry": {
           "outcome": "passed",
-          "evidence_directory": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-local-accepted/retry",
+          "evidence_directory": "<REPO>/build/validation/v04-local-accepted/retry",
           "submissions": 8,
           "case_image_observations": [
             {
-              "resolved": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-local-accepted/retry/prepared image.sif",
+              "resolved": "<REPO>/build/validation/v04-local-accepted/retry/prepared image.sif",
               "size": 44408832,
               "mtime_ns": 1790874915000000000
             }
@@ -201,21 +202,21 @@
         },
         "repair": {
           "outcome": "passed",
-          "evidence_directory": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-local-accepted/repair",
+          "evidence_directory": "<REPO>/build/validation/v04-local-accepted/repair",
           "submissions": 10,
           "case_image_observations": [
             {
-              "resolved": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-local-accepted/repair/prepared image.sif",
+              "resolved": "<REPO>/build/validation/v04-local-accepted/repair/prepared image.sif",
               "size": 44408832,
               "mtime_ns": 1790874940000000000
             },
             {
-              "resolved": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-local-accepted/repair/saved.sif",
+              "resolved": "<REPO>/build/validation/v04-local-accepted/repair/saved.sif",
               "size": 44408832,
               "mtime_ns": 1790874940000000000
             },
             {
-              "resolved": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-local-accepted/repair/prepared image.sif",
+              "resolved": "<REPO>/build/validation/v04-local-accepted/repair/prepared image.sif",
               "size": 44408832,
               "mtime_ns": 1790874939000000000
             }
@@ -223,16 +224,16 @@
         },
         "packaged": {
           "outcome": "passed",
-          "evidence_directory": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-local-accepted/packaged",
+          "evidence_directory": "<REPO>/build/validation/v04-local-accepted/packaged",
           "submissions": 12,
           "case_image_observations": [
             {
-              "resolved": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/report.sif",
+              "resolved": "<REPO>/build/validation/report.sif",
               "size": 48836608,
               "mtime_ns": 1790873143000000000
             },
             {
-              "resolved": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/summary.sif",
+              "resolved": "<REPO>/build/validation/summary.sif",
               "size": 48836608,
               "mtime_ns": 1790873132000000000
             }
@@ -248,7 +249,7 @@
           "gwflow-summary-task": "0.3.0",
           "gwflow-report-task": "0.3.0"
         },
-        "apptainer_path": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/runtime/usr/bin/apptainer",
+        "apptainer_path": "<REPO>/build/validation/runtime/usr/bin/apptainer",
         "apptainer": "apptainer version 1.5.4-1"
       },
       "packaged_report": [
@@ -263,7 +264,7 @@
         "platform": "Linux-5.14.0-687.48.1.el9_8.x86_64-x86_64-with-glibc2.34",
         "python": "3.12.14 (main, Sep  2 2026, 23:27:36) [GCC 15.3.0]",
         "apptainer": "apptainer version 1.5.4-1",
-        "apptainer_path": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/runtime/usr/bin/apptainer",
+        "apptainer_path": "<REPO>/build/validation/runtime/usr/bin/apptainer",
         "packages": {
           "gwf": "2.1.1",
           "gwflow": "0.4.0",
@@ -272,17 +273,17 @@
         },
         "images": {
           "GWFLOW_TEST_SIF": {
-            "path": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/basic.sif",
+            "path": "<REPO>/build/validation/basic.sif",
             "size": 44408832,
             "mtime_ns": 1790864154000000000
           },
           "GWFLOW_TEST_SUMMARY_SIF": {
-            "path": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/summary.sif",
+            "path": "<REPO>/build/validation/summary.sif",
             "size": 48836608,
             "mtime_ns": 1790873132000000000
           },
           "GWFLOW_TEST_REPORT_SIF": {
-            "path": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/report.sif",
+            "path": "<REPO>/build/validation/report.sif",
             "size": 48836608,
             "mtime_ns": 1790873143000000000
           }
@@ -290,7 +291,7 @@
       },
       "validation_runs": [
         {
-          "evidence_directory": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-slurm-accepted",
+          "evidence_directory": "<REPO>/build/validation/v04-slurm-accepted",
           "summary": {
             "run": 10,
             "failures": 1,
@@ -325,7 +326,7 @@
           ]
         },
         {
-          "evidence_directory": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-slurm-scratch-probe",
+          "evidence_directory": "<REPO>/build/validation/v04-slurm-scratch-probe",
           "summary": {
             "run": 1,
             "failures": 0,
@@ -340,7 +341,7 @@
           ]
         },
         {
-          "evidence_directory": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-slurm-recovery",
+          "evidence_directory": "<REPO>/build/validation/v04-slurm-recovery",
           "summary": {
             "run": 3,
             "failures": 0,
@@ -367,7 +368,7 @@
       "cases": {
         "deployment": {
           "outcome": "passed",
-          "evidence_directory": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-slurm-accepted/deployment",
+          "evidence_directory": "<REPO>/build/validation/v04-slurm-accepted/deployment",
           "submissions": 3,
           "case_image_observations": [],
           "jobs": [
@@ -405,11 +406,11 @@
         },
         "image": {
           "outcome": "passed",
-          "evidence_directory": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-slurm-accepted/image",
+          "evidence_directory": "<REPO>/build/validation/v04-slurm-accepted/image",
           "submissions": 3,
           "case_image_observations": [
             {
-              "resolved": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-slurm-accepted/image/prepared image.sif",
+              "resolved": "<REPO>/build/validation/v04-slurm-accepted/image/prepared image.sif",
               "size": 44408832,
               "mtime_ns": 1790874913000000000
             }
@@ -449,7 +450,7 @@
         },
         "overlap": {
           "outcome": "passed",
-          "evidence_directory": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-slurm-accepted/overlap",
+          "evidence_directory": "<REPO>/build/validation/v04-slurm-accepted/overlap",
           "submissions": 3,
           "case_image_observations": [],
           "jobs": [
@@ -487,7 +488,7 @@
         },
         "aliases": {
           "outcome": "passed",
-          "evidence_directory": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-slurm-accepted/aliases",
+          "evidence_directory": "<REPO>/build/validation/v04-slurm-accepted/aliases",
           "submissions": 3,
           "case_image_observations": [],
           "jobs": [
@@ -525,7 +526,7 @@
         },
         "companions": {
           "outcome": "passed",
-          "evidence_directory": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-slurm-accepted/companions",
+          "evidence_directory": "<REPO>/build/validation/v04-slurm-accepted/companions",
           "submissions": 3,
           "case_image_observations": [],
           "jobs": [
@@ -563,16 +564,16 @@
         },
         "mixed": {
           "outcome": "passed",
-          "evidence_directory": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-slurm-accepted/mixed",
+          "evidence_directory": "<REPO>/build/validation/v04-slurm-accepted/mixed",
           "submissions": 9,
           "case_image_observations": [
             {
-              "resolved": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-slurm-accepted/mixed/second image.sif",
+              "resolved": "<REPO>/build/validation/v04-slurm-accepted/mixed/second image.sif",
               "size": 44408832,
               "mtime_ns": 1790875315000000000
             },
             {
-              "resolved": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-slurm-accepted/mixed/first image.sif",
+              "resolved": "<REPO>/build/validation/v04-slurm-accepted/mixed/first image.sif",
               "size": 44408832,
               "mtime_ns": 1790875315000000000
             }
@@ -672,21 +673,21 @@
         },
         "refresh": {
           "outcome": "passed",
-          "evidence_directory": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-slurm-accepted/refresh",
+          "evidence_directory": "<REPO>/build/validation/v04-slurm-accepted/refresh",
           "submissions": 21,
           "case_image_observations": [
             {
-              "resolved": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-slurm-accepted/refresh/second image.sif",
+              "resolved": "<REPO>/build/validation/v04-slurm-accepted/refresh/second image.sif",
               "size": 44408832,
               "mtime_ns": 1790875481000000000
             },
             {
-              "resolved": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-slurm-accepted/refresh/first image.sif",
+              "resolved": "<REPO>/build/validation/v04-slurm-accepted/refresh/first image.sif",
               "size": 44408832,
               "mtime_ns": 1790875481000000000
             },
             {
-              "resolved": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-slurm-accepted/refresh/second image.sif",
+              "resolved": "<REPO>/build/validation/v04-slurm-accepted/refresh/second image.sif",
               "size": 44408832,
               "mtime_ns": 1790875480000000000
             }
@@ -906,7 +907,7 @@
         },
         "environment": {
           "outcome": "passed",
-          "evidence_directory": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-slurm-accepted/environment",
+          "evidence_directory": "<REPO>/build/validation/v04-slurm-accepted/environment",
           "submissions": 6,
           "case_image_observations": [],
           "jobs": [
@@ -974,7 +975,7 @@
         },
         "scratch": {
           "outcome": "passed",
-          "evidence_directory": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-slurm-accepted/scratch",
+          "evidence_directory": "<REPO>/build/validation/v04-slurm-accepted/scratch",
           "submissions": 6,
           "case_image_observations": [],
           "jobs": [
@@ -1042,7 +1043,7 @@
         },
         "opt_out": {
           "outcome": "passed",
-          "evidence_directory": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-slurm-scratch-probe/opt_out",
+          "evidence_directory": "<REPO>/build/validation/v04-slurm-scratch-probe/opt_out",
           "submissions": 3,
           "case_image_observations": [],
           "jobs": [
@@ -1083,11 +1084,11 @@
         },
         "retry": {
           "outcome": "passed",
-          "evidence_directory": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-slurm-recovery/retry",
+          "evidence_directory": "<REPO>/build/validation/v04-slurm-recovery/retry",
           "submissions": 8,
           "case_image_observations": [
             {
-              "resolved": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-slurm-recovery/retry/prepared image.sif",
+              "resolved": "<REPO>/build/validation/v04-slurm-recovery/retry/prepared image.sif",
               "size": 44408832,
               "mtime_ns": 1790876775000000000
             }
@@ -1177,21 +1178,21 @@
         },
         "repair": {
           "outcome": "passed",
-          "evidence_directory": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-slurm-recovery/repair",
+          "evidence_directory": "<REPO>/build/validation/v04-slurm-recovery/repair",
           "submissions": 10,
           "case_image_observations": [
             {
-              "resolved": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-slurm-recovery/repair/prepared image.sif",
+              "resolved": "<REPO>/build/validation/v04-slurm-recovery/repair/prepared image.sif",
               "size": 44408832,
               "mtime_ns": 1790876903000000000
             },
             {
-              "resolved": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-slurm-recovery/repair/saved.sif",
+              "resolved": "<REPO>/build/validation/v04-slurm-recovery/repair/saved.sif",
               "size": 44408832,
               "mtime_ns": 1790876903000000000
             },
             {
-              "resolved": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-slurm-recovery/repair/prepared image.sif",
+              "resolved": "<REPO>/build/validation/v04-slurm-recovery/repair/prepared image.sif",
               "size": 44408832,
               "mtime_ns": 1790876902000000000
             }
@@ -1301,16 +1302,16 @@
         },
         "packaged": {
           "outcome": "passed",
-          "evidence_directory": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/v04-slurm-recovery/packaged",
+          "evidence_directory": "<REPO>/build/validation/v04-slurm-recovery/packaged",
           "submissions": 12,
           "case_image_observations": [
             {
-              "resolved": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/summary.sif",
+              "resolved": "<REPO>/build/validation/summary.sif",
               "size": 48836608,
               "mtime_ns": 1790873132000000000
             },
             {
-              "resolved": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/report.sif",
+              "resolved": "<REPO>/build/validation/report.sif",
               "size": 48836608,
               "mtime_ns": 1790873143000000000
             }
@@ -1448,7 +1449,7 @@
           "gwflow-summary-task": "0.3.0",
           "gwflow-report-task": "0.3.0"
         },
-        "apptainer_path": "/faststorage/project/MomaDiagnosticsHg38/WORKSPACES/michaelk/develop/gwflow/build/validation/runtime/usr/bin/apptainer",
+        "apptainer_path": "<REPO>/build/validation/runtime/usr/bin/apptainer",
         "apptainer": "apptainer version 1.5.4-1"
       },
       "packaged_report": [

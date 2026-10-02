@@ -166,10 +166,10 @@ The frontend and computation nodes must see the image, inputs, and managed
 storage. The supported validation profile is Linux local workers and Slurm,
 Python 3.12, gwf 2.1.1, and Apptainer 1.5.4. See the
 [container validation instructions](docs/validation-v0.4.0.md) for the tested
-deployment and repeatable checks. Managed storage must expose consistent device
-and inode identities across frontend and execution hosts. A shared pathname alone
-does not establish that: validation found a BeeGFS client with a different device
-number, and the existing ownership guard refused preparation on that node.
+deployment and repeatable checks. Configure the same shared storage paths on all
+hosts. Local device numbers may differ, including on BeeGFS clients; gwflow does
+not compare them across hosts. Directory inode numbers are used within those
+trusted locations to recognize interrupted transfers and recorded work.
 
 Container commands use `--cleanenv` and the image environment; ordinary inherited
 `PYTHONPATH` is excluded while deliberate Apptainer environment overrides remain
@@ -603,7 +603,18 @@ staged directory is renamed into results on the same filesystem. Source work
 files remain intact. Transfer preserves modification times where supported and
 records actual destination metadata separately, including filesystem precision
 differences or unsupported timestamp preservation. Results contain only retained
-files and their grouping directories.
+files and their grouping directories inside each Task's results directory.
+
+The configured roots are trusted storage locations reserved for gwflow's managed
+work and results. Keep them pointed at the intended shared storage: gwflow does
+not authenticate the filesystem behind a path or detect replacement of a root
+directory. It creates no root marker files or folders. Recovery records remain
+under `.gwf`; directory checks within each operation still reject symlink
+traversal and changes during rename or removal.
+
+Older records containing device numbers remain usable without migration. Empty
+`.gwflow-root-*` directories left by the earlier development implementation are
+unused and can be removed; ordinary runs neither require nor create them.
 
 Equivalent resolved root spellings and root aliases are accepted. After initial
 use, changing recorded roots or an existing Task's `result_dir` is rejected;

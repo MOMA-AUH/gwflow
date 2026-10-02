@@ -22,7 +22,7 @@ def _uuid(value):
 
 
 def _valid_identity(value):
-    return (isinstance(value, dict) and set(value) == {"device", "inode"}
+    return (isinstance(value, dict) and set(value) in ({"inode"}, {"device", "inode"})
             and all(type(number) is int and number >= 0 for number in value.values()))
 
 
@@ -302,10 +302,6 @@ class Store:
               or self.owner.get("locations") != {key: str(path) for key, path in self.locations.items()}):
             raise WorkflowError("Managed ownership or recorded storage locations do not match; relocation/adoption is unsupported")
         if self.owner is not None:
-            identities = self.owner.get("root_identity")
-            if (not isinstance(identities, dict) or identities.keys() != self.locations.keys()
-                    or any(not _valid_identity(value) for value in identities.values())):
-                raise WorkflowError("Malformed managed root ownership evidence")
             for key in ("work", "results", "staging"):
                 pending = self.owner.get(f"{key}_recreation")
                 if pending is not None:
@@ -342,15 +338,10 @@ class Store:
             raise WorkflowError("Results staging must share the results filesystem; configure results_staging_root")
 
     def validate_roots(self):
-        for key, path in self.locations.items():
-            if not _files.exists(path):
-                continue
-            found = _files.identity(path)
-            if self.owner is not None:
-                expected = self.owner.get("root_identity", {}).get(key)
-                pending = self.owner.get(f"{key}_recreation") if key != "book" else None
-                if expected != found and (pending is None or pending["identity"] != found):
-                    raise WorkflowError(f"Managed root identity changed: {path}")
+        for path in self.locations.values():
+            if _files.exists(path):
+                with _files.directory(path):
+                    pass
 
     def root_needs_recreation(self, key):
         return self.owner is not None and (self.owner.get(f"{key}_recreation") is not None
@@ -374,15 +365,15 @@ class Store:
             _files.publish(self.owner_path, self.owner)
         source = Path(pending["source"])
         if _files.exists(root):
-            if _files.identity(root) != pending["identity"] or _files.exists(source):
+            if not _files.same_directory(_files.identity(root), pending["identity"]) or _files.exists(source):
                 raise WorkflowError(f"{key.capitalize()}-root recreation destination changed")
         else:
-            if _files.identity(source) != pending["identity"]:
+            if not _files.same_directory(_files.identity(source), pending["identity"]):
                 raise WorkflowError(f"{key.capitalize()}-root recreation staging ownership changed")
-            _files.commit_directory(source, root)
-        self.owner = {**self.owner, "root_identity": {**self.owner["root_identity"], key: pending["identity"]}}
+            _files.commit_directory(source, root, expected=pending["identity"])
         del self.owner[f"{key}_recreation"]
         _files.publish(self.owner_path, self.owner)
+        self.validate_roots()
 
     def _task_dir(self, name):
         return self.root / "owners" / self.owner["owner"] / "tasks" / name
@@ -446,7 +437,7 @@ class Store:
             record = self.staging_record(attempt)
         source = Path(record["source"])
         if _files.exists(destination):
-            if _files.identity(destination) != record["identity"] or _files.exists(source):
+            if not _files.same_directory(_files.identity(destination), record["identity"]) or _files.exists(source):
                 raise WorkflowError("Transfer staging directory ownership changed")
         else:
             _files.commit_directory(source, destination, expected=record["identity"])
@@ -778,7 +769,7 @@ class Store:
         if (manifest.get("sources") != sources
                 or manifest.get("retained") != attempt["structure"]["retained"]
                 or manifest.get("destination") != str(self.result_dir(attempt))
-                or manifest.get("staged_identity") != _files.identity(self.result_dir(attempt))):
+                or not _files.same_directory(manifest.get("staged_identity"), _files.identity(self.result_dir(attempt)))):
             return False
         return _files.metadata(self.result_dir(attempt), destinations) == completion["outputs"]
 
@@ -788,15 +779,16 @@ class Store:
             return None
         if self.read(attempt, "ready.json", "ready") is None:
             expected = self.initialization(attempt)["result_identity"]
-            if expected != _files.identity(destination):
+            if not _files.same_directory(expected, _files.identity(destination)):
                 raise WorkflowError(f"Previous results ownership changed during initialization: {destination}")
             return expected
         if not _files.exists(self.record_path(attempt, "completion.json")):
             transfer = self.transfer_ownership(attempt)
-            if transfer is not None and _files.identity(destination) in (transfer["staged_identity"], transfer["replaces"]):
+            if transfer is not None and any(_files.same_directory(_files.identity(destination), identity)
+                                            for identity in (transfer["staged_identity"], transfer["replaces"])):
                 return _files.identity(destination)
             repair = self.repair_intent(attempt)
-            if repair is not None and repair["result_identity"] == _files.identity(destination):
+            if repair is not None and _files.same_directory(repair["result_identity"], _files.identity(destination)):
                 return repair["result_identity"]
         manifest = self.read(attempt, "manifest.json", "manifest", operation=attempt["operation"])
         if (manifest is None or manifest.get("destination") != str(destination)
@@ -806,7 +798,7 @@ class Store:
                 or any(not isinstance(source, dict) or source.get("execution") != attempt["executions"][local]
                        or not _valid_metadata(source.get("outputs"), attempt["structure"]["targets"][local]["outputs"])
                        for local, source in manifest["sources"].items())
-                or manifest.get("staged_identity") != _files.identity(destination)):
+                or not _files.same_directory(manifest.get("staged_identity"), _files.identity(destination))):
             raise WorkflowError(f"Cannot establish ownership of previous results: {destination}")
         return manifest["staged_identity"]
 
@@ -857,9 +849,9 @@ class Store:
             for path in self.locations.values():
                 _files.mkdir(path)
             self.owner = _record("owner", owner=owner, task=None, working_dir=str(self.working_dir),
-                                 locations={key: str(path) for key, path in self.locations.items()},
-                                 root_identity={key: _files.identity(path) for key, path in self.locations.items()})
+                                 locations={key: str(path) for key, path in self.locations.items()})
             _files.publish(self.owner_path, self.owner)
+            self.validate_roots()
         if self.current(observation.name, result_dir) != observation.attempt:
             raise WorkflowError("Task selection changed before initialization")
         attempt_id, operation, preparation = uuid4().hex, uuid4().hex, uuid4().hex

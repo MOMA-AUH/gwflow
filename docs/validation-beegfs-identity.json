@@ -1,0 +1,350 @@
+{
+  "path_normalization": "<REPO> replaces the absolute checkout root; other paths and recorded observations are unchanged.",
+  "date": "2026-10-01",
+  "implementation": "Trusted configured roots; no root markers or device translation; existing recovery records compare directory inodes",
+  "base_commit": "f02bf8684458371ffa4412ce46aec56d472975eb",
+  "source_sha256": "5686daf9a18ce0423b4f9f15879bdd2fee3bb5bbb515624106f3c7fee3a2d28b",
+  "source_hash_method": "Sorted src/gwflow/*.py basenames and bytes, each followed by a NUL byte",
+  "environment": {
+    "backend": "slurm",
+    "platform": "Linux-5.14.0-687.48.1.el9_8.x86_64-x86_64-with-glibc2.34",
+    "python": "3.12.14 (main, Sep  2 2026, 23:27:36) [GCC 15.3.0]",
+    "frontend_node": "cn-1036",
+    "frontend_device": 48,
+    "apptainer": "apptainer version 1.5.4-1",
+    "apptainer_path": "<REPO>/build/validation/runtime/usr/bin/apptainer",
+    "packages": {
+      "gwf": "2.1.1",
+      "gwflow": "0.4.0",
+      "gwflow-summary-task": "0.3.0",
+      "gwflow-report-task": "0.3.0"
+    },
+    "images": {
+      "GWFLOW_TEST_SIF": {
+        "path": "<REPO>/build/validation/basic.sif",
+        "size": 44408832,
+        "mtime_ns": 1790864154000000000
+      },
+      "GWFLOW_TEST_SUMMARY_SIF": {
+        "path": "<REPO>/build/validation/summary.sif",
+        "size": 48836608,
+        "mtime_ns": 1790873132000000000
+      },
+      "GWFLOW_TEST_REPORT_SIF": {
+        "path": "<REPO>/build/validation/report.sif",
+        "size": 48836608,
+        "mtime_ns": 1790873143000000000
+      }
+    }
+  },
+  "frontend_bookkeeping_identity": {
+    "device": 48,
+    "inode": 9696892507093986088
+  },
+  "worker_probe": {
+    "node": "cn-1055",
+    "python": "3.12.14 (main, Sep  2 2026, 23:27:36) [GCC 15.3.0]",
+    "bookkeeping_identity": {
+      "device": 49,
+      "inode": 9696892507093986088
+    },
+    "packages": {
+      "gwf": "2.1.1",
+      "gwflow": "0.4.0",
+      "gwflow-summary-task": "0.3.0",
+      "gwflow-report-task": "0.3.0"
+    },
+    "apptainer_path": "<REPO>/build/validation/runtime/usr/bin/apptainer",
+    "apptainer": "apptainer version 1.5.4-1"
+  },
+  "root_markers_created": 0,
+  "owners_without_root_fingerprints": 5,
+  "installed_suite": {
+    "run": 252,
+    "failures": 0,
+    "errors": 0,
+    "skips": 0,
+    "execution": "13 storage tests separately; remaining 239 across four isolated processes",
+    "process_exit_codes": [
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "release_smoke": {
+    "run": 1,
+    "failures": 0,
+    "errors": 0,
+    "skips": 0
+  },
+  "slurm_summary": {
+    "run": 5,
+    "failures": 0,
+    "errors": 0,
+    "skips": 0,
+    "cases": [
+      "deployment",
+      "image",
+      "packaged",
+      "repair",
+      "retry"
+    ],
+    "outcomes": {
+      "deployment": "passed",
+      "image": "passed",
+      "packaged": "passed",
+      "repair": "passed",
+      "retry": "passed"
+    }
+  },
+  "slurm_cases": {
+    "deployment": {
+      "outcome": "passed",
+      "jobs": {
+        "1274534": {
+          "target": "deployment__gwflow_prepare__d7f75eddfae84904b0237518d9dffc5f__a444c6884c354cd69eb52fdde6138458",
+          "state": "COMPLETED",
+          "exit_code": "0:0",
+          "node": "cn-1096"
+        },
+        "1274535": {
+          "target": "deployment__probe__9e73f9162ed04eb4b3de430cf98eeeee__9ddf4d81f09f46cdb0f52f4363164750",
+          "state": "COMPLETED",
+          "exit_code": "0:0",
+          "node": "cn-1055"
+        },
+        "1274536": {
+          "target": "deployment__gwflow_complete__45b8c16bc2254c40b245f72ba910da5a__0f0e941b737d4721bf560b960f4c4934",
+          "state": "COMPLETED",
+          "exit_code": "0:0",
+          "node": "cn-1103"
+        }
+      }
+    },
+    "image": {
+      "outcome": "passed",
+      "jobs": {
+        "1274539": {
+          "target": "sample__gwflow_prepare__1ebe587ba372450c9ce03058e9dd6d3e__1d9df1d87d3f4dd4b49e0f16a4fe919e",
+          "state": "COMPLETED",
+          "exit_code": "0:0",
+          "node": "cn-1097"
+        },
+        "1274540": {
+          "target": "sample__compute__0558b17c35b84df1810f1584dd8114fe__db30b7785884469aa3853afeeaa6eb9f",
+          "state": "COMPLETED",
+          "exit_code": "0:0",
+          "node": "cn-1097"
+        },
+        "1274541": {
+          "target": "sample__gwflow_complete__da25ff506aba464ea03a4cda87bbbfa1__5226c164ae644c76882c66b65aeb147c",
+          "state": "COMPLETED",
+          "exit_code": "0:0",
+          "node": "cn-1097"
+        }
+      }
+    },
+    "packaged": {
+      "outcome": "passed",
+      "jobs": {
+        "1274550": {
+          "target": "A__gwflow_prepare__308f23b09f2d4b1ab2ab3c2c09d221d9__b82cff29ca6d4a10979d635580452d4c",
+          "state": "COMPLETED",
+          "exit_code": "0:0",
+          "node": "cn-1055"
+        },
+        "1274551": {
+          "target": "A__clean__e09e1c7d1ae440faa40f88755fb3a390__8e74c1bea5c848e2a4ad47d04b82ca38",
+          "state": "COMPLETED",
+          "exit_code": "0:0",
+          "node": "cn-1093"
+        },
+        "1274552": {
+          "target": "A__aggregate__9e72eab988b947d192ca5a183b5e4343__dc9245004530424d8cc56e1f3ec268ae",
+          "state": "COMPLETED",
+          "exit_code": "0:0",
+          "node": "cn-1093"
+        },
+        "1274553": {
+          "target": "A__gwflow_complete__c7a875459c8848f78277012ae9cd0f7d__27c1314dd0014c468ae6de64c0663f9a",
+          "state": "COMPLETED",
+          "exit_code": "0:0",
+          "node": "cn-1091"
+        },
+        "1274554": {
+          "target": "B__gwflow_prepare__50baf1d385904574b89358a93671edb8__778c342de7674e7082a74eb5d9eacf86",
+          "state": "COMPLETED",
+          "exit_code": "0:0",
+          "node": "cn-1093"
+        },
+        "1274555": {
+          "target": "B__clean__2957feb146c243b2ba3556f8441b7a61__17342ac547fa421e94c74d8eb84d439d",
+          "state": "COMPLETED",
+          "exit_code": "0:0",
+          "node": "cn-1097"
+        },
+        "1274556": {
+          "target": "B__aggregate__78aec626a9304ceea85f48c5bb2ec5fc__5f5ab74f03f14f72ad39d32e13e609a2",
+          "state": "COMPLETED",
+          "exit_code": "0:0",
+          "node": "cn-1097"
+        },
+        "1274557": {
+          "target": "B__gwflow_complete__907c1d02100146c3a3d8007795208910__74d8e1f0af534df996a658765a7cd2f4",
+          "state": "COMPLETED",
+          "exit_code": "0:0",
+          "node": "cn-1093"
+        },
+        "1274586": {
+          "target": "C__gwflow_prepare__0ac7b7dfd57340afbb0ce9f09af48119__1e60af231af34b9d83a96fb272c2972d",
+          "state": "COMPLETED",
+          "exit_code": "0:0",
+          "node": "cn-1091"
+        },
+        "1274587": {
+          "target": "C__join__d92e0c4ff1de437c8a4910c3d9f2b065__af79799ae7974c4c83da5782dc2d496d",
+          "state": "COMPLETED",
+          "exit_code": "0:0",
+          "node": "cn-1091"
+        },
+        "1274588": {
+          "target": "C__finalize__171c5e2f329a4393a80ce3c21e6c1e9b__f5e457c5f71b4817aa8fcae666127234",
+          "state": "COMPLETED",
+          "exit_code": "0:0",
+          "node": "cn-1091"
+        },
+        "1274589": {
+          "target": "C__gwflow_complete__729228ab65f2429cb5c3ada611f1eadf__f8ecd49b34784514b28259c4a09f267d",
+          "state": "COMPLETED",
+          "exit_code": "0:0",
+          "node": "cn-1050"
+        }
+      }
+    },
+    "repair": {
+      "outcome": "passed",
+      "jobs": {
+        "1274597": {
+          "target": "sample__gwflow_prepare__c20b5a594a5b46f89b1c1be319444e7a__b7764f355a72416289f63b64cc5f990a",
+          "state": "COMPLETED",
+          "exit_code": "0:0",
+          "node": "cn-1091"
+        },
+        "1274598": {
+          "target": "sample__left__21ab4e6f5f6b4cac8e53ed96dc8d951b__b69cb5b692a4492197de58cbae550210",
+          "state": "COMPLETED",
+          "exit_code": "0:0",
+          "node": "cn-1097"
+        },
+        "1274599": {
+          "target": "sample__right__5aba85fdb30c426aab0b74e2c581cc10__088ca58c24e44b2495b8163b7a47d779",
+          "state": "COMPLETED",
+          "exit_code": "0:0",
+          "node": "cn-1093"
+        },
+        "1274600": {
+          "target": "sample__join__97f6c10bba3045e0b350d997e038c969__5d93310e3c6541e4bfbc9c5633bfbc7a",
+          "state": "COMPLETED",
+          "exit_code": "0:0",
+          "node": "cn-1091"
+        },
+        "1274601": {
+          "target": "sample__gwflow_complete__df021169ee41460ca7b6b72137a44404__f44731d434c24863be2c2eda24d6f8fa",
+          "state": "COMPLETED",
+          "exit_code": "0:0",
+          "node": "cn-1091"
+        },
+        "1274644": {
+          "target": "sample__gwflow_prepare__33acf6d5239c41be9b3114b8a5c954b2__9c732faf3a6d43508fb852ca07cf26ec",
+          "state": "COMPLETED",
+          "exit_code": "0:0",
+          "node": "cn-1056"
+        },
+        "1274645": {
+          "target": "sample__left__715a65e9a0ad4effa11553858d50815d__c719d18144644c4da21b2eca0c96fc76",
+          "state": "COMPLETED",
+          "exit_code": "0:0",
+          "node": "cn-1050"
+        },
+        "1274646": {
+          "target": "sample__right__f434fc861e2c438db6998bc70be11014__a45c8d57c3224550868b19eb1c7a46b4",
+          "state": "COMPLETED",
+          "exit_code": "0:0",
+          "node": "cn-1097"
+        },
+        "1274647": {
+          "target": "sample__join__baa3b243c3c84349ad9bbef8c3d2bb58__342426efa43b4959aa63e27cf6d1cb7b",
+          "state": "COMPLETED",
+          "exit_code": "0:0",
+          "node": "cn-1050"
+        },
+        "1274648": {
+          "target": "sample__gwflow_complete__723f2ae7cd2945ec905a211c9ab84eba__8a6f32ff7ccc44e6a5f3301c1ea44b28",
+          "state": "COMPLETED",
+          "exit_code": "0:0",
+          "node": "cn-1055"
+        }
+      }
+    },
+    "retry": {
+      "outcome": "passed",
+      "jobs": {
+        "1274660": {
+          "target": "sample__gwflow_prepare__25f661616b16493fa504559b331c97a8__411a37862553429085a94bb433ca6e0e",
+          "state": "COMPLETED",
+          "exit_code": "0:0",
+          "node": "cn-1055"
+        },
+        "1274661": {
+          "target": "sample__left__19ccf44465034765bf89b5614ebdfe7d__04db9ead884a44229eeabc561ce31259",
+          "state": "COMPLETED",
+          "exit_code": "0:0",
+          "node": "cn-1055"
+        },
+        "1274662": {
+          "target": "sample__right__52b34cd8ae9a4ddb8b8f34f7b4ab6f7a__c39034027db546acbb64ecba6693842b",
+          "state": "FAILED",
+          "exit_code": "1:0",
+          "node": "cn-1091"
+        },
+        "1274663": {
+          "target": "sample__join__289f7fe7927547cbafa9e358fe92b492__5cb3089101bd4a288dec96758915f5a2",
+          "state": "CANCELLED",
+          "exit_code": "0:0",
+          "node": "None assigned"
+        },
+        "1274664": {
+          "target": "sample__gwflow_complete__a98696a0ee064d9faf6f7569a03b04a1__972fb46a3b4341d992749a5115fd8479",
+          "state": "CANCELLED",
+          "exit_code": "0:0",
+          "node": "None assigned"
+        },
+        "1274669": {
+          "target": "sample__right__a64e1ba90957481ba18d64a28da51ceb__145b48c4ded44bb285e7cbfa24c699bd",
+          "state": "COMPLETED",
+          "exit_code": "0:0",
+          "node": "cn-1091"
+        },
+        "1274670": {
+          "target": "sample__join__8ff8e340b9c44de88a028edf8e3bc383__b1d740315a2c4131876a2cb43f48bce0",
+          "state": "COMPLETED",
+          "exit_code": "0:0",
+          "node": "cn-1091"
+        },
+        "1274671": {
+          "target": "sample__gwflow_complete__a98696a0ee064d9faf6f7569a03b04a1__06443e58e3ca47159cd8a08ef2a05c4b",
+          "state": "COMPLETED",
+          "exit_code": "0:0",
+          "node": "cn-1091"
+        }
+      }
+    }
+  },
+  "existing_example": {
+    "obsolete_empty_markers_removed": 4,
+    "reuse_output": "Task A: reuse; checked Completion and retained metadata match\nTask B: reuse; checked Completion and retained metadata match\nTask C: reuse; checked Completion and retained metadata match\n",
+    "status_output": "+ Task A                       reusable         work-cleaned\n+ Task B                       reusable         work-cleaned\n+ Task C                       reusable         work-cleaned\n",
+    "unchanged_run_submissions": 0
+  }
+}

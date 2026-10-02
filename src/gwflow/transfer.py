@@ -36,7 +36,7 @@ def _manifest(store, attempt, sources, record):
 
 
 def _checked_set(root, manifest):
-    return (_files.identity(root) == manifest["staged_identity"]
+    return (_files.same_directory(_files.identity(root), manifest["staged_identity"])
             and _files.file_set(root) == set(manifest["outputs"])
             and _files.metadata(root, manifest["outputs"]) == manifest["outputs"])
 
@@ -87,20 +87,21 @@ def inspect(store, attempt):
     sources = _sources(store, attempt, check_files=False)
     record = store.transfer_ownership(attempt)
     staging = store.staging_record(attempt)
-    if staging is not None and _files.exists(staging["destination"]) and _files.identity(staging["destination"]) != staging["identity"]:
+    if (staging is not None and _files.exists(staging["destination"])
+            and not _files.same_directory(_files.identity(staging["destination"]), staging["identity"])):
         raise WorkflowError("Transfer staging directory ownership changed")
     repair = store.repair_intent(attempt)
     if repair is not None and repair["sources"] != sources:
         raise InvalidSources("Repair source execution evidence changed")
     destination = store.result_dir(attempt)
     identity = _files.identity(destination) if _files.exists(destination) else None
-    installed = identity is not None and record is not None and identity == record["staged_identity"]
-    old = identity is not None and (repair is not None and identity == repair["result_identity"]
-                                    or record is not None and identity == record["replaces"])
+    installed = record is not None and _files.same_directory(identity, record["staged_identity"])
+    old = (repair is not None and _files.same_directory(identity, repair["result_identity"])
+           or record is not None and _files.same_directory(identity, record["replaces"]))
     if identity is not None and not (installed or old):
         raise WorkflowError("Cannot establish ownership of installed transfer results")
     if record is not None and _files.exists(Path(record["staging"])):
-        if _files.identity(Path(record["staging"])) != record["staged_identity"]:
+        if not _files.same_directory(_files.identity(Path(record["staging"])), record["staged_identity"]):
             raise WorkflowError("Transfer staging ownership changed")
     try:
         manifest = _manifest(store, attempt, sources, record)
@@ -113,7 +114,7 @@ def inspect(store, attempt):
             return Recovery("install", "install prepared retained-result set under the same attempt", record, manifest,
                             removal=identity)
     except (WorkflowError, OSError):
-        # Strong ownership was checked above. Incomplete association or copied
+        # Transfer directory records were checked above. Incomplete association or copied
         # data can only be rebuilt from separately verified source work.
         pass
     _sources(store, attempt, check_files=True)
