@@ -15,10 +15,19 @@ results with host or container execution. The
 [validation record](docs/validation-v0.4.0.md) maps the release acceptance matrix
 to tests and infrastructure observations, including the BeeGFS storage correction.
 
-Factories must use the managed API. Unsupported pre-1.0 factories and records have no
-automatic conversion, migration, or adoption path; initialized storage cannot be
-relocated. Ordinary authored top-level targets are not supported in a managed
-Workflow.
+Before v1.0, each release supports one authoring interface and one durable record
+format: the ones documented by that release. Factories must use the managed API.
+There is no cross-version Reuse, retry, or repair guarantee and no automatic
+conversion, migration, or adoption of unsupported factories or records.
+Initialized storage cannot be relocated. Ordinary authored top-level targets are
+not supported in a managed Workflow. Genuinely incompatible future record changes
+use the existing record kind/schema checks; this removal does not change them.
+
+Finish or deliberately stop existing jobs before switching versions. Use the
+matching old release for supported inspection or cleanup of old runs. When
+records are incompatible, start fresh runs in separate workflow and storage
+locations. Keep bookkeeping with its work and retained results; deleting
+bookkeeping alone does not make existing results adoptable.
 
 The obsolete `Task(working_dir=...)` argument is no longer accepted, including
 `working_dir=None`. Remove it from Task factories: host and container computation
@@ -622,9 +631,14 @@ directory. It creates no root marker files or folders. Recovery records remain
 under `.gwf`; directory checks within each operation still reject symlink
 traversal and changes during rename or removal.
 
-Older records containing device numbers remain usable without migration. Empty
-`.gwflow-root-*` directories left by the earlier development implementation are
-unused and can be removed; ordinary runs neither require nor create them.
+Durable directory identities use only inode numbers within these trusted
+locations. Worker and frontend device numbers may differ on shared storage such
+as BeeGFS; same-host filesystem-placement and rename/removal checks still use
+device numbers. The older device-plus-inode record representation is unsupported
+and cannot authorize Reuse, submission, mutation, or cleanup. This supersedes the
+older-record compatibility guarantee in v0.4.0; its published validation record
+describes that release, not current compatibility. Use the transition guidance
+above for incompatible runs.
 
 Equivalent resolved root spellings and root aliases are accepted. After initial
 use, changing recorded roots or an existing Task's `result_dir` is rejected;

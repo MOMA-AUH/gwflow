@@ -21,11 +21,6 @@ def _uuid(value):
     return isinstance(value, str) and re.fullmatch(r"[0-9a-f]{32}", value) is not None
 
 
-def _valid_identity(value):
-    return (isinstance(value, dict) and set(value) in ({"inode"}, {"device", "inode"})
-            and all(type(number) is int and number >= 0 for number in value.values()))
-
-
 def _initialization_entries(path):
     with _files.directory(path) as directory:
         entries = set(os.listdir(directory))
@@ -307,7 +302,7 @@ class Store:
                 if pending is not None:
                     root = self.locations[key]
                     if (not isinstance(pending, dict) or not _uuid(pending.get("operation"))
-                            or not _valid_identity(pending.get("identity"))
+                            or not _files.valid_identity(pending.get("identity"))
                             or pending.get("source") != str(root.with_name(f".{root.name}-gwflow-{pending['operation']}"))):
                         raise WorkflowError(f"Malformed {key}-root recreation evidence")
         self.validate_roots()
@@ -387,7 +382,7 @@ class Store:
     def workspace_identity(self, attempt):
         ready = self.read(attempt, "ready.json", "ready")
         if (ready is None or ready.get("workspace") != str(self.workspace(attempt))
-                or not _valid_identity(ready.get("workspace_identity"))):
+                or not _files.valid_identity(ready.get("workspace_identity"))):
             raise WorkflowError("Missing or malformed workspace ownership evidence")
         return ready["workspace_identity"]
 
@@ -414,7 +409,7 @@ class Store:
         record = self.read(attempt, "staging.json", "staging-directory", operation=attempt["operation"])
         if record is None and not _files.exists(self.record_path(attempt, "staging.json")):
             return None
-        if (record is None or not _uuid(record.get("allocation")) or not _valid_identity(record.get("identity"))
+        if (record is None or not _uuid(record.get("allocation")) or not _files.valid_identity(record.get("identity"))
                 or record.get("destination") != str(self.transfer_dir(attempt))
                 or record.get("source") != str(self.transfer_dir(attempt).with_name(".staging-" + record["allocation"]))):
             raise WorkflowError("Missing or malformed transfer staging ownership")
@@ -467,8 +462,8 @@ class Store:
         if (record is None or not _uuid(record.get("copy"))
                 or record.get("staging") != str(self.transfer_dir(attempt) / record["copy"])
                 or record.get("destination") != str(self.result_dir(attempt))
-                or "replaces" not in record or record["replaces"] is not None and not _valid_identity(record["replaces"])
-                or not _valid_identity(record.get("staged_identity"))):
+                or "replaces" not in record or record["replaces"] is not None and not _files.valid_identity(record["replaces"])
+                or not _files.valid_identity(record.get("staged_identity"))):
             raise WorkflowError("Missing or malformed transfer ownership evidence")
         return record
 
@@ -480,7 +475,7 @@ class Store:
                 or record["previous"] != attempt.get("repair_from")
                 or record.get("destination") != str(self.result_dir(attempt))
                 or "result_identity" not in record or "sources" not in record
-                or record["result_identity"] is not None and not _valid_identity(record["result_identity"])):
+                or record["result_identity"] is not None and not _files.valid_identity(record["result_identity"])):
             raise WorkflowError("Missing or malformed repair intent")
         return record
 
@@ -543,6 +538,8 @@ class Store:
             raise WorkflowError(f"Missing, malformed or unsupported managed attempt for Task {name!r}; existing data is not adopted")
         if attempt.get("result_dir") != result_dir:
             raise WorkflowError(f"Recorded Task results location changed for {name!r}")
+        if self.read(attempt, "ready.json", "ready") is not None:
+            self.workspace_identity(attempt)
         return attempt
 
     def unselected_initialization(self, name):
@@ -808,7 +805,7 @@ class Store:
                 or record.get("destination") != str(self.result_dir(attempt))
                 or record.get("previous") is not None and not _uuid(record["previous"])
                 or record.get("result_identity") is not None and
-                not _valid_identity(record["result_identity"])):
+                not _files.valid_identity(record["result_identity"])):
             raise WorkflowError("Missing or malformed Task initialization evidence")
         return record
 

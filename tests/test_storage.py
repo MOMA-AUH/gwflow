@@ -49,6 +49,11 @@ class StoragePlacementTests(LocalBackendTestCase):
         self.assertEqual(sorted(str(path.relative_to(root)) for path in root.rglob('*') if path.is_file()),
                          ["nested/two.txt", "renamed.txt"])
 
+    def storage_snapshot(self):
+        return {path: (path.read_bytes(), path.stat().st_mtime_ns) if path.is_file() else path.stat().st_ino
+                for root in (self.work / ".gwf/gwflow", self.work / "work", self.work / "results")
+                for path in root.rglob("*")}
+
     def test_worker_device_numbers_do_not_change_shared_directory_ownership(self):
         shutil.copy(FIXTURES / "job_fault.py", self.work)
         (self.work / "job-fault.json").write_text(json.dumps({"device_offset": 10000}))
@@ -76,7 +81,7 @@ class StoragePlacementTests(LocalBackendTestCase):
         self.assertNotIn("root_identity", owner)
         self.assertNotIn("root_witnesses", owner)
 
-    def test_legacy_device_numbers_work_without_record_migration(self):
+    def test_retired_directory_identities_cannot_authorize_reuse_or_changes(self):
         self.run_complete()
         root = self.work / ".gwf/gwflow"
         def legacy(value):
@@ -89,41 +94,35 @@ class StoragePlacementTests(LocalBackendTestCase):
             return value
         for path in root.rglob("*.json"):
             path.write_text(json.dumps(legacy(json.loads(path.read_text()))))
-        owner_path = root / "owner.json"
-        owner = json.loads(owner_path.read_text())
-        owner["root_identity"] = {key: {"device": 987654, "inode": Path(path).stat().st_ino}
-                                  for key, path in owner["locations"].items()}
-        owner_path.write_text(json.dumps(owner))
-        before = {str(path): path.read_bytes() for path in root.rglob("*.json")}
-        for command in (("status",), ("explain",), ("run", "--dry-run"), ("run",)):
-            self.assertNotIn("Submitted target", self.cli(*command))
-        self.assertEqual({str(path): path.read_bytes() for path in root.rglob("*.json")}, before)
-        result = self.work / "results/samples/a/report"
-        (result / "renamed.txt").unlink()
-        shutil.copy(FIXTURES / "job_fault.py", self.work)
-        (self.work / "job-fault.json").write_text(json.dumps({"device_offset": 10000}))
-        self.cli("-b", "recovery_fixture", "run", env=self.inject(job_fault="a"))
-        self.finish()
-        self.assert_results(result)
-        self.cli("clean-work", "--delete")
-        self.assertNotIn("Submitted target", self.cli("run"))
-        self.assertEqual(owner_path.read_bytes(), before[str(owner_path)])
-        self.assertFalse(list(self.work.rglob(".gwflow-root-*")))
+        attempt = next(root.glob("owners/*/tasks/a/attempts/*/attempt.json")).parent.name
+        before = self.storage_snapshot()
+        for command in (("status", "--details"), ("explain",), ("run", "--dry-run"), ("run",),
+                        ("run", "--force"), ("clean-work", "--delete"),
+                        ("clean-work", "--delete", "--attempt", attempt)):
+            with self.subTest(command=command):
+                output = self.cli(*command, success=False)
+                self.assertIn("ownership", output)
+                self.assertNotIn("Submitted target", output)
+                self.assertEqual(self.storage_snapshot(), before)
+        self.assert_results(self.work / "results/samples/a/report")
         self.assertEqual((self.work / "trace").read_text().splitlines(), ["compute"])
 
-    def test_obsolete_root_metadata_does_not_require_markers(self):
-        self.run_complete()
-        owner_path = self.work / ".gwf/gwflow/owner.json"
-        owner = json.loads(owner_path.read_text())
-        owner["root_identity"] = {key: {"device": 987654, "inode": 1} for key in owner["locations"]}
-        owner["root_witnesses"] = {key: {"name": ".gwflow-root-" + "a" * 32, "inode": 2}
-                                   for key in owner["locations"]}
-        owner_path.write_text(json.dumps(owner))
-        self.assertNotIn("Submitted target", self.cli("run"))
-        self.cli("run", "--force")
-        self.finish()
-        self.assert_results(self.work / "results/samples/a/report")
-        self.assertFalse(list(self.work.rglob(".gwflow-root-*")))
+    def test_retired_workspace_identity_blocks_unfinished_attempt_submission(self):
+        self.cli("-b", "recovery_fixture", "run", env=self.inject(reject_before_admission=True), success=False)
+        root = self.work / ".gwf/gwflow"
+        ready = next(root.rglob("ready.json"))
+        record = json.loads(ready.read_text())
+        record["workspace_identity"]["device"] = 987654
+        ready.write_text(json.dumps(record))
+        before = self.storage_snapshot()
+        for command in (("explain",), ("run", "--dry-run"), ("run",), ("run", "--force")):
+            with self.subTest(command=command):
+                output = self.cli(*command, success=False)
+                self.assertIn("workspace ownership", output)
+                self.assertNotIn("Submitted target", output)
+                self.assertEqual(self.storage_snapshot(), before)
+        self.assertFalse((self.work / "trace").exists())
+        self.assertFalse((self.work / "results/samples/a/report").exists())
 
     def test_replaced_root_at_configured_path_is_trusted(self):
         self.run_complete()

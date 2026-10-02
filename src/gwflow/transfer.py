@@ -10,7 +10,7 @@ from uuid import uuid4
 from gwf.exceptions import WorkflowError
 
 from . import _files
-from .lifecycle import _valid_identity, _valid_metadata
+from .lifecycle import _valid_metadata
 
 
 @dataclass
@@ -75,7 +75,7 @@ def repair_sources(store, attempt):
 def _installation(store, attempt, manifest):
     record = store.read(attempt, "installation.json", "installation", operation=attempt["operation"])
     if (record is None or any(record.get(key) != manifest[key] for key in ("copy", "destination", "staged_identity"))
-            or "removal" not in record or record["removal"] is not None and not _valid_identity(record["removal"])):
+            or "removal" not in record or record["removal"] is not None and not _files.valid_identity(record["removal"])):
         raise WorkflowError("Missing or malformed repair installation intent")
     return record
 
