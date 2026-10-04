@@ -114,7 +114,9 @@ class RegistryImageTests(LocalBackendTestCase):
     def test_each_planning_command_acquires_a_cold_reference(self):
         for index, arguments in enumerate((("status", "--details"), ("explain",), ("run", "--dry-run"), ("run",))):
             with self.subTest(arguments=arguments):
-                reference = f"docker://example.org/tool:v{index}"
+                # Distinct source sizes invalidate Python's timestamp/size
+                # bytecode cache even when CI rewrites within one clock tick.
+                reference = "docker://example.org/tool:v" + "1" * (index + 1)
                 self.configure_workflow(reference)
                 self.cli(*arguments)
                 self.assertEqual(self.calls("pull")[-1]["reference"], reference)
