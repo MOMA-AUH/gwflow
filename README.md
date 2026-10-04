@@ -201,6 +201,10 @@ bookkeeping storage, at the same shared path on frontend and compute nodes.
 Frontend and compute-node CPU architectures must match. Workers execute the
 cached SIF and never download it; there is no architecture override.
 
+Pulls report their start and either completion or failure on stderr, including
+during `gwf status`, `gwf explain`, and `gwf run --dry-run`. Failure messages include
+the image reference and error. Reusing a cached image is silent.
+
 The same explicit reference shares an entry across a user's workflows and
 Task names. Different reference spellings select different entries, even if
 they refer to the same registry image. A present usable entry needs neither
