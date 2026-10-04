@@ -203,7 +203,7 @@ def plan_workflow(workflow, ctx, *, force=False, force_tasks=()):
             attempt = store.current(name, workflow._result_dirs[name])
             observation = TaskObservation(name, "fresh", "no completed managed attempt", structure, commands, attempt)
             try:
-                images.check(structure, store.locations)
+                images.resolve(workflow._task_declarations[name], structure, store.locations)
             except WorkflowError as error:
                 observation.action, observation.reason = "blocked", str(error)
                 tasks.append(observation)

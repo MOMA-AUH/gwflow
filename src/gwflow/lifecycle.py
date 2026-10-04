@@ -143,7 +143,7 @@ def declarations(task, store, workflow):
         targets[name] = {"inputs": incoming, "outputs": sorted(outputs)}
         targets[name]["image"] = None
         if target.image is not None:
-            alias = inputs.declared_path(target.image, store.working_dir)
+            alias = images.binding(target.image, store.working_dir)
             targets[name]["image"] = alias
             overrides = {path: (_target_reference(task, value) if isinstance(value, TargetOutput)
                                 else _boundary_reference(value, store, workflow))

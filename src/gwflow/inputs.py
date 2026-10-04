@@ -13,15 +13,19 @@ def declared_path(value, working_dir):
     return str((Path(working_dir) / value).absolute())
 
 
+def validate_location(path, resolved, locations):
+    for candidate in (path, resolved):
+        if any(candidate == root or root in candidate.parents for root in locations.values()):
+            raise WorkflowError(f"External input points into managed storage: {path}")
+
+
 def observe(paths, locations):
     result = {}
     for alias in paths:
         try:
             path = Path(alias)
             resolved = path.resolve(strict=True)
-            for candidate in (path, resolved):
-                if any(candidate == root or root in candidate.parents for root in locations.values()):
-                    raise WorkflowError(f"External input points into managed storage: {alias}")
+            validate_location(path, resolved, locations)
             info = resolved.stat()
             if not stat.S_ISREG(info.st_mode):
                 raise WorkflowError(f"External input must resolve to a regular file: {alias}")

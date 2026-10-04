@@ -31,6 +31,12 @@ The external-input state accepted at task preparation, against which later input
 **Image dependency**:
 An external input selected as a target's container image, required for meaningful workflow inspection as well as container execution, even when its owning task can otherwise be reused.
 
+**Image reference**:
+A declaration identifying an image dependency by a local SIF pathname or an OCI/Docker registry source.
+
+**Image cache**:
+A collection of acquired image dependencies shared across one user's workflows.
+
 **Retained output**:
 A file declared by the task author as an output to keep after successful task completion. Files passed from one task to another must be retained outputs of their producing task.
 

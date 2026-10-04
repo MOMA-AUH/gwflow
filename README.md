@@ -140,6 +140,11 @@ jobs and external files can change after observation, and run or cleanup recheck
 the relevant evidence before acting. Repair may defer an existing consumer until
 a later invocation can compare restored metadata.
 
+Run, status, explain, and dry-run may acquire missing registry images into the
+user's image cache, including images of reusable or display-filtered Tasks.
+They preserve Task attempts, Input baselines, Completion records, results, and
+disposable work during inspection. Cleanup does not acquire or delete images.
+
 Public log names such as `hello__write` follow the selected execution generation.
 Logs remain under `.gwf/logs/` after cleanup; execution-specific logs from earlier
 retries and attempts also remain. Use the execution submission name from a saved
@@ -168,9 +173,49 @@ does not need gwflow or the host Python environment. Only the authored command
 runs in Apptainer, with `/bin/bash -e` and private work as its current directory.
 Preparation, output checks, transfer, and Completion run on the host. Omit
 `image` to keep host execution. Image selection is per target, without Task or
-Workflow defaults or image acquisition. Container targets and their Task's
+Workflow defaults. Container targets and their Task's
 preparation/completion jobs require gwf's ordinary `Bash` executor; inherited
 custom executors at these boundaries are rejected before submission.
+
+For anonymously accessible registry images, use an explicit `docker://`
+reference instead of a local pathname:
+
+```python
+run = task.target("compute", inputs=[], outputs=["out.txt"],
+                  image="docker://ubuntu:24.04")
+run << "printf 'hello from the image\\n' > out.txt"
+```
+
+Tagged and digest-pinned references are accepted, for example
+`docker://registry.example/tools/demo@sha256:<64 lowercase hex digits>` with
+the placeholder replaced by the source's actual digest. Bare names remain
+local paths; other transports and private-registry authentication are not
+provided. See [the registry example](examples/registry/workflow.py).
+
+The frontend acquires a missing image through `apptainer pull` and publishes a
+complete local SIF in `~/.cache/gwflow/images`. Set `GWFLOW_IMAGE_CACHE` to choose
+another cache directory; this is the sole gwflow cache-location override.
+Relative overrides resolve from the Workflow directory, and persisted image
+bindings are absolute. Keep the cache outside managed work, results, and
+bookkeeping storage, at the same shared path on frontend and compute nodes.
+Frontend and compute-node CPU architectures must match. Workers execute the
+cached SIF and never download it; there is no architecture override.
+
+The same explicit reference shares an entry across a user's workflows and
+Task names. Different reference spellings select different entries, even if
+they refer to the same registry image. A present usable entry needs neither
+registry access nor Apptainer for planning; actual execution still requires
+Apptainer. Tags are not polled or refreshed when their remote content moves.
+Only a missing entry is pulled. A present unusable entry is reported without
+replacement, and a failed pull leaves a retryable cache miss. Any failed image
+dependency blocks all workflow submissions while inspection still reports
+other Tasks.
+
+gwflow never evicts published images, including during work cleanup and fresh
+attempts. Users control removal and must keep images stable while jobs use
+them. Removal can affect several workflows; reacquisition can change local
+metadata even for a digest-pinned source, requiring fresh computation under
+the ordinary Input baseline rules. There is no refresh or cache-cleanup command.
 
 Relative images resolve from the Workflow directory, including symlinks and
 paths containing spaces. Each declared image alias is an implicit External
@@ -191,8 +236,8 @@ Retargeting an unchanged alias, size changes, and forward or backward mtime
 changes require fresh computation under the existing ownership and activity
 guards. Unavailable images block planning and preserve results; restoring
 matching observations permits ordinary retry or repair. Status, explain, and
-dry-run describe these decisions without launching Apptainer or updating Task
-evidence.
+dry-run describe these decisions without updating Task evidence; resolving a
+missing registry image may invoke Apptainer on the frontend.
 
 Deployments must keep images stable while jobs use them. Metadata observations
 are neither content hashes, locks, nor snapshots; changes preserving all
@@ -535,7 +580,7 @@ scheduled finishing.
 An unavailable image blocks repair or continuation while preserving existing
 results; restoring matching identity resumes the usual decision. A changed image
 requires fresh computation instead of repairing from older work. Previews make
-the same distinction without mutations, and run observes metadata again.
+the same distinction without Task mutations, and run observes metadata again.
 Scheduled lifecycle jobs apply ordinary input checks to images. Deployments
 must still keep images stable while jobs use them; checks are not locks.
 
