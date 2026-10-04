@@ -252,6 +252,23 @@ matching observations permits ordinary retry or repair. Status, explain, and
 dry-run describe these decisions without updating Task evidence; resolving a
 missing registry image may invoke Apptainer on the frontend.
 
+Restoration and reacquisition have the same comparison rules. Restoring an image
+at its previous resolved path with matching size and modification time permits
+cleaned Reuse, successful-branch retry, transfer continuation, or result repair
+as appropriate. A missing registry image is acquired before those decisions,
+even after internal work has been cleaned. Failure leaves the old lifecycle
+evidence and retained results intact and blocks every submission in the workflow.
+A successful pull alone does not validate older work: even the same digest source
+can produce a SIF with different local metadata and require a fresh Task attempt.
+
+An image change refreshes the whole owning Task, including successful branches
+of a partial attempt. Its consumers follow the ordinary producer-attempt rules,
+even if regenerated retained files have matching metadata; independent Tasks
+remain reusable. Active jobs, active consumers, and unresolved submissions keep
+their existing protection against replacement. Changes after baseline publication
+are checked again by workers, which never acquire a replacement image. A later
+frontend invocation resolves the dependency and plans recovery or a fresh attempt.
+
 Deployments must keep images stable while jobs use them. Metadata observations
 are neither content hashes, locks, nor snapshots; changes preserving all
 observed fields can remain undetected. They do not strengthen gwf's Completion
