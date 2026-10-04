@@ -4,6 +4,15 @@ gwflow adds managed Tasks to [gwf](https://gwf.app/): computation runs in dispos
 work storage, while named retained files are copied into stable results storage.
 Checked completion evidence lets a Task remain reusable after its work is removed.
 
+The v0.4.2 release adds explicit `docker://` registry images, acquired on the
+frontend during planning and shared across a user's workflows. Missing images
+are pulled into a shared cache with progress and failure reporting; cached
+images are reused without registry access. Local and acquired images use the
+ordinary Input baseline for execution, recovery, and Reuse. See the
+[registry example](examples/registry/workflow.py) and
+[registry acceptance record](docs/validation-registry.md) for usage and local/Slurm
+validation.
+
 The v0.4.1 release removes the ignored `Task(working_dir=...)` option and requires
 the current inode-only storage identity records for managed operations. See the
 compatibility and transition guidance below before upgrading existing runs.
