@@ -177,17 +177,19 @@ class RegistryRecoveryTests(test_registry_images.RegistryTestCase):
         env = self.inject(job_fault="sample__gwflow_prepare", lose_tracking="sample__gwflow_prepare")
         self.cli("-b", "recovery_fixture", "run", "--force", env=env, success=False)
         self.wait_for(lambda: (self.work / "preparation-held").exists())
-        image = self.cached_images()[0]
-        info = image.stat()
+        blocked_attempt = self.attempt()
         try:
-            os.utime(image, ns=(info.st_atime_ns, info.st_mtime_ns - 1_000_000_000))
+            self.configure_workflow("docker://example.org/tools/demo:replacement-while-uncertain")
             self.assert_blocked_without_changes("unresolved submission")
         finally:
             (self.work / "preparation-release").touch()
         self.settle()
+        self.preview("changed declared structure")
         self.cli("run")
         self.settle()
         self.assertNotEqual(self.attempt(), attempt)
+        self.assertNotEqual(self.attempt(), blocked_attempt)
+        self.assertEqual(len(self.calls("pull")), 2)
         self.assertEqual(len(self.calls("exec")), 2)
         self.assertEqual((self.work / "results/sample/out.txt").read_text(), "fixture image\n")
 
