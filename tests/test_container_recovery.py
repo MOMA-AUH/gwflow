@@ -133,13 +133,13 @@ class ContainerRecoveryTests(LocalBackendTestCase):
         self.preview("repair")
         info = self.image.stat()
         os.utime(self.image, ns=(info.st_atime_ns, info.st_mtime_ns - 1000000000))
-        self.preview("changed images")
+        self.preview("input metadata changed")
         self.run_complete()
         self.assertNotEqual(self.attempt(), attempt)
         self.assertEqual(result.read_text(), "leftright")
         self.assertEqual(self.counts(), {"left": 2, "right": 2, "join": 2})
 
-    def test_transfer_continuation_requires_observable_image_only_at_frontend(self):
+    def test_transfer_continuation_checks_image_again_on_worker(self):
         self.failure.unlink()
         self.cli("-b", "recovery_fixture", "run", env=self.fault(crash_after_manifest=True))
         self.settle()
@@ -156,8 +156,12 @@ class ContainerRecoveryTests(LocalBackendTestCase):
         finally:
             (self.work / "preparation-release").touch()
         self.settle()
-        self.assertEqual((self.work / "results/sample/result.txt").read_text(), "leftright")
+        self.assertFalse((self.work / "results/sample/result.txt").exists())
+        self.assertIn("inputs unavailable", self.cli("logs", "sample__gwflow_complete", "--stderr", "--no-pager"))
         saved.rename(self.image)
+        self.cli("run")
+        self.settle()
+        self.assertEqual((self.work / "results/sample/result.txt").read_text(), "leftright")
         self.assertEqual(self.attempt(), attempt)
         self.assertEqual(self.counts(), {"left": 1, "right": 1, "join": 1})
         self.assertNotIn("Submitted target", self.cli("run"))
@@ -179,7 +183,7 @@ class ContainerRecoveryTests(LocalBackendTestCase):
         self.preview("retry")
         info = self.image.stat()
         os.utime(self.image, ns=(info.st_atime_ns, info.st_mtime_ns - 1000000000))
-        self.preview("changed images")
+        self.preview("input metadata changed")
         self.failure.unlink()
         self.cli("run")
         self.settle()

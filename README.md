@@ -173,19 +173,31 @@ preparation/completion jobs require gwf's ordinary `Bash` executor; inherited
 custom executors at these boundaries are rejected before submission.
 
 Relative images resolve from the Workflow directory, including symlinks and
-paths containing spaces. The frontend records the resolved absolute path, size,
-and modification time and schedules that resolved path. Every selected image
-must be observable even to reuse a completed Task or repair results. Unavailable
-images block the plan and preserve existing results; restoring matching metadata
-resumes normal decisions. A changed image requires a fresh whole-Task attempt,
-including previous-result removal under the existing ownership and activity
-guards, independently of command tracking. Equivalent aliases do not invalidate
-Reuse. Status, explain, and dry-run describe these decisions without launching
-Apptainer or updating evidence. Run observes again.
+paths containing spaces. Each declared image alias is an implicit External
+input of its Task, outside managed work, results, and bookkeeping storage.
+Images do not become staged data inputs, command bindings, or extra source
+mounts unless also explicitly declared as data inputs. Each target's image
+binding is part of the declared structure: adding, removing, or changing an
+alias requires a fresh whole-Task attempt, even when aliases resolve to the
+same file and command tracking is disabled.
 
-Scheduled jobs do not recheck image identity. Deployments must keep resolved
-images stable after submission: these observations are neither content hashes
-nor snapshots, and changes preserving all tracked fields can go undetected.
+Preparation accepts the image alias, resolved absolute destination, size, and
+nanosecond modification time in the ordinary immutable Input baseline. Changes
+before the first baseline are accepted by preparation; retries cannot replace
+an accepted baseline. Execution uses the baseline's resolved image path.
+The ordinary input checks apply during computation admission, finishing,
+transfer continuation, repair, and Reuse, including after work cleanup.
+Retargeting an unchanged alias, size changes, and forward or backward mtime
+changes require fresh computation under the existing ownership and activity
+guards. Unavailable images block planning and preserve results; restoring
+matching observations permits ordinary retry or repair. Status, explain, and
+dry-run describe these decisions without launching Apptainer or updating Task
+evidence.
+
+Deployments must keep images stable while jobs use them. Metadata observations
+are neither content hashes, locks, nor snapshots; changes preserving all
+observed fields can remain undetected. They do not strengthen gwf's Completion
+guarantees.
 The frontend and computation nodes must see the image, inputs, and managed
 storage. The supported validation profile is Linux local workers and Slurm,
 Python 3.12, gwf 2.1.1, and Apptainer 1.5.4. See the
@@ -298,7 +310,7 @@ intermediates remain unavailable as cross-Task dependencies.
 Changing any selected image refreshes the whole owning Task and its consumers,
 even if the producer recreates identical retained-file metadata and command
 hashes are disabled. Unrelated Tasks remain reusable. Adding or removing image
-selection is also tracked; equivalent aliases preserve Reuse. Existing active
+selection and changes to declared aliases are also tracked. Existing active
 job, active consumer, uncertain admission, and ownership protections apply to
 image-driven replacement, including consumers removed from the current workflow.
 
@@ -518,13 +530,14 @@ only after guarded ownership and inactivity checks.
 
 Container result repair is a host-side transfer from checked work; it does not
 rerun authored commands or require Apptainer in the finishing job. All selected
-images must still be observable with matching identity at the frontend.
+images must still match the accepted Input baseline at planning and during
+scheduled finishing.
 An unavailable image blocks repair or continuation while preserving existing
 results; restoring matching identity resumes the usual decision. A changed image
 requires fresh computation instead of repairing from older work. Previews make
 the same distinction without mutations, and run observes metadata again.
-Already scheduled lifecycle jobs do not recheck image identity, so deployments
-must keep the selected images stable after submission.
+Scheduled lifecycle jobs apply ordinary input checks to images. Deployments
+must still keep images stable while jobs use them; checks are not locks.
 
 Use `gwf clean-work` to preview completed-work cleanup. It lists recorded Tasks,
 attempt UUIDs, workspace and staging locations, eligibility, and reasons. Add

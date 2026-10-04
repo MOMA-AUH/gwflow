@@ -57,11 +57,12 @@ def execute(store, attempt, local):
     environment = os.environ.copy()
     if attempt["managed_tmpdir"]:
         environment["TMPDIR"] = str(temporary)
-    image = attempt["images"].get(local)
+    image = attempt["structure"]["targets"][local]["image"]
     context = f"Task {attempt['task']} target {local}"
     arguments = ["/bin/bash", "-e", "-c", command]
     if image is not None:
-        context += f" image {image['path']}"
+        image = baseline[image]["resolved"]
+        context += f" image {image}"
         print(context, file=sys.stderr, flush=True)
         arguments = images.invocation(image, staging, temporary if attempt["managed_tmpdir"] else None,
                                       environment, command, source_directories)

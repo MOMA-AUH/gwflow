@@ -23,8 +23,8 @@ def observe(paths, locations):
                 if any(candidate == root or root in candidate.parents for root in locations.values()):
                     raise WorkflowError(f"External input points into managed storage: {alias}")
             info = resolved.stat()
-            if not stat.S_ISREG(info.st_mode):
-                raise WorkflowError(f"External input must resolve to a regular file: {alias}")
+            if not stat.S_ISREG(info.st_mode) or not os.access(resolved, os.R_OK):
+                raise WorkflowError(f"External input must resolve to a readable regular file: {alias}")
             result[alias] = {"resolved": str(resolved), "size": info.st_size, "mtime_ns": info.st_mtime_ns}
         except (OSError, RuntimeError) as error:
             raise WorkflowError(f"Cannot observe external input {alias}: {error}") from error

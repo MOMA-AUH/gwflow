@@ -114,7 +114,7 @@ class ContainerGraphTests(LocalBackendTestCase):
         self.change_image()
         for arguments in (("explain",), ("status", "--details"), ("run", "--dry-run")):
             preview = self.cli(*arguments)
-            self.assertIn("changed images: second", preview)
+            self.assertIn("input metadata changed", preview)
             if arguments[0] == "status":
                 self.assertEqual(preview.count("fresh computation required"), 2)
                 self.assertRegex(preview, r"Task independent\s+reusable")
@@ -133,27 +133,32 @@ class ContainerGraphTests(LocalBackendTestCase):
         self.assertEqual(self.counts(), {"host": 2, "first": 2, "second": 2, "last": 2, "independent": 1, "consumer": 2})
         self.assertNotIn("Submitted target", self.cli("run"))
 
-    def test_equivalent_multi_image_alias_reuses_but_adding_and_removing_image_refreshes(self):
+    def test_changed_image_alias_and_adding_or_removing_image_refreshes(self):
         self.configure(use_spec_hashes=True)
         self.write_workflow()
         self.run_complete()
         before = self.attempts()
         (self.work / "alias.sif").symlink_to(self.second_image.name)
         self.write_workflow(second_image="alias.sif")
-        self.assertNotIn("Submitted target", self.cli("run"))
-        self.assertEqual(self.attempts(), before)
+        self.assertIn("changed declared structure", self.cli("explain"))
+        self.run_complete()
+        after = self.attempts()
+        self.assertNotEqual(after["producer"], before["producer"])
+        self.assertNotEqual(after["consumer"], before["consumer"])
+        self.assertEqual(after["independent"], before["independent"])
+        before = after
         self.configure(use_spec_hashes=False)
         for container in (False, True):
             with self.subTest(container=container):
                 self.write_workflow(second_container=container)
-                self.assertIn("changed images: second", self.cli("explain"))
+                self.assertIn("changed declared structure", self.cli("explain"))
                 self.run_complete()
                 after = self.attempts()
                 self.assertNotEqual(after["producer"], before["producer"])
                 self.assertNotEqual(after["consumer"], before["consumer"])
                 self.assertEqual(after["independent"], before["independent"])
                 before = after
-        self.assertEqual(self.counts(), {"host": 3, "first": 3, "second": 3, "last": 3, "independent": 1, "consumer": 3})
+        self.assertEqual(self.counts(), {"host": 4, "first": 4, "second": 4, "last": 4, "independent": 1, "consumer": 4})
 
     def test_image_change_respects_active_jobs_and_removed_active_consumers(self):
         self.write_workflow()

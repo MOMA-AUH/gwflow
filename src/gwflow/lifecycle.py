@@ -60,8 +60,8 @@ def _valid_metadata(observations, paths):
                     for value in observations.values()))
 
 
-def _fingerprint(structure, commands, tracking, image_observations):
-    definition = {"structure": structure, "commands": commands if tracking else None, "images": image_observations}
+def _fingerprint(structure, commands, tracking):
+    definition = {"structure": structure, "commands": commands if tracking else None}
     return hashlib.sha256(json.dumps(definition, sort_keys=True).encode()).hexdigest()
 
 
@@ -120,7 +120,6 @@ def declarations(task, store, workflow):
         reference = _boundary_reference(value, store, workflow)
         if reference not in boundary:
             boundary.append(reference)
-    boundary.sort(key=lambda item: json.dumps(item, sort_keys=True))
     if not task.targets:
         raise WorkflowError("Managed Tasks require at least one target")
     targets = {}
@@ -142,7 +141,10 @@ def declarations(task, store, workflow):
                 incoming.append(reference)
         incoming.sort(key=lambda item: json.dumps(item, sort_keys=True))
         targets[name] = {"inputs": incoming, "outputs": sorted(outputs)}
+        targets[name]["image"] = None
         if target.image is not None:
+            alias = inputs.declared_path(target.image, store.working_dir)
+            targets[name]["image"] = alias
             overrides = {path: (_target_reference(task, value) if isinstance(value, TargetOutput)
                                 else _boundary_reference(value, store, workflow))
                          for path, value in target.stage_as.items()}
@@ -175,6 +177,10 @@ def declarations(task, store, workflow):
             raise WorkflowError(f"Retained output {name!r} has an undeclared source")
         retained[name] = {"target": source.target.name, "source": source.filename, "path": relative_path(path)}
     validate_destinations([item["path"] for item in retained.values()])
+    for target in targets.values():
+        if target["image"] is not None and target["image"] not in boundary:
+            boundary.append(target["image"])
+    boundary.sort(key=lambda item: json.dumps(item, sort_keys=True))
     structure = {"inputs": boundary, "targets": targets, "retained": retained}
     ordered_targets(structure)
     return structure, commands
@@ -206,7 +212,6 @@ def _valid_attempt(attempt):
         structure, commands = attempt["structure"], attempt["commands"]
         targets, retained = structure["targets"], structure["retained"]
         if (not isinstance(structure["inputs"], list)
-                or not images.valid(attempt["images"], targets)
                 or any(not (isinstance(path, str) and Path(path).is_absolute()
                             or isinstance(path, dict) and set(path) == {"task", "output"}
                             and isinstance(path["task"], str) and is_valid_name(path["task"])
@@ -223,6 +228,7 @@ def _valid_attempt(attempt):
             return False
         for local, target in targets.items():
             if (not isinstance(local, str) or not is_valid_name(local) or local.startswith("gwflow_")
+                    or not (target["image"] is None or isinstance(target["image"], str) and target["image"] in structure["inputs"])
                     or not _uuid(attempt["executions"][local]) or not isinstance(target["inputs"], list)
                     or any(not (reference in structure["inputs"]
                                or isinstance(reference, dict) and set(reference) == {"target", "file"}
@@ -234,7 +240,7 @@ def _valid_attempt(attempt):
                 return False
             validate_destinations(target["outputs"])
             if not staging.valid_layout(target.get("staged", {}),
-                                        target["inputs"] if local in attempt["images"] else [], target["outputs"]):
+                                        target["inputs"] if target["image"] is not None else [], target["outputs"]):
                 return False
             if not valid_command(commands[local], target, local):
                 return False
@@ -249,7 +255,7 @@ def _valid_attempt(attempt):
             return False
         if attempt["jobs"]["gwflow_complete"] != f"{attempt['task']}__gwflow_complete__{attempt['operation']}":
             return False
-        expected = _fingerprint(structure, commands, attempt["command_tracking"], attempt["images"])
+        expected = _fingerprint(structure, commands, attempt["command_tracking"])
         return attempt["fingerprint"] == expected and relative_path(attempt["result_dir"]) == attempt["result_dir"]
     except (KeyError, TypeError, ValueError, AttributeError, WorkflowError):
         return False
@@ -263,7 +269,6 @@ class TaskObservation:
     structure: dict
     commands: dict
     attempt: dict | None = None
-    images: dict = field(default_factory=dict)
     work_present: bool = False
     submissions: dict = field(default_factory=dict)
     pending: list = field(default_factory=list)
@@ -856,11 +861,10 @@ class Store:
         jobs = {local: f"{observation.name}__{local}__{execution}" for local, execution in executions.items()}
         jobs["gwflow_prepare"] = f"{observation.name}__gwflow_prepare__{preparation}"
         jobs["gwflow_complete"] = f"{observation.name}__gwflow_complete__{operation}"
-        fingerprint = _fingerprint(observation.structure, observation.commands, tracking, observation.images)
+        fingerprint = _fingerprint(observation.structure, observation.commands, tracking)
         attempt = _record("attempt", owner=self.owner["owner"], task=observation.name, attempt=attempt_id,
                           operation=operation, preparation=preparation, executions=executions, jobs=jobs, result_dir=result_dir,
                           structure=observation.structure, commands=observation.commands, producers=producers,
-                          images=observation.images,
                           command_tracking=bool(tracking), fingerprint=fingerprint, managed_tmpdir=managed_tmpdir)
         _files.publish(self.attempt_dir(attempt) / "attempt.json", attempt)
         self.publish(attempt, "initialization.json", "initialization", destination=str(self.result_dir(attempt)),
