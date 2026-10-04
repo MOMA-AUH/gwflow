@@ -45,6 +45,16 @@ class ExternalInputTests(LocalBackendTestCase):
         self.assertFalse(any(path.is_symlink() for path in (self.work / "work").rglob("*")))
         self.assertNotIn("Submitted target", self.cli("run"))
 
+    def test_input_permission_change_does_not_change_metadata_baseline(self):
+        self.run_complete()
+        source = self.work / "input.txt"
+        source.chmod(0)
+        try:
+            self.assertIn("Task sample: reuse;", self.cli("explain"))
+            self.assertNotIn("Submitted target", self.cli("run"))
+        finally:
+            source.chmod(0o600)
+
     def fault(self, job="gwflow_prepare", **options):
         shutil.copy(FIXTURES / "job_fault.py", self.work)
         (self.work / "job-fault.json").write_text(json.dumps(options))

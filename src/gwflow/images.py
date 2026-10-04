@@ -2,6 +2,7 @@
 
 import csv
 import io
+import os
 
 from gwf.exceptions import WorkflowError
 from gwf.executors import Bash
@@ -14,7 +15,9 @@ def check(structure, locations):
         if target["image"] is None:
             continue
         try:
-            inputs.observe([target["image"]], locations)
+            observed = inputs.observe([target["image"]], locations)
+            if not os.access(observed[target["image"]]["resolved"], os.R_OK):
+                raise WorkflowError("image is not readable")
         except WorkflowError as error:
             raise WorkflowError(f"Target {local}: image unavailable at {target['image']}: {error}") from error
 
