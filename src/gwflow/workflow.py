@@ -14,6 +14,8 @@ from gwf import Target as GwfTarget, Workflow as GwfWorkflow
 from gwf.exceptions import WorkflowError
 from gwf.utils import is_valid_name
 
+from . import images
+
 
 def _require_name(name, kind):
     if not isinstance(name, str) or not is_valid_name(name):
@@ -110,12 +112,7 @@ class Task:
             raise WorkflowError(f"Task has outputless inner target {name!r}")
         validate_destinations(outputs)
         if image is not None:
-            try:
-                image = os.fspath(image)
-            except TypeError as error:
-                raise WorkflowError("image must be a local SIF pathname") from error
-            if not isinstance(image, str) or not image or "://" in image or "\0" in image:
-                raise WorkflowError("image must be a local SIF pathname")
+            image = images.reference(image)
         if stage_as is not None and not isinstance(stage_as, Mapping):
             raise WorkflowError("stage_as must be a mapping of staged paths to declared inputs")
         stage_as = dict(stage_as or {})

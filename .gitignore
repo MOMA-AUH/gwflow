@@ -13,6 +13,9 @@ __pycache__/
 /examples/uppercase/.gwf/
 /examples/uppercase/work/
 /examples/uppercase/results/
+/examples/registry/.gwf/
+/examples/registry/work/
+/examples/registry/results/
 /examples/packaged/.gwf/
 /examples/packaged/work/
 /examples/packaged/results/

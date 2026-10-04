@@ -17,8 +17,8 @@ import test_inputs
 
 
 class ContainerAuthoringTests(unittest.TestCase):
-    def test_image_requires_a_local_path(self):
-        for image in ("", "docker://python:3.12", 123, b"image.sif", "bad\0path"):
+    def test_image_requires_a_local_path_or_explicit_docker_reference(self):
+        for image in ("", "oras://python:3.12", 123, b"image.sif", "bad\0path"):
             with self.subTest(image=image), self.assertRaisesRegex(WorkflowError, "local SIF pathname"):
                 Task(inputs=[]).target("compute", inputs=[], outputs=["out"], image=image)
 
