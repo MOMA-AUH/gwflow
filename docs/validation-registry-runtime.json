@@ -1,0 +1,891 @@
+{
+  "date": "2026-10-04",
+  "scope": "The registry case on real local workers and Slurm; the 13 pre-existing live cases are not rerun here.",
+  "production_base_commit": "587a49dc143800a476ff3030dca3b875f99315a2",
+  "source_sha256": {
+    "tests/validate_containers.py": "5250d41be6fd8dc4a5c0960ded74799b11da873c6362bfa0295ba4919f5c90f3",
+    "tests/fixtures/real_apptainer_probe.py": "31be7b6594ca578f31310119e8a03cab8b6f99d307efde1b048a6134fe48bc7b"
+  },
+  "slurm_version": "slurm 25.11.6",
+  "environment": {
+    "PATH_prefix": "<VALIDATION_ASSETS>/runtime/usr/bin",
+    "GWFLOW_TEST_SIF": "<VALIDATION_ASSETS>/basic.sif",
+    "GWFLOW_TEST_SUMMARY_SIF": "<VALIDATION_ASSETS>/summary.sif",
+    "GWFLOW_TEST_REPORT_SIF": "<VALIDATION_ASSETS>/report.sif"
+  },
+  "commands": {
+    "install": [
+      "build/venv/bin/python",
+      "-m",
+      "pip",
+      "install",
+      "--no-deps",
+      "--no-build-isolation",
+      "."
+    ],
+    "deterministic": [
+      "build/venv/bin/python",
+      "-m",
+      "unittest",
+      "discover",
+      "-s",
+      "tests",
+      "-p",
+      "test_registry*.py",
+      "-v"
+    ],
+    "local": [
+      "build/venv/bin/python",
+      "tests/validate_containers.py",
+      "--backend",
+      "local",
+      "--case",
+      "registry",
+      "--root",
+      "build/validation/registry-runtime/local-01"
+    ],
+    "slurm": [
+      "build/venv/bin/python",
+      "tests/validate_containers.py",
+      "--backend",
+      "slurm",
+      "--queue",
+      "short",
+      "--case",
+      "registry",
+      "--root",
+      "build/validation/registry-runtime/slurm-01"
+    ]
+  },
+  "installed_source_verification": {
+    "directory": "<REPO>/build/venv/lib/python3.12/site-packages/gwflow",
+    "python_files": 21,
+    "matches_checkout": true
+  },
+  "registry_source": {
+    "requested_digest": "sha256:392307d22300de8b5986851a12d9176dfc0fc073e65bf6523ebd7dcbeb23564e",
+    "registry_digest": "sha256:392307d22300de8b5986851a12d9176dfc0fc073e65bf6523ebd7dcbeb23564e",
+    "anonymous_token_request": true,
+    "media_type": "application/vnd.oci.image.index.v1+json",
+    "platforms": [
+      {
+        "architecture": "amd64",
+        "os": "linux"
+      },
+      {
+        "architecture": "unknown",
+        "os": "unknown"
+      },
+      {
+        "architecture": "arm",
+        "os": "linux",
+        "variant": "v7"
+      },
+      {
+        "architecture": "unknown",
+        "os": "unknown"
+      },
+      {
+        "architecture": "arm64",
+        "os": "linux",
+        "variant": "v8"
+      },
+      {
+        "architecture": "unknown",
+        "os": "unknown"
+      },
+      {
+        "architecture": "386",
+        "os": "linux"
+      },
+      {
+        "architecture": "unknown",
+        "os": "unknown"
+      },
+      {
+        "architecture": "ppc64le",
+        "os": "linux"
+      },
+      {
+        "architecture": "unknown",
+        "os": "unknown"
+      }
+    ]
+  },
+  "acceptance_implementation_commit": "86800de9654dbed5c32ef06dbe4fd09cba8f2947",
+  "scheduler_commands": {
+    "sbatch": "/usr/bin/sbatch",
+    "sacct": "/usr/bin/sacct"
+  },
+  "deterministic": {
+    "tests": 32,
+    "seconds": 428.844,
+    "outcome": "passed",
+    "skips": 0
+  },
+  "backends": {
+    "local": {
+      "evidence_directory": "<REPO>/build/validation/registry-runtime/local-01",
+      "environment": {
+        "backend": "local",
+        "platform": "Linux-5.14.0-687.48.1.el9_8.x86_64-x86_64-with-glibc2.34",
+        "python": "3.12.14 (main, Sep  2 2026, 23:27:36) [GCC 15.3.0]",
+        "frontend_node": "cn-1039",
+        "frontend_architecture": "x86_64",
+        "frontend_device": 49,
+        "apptainer": "apptainer version 1.5.4-1",
+        "apptainer_path": "<VALIDATION_ASSETS>/runtime/usr/bin/apptainer",
+        "packages": {
+          "gwf": "2.1.1",
+          "gwflow": "0.4.1",
+          "gwflow-summary-task": "0.3.0",
+          "gwflow-report-task": "0.3.0"
+        },
+        "images": {
+          "GWFLOW_TEST_SIF": {
+            "path": "<VALIDATION_ASSETS>/basic.sif",
+            "size": 44408832,
+            "mtime_ns": 1790864154000000000
+          },
+          "GWFLOW_TEST_SUMMARY_SIF": {
+            "path": "<VALIDATION_ASSETS>/summary.sif",
+            "size": 48836608,
+            "mtime_ns": 1790873132000000000
+          },
+          "GWFLOW_TEST_REPORT_SIF": {
+            "path": "<VALIDATION_ASSETS>/report.sif",
+            "size": 48836608,
+            "mtime_ns": 1790873143000000000
+          }
+        }
+      },
+      "summary": {
+        "run": 1,
+        "failures": 0,
+        "errors": 0,
+        "skips": 0,
+        "cases": [
+          "registry"
+        ],
+        "outcomes": {
+          "registry": "passed"
+        }
+      },
+      "job_environment": {
+        "PYTHONPATH": ".:.:",
+        "APPTAINER_CACHEDIR": "<USER_WORKSPACE>/cache/apptainer",
+        "PATH": "<REPO>/build/validation/registry-runtime/local-01/registry/image probe:<VALIDATION_ASSETS>/runtime/usr/bin:<USER_HOME>/.codex/tmp/arg0/codex-arg0P0kkNq:<USER_HOME>/.vscode-server/cli/servers/Stable-07f806f999227108933c2e30515b26eecc1fda74/server/bin/remote-cli:<USER_HOME>/.nvm/versions/node/v24.18.0/bin:<USER_HOME>/miniconda3/condabin:/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin:<USER_HOME>/bin:<USER_HOME>/.local/bin:<SITE_SOFTWARE>/somalier/executables/v0.2.15/:<SITE_SOFTWARE>/cellranger/cellranger-7.0.0/bin/:<USER_HOME>/bin:<USER_HOME>/.local/bin:<SITE_SOFTWARE>/somalier/executables/v0.2.15/:<SITE_SOFTWARE>/cellranger/cellranger-7.0.0/bin/:<USER_HOME>/.vscode-server/extensions/openai.chatgpt-26.930.41038-linux-x64/bin/linux-x86_64",
+        "APPTAINER_CONFIGDIR": "<USER_WORKSPACE>/cache/apptainer/config",
+        "GWFLOW_TEST_REAL_APPTAINER": "<VALIDATION_ASSETS>/runtime/usr/bin/apptainer",
+        "GWFLOW_TEST_IMAGE_PROBE": "<REPO>/build/validation/registry-runtime/local-01/registry/image probe",
+        "GWFLOW_IMAGE_CACHE": "<REPO>/build/validation/registry-runtime/local-01/shared registry images"
+      },
+      "commands": [
+        {
+          "command": [
+            "<REPO>/build/venv/bin/gwf",
+            "status",
+            "--details"
+          ],
+          "exit": 0,
+          "output": ". Task sample                  pending          0/2 targets completed\n  |-- . preparation                  pending\n  |-- . gate                         pending\n  |-- . compute                      pending\n  `-- . completion                   pending\n  Condition: incomplete computation\n  Next: fresh\n  Reason: no completed managed attempt; fresh attempt required\n  Attempt: not allocated; fresh execution will choose a new UUID\n  sample__gwflow_prepare: not submitted (pending)\n  sample__compute: not submitted (pending)\n  sample__gate: not submitted (pending)\n  sample__gwflow_complete: not submitted (pending)\n"
+        },
+        {
+          "command": [
+            "<REPO>/build/venv/bin/gwf",
+            "run"
+          ],
+          "exit": 0,
+          "output": "Task sample: fresh; no completed managed attempt; fresh attempt required\nSubmitted target sample__gwflow_prepare__7e4925563ddd4ff488b53530d56a3786__09cae66df9464be29f1eecdc59f85cc6\nSubmitted target sample__gate__102079cb9eb94ba98b095920a0e0aeff__7b023006262b41bf883f504685c912fe\nSubmitted target sample__compute__fa8eb20df6e446fd854b509b02ebb6e1__61ed6d26dded4bee8d45de31b8aeee6e\nSubmitted target sample__gwflow_complete__be378a4196e74a27910c7f2f718b2271__106f400204bc4a668ef062abd84daa67\n"
+        },
+        {
+          "command": [
+            "<REPO>/build/venv/bin/gwf",
+            "status",
+            "--details"
+          ],
+          "exit": 0,
+          "output": "~ Task sample                  running          0/2 targets completed\n  |-- + preparation                  completed\n  |-- ~ gate                         running\n  |-- ~ compute                      submitted\n  `-- ~ completion                   submitted\n  Condition: incomplete computation (active)\n  Next: active\n  Reason: queued/running work: sample__gate__102079cb9eb94ba98b095920a0e0aeff__7b023006262b41bf883f504685c912fe, sample__compute__fa8eb20df6e446fd854b509b02ebb6e1__61ed6d26dded4bee8d45de31b8aeee6e, sample__gwflow_complete__be378a4196e74a27910c7f2f718b2271__106f400204bc4a668ef062abd84daa67\n  Attempt: df31e63131ef44cfbf76d45faa3166f9\n  Workspace: <REPO>/build/validation/registry-runtime/local-01/registry/work/sample/df31e63131ef44cfbf76d45faa3166f9\n  Results: <REPO>/build/validation/registry-runtime/local-01/registry/results/sample\n  Staging: <REPO>/build/validation/registry-runtime/local-01/registry/.gwf/gwflow/staging/df31e63131ef44cfbf76d45faa3166f9/be378a4196e74a27910c7f2f718b2271\n  sample__gwflow_prepare: sample__gwflow_prepare__7e4925563ddd4ff488b53530d56a3786__09cae66df9464be29f1eecdc59f85cc6 (complete)\n    Backend job: 0\n    Log stdout: <REPO>/build/validation/registry-runtime/local-01/registry/.gwf/logs/sample__gwflow_prepare__7e4925563ddd4ff488b53530d56a3786__09cae66df9464be29f1eecdc59f85cc6.stdout\n    Log stderr: <REPO>/build/validation/registry-runtime/local-01/registry/.gwf/logs/sample__gwflow_prepare__7e4925563ddd4ff488b53530d56a3786__09cae66df9464be29f1eecdc59f85cc6.stderr\n  sample__gate: sample__gate__102079cb9eb94ba98b095920a0e0aeff__7b023006262b41bf883f504685c912fe (active)\n    Backend job: 1\n    Log stdout: <REPO>/build/validation/registry-runtime/local-01/registry/.gwf/logs/sample__gate__102079cb9eb94ba98b095920a0e0aeff__7b023006262b41bf883f504685c912fe.stdout\n    Log stderr: <REPO>/build/validation/registry-runtime/local-01/registry/.gwf/logs/sample__gate__102079cb9eb94ba98b095920a0e0aeff__7b023006262b41bf883f504685c912fe.stderr\n  sample__compute: sample__compute__fa8eb20df6e446fd854b509b02ebb6e1__61ed6d26dded4bee8d45de31b8aeee6e (active)\n    Backend job: 2\n    Log stdout: <REPO>/build/validation/registry-runtime/local-01/registry/.gwf/logs/sample__compute__fa8eb20df6e446fd854b509b02ebb6e1__61ed6d26dded4bee8d45de31b8aeee6e.stdout\n    Log stderr: <REPO>/build/validation/registry-runtime/local-01/registry/.gwf/logs/sample__compute__fa8eb20df6e446fd854b509b02ebb6e1__61ed6d26dded4bee8d45de31b8aeee6e.stderr\n  sample__gwflow_complete: sample__gwflow_complete__be378a4196e74a27910c7f2f718b2271__106f400204bc4a668ef062abd84daa67 (active)\n    Backend job: 3\n    Log stdout: <REPO>/build/validation/registry-runtime/local-01/registry/.gwf/logs/sample__gwflow_complete__be378a4196e74a27910c7f2f718b2271__106f400204bc4a668ef062abd84daa67.stdout\n    Log stderr: <REPO>/build/validation/registry-runtime/local-01/registry/.gwf/logs/sample__gwflow_complete__be378a4196e74a27910c7f2f718b2271__106f400204bc4a668ef062abd84daa67.stderr\n"
+        },
+        {
+          "command": [
+            "<REPO>/build/venv/bin/gwf",
+            "run",
+            "--force"
+          ],
+          "exit": 0,
+          "output": "Task sample: fresh; requested --force; fresh attempt required; remove previous results at <REPO>/build/validation/registry-runtime/local-01/registry/results/sample before submission\nSubmitted target sample__gwflow_prepare__ce21df7dce594b37a52219dbbd949313__2dcbbe96a1934a1e997d6393b5ca98dc\nSubmitted target sample__gate__c34e0bc535974e55a94b7b614df7105b__10847eb5c52d49eaa401cf2fc11d8962\nSubmitted target sample__compute__0f47abcea73e45d792e045528d13d257__0bc95191f22642d3a3e050cdcd8aea12\nSubmitted target sample__gwflow_complete__9be32a43ef624bc9a85edd890e1ec520__23d32e4e079642d5be67782d5668b978\n"
+        },
+        {
+          "command": [
+            "<REPO>/build/venv/bin/gwf",
+            "status",
+            "--details"
+          ],
+          "exit": 0,
+          "output": "~ Task sample                  running          0/2 targets completed\n  |-- + preparation                  completed\n  |-- ~ gate                         running\n  |-- ~ compute                      submitted\n  `-- ~ completion                   submitted\n  Condition: incomplete computation (active)\n  Next: active\n  Reason: queued/running work: sample__gate__c34e0bc535974e55a94b7b614df7105b__10847eb5c52d49eaa401cf2fc11d8962, sample__compute__0f47abcea73e45d792e045528d13d257__0bc95191f22642d3a3e050cdcd8aea12, sample__gwflow_complete__9be32a43ef624bc9a85edd890e1ec520__23d32e4e079642d5be67782d5668b978\n  Attempt: e173cb917c784e82b16ae4b789fee39f\n  Workspace: <REPO>/build/validation/registry-runtime/local-01/registry/work/sample/e173cb917c784e82b16ae4b789fee39f\n  Results: <REPO>/build/validation/registry-runtime/local-01/registry/results/sample\n  Staging: <REPO>/build/validation/registry-runtime/local-01/registry/.gwf/gwflow/staging/e173cb917c784e82b16ae4b789fee39f/9be32a43ef624bc9a85edd890e1ec520\n  sample__gwflow_prepare: sample__gwflow_prepare__ce21df7dce594b37a52219dbbd949313__2dcbbe96a1934a1e997d6393b5ca98dc (complete)\n    Backend job: 4\n    Log stdout: <REPO>/build/validation/registry-runtime/local-01/registry/.gwf/logs/sample__gwflow_prepare__ce21df7dce594b37a52219dbbd949313__2dcbbe96a1934a1e997d6393b5ca98dc.stdout\n    Log stderr: <REPO>/build/validation/registry-runtime/local-01/registry/.gwf/logs/sample__gwflow_prepare__ce21df7dce594b37a52219dbbd949313__2dcbbe96a1934a1e997d6393b5ca98dc.stderr\n  sample__gate: sample__gate__c34e0bc535974e55a94b7b614df7105b__10847eb5c52d49eaa401cf2fc11d8962 (active)\n    Backend job: 5\n    Log stdout: <REPO>/build/validation/registry-runtime/local-01/registry/.gwf/logs/sample__gate__c34e0bc535974e55a94b7b614df7105b__10847eb5c52d49eaa401cf2fc11d8962.stdout\n    Log stderr: <REPO>/build/validation/registry-runtime/local-01/registry/.gwf/logs/sample__gate__c34e0bc535974e55a94b7b614df7105b__10847eb5c52d49eaa401cf2fc11d8962.stderr\n  sample__compute: sample__compute__0f47abcea73e45d792e045528d13d257__0bc95191f22642d3a3e050cdcd8aea12 (active)\n    Backend job: 6\n    Log stdout: <REPO>/build/validation/registry-runtime/local-01/registry/.gwf/logs/sample__compute__0f47abcea73e45d792e045528d13d257__0bc95191f22642d3a3e050cdcd8aea12.stdout\n    Log stderr: <REPO>/build/validation/registry-runtime/local-01/registry/.gwf/logs/sample__compute__0f47abcea73e45d792e045528d13d257__0bc95191f22642d3a3e050cdcd8aea12.stderr\n  sample__gwflow_complete: sample__gwflow_complete__9be32a43ef624bc9a85edd890e1ec520__23d32e4e079642d5be67782d5668b978 (active)\n    Backend job: 7\n    Log stdout: <REPO>/build/validation/registry-runtime/local-01/registry/.gwf/logs/sample__gwflow_complete__9be32a43ef624bc9a85edd890e1ec520__23d32e4e079642d5be67782d5668b978.stdout\n    Log stderr: <REPO>/build/validation/registry-runtime/local-01/registry/.gwf/logs/sample__gwflow_complete__9be32a43ef624bc9a85edd890e1ec520__23d32e4e079642d5be67782d5668b978.stderr\n"
+        },
+        {
+          "command": [
+            "<REPO>/build/venv/bin/gwf",
+            "clean-work",
+            "--delete"
+          ],
+          "exit": 0,
+          "output": "Work cleanup\nTask sample attempt df31e63131ef44cfbf76d45faa3166f9: keep; superseded attempt; default cleanup keeps older work\n  Workspace: <REPO>/build/validation/registry-runtime/local-01/registry/work/sample/df31e63131ef44cfbf76d45faa3166f9\n  Staging group: <REPO>/build/validation/registry-runtime/local-01/registry/.gwf/gwflow/staging/df31e63131ef44cfbf76d45faa3166f9\nTask sample attempt e173cb917c784e82b16ae4b789fee39f: removed; removed owned disposable work; results and bookkeeping preserved\n  Workspace: <REPO>/build/validation/registry-runtime/local-01/registry/work/sample/e173cb917c784e82b16ae4b789fee39f\n  Staging group: <REPO>/build/validation/registry-runtime/local-01/registry/.gwf/gwflow/staging/e173cb917c784e82b16ae4b789fee39f\n  Staging: <REPO>/build/validation/registry-runtime/local-01/registry/.gwf/gwflow/staging/e173cb917c784e82b16ae4b789fee39f/9be32a43ef624bc9a85edd890e1ec520\n  Staging: <REPO>/build/validation/registry-runtime/local-01/registry/.gwf/gwflow/staging/e173cb917c784e82b16ae4b789fee39f/.staging-bcf6138b117a45eca8cacfc2c08e9a52\n"
+        },
+        {
+          "command": [
+            "<REPO>/build/venv/bin/gwf",
+            "status",
+            "--details"
+          ],
+          "exit": 0,
+          "output": "+ Task sample                  reusable         work-cleaned\n  |-- + preparation                  completed\n  |-- + gate                         completed\n  |-- + compute                      completed\n  `-- + completion                   completed\n  Condition: reusable work-cleaned\n  Next: reuse\n  Reason: checked Completion and retained metadata match\n  Attempt: e173cb917c784e82b16ae4b789fee39f\n  Workspace: <REPO>/build/validation/registry-runtime/local-01/registry/work/sample/e173cb917c784e82b16ae4b789fee39f\n  Results: <REPO>/build/validation/registry-runtime/local-01/registry/results/sample\n  Staging: <REPO>/build/validation/registry-runtime/local-01/registry/.gwf/gwflow/staging/e173cb917c784e82b16ae4b789fee39f/9be32a43ef624bc9a85edd890e1ec520\n  sample__gwflow_prepare: sample__gwflow_prepare__ce21df7dce594b37a52219dbbd949313__2dcbbe96a1934a1e997d6393b5ca98dc (complete)\n    Backend job: 4\n    Log stdout: <REPO>/build/validation/registry-runtime/local-01/registry/.gwf/logs/sample__gwflow_prepare__ce21df7dce594b37a52219dbbd949313__2dcbbe96a1934a1e997d6393b5ca98dc.stdout\n    Log stderr: <REPO>/build/validation/registry-runtime/local-01/registry/.gwf/logs/sample__gwflow_prepare__ce21df7dce594b37a52219dbbd949313__2dcbbe96a1934a1e997d6393b5ca98dc.stderr\n  sample__gate: sample__gate__c34e0bc535974e55a94b7b614df7105b__10847eb5c52d49eaa401cf2fc11d8962 (complete)\n    Backend job: 5\n    Log stdout: <REPO>/build/validation/registry-runtime/local-01/registry/.gwf/logs/sample__gate__c34e0bc535974e55a94b7b614df7105b__10847eb5c52d49eaa401cf2fc11d8962.stdout\n    Log stderr: <REPO>/build/validation/registry-runtime/local-01/registry/.gwf/logs/sample__gate__c34e0bc535974e55a94b7b614df7105b__10847eb5c52d49eaa401cf2fc11d8962.stderr\n  sample__compute: sample__compute__0f47abcea73e45d792e045528d13d257__0bc95191f22642d3a3e050cdcd8aea12 (complete)\n    Backend job: 6\n    Log stdout: <REPO>/build/validation/registry-runtime/local-01/registry/.gwf/logs/sample__compute__0f47abcea73e45d792e045528d13d257__0bc95191f22642d3a3e050cdcd8aea12.stdout\n    Log stderr: <REPO>/build/validation/registry-runtime/local-01/registry/.gwf/logs/sample__compute__0f47abcea73e45d792e045528d13d257__0bc95191f22642d3a3e050cdcd8aea12.stderr\n  sample__gwflow_complete: sample__gwflow_complete__9be32a43ef624bc9a85edd890e1ec520__23d32e4e079642d5be67782d5668b978 (complete)\n    Backend job: 7\n    Log stdout: <REPO>/build/validation/registry-runtime/local-01/registry/.gwf/logs/sample__gwflow_complete__9be32a43ef624bc9a85edd890e1ec520__23d32e4e079642d5be67782d5668b978.stdout\n    Log stderr: <REPO>/build/validation/registry-runtime/local-01/registry/.gwf/logs/sample__gwflow_complete__9be32a43ef624bc9a85edd890e1ec520__23d32e4e079642d5be67782d5668b978.stderr\n"
+        },
+        {
+          "command": [
+            "<REPO>/build/venv/bin/gwf",
+            "explain"
+          ],
+          "exit": 0,
+          "output": "Managed whole-workflow plan\nTask sample: reuse; checked Completion and retained metadata match\n"
+        },
+        {
+          "command": [
+            "<REPO>/build/venv/bin/gwf",
+            "run",
+            "--dry-run"
+          ],
+          "exit": 0,
+          "output": "Task sample: reuse; checked Completion and retained metadata match\n"
+        },
+        {
+          "command": [
+            "<REPO>/build/venv/bin/gwf",
+            "run"
+          ],
+          "exit": 0,
+          "output": "Task sample: reuse; checked Completion and retained metadata match\n"
+        },
+        {
+          "command": [
+            "<REPO>/build/venv/bin/gwf",
+            "run",
+            "--force"
+          ],
+          "exit": 0,
+          "output": "Task sample: fresh; requested --force; fresh attempt required; remove previous results at <REPO>/build/validation/registry-runtime/local-01/registry/results/sample before submission\nSubmitted target sample__gwflow_prepare__19a623d95fe045729b5aaa81172699ce__d5150370bbe84c4fbcc850a9898c77a6\nSubmitted target sample__gate__020f483a619a4c83ad50a6c3883aceb3__853ca5324d7e49859593747eea86f935\nSubmitted target sample__compute__91a2440d96ca4b5a8aefb57eb7b9afd9__558c34a037094faab0bfb5df2c37b9c3\nSubmitted target sample__gwflow_complete__eaaead37609e44ec97c5fdc3e322efa2__e71cc3420db44ebcbb116772e215c64e\n"
+        },
+        {
+          "command": [
+            "<REPO>/build/venv/bin/gwf",
+            "status",
+            "--details"
+          ],
+          "exit": 0,
+          "output": "~ Task sample                  running          0/2 targets completed\n  |-- + preparation                  completed\n  |-- ~ gate                         running\n  |-- ~ compute                      submitted\n  `-- ~ completion                   submitted\n  Condition: incomplete computation (active)\n  Next: active\n  Reason: queued/running work: sample__gate__020f483a619a4c83ad50a6c3883aceb3__853ca5324d7e49859593747eea86f935, sample__compute__91a2440d96ca4b5a8aefb57eb7b9afd9__558c34a037094faab0bfb5df2c37b9c3, sample__gwflow_complete__eaaead37609e44ec97c5fdc3e322efa2__e71cc3420db44ebcbb116772e215c64e\n  Attempt: 13f0d37f64314221820473733fc42fc3\n  Workspace: <REPO>/build/validation/registry-runtime/local-01/registry/work/sample/13f0d37f64314221820473733fc42fc3\n  Results: <REPO>/build/validation/registry-runtime/local-01/registry/results/sample\n  Staging: <REPO>/build/validation/registry-runtime/local-01/registry/.gwf/gwflow/staging/13f0d37f64314221820473733fc42fc3/eaaead37609e44ec97c5fdc3e322efa2\n  sample__gwflow_prepare: sample__gwflow_prepare__19a623d95fe045729b5aaa81172699ce__d5150370bbe84c4fbcc850a9898c77a6 (complete)\n    Backend job: 8\n    Log stdout: <REPO>/build/validation/registry-runtime/local-01/registry/.gwf/logs/sample__gwflow_prepare__19a623d95fe045729b5aaa81172699ce__d5150370bbe84c4fbcc850a9898c77a6.stdout\n    Log stderr: <REPO>/build/validation/registry-runtime/local-01/registry/.gwf/logs/sample__gwflow_prepare__19a623d95fe045729b5aaa81172699ce__d5150370bbe84c4fbcc850a9898c77a6.stderr\n  sample__gate: sample__gate__020f483a619a4c83ad50a6c3883aceb3__853ca5324d7e49859593747eea86f935 (active)\n    Backend job: 9\n    Log stdout: <REPO>/build/validation/registry-runtime/local-01/registry/.gwf/logs/sample__gate__020f483a619a4c83ad50a6c3883aceb3__853ca5324d7e49859593747eea86f935.stdout\n    Log stderr: <REPO>/build/validation/registry-runtime/local-01/registry/.gwf/logs/sample__gate__020f483a619a4c83ad50a6c3883aceb3__853ca5324d7e49859593747eea86f935.stderr\n  sample__compute: sample__compute__91a2440d96ca4b5a8aefb57eb7b9afd9__558c34a037094faab0bfb5df2c37b9c3 (active)\n    Backend job: 10\n    Log stdout: <REPO>/build/validation/registry-runtime/local-01/registry/.gwf/logs/sample__compute__91a2440d96ca4b5a8aefb57eb7b9afd9__558c34a037094faab0bfb5df2c37b9c3.stdout\n    Log stderr: <REPO>/build/validation/registry-runtime/local-01/registry/.gwf/logs/sample__compute__91a2440d96ca4b5a8aefb57eb7b9afd9__558c34a037094faab0bfb5df2c37b9c3.stderr\n  sample__gwflow_complete: sample__gwflow_complete__eaaead37609e44ec97c5fdc3e322efa2__e71cc3420db44ebcbb116772e215c64e (active)\n    Backend job: 11\n    Log stdout: <REPO>/build/validation/registry-runtime/local-01/registry/.gwf/logs/sample__gwflow_complete__eaaead37609e44ec97c5fdc3e322efa2__e71cc3420db44ebcbb116772e215c64e.stdout\n    Log stderr: <REPO>/build/validation/registry-runtime/local-01/registry/.gwf/logs/sample__gwflow_complete__eaaead37609e44ec97c5fdc3e322efa2__e71cc3420db44ebcbb116772e215c64e.stderr\n"
+        },
+        {
+          "command": [
+            "<REPO>/build/venv/bin/gwf",
+            "logs",
+            "sample__compute",
+            "--stderr",
+            "--no-pager"
+          ],
+          "exit": 0,
+          "output": "gwflow: External inputs changed after preparation; a fresh attempt is required\n\n"
+        },
+        {
+          "command": [
+            "<REPO>/build/venv/bin/gwf",
+            "run"
+          ],
+          "exit": 0,
+          "output": "Task sample: fresh; input metadata changed: <REPO>/build/validation/registry-runtime/local-01/shared registry images/d53c78bd3d8010b6e5de5c8d1f684bd42f14b3fc96e2ea8041f3396d78e5bb61.sif (mtime_ns: 1791129853000000000 -> 1791129852000000000); fresh attempt required\nSubmitted target sample__gwflow_prepare__a2c2f3eb6b3a4a9b8cfb5dd7e5f66b1b__86d2916422384bb69ae2bc541fa47317\nSubmitted target sample__gate__2d5f44cf03e549179b818cbefea2ef81__2ea47b9fd09d4096b784f0738f0b2fce\nSubmitted target sample__compute__71ef2603ff1e43d3b37984078ea65840__d36d5aa7bdae48dca635defc32eb2a7c\nSubmitted target sample__gwflow_complete__b6624ae2bc364efda31edf5066bd2f63__333d141bad96495e80f8f469ef9e802a\n"
+        },
+        {
+          "command": [
+            "<REPO>/build/venv/bin/gwf",
+            "status",
+            "--details"
+          ],
+          "exit": 0,
+          "output": "~ Task sample                  running          0/2 targets completed\n  |-- + preparation                  completed\n  |-- ~ gate                         running\n  |-- ~ compute                      submitted\n  `-- ~ completion                   submitted\n  Condition: incomplete computation (active)\n  Next: active\n  Reason: queued/running work: sample__gate__2d5f44cf03e549179b818cbefea2ef81__2ea47b9fd09d4096b784f0738f0b2fce, sample__compute__71ef2603ff1e43d3b37984078ea65840__d36d5aa7bdae48dca635defc32eb2a7c, sample__gwflow_complete__b6624ae2bc364efda31edf5066bd2f63__333d141bad96495e80f8f469ef9e802a\n  Attempt: 8847c8929439453db448a438f32decd7\n  Workspace: <REPO>/build/validation/registry-runtime/local-01/registry/work/sample/8847c8929439453db448a438f32decd7\n  Results: <REPO>/build/validation/registry-runtime/local-01/registry/results/sample\n  Staging: <REPO>/build/validation/registry-runtime/local-01/registry/.gwf/gwflow/staging/8847c8929439453db448a438f32decd7/b6624ae2bc364efda31edf5066bd2f63\n  sample__gwflow_prepare: sample__gwflow_prepare__a2c2f3eb6b3a4a9b8cfb5dd7e5f66b1b__86d2916422384bb69ae2bc541fa47317 (complete)\n    Backend job: 12\n    Log stdout: <REPO>/build/validation/registry-runtime/local-01/registry/.gwf/logs/sample__gwflow_prepare__a2c2f3eb6b3a4a9b8cfb5dd7e5f66b1b__86d2916422384bb69ae2bc541fa47317.stdout\n    Log stderr: <REPO>/build/validation/registry-runtime/local-01/registry/.gwf/logs/sample__gwflow_prepare__a2c2f3eb6b3a4a9b8cfb5dd7e5f66b1b__86d2916422384bb69ae2bc541fa47317.stderr\n  sample__gate: sample__gate__2d5f44cf03e549179b818cbefea2ef81__2ea47b9fd09d4096b784f0738f0b2fce (active)\n    Backend job: 13\n    Log stdout: <REPO>/build/validation/registry-runtime/local-01/registry/.gwf/logs/sample__gate__2d5f44cf03e549179b818cbefea2ef81__2ea47b9fd09d4096b784f0738f0b2fce.stdout\n    Log stderr: <REPO>/build/validation/registry-runtime/local-01/registry/.gwf/logs/sample__gate__2d5f44cf03e549179b818cbefea2ef81__2ea47b9fd09d4096b784f0738f0b2fce.stderr\n  sample__compute: sample__compute__71ef2603ff1e43d3b37984078ea65840__d36d5aa7bdae48dca635defc32eb2a7c (active)\n    Backend job: 14\n    Log stdout: <REPO>/build/validation/registry-runtime/local-01/registry/.gwf/logs/sample__compute__71ef2603ff1e43d3b37984078ea65840__d36d5aa7bdae48dca635defc32eb2a7c.stdout\n    Log stderr: <REPO>/build/validation/registry-runtime/local-01/registry/.gwf/logs/sample__compute__71ef2603ff1e43d3b37984078ea65840__d36d5aa7bdae48dca635defc32eb2a7c.stderr\n  sample__gwflow_complete: sample__gwflow_complete__b6624ae2bc364efda31edf5066bd2f63__333d141bad96495e80f8f469ef9e802a (active)\n    Backend job: 15\n    Log stdout: <REPO>/build/validation/registry-runtime/local-01/registry/.gwf/logs/sample__gwflow_complete__b6624ae2bc364efda31edf5066bd2f63__333d141bad96495e80f8f469ef9e802a.stdout\n    Log stderr: <REPO>/build/validation/registry-runtime/local-01/registry/.gwf/logs/sample__gwflow_complete__b6624ae2bc364efda31edf5066bd2f63__333d141bad96495e80f8f469ef9e802a.stderr\n"
+        },
+        {
+          "command": [
+            "<REPO>/build/venv/bin/gwf",
+            "explain"
+          ],
+          "exit": 0,
+          "output": "Managed whole-workflow plan\nTask sample: reuse; checked Completion and retained metadata match\n"
+        },
+        {
+          "command": [
+            "<REPO>/build/venv/bin/gwf",
+            "clean-work",
+            "--delete"
+          ],
+          "exit": 0,
+          "output": "Work cleanup\nTask sample attempt 13f0d37f64314221820473733fc42fc3: keep; superseded attempt; default cleanup keeps older work\n  Workspace: <REPO>/build/validation/registry-runtime/local-01/registry/work/sample/13f0d37f64314221820473733fc42fc3\n  Staging group: <REPO>/build/validation/registry-runtime/local-01/registry/.gwf/gwflow/staging/13f0d37f64314221820473733fc42fc3\nTask sample attempt 8847c8929439453db448a438f32decd7: removed; removed owned disposable work; results and bookkeeping preserved\n  Workspace: <REPO>/build/validation/registry-runtime/local-01/registry/work/sample/8847c8929439453db448a438f32decd7\n  Staging group: <REPO>/build/validation/registry-runtime/local-01/registry/.gwf/gwflow/staging/8847c8929439453db448a438f32decd7\n  Staging: <REPO>/build/validation/registry-runtime/local-01/registry/.gwf/gwflow/staging/8847c8929439453db448a438f32decd7/b6624ae2bc364efda31edf5066bd2f63\n  Staging: <REPO>/build/validation/registry-runtime/local-01/registry/.gwf/gwflow/staging/8847c8929439453db448a438f32decd7/.staging-72de2499aa1343c3aaab71e72a154658\nTask sample attempt df31e63131ef44cfbf76d45faa3166f9: keep; superseded attempt; default cleanup keeps older work\n  Workspace: <REPO>/build/validation/registry-runtime/local-01/registry/work/sample/df31e63131ef44cfbf76d45faa3166f9\n  Staging group: <REPO>/build/validation/registry-runtime/local-01/registry/.gwf/gwflow/staging/df31e63131ef44cfbf76d45faa3166f9\nTask sample attempt e173cb917c784e82b16ae4b789fee39f: keep; superseded attempt; default cleanup keeps older work\n  Workspace: <REPO>/build/validation/registry-runtime/local-01/registry/work/sample/e173cb917c784e82b16ae4b789fee39f\n  Staging group: <REPO>/build/validation/registry-runtime/local-01/registry/.gwf/gwflow/staging/e173cb917c784e82b16ae4b789fee39f\n"
+        },
+        {
+          "command": [
+            "<REPO>/build/venv/bin/gwf",
+            "run"
+          ],
+          "exit": 0,
+          "output": "Task sample: reuse; checked Completion and retained metadata match\n"
+        }
+      ],
+      "observations": [
+        {
+          "time": 1791129862.7623184,
+          "retained_runtime": {
+            "message": "registry image",
+            "architecture": "x86_64",
+            "image": "<REPO>/build/validation/registry-runtime/local-01/shared registry images/d53c78bd3d8010b6e5de5c8d1f684bd42f14b3fc96e2ea8041f3396d78e5bb61.sif",
+            "python": "3.12.14 (main, Sep 19 2026, 01:05:48) [GCC 12.2.0]"
+          },
+          "frontend_image": {
+            "path": "<REPO>/build/validation/registry-runtime/local-01/shared registry images/d53c78bd3d8010b6e5de5c8d1f684bd42f14b3fc96e2ea8041f3396d78e5bb61.sif",
+            "resolved": "<REPO>/build/validation/registry-runtime/local-01/shared registry images/d53c78bd3d8010b6e5de5c8d1f684bd42f14b3fc96e2ea8041f3396d78e5bb61.sif",
+            "size": 44408832,
+            "mtime_ns": 1791129853000000000,
+            "device": 49,
+            "inode": 7703403857303916328
+          }
+        },
+        {
+          "time": 1791129869.5669038,
+          "retained_runtime": {
+            "message": "registry image",
+            "architecture": "x86_64",
+            "image": "<REPO>/build/validation/registry-runtime/local-01/shared registry images/d53c78bd3d8010b6e5de5c8d1f684bd42f14b3fc96e2ea8041f3396d78e5bb61.sif",
+            "python": "3.12.14 (main, Sep 19 2026, 01:05:48) [GCC 12.2.0]"
+          },
+          "frontend_image": {
+            "path": "<REPO>/build/validation/registry-runtime/local-01/shared registry images/d53c78bd3d8010b6e5de5c8d1f684bd42f14b3fc96e2ea8041f3396d78e5bb61.sif",
+            "resolved": "<REPO>/build/validation/registry-runtime/local-01/shared registry images/d53c78bd3d8010b6e5de5c8d1f684bd42f14b3fc96e2ea8041f3396d78e5bb61.sif",
+            "size": 44408832,
+            "mtime_ns": 1791129853000000000,
+            "device": 49,
+            "inode": 7703403857303916328
+          }
+        },
+        {
+          "time": 1791129885.0095093,
+          "worker_baseline_refusal": "gwflow: External inputs changed after preparation; a fresh attempt is required\n\n"
+        },
+        {
+          "time": 1791129892.8985875,
+          "retained_runtime": {
+            "message": "registry image",
+            "architecture": "x86_64",
+            "image": "<REPO>/build/validation/registry-runtime/local-01/shared registry images/d53c78bd3d8010b6e5de5c8d1f684bd42f14b3fc96e2ea8041f3396d78e5bb61.sif",
+            "python": "3.12.14 (main, Sep 19 2026, 01:05:48) [GCC 12.2.0]"
+          },
+          "frontend_image": {
+            "path": "<REPO>/build/validation/registry-runtime/local-01/shared registry images/d53c78bd3d8010b6e5de5c8d1f684bd42f14b3fc96e2ea8041f3396d78e5bb61.sif",
+            "resolved": "<REPO>/build/validation/registry-runtime/local-01/shared registry images/d53c78bd3d8010b6e5de5c8d1f684bd42f14b3fc96e2ea8041f3396d78e5bb61.sif",
+            "size": 44408832,
+            "mtime_ns": 1791129852000000000,
+            "device": 49,
+            "inode": 7703403857303916328
+          }
+        }
+      ],
+      "probe_calls": [
+        {
+          "arguments": [
+            "pull",
+            "--disable-cache",
+            "<REPO>/build/validation/registry-runtime/local-01/shared registry images/.pull-2n_nwysm/image.sif",
+            "docker://docker.io/library/python@sha256:392307d22300de8b5986851a12d9176dfc0fc073e65bf6523ebd7dcbeb23564e"
+          ],
+          "node": "cn-1039",
+          "architecture": "x86_64"
+        },
+        {
+          "arguments": [
+            "exec",
+            "--cleanenv",
+            "--no-eval",
+            "--pwd",
+            "<REPO>/build/validation/registry-runtime/local-01/registry/work/sample/df31e63131ef44cfbf76d45faa3166f9/compute/fa8eb20df6e446fd854b509b02ebb6e1/staging",
+            "--mount",
+            "type=bind,src=<REPO>/build/validation/registry-runtime/local-01/registry/work/sample/df31e63131ef44cfbf76d45faa3166f9/gate/102079cb9eb94ba98b095920a0e0aeff/committed,dst=<REPO>/build/validation/registry-runtime/local-01/registry/work/sample/df31e63131ef44cfbf76d45faa3166f9/gate/102079cb9eb94ba98b095920a0e0aeff/committed,ro",
+            "--mount",
+            "type=bind,src=<REPO>/build/validation/registry-runtime/local-01/registry/work/sample/df31e63131ef44cfbf76d45faa3166f9/compute/fa8eb20df6e446fd854b509b02ebb6e1/staging,dst=<REPO>/build/validation/registry-runtime/local-01/registry/work/sample/df31e63131ef44cfbf76d45faa3166f9/compute/fa8eb20df6e446fd854b509b02ebb6e1/staging",
+            "--mount",
+            "type=bind,src=<REPO>/build/validation/registry-runtime/local-01/registry/work/sample/df31e63131ef44cfbf76d45faa3166f9/compute/fa8eb20df6e446fd854b509b02ebb6e1/tmp,dst=<REPO>/build/validation/registry-runtime/local-01/registry/work/sample/df31e63131ef44cfbf76d45faa3166f9/compute/fa8eb20df6e446fd854b509b02ebb6e1/tmp",
+            "<REPO>/build/validation/registry-runtime/local-01/shared registry images/d53c78bd3d8010b6e5de5c8d1f684bd42f14b3fc96e2ea8041f3396d78e5bb61.sif",
+            "/bin/bash",
+            "-e",
+            "-c",
+            "python -c 'import json,os,platform,sys; print(json.dumps({'\"'\"'message'\"'\"':'\"'\"'registry image'\"'\"','\"'\"'architecture'\"'\"':platform.machine(),'\"'\"'image'\"'\"':os.environ['\"'\"'APPTAINER_CONTAINER'\"'\"'],'\"'\"'python'\"'\"':sys.version}))' > runtime.json"
+          ],
+          "node": "cn-1039",
+          "architecture": "x86_64",
+          "image": {
+            "path": "<REPO>/build/validation/registry-runtime/local-01/shared registry images/d53c78bd3d8010b6e5de5c8d1f684bd42f14b3fc96e2ea8041f3396d78e5bb61.sif",
+            "resolved": "<REPO>/build/validation/registry-runtime/local-01/shared registry images/d53c78bd3d8010b6e5de5c8d1f684bd42f14b3fc96e2ea8041f3396d78e5bb61.sif",
+            "size": 44408832,
+            "mtime_ns": 1791129853000000000,
+            "device": 49,
+            "inode": 7703403857303916328
+          }
+        },
+        {
+          "arguments": [
+            "exec",
+            "--cleanenv",
+            "--no-eval",
+            "--pwd",
+            "<REPO>/build/validation/registry-runtime/local-01/registry/work/sample/e173cb917c784e82b16ae4b789fee39f/compute/0f47abcea73e45d792e045528d13d257/staging",
+            "--mount",
+            "type=bind,src=<REPO>/build/validation/registry-runtime/local-01/registry/work/sample/e173cb917c784e82b16ae4b789fee39f/gate/c34e0bc535974e55a94b7b614df7105b/committed,dst=<REPO>/build/validation/registry-runtime/local-01/registry/work/sample/e173cb917c784e82b16ae4b789fee39f/gate/c34e0bc535974e55a94b7b614df7105b/committed,ro",
+            "--mount",
+            "type=bind,src=<REPO>/build/validation/registry-runtime/local-01/registry/work/sample/e173cb917c784e82b16ae4b789fee39f/compute/0f47abcea73e45d792e045528d13d257/staging,dst=<REPO>/build/validation/registry-runtime/local-01/registry/work/sample/e173cb917c784e82b16ae4b789fee39f/compute/0f47abcea73e45d792e045528d13d257/staging",
+            "--mount",
+            "type=bind,src=<REPO>/build/validation/registry-runtime/local-01/registry/work/sample/e173cb917c784e82b16ae4b789fee39f/compute/0f47abcea73e45d792e045528d13d257/tmp,dst=<REPO>/build/validation/registry-runtime/local-01/registry/work/sample/e173cb917c784e82b16ae4b789fee39f/compute/0f47abcea73e45d792e045528d13d257/tmp",
+            "<REPO>/build/validation/registry-runtime/local-01/shared registry images/d53c78bd3d8010b6e5de5c8d1f684bd42f14b3fc96e2ea8041f3396d78e5bb61.sif",
+            "/bin/bash",
+            "-e",
+            "-c",
+            "python -c 'import json,os,platform,sys; print(json.dumps({'\"'\"'message'\"'\"':'\"'\"'registry image'\"'\"','\"'\"'architecture'\"'\"':platform.machine(),'\"'\"'image'\"'\"':os.environ['\"'\"'APPTAINER_CONTAINER'\"'\"'],'\"'\"'python'\"'\"':sys.version}))' > runtime.json"
+          ],
+          "node": "cn-1039",
+          "architecture": "x86_64",
+          "image": {
+            "path": "<REPO>/build/validation/registry-runtime/local-01/shared registry images/d53c78bd3d8010b6e5de5c8d1f684bd42f14b3fc96e2ea8041f3396d78e5bb61.sif",
+            "resolved": "<REPO>/build/validation/registry-runtime/local-01/shared registry images/d53c78bd3d8010b6e5de5c8d1f684bd42f14b3fc96e2ea8041f3396d78e5bb61.sif",
+            "size": 44408832,
+            "mtime_ns": 1791129853000000000,
+            "device": 49,
+            "inode": 7703403857303916328
+          }
+        },
+        {
+          "arguments": [
+            "exec",
+            "--cleanenv",
+            "--no-eval",
+            "--pwd",
+            "<REPO>/build/validation/registry-runtime/local-01/registry/work/sample/8847c8929439453db448a438f32decd7/compute/71ef2603ff1e43d3b37984078ea65840/staging",
+            "--mount",
+            "type=bind,src=<REPO>/build/validation/registry-runtime/local-01/registry/work/sample/8847c8929439453db448a438f32decd7/gate/2d5f44cf03e549179b818cbefea2ef81/committed,dst=<REPO>/build/validation/registry-runtime/local-01/registry/work/sample/8847c8929439453db448a438f32decd7/gate/2d5f44cf03e549179b818cbefea2ef81/committed,ro",
+            "--mount",
+            "type=bind,src=<REPO>/build/validation/registry-runtime/local-01/registry/work/sample/8847c8929439453db448a438f32decd7/compute/71ef2603ff1e43d3b37984078ea65840/staging,dst=<REPO>/build/validation/registry-runtime/local-01/registry/work/sample/8847c8929439453db448a438f32decd7/compute/71ef2603ff1e43d3b37984078ea65840/staging",
+            "--mount",
+            "type=bind,src=<REPO>/build/validation/registry-runtime/local-01/registry/work/sample/8847c8929439453db448a438f32decd7/compute/71ef2603ff1e43d3b37984078ea65840/tmp,dst=<REPO>/build/validation/registry-runtime/local-01/registry/work/sample/8847c8929439453db448a438f32decd7/compute/71ef2603ff1e43d3b37984078ea65840/tmp",
+            "<REPO>/build/validation/registry-runtime/local-01/shared registry images/d53c78bd3d8010b6e5de5c8d1f684bd42f14b3fc96e2ea8041f3396d78e5bb61.sif",
+            "/bin/bash",
+            "-e",
+            "-c",
+            "python -c 'import json,os,platform,sys; print(json.dumps({'\"'\"'message'\"'\"':'\"'\"'registry image'\"'\"','\"'\"'architecture'\"'\"':platform.machine(),'\"'\"'image'\"'\"':os.environ['\"'\"'APPTAINER_CONTAINER'\"'\"'],'\"'\"'python'\"'\"':sys.version}))' > runtime.json"
+          ],
+          "node": "cn-1039",
+          "architecture": "x86_64",
+          "image": {
+            "path": "<REPO>/build/validation/registry-runtime/local-01/shared registry images/d53c78bd3d8010b6e5de5c8d1f684bd42f14b3fc96e2ea8041f3396d78e5bb61.sif",
+            "resolved": "<REPO>/build/validation/registry-runtime/local-01/shared registry images/d53c78bd3d8010b6e5de5c8d1f684bd42f14b3fc96e2ea8041f3396d78e5bb61.sif",
+            "size": 44408832,
+            "mtime_ns": 1791129852000000000,
+            "device": 49,
+            "inode": 7703403857303916328
+          }
+        }
+      ],
+      "cache_preserved": true
+    },
+    "slurm": {
+      "evidence_directory": "<REPO>/build/validation/registry-runtime/slurm-01",
+      "environment": {
+        "backend": "slurm",
+        "platform": "Linux-5.14.0-687.48.1.el9_8.x86_64-x86_64-with-glibc2.34",
+        "python": "3.12.14 (main, Sep  2 2026, 23:27:36) [GCC 15.3.0]",
+        "frontend_node": "cn-1039",
+        "frontend_architecture": "x86_64",
+        "frontend_device": 49,
+        "apptainer": "apptainer version 1.5.4-1",
+        "apptainer_path": "<VALIDATION_ASSETS>/runtime/usr/bin/apptainer",
+        "packages": {
+          "gwf": "2.1.1",
+          "gwflow": "0.4.1",
+          "gwflow-summary-task": "0.3.0",
+          "gwflow-report-task": "0.3.0"
+        },
+        "images": {
+          "GWFLOW_TEST_SIF": {
+            "path": "<VALIDATION_ASSETS>/basic.sif",
+            "size": 44408832,
+            "mtime_ns": 1790864154000000000
+          },
+          "GWFLOW_TEST_SUMMARY_SIF": {
+            "path": "<VALIDATION_ASSETS>/summary.sif",
+            "size": 48836608,
+            "mtime_ns": 1790873132000000000
+          },
+          "GWFLOW_TEST_REPORT_SIF": {
+            "path": "<VALIDATION_ASSETS>/report.sif",
+            "size": 48836608,
+            "mtime_ns": 1790873143000000000
+          }
+        }
+      },
+      "summary": {
+        "run": 1,
+        "failures": 0,
+        "errors": 0,
+        "skips": 0,
+        "cases": [
+          "registry"
+        ],
+        "outcomes": {
+          "registry": "passed"
+        }
+      },
+      "job_environment": {
+        "PYTHONPATH": ".:.:",
+        "APPTAINER_CACHEDIR": "<USER_WORKSPACE>/cache/apptainer",
+        "PATH": "<REPO>/build/validation/registry-runtime/slurm-01/registry/image probe:<VALIDATION_ASSETS>/runtime/usr/bin:<USER_HOME>/.codex/tmp/arg0/codex-arg0P0kkNq:<USER_HOME>/.vscode-server/cli/servers/Stable-07f806f999227108933c2e30515b26eecc1fda74/server/bin/remote-cli:<USER_HOME>/.nvm/versions/node/v24.18.0/bin:<USER_HOME>/miniconda3/condabin:/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin:<USER_HOME>/bin:<USER_HOME>/.local/bin:<SITE_SOFTWARE>/somalier/executables/v0.2.15/:<SITE_SOFTWARE>/cellranger/cellranger-7.0.0/bin/:<USER_HOME>/bin:<USER_HOME>/.local/bin:<SITE_SOFTWARE>/somalier/executables/v0.2.15/:<SITE_SOFTWARE>/cellranger/cellranger-7.0.0/bin/:<USER_HOME>/.vscode-server/extensions/openai.chatgpt-26.930.41038-linux-x64/bin/linux-x86_64",
+        "APPTAINER_CONFIGDIR": "<USER_WORKSPACE>/cache/apptainer/config",
+        "GWFLOW_TEST_REAL_APPTAINER": "<VALIDATION_ASSETS>/runtime/usr/bin/apptainer",
+        "GWFLOW_TEST_IMAGE_PROBE": "<REPO>/build/validation/registry-runtime/slurm-01/registry/image probe",
+        "GWFLOW_IMAGE_CACHE": "<REPO>/build/validation/registry-runtime/slurm-01/shared registry images"
+      },
+      "commands": [
+        {
+          "command": [
+            "<REPO>/build/venv/bin/gwf",
+            "status",
+            "--details"
+          ],
+          "exit": 0,
+          "output": ". Task sample                  pending          0/2 targets completed\n  |-- . preparation                  pending\n  |-- . gate                         pending\n  |-- . compute                      pending\n  `-- . completion                   pending\n  Condition: incomplete computation\n  Next: fresh\n  Reason: no completed managed attempt; fresh attempt required\n  Attempt: not allocated; fresh execution will choose a new UUID\n  sample__gwflow_prepare: not submitted (pending)\n  sample__compute: not submitted (pending)\n  sample__gate: not submitted (pending)\n  sample__gwflow_complete: not submitted (pending)\n"
+        },
+        {
+          "command": [
+            "<REPO>/build/venv/bin/gwf",
+            "run"
+          ],
+          "exit": 0,
+          "output": "Task sample: fresh; no completed managed attempt; fresh attempt required\nSubmitted target sample__gwflow_prepare__a50dc4ff29934eeb8cea9a2b59c6ecaf__c76ba33ada064b308bf55952a7c55e67\nSubmitted target sample__gate__76dacf1a7d404478af2e29c4cfd22567__d045923ca4ad464fb82b7f3d8501d32f\nSubmitted target sample__compute__5df79ae3af354736b96867c9ed6f285a__a9064df9d2444df08a69fa11b7484337\nSubmitted target sample__gwflow_complete__a0d3f368d5c34b2990090a2f4379fbb8__7a480c09220f4fa8b14fc8c3d689030c\n"
+        },
+        {
+          "command": [
+            "<REPO>/build/venv/bin/gwf",
+            "status",
+            "--details"
+          ],
+          "exit": 0,
+          "output": "~ Task sample                  submitted        0/2 targets completed\n  |-- ~ preparation                  submitted\n  |-- ~ gate                         submitted\n  |-- ~ compute                      submitted\n  `-- ~ completion                   submitted\n  Condition: incomplete computation (active)\n  Next: active\n  Reason: queued/running work: sample__gwflow_prepare__a50dc4ff29934eeb8cea9a2b59c6ecaf__c76ba33ada064b308bf55952a7c55e67, sample__gate__76dacf1a7d404478af2e29c4cfd22567__d045923ca4ad464fb82b7f3d8501d32f, sample__compute__5df79ae3af354736b96867c9ed6f285a__a9064df9d2444df08a69fa11b7484337, sample__gwflow_complete__a0d3f368d5c34b2990090a2f4379fbb8__7a480c09220f4fa8b14fc8c3d689030c\n  Attempt: c5ceb17e36864da3b4ece532043228ee\n  Workspace: <REPO>/build/validation/registry-runtime/slurm-01/registry/work/sample/c5ceb17e36864da3b4ece532043228ee\n  Results: <REPO>/build/validation/registry-runtime/slurm-01/registry/results/sample\n  Staging: <REPO>/build/validation/registry-runtime/slurm-01/registry/.gwf/gwflow/staging/c5ceb17e36864da3b4ece532043228ee/a0d3f368d5c34b2990090a2f4379fbb8\n  sample__gwflow_prepare: sample__gwflow_prepare__a50dc4ff29934eeb8cea9a2b59c6ecaf__c76ba33ada064b308bf55952a7c55e67 (active)\n    Backend job: 1563182\n    Log stdout: <REPO>/build/validation/registry-runtime/slurm-01/registry/.gwf/logs/sample__gwflow_prepare__a50dc4ff29934eeb8cea9a2b59c6ecaf__c76ba33ada064b308bf55952a7c55e67.stdout\n    Log stderr: <REPO>/build/validation/registry-runtime/slurm-01/registry/.gwf/logs/sample__gwflow_prepare__a50dc4ff29934eeb8cea9a2b59c6ecaf__c76ba33ada064b308bf55952a7c55e67.stderr\n  sample__gate: sample__gate__76dacf1a7d404478af2e29c4cfd22567__d045923ca4ad464fb82b7f3d8501d32f (active)\n    Backend job: 1563183\n    Log stdout: <REPO>/build/validation/registry-runtime/slurm-01/registry/.gwf/logs/sample__gate__76dacf1a7d404478af2e29c4cfd22567__d045923ca4ad464fb82b7f3d8501d32f.stdout\n    Log stderr: <REPO>/build/validation/registry-runtime/slurm-01/registry/.gwf/logs/sample__gate__76dacf1a7d404478af2e29c4cfd22567__d045923ca4ad464fb82b7f3d8501d32f.stderr\n  sample__compute: sample__compute__5df79ae3af354736b96867c9ed6f285a__a9064df9d2444df08a69fa11b7484337 (active)\n    Backend job: 1563184\n    Log stdout: <REPO>/build/validation/registry-runtime/slurm-01/registry/.gwf/logs/sample__compute__5df79ae3af354736b96867c9ed6f285a__a9064df9d2444df08a69fa11b7484337.stdout\n    Log stderr: <REPO>/build/validation/registry-runtime/slurm-01/registry/.gwf/logs/sample__compute__5df79ae3af354736b96867c9ed6f285a__a9064df9d2444df08a69fa11b7484337.stderr\n  sample__gwflow_complete: sample__gwflow_complete__a0d3f368d5c34b2990090a2f4379fbb8__7a480c09220f4fa8b14fc8c3d689030c (active)\n    Backend job: 1563185\n    Log stdout: <REPO>/build/validation/registry-runtime/slurm-01/registry/.gwf/logs/sample__gwflow_complete__a0d3f368d5c34b2990090a2f4379fbb8__7a480c09220f4fa8b14fc8c3d689030c.stdout\n    Log stderr: <REPO>/build/validation/registry-runtime/slurm-01/registry/.gwf/logs/sample__gwflow_complete__a0d3f368d5c34b2990090a2f4379fbb8__7a480c09220f4fa8b14fc8c3d689030c.stderr\n"
+        },
+        {
+          "command": [
+            "<REPO>/build/venv/bin/gwf",
+            "run",
+            "--force"
+          ],
+          "exit": 0,
+          "output": "Task sample: fresh; requested --force; fresh attempt required; remove previous results at <REPO>/build/validation/registry-runtime/slurm-01/registry/results/sample before submission\nSubmitted target sample__gwflow_prepare__03bbc781344641348c8078a49173fe68__8c2c48441dc64f2aa45e888589c46080\nSubmitted target sample__gate__5851bcf35691405fae984e1544768cef__82b50532370a4c8395632d04a4a13dda\nSubmitted target sample__compute__89cc6632ed0249bf86d2c54c7caaa2af__0aa1a464a7ad45d7910a5c42cd5f1b49\nSubmitted target sample__gwflow_complete__d33be75919db41379e6319c6efae1256__fb0a301d1803478ea84156c924d25615\n"
+        },
+        {
+          "command": [
+            "<REPO>/build/venv/bin/gwf",
+            "status",
+            "--details"
+          ],
+          "exit": 0,
+          "output": "~ Task sample                  submitted        0/2 targets completed\n  |-- ~ preparation                  submitted\n  |-- ~ gate                         submitted\n  |-- ~ compute                      submitted\n  `-- ~ completion                   submitted\n  Condition: incomplete computation (active)\n  Next: active\n  Reason: queued/running work: sample__gwflow_prepare__03bbc781344641348c8078a49173fe68__8c2c48441dc64f2aa45e888589c46080, sample__gate__5851bcf35691405fae984e1544768cef__82b50532370a4c8395632d04a4a13dda, sample__compute__89cc6632ed0249bf86d2c54c7caaa2af__0aa1a464a7ad45d7910a5c42cd5f1b49, sample__gwflow_complete__d33be75919db41379e6319c6efae1256__fb0a301d1803478ea84156c924d25615\n  Attempt: 79b289fad2784de89f504ff66a9bbe41\n  Workspace: <REPO>/build/validation/registry-runtime/slurm-01/registry/work/sample/79b289fad2784de89f504ff66a9bbe41\n  Results: <REPO>/build/validation/registry-runtime/slurm-01/registry/results/sample\n  Staging: <REPO>/build/validation/registry-runtime/slurm-01/registry/.gwf/gwflow/staging/79b289fad2784de89f504ff66a9bbe41/d33be75919db41379e6319c6efae1256\n  sample__gwflow_prepare: sample__gwflow_prepare__03bbc781344641348c8078a49173fe68__8c2c48441dc64f2aa45e888589c46080 (active)\n    Backend job: 1563216\n    Log stdout: <REPO>/build/validation/registry-runtime/slurm-01/registry/.gwf/logs/sample__gwflow_prepare__03bbc781344641348c8078a49173fe68__8c2c48441dc64f2aa45e888589c46080.stdout\n    Log stderr: <REPO>/build/validation/registry-runtime/slurm-01/registry/.gwf/logs/sample__gwflow_prepare__03bbc781344641348c8078a49173fe68__8c2c48441dc64f2aa45e888589c46080.stderr\n  sample__gate: sample__gate__5851bcf35691405fae984e1544768cef__82b50532370a4c8395632d04a4a13dda (active)\n    Backend job: 1563217\n    Log stdout: <REPO>/build/validation/registry-runtime/slurm-01/registry/.gwf/logs/sample__gate__5851bcf35691405fae984e1544768cef__82b50532370a4c8395632d04a4a13dda.stdout\n    Log stderr: <REPO>/build/validation/registry-runtime/slurm-01/registry/.gwf/logs/sample__gate__5851bcf35691405fae984e1544768cef__82b50532370a4c8395632d04a4a13dda.stderr\n  sample__compute: sample__compute__89cc6632ed0249bf86d2c54c7caaa2af__0aa1a464a7ad45d7910a5c42cd5f1b49 (active)\n    Backend job: 1563218\n    Log stdout: <REPO>/build/validation/registry-runtime/slurm-01/registry/.gwf/logs/sample__compute__89cc6632ed0249bf86d2c54c7caaa2af__0aa1a464a7ad45d7910a5c42cd5f1b49.stdout\n    Log stderr: <REPO>/build/validation/registry-runtime/slurm-01/registry/.gwf/logs/sample__compute__89cc6632ed0249bf86d2c54c7caaa2af__0aa1a464a7ad45d7910a5c42cd5f1b49.stderr\n  sample__gwflow_complete: sample__gwflow_complete__d33be75919db41379e6319c6efae1256__fb0a301d1803478ea84156c924d25615 (active)\n    Backend job: 1563219\n    Log stdout: <REPO>/build/validation/registry-runtime/slurm-01/registry/.gwf/logs/sample__gwflow_complete__d33be75919db41379e6319c6efae1256__fb0a301d1803478ea84156c924d25615.stdout\n    Log stderr: <REPO>/build/validation/registry-runtime/slurm-01/registry/.gwf/logs/sample__gwflow_complete__d33be75919db41379e6319c6efae1256__fb0a301d1803478ea84156c924d25615.stderr\n"
+        },
+        {
+          "command": [
+            "<REPO>/build/venv/bin/gwf",
+            "clean-work",
+            "--delete"
+          ],
+          "exit": 0,
+          "output": "Work cleanup\nTask sample attempt 79b289fad2784de89f504ff66a9bbe41: removed; removed owned disposable work; results and bookkeeping preserved\n  Workspace: <REPO>/build/validation/registry-runtime/slurm-01/registry/work/sample/79b289fad2784de89f504ff66a9bbe41\n  Staging group: <REPO>/build/validation/registry-runtime/slurm-01/registry/.gwf/gwflow/staging/79b289fad2784de89f504ff66a9bbe41\n  Staging: <REPO>/build/validation/registry-runtime/slurm-01/registry/.gwf/gwflow/staging/79b289fad2784de89f504ff66a9bbe41/d33be75919db41379e6319c6efae1256\n  Staging: <REPO>/build/validation/registry-runtime/slurm-01/registry/.gwf/gwflow/staging/79b289fad2784de89f504ff66a9bbe41/.staging-0b5c88141da84f5291108629b3d90173\nTask sample attempt c5ceb17e36864da3b4ece532043228ee: keep; superseded attempt; default cleanup keeps older work\n  Workspace: <REPO>/build/validation/registry-runtime/slurm-01/registry/work/sample/c5ceb17e36864da3b4ece532043228ee\n  Staging group: <REPO>/build/validation/registry-runtime/slurm-01/registry/.gwf/gwflow/staging/c5ceb17e36864da3b4ece532043228ee\n"
+        },
+        {
+          "command": [
+            "<REPO>/build/venv/bin/gwf",
+            "status",
+            "--details"
+          ],
+          "exit": 0,
+          "output": "+ Task sample                  reusable         work-cleaned\n  |-- + preparation                  completed\n  |-- + gate                         completed\n  |-- + compute                      completed\n  `-- + completion                   completed\n  Condition: reusable work-cleaned\n  Next: reuse\n  Reason: checked Completion and retained metadata match\n  Attempt: 79b289fad2784de89f504ff66a9bbe41\n  Workspace: <REPO>/build/validation/registry-runtime/slurm-01/registry/work/sample/79b289fad2784de89f504ff66a9bbe41\n  Results: <REPO>/build/validation/registry-runtime/slurm-01/registry/results/sample\n  Staging: <REPO>/build/validation/registry-runtime/slurm-01/registry/.gwf/gwflow/staging/79b289fad2784de89f504ff66a9bbe41/d33be75919db41379e6319c6efae1256\n  sample__gwflow_prepare: sample__gwflow_prepare__03bbc781344641348c8078a49173fe68__8c2c48441dc64f2aa45e888589c46080 (complete)\n    Backend job: 1563216\n    Log stdout: <REPO>/build/validation/registry-runtime/slurm-01/registry/.gwf/logs/sample__gwflow_prepare__03bbc781344641348c8078a49173fe68__8c2c48441dc64f2aa45e888589c46080.stdout\n    Log stderr: <REPO>/build/validation/registry-runtime/slurm-01/registry/.gwf/logs/sample__gwflow_prepare__03bbc781344641348c8078a49173fe68__8c2c48441dc64f2aa45e888589c46080.stderr\n  sample__gate: sample__gate__5851bcf35691405fae984e1544768cef__82b50532370a4c8395632d04a4a13dda (complete)\n    Backend job: 1563217\n    Log stdout: <REPO>/build/validation/registry-runtime/slurm-01/registry/.gwf/logs/sample__gate__5851bcf35691405fae984e1544768cef__82b50532370a4c8395632d04a4a13dda.stdout\n    Log stderr: <REPO>/build/validation/registry-runtime/slurm-01/registry/.gwf/logs/sample__gate__5851bcf35691405fae984e1544768cef__82b50532370a4c8395632d04a4a13dda.stderr\n  sample__compute: sample__compute__89cc6632ed0249bf86d2c54c7caaa2af__0aa1a464a7ad45d7910a5c42cd5f1b49 (complete)\n    Backend job: 1563218\n    Log stdout: <REPO>/build/validation/registry-runtime/slurm-01/registry/.gwf/logs/sample__compute__89cc6632ed0249bf86d2c54c7caaa2af__0aa1a464a7ad45d7910a5c42cd5f1b49.stdout\n    Log stderr: <REPO>/build/validation/registry-runtime/slurm-01/registry/.gwf/logs/sample__compute__89cc6632ed0249bf86d2c54c7caaa2af__0aa1a464a7ad45d7910a5c42cd5f1b49.stderr\n  sample__gwflow_complete: sample__gwflow_complete__d33be75919db41379e6319c6efae1256__fb0a301d1803478ea84156c924d25615 (complete)\n    Backend job: 1563219\n    Log stdout: <REPO>/build/validation/registry-runtime/slurm-01/registry/.gwf/logs/sample__gwflow_complete__d33be75919db41379e6319c6efae1256__fb0a301d1803478ea84156c924d25615.stdout\n    Log stderr: <REPO>/build/validation/registry-runtime/slurm-01/registry/.gwf/logs/sample__gwflow_complete__d33be75919db41379e6319c6efae1256__fb0a301d1803478ea84156c924d25615.stderr\n"
+        },
+        {
+          "command": [
+            "<REPO>/build/venv/bin/gwf",
+            "explain"
+          ],
+          "exit": 0,
+          "output": "Managed whole-workflow plan\nTask sample: reuse; checked Completion and retained metadata match\n"
+        },
+        {
+          "command": [
+            "<REPO>/build/venv/bin/gwf",
+            "run",
+            "--dry-run"
+          ],
+          "exit": 0,
+          "output": "Task sample: reuse; checked Completion and retained metadata match\n"
+        },
+        {
+          "command": [
+            "<REPO>/build/venv/bin/gwf",
+            "run"
+          ],
+          "exit": 0,
+          "output": "Task sample: reuse; checked Completion and retained metadata match\n"
+        },
+        {
+          "command": [
+            "<REPO>/build/venv/bin/gwf",
+            "run",
+            "--force"
+          ],
+          "exit": 0,
+          "output": "Task sample: fresh; requested --force; fresh attempt required; remove previous results at <REPO>/build/validation/registry-runtime/slurm-01/registry/results/sample before submission\nSubmitted target sample__gwflow_prepare__a162a78d9a4c47239304c4b47dab6e55__de7a4d5e9d9647429093488660b24c81\nSubmitted target sample__gate__46054ba76e184999b76c511a5d014c99__a0a3a7765ffd4a0ebae3313327f5a9c8\nSubmitted target sample__compute__254eedf94dc5446cb24c0c1f210ec178__652b5bf6d9c947bbacd59329a293eacd\nSubmitted target sample__gwflow_complete__149886e40d1a452ea395740035d08033__dcd89208b50740a393157c41d22b1e95\n"
+        },
+        {
+          "command": [
+            "<REPO>/build/venv/bin/gwf",
+            "status",
+            "--details"
+          ],
+          "exit": 0,
+          "output": "~ Task sample                  submitted        0/2 targets completed\n  |-- ~ preparation                  submitted\n  |-- ~ gate                         submitted\n  |-- ~ compute                      submitted\n  `-- ~ completion                   submitted\n  Condition: incomplete computation (active)\n  Next: active\n  Reason: queued/running work: sample__gwflow_prepare__a162a78d9a4c47239304c4b47dab6e55__de7a4d5e9d9647429093488660b24c81, sample__gate__46054ba76e184999b76c511a5d014c99__a0a3a7765ffd4a0ebae3313327f5a9c8, sample__compute__254eedf94dc5446cb24c0c1f210ec178__652b5bf6d9c947bbacd59329a293eacd, sample__gwflow_complete__149886e40d1a452ea395740035d08033__dcd89208b50740a393157c41d22b1e95\n  Attempt: 8312ed1481ad4124862e8982684fce7e\n  Workspace: <REPO>/build/validation/registry-runtime/slurm-01/registry/work/sample/8312ed1481ad4124862e8982684fce7e\n  Results: <REPO>/build/validation/registry-runtime/slurm-01/registry/results/sample\n  Staging: <REPO>/build/validation/registry-runtime/slurm-01/registry/.gwf/gwflow/staging/8312ed1481ad4124862e8982684fce7e/149886e40d1a452ea395740035d08033\n  sample__gwflow_prepare: sample__gwflow_prepare__a162a78d9a4c47239304c4b47dab6e55__de7a4d5e9d9647429093488660b24c81 (active)\n    Backend job: 1563294\n    Log stdout: <REPO>/build/validation/registry-runtime/slurm-01/registry/.gwf/logs/sample__gwflow_prepare__a162a78d9a4c47239304c4b47dab6e55__de7a4d5e9d9647429093488660b24c81.stdout\n    Log stderr: <REPO>/build/validation/registry-runtime/slurm-01/registry/.gwf/logs/sample__gwflow_prepare__a162a78d9a4c47239304c4b47dab6e55__de7a4d5e9d9647429093488660b24c81.stderr\n  sample__gate: sample__gate__46054ba76e184999b76c511a5d014c99__a0a3a7765ffd4a0ebae3313327f5a9c8 (active)\n    Backend job: 1563295\n    Log stdout: <REPO>/build/validation/registry-runtime/slurm-01/registry/.gwf/logs/sample__gate__46054ba76e184999b76c511a5d014c99__a0a3a7765ffd4a0ebae3313327f5a9c8.stdout\n    Log stderr: <REPO>/build/validation/registry-runtime/slurm-01/registry/.gwf/logs/sample__gate__46054ba76e184999b76c511a5d014c99__a0a3a7765ffd4a0ebae3313327f5a9c8.stderr\n  sample__compute: sample__compute__254eedf94dc5446cb24c0c1f210ec178__652b5bf6d9c947bbacd59329a293eacd (active)\n    Backend job: 1563296\n    Log stdout: <REPO>/build/validation/registry-runtime/slurm-01/registry/.gwf/logs/sample__compute__254eedf94dc5446cb24c0c1f210ec178__652b5bf6d9c947bbacd59329a293eacd.stdout\n    Log stderr: <REPO>/build/validation/registry-runtime/slurm-01/registry/.gwf/logs/sample__compute__254eedf94dc5446cb24c0c1f210ec178__652b5bf6d9c947bbacd59329a293eacd.stderr\n  sample__gwflow_complete: sample__gwflow_complete__149886e40d1a452ea395740035d08033__dcd89208b50740a393157c41d22b1e95 (active)\n    Backend job: 1563297\n    Log stdout: <REPO>/build/validation/registry-runtime/slurm-01/registry/.gwf/logs/sample__gwflow_complete__149886e40d1a452ea395740035d08033__dcd89208b50740a393157c41d22b1e95.stdout\n    Log stderr: <REPO>/build/validation/registry-runtime/slurm-01/registry/.gwf/logs/sample__gwflow_complete__149886e40d1a452ea395740035d08033__dcd89208b50740a393157c41d22b1e95.stderr\n"
+        },
+        {
+          "command": [
+            "<REPO>/build/venv/bin/gwf",
+            "logs",
+            "sample__compute",
+            "--stderr",
+            "--no-pager"
+          ],
+          "exit": 0,
+          "output": "gwflow: External inputs changed after preparation; a fresh attempt is required\n\n"
+        },
+        {
+          "command": [
+            "<REPO>/build/venv/bin/gwf",
+            "run"
+          ],
+          "exit": 0,
+          "output": "Task sample: fresh; input metadata changed: <REPO>/build/validation/registry-runtime/slurm-01/shared registry images/d53c78bd3d8010b6e5de5c8d1f684bd42f14b3fc96e2ea8041f3396d78e5bb61.sif (mtime_ns: 1791129953000000000 -> 1791129952000000000); fresh attempt required\nSubmitted target sample__gwflow_prepare__c32b5945328d4742bc6acafbfb6d21b9__0ba60bf5bab2453293142f6a44ab01c5\nSubmitted target sample__gate__c7bee59b23b340d3bf0e943ef524db59__4c85a8e2c01542df89212cb0c05ac6ba\nSubmitted target sample__compute__1459ec94ff544364833edd2880fb7ebd__f51f3d90b38c4e10bf6bd54bc9a20bc2\nSubmitted target sample__gwflow_complete__c387d6a011974b839ec5b25fca24ed04__f1a4bc96823b49168055b8a7001655bd\n"
+        },
+        {
+          "command": [
+            "<REPO>/build/venv/bin/gwf",
+            "status",
+            "--details"
+          ],
+          "exit": 0,
+          "output": "~ Task sample                  submitted        0/2 targets completed\n  |-- ~ preparation                  submitted\n  |-- ~ gate                         submitted\n  |-- ~ compute                      submitted\n  `-- ~ completion                   submitted\n  Condition: incomplete computation (active)\n  Next: active\n  Reason: queued/running work: sample__gwflow_prepare__c32b5945328d4742bc6acafbfb6d21b9__0ba60bf5bab2453293142f6a44ab01c5, sample__gate__c7bee59b23b340d3bf0e943ef524db59__4c85a8e2c01542df89212cb0c05ac6ba, sample__compute__1459ec94ff544364833edd2880fb7ebd__f51f3d90b38c4e10bf6bd54bc9a20bc2, sample__gwflow_complete__c387d6a011974b839ec5b25fca24ed04__f1a4bc96823b49168055b8a7001655bd\n  Attempt: 4d6b7feebba54a5aaaeb73d15af835ad\n  Workspace: <REPO>/build/validation/registry-runtime/slurm-01/registry/work/sample/4d6b7feebba54a5aaaeb73d15af835ad\n  Results: <REPO>/build/validation/registry-runtime/slurm-01/registry/results/sample\n  Staging: <REPO>/build/validation/registry-runtime/slurm-01/registry/.gwf/gwflow/staging/4d6b7feebba54a5aaaeb73d15af835ad/c387d6a011974b839ec5b25fca24ed04\n  sample__gwflow_prepare: sample__gwflow_prepare__c32b5945328d4742bc6acafbfb6d21b9__0ba60bf5bab2453293142f6a44ab01c5 (active)\n    Backend job: 1563340\n    Log stdout: <REPO>/build/validation/registry-runtime/slurm-01/registry/.gwf/logs/sample__gwflow_prepare__c32b5945328d4742bc6acafbfb6d21b9__0ba60bf5bab2453293142f6a44ab01c5.stdout\n    Log stderr: <REPO>/build/validation/registry-runtime/slurm-01/registry/.gwf/logs/sample__gwflow_prepare__c32b5945328d4742bc6acafbfb6d21b9__0ba60bf5bab2453293142f6a44ab01c5.stderr\n  sample__gate: sample__gate__c7bee59b23b340d3bf0e943ef524db59__4c85a8e2c01542df89212cb0c05ac6ba (active)\n    Backend job: 1563347\n    Log stdout: <REPO>/build/validation/registry-runtime/slurm-01/registry/.gwf/logs/sample__gate__c7bee59b23b340d3bf0e943ef524db59__4c85a8e2c01542df89212cb0c05ac6ba.stdout\n    Log stderr: <REPO>/build/validation/registry-runtime/slurm-01/registry/.gwf/logs/sample__gate__c7bee59b23b340d3bf0e943ef524db59__4c85a8e2c01542df89212cb0c05ac6ba.stderr\n  sample__compute: sample__compute__1459ec94ff544364833edd2880fb7ebd__f51f3d90b38c4e10bf6bd54bc9a20bc2 (active)\n    Backend job: 1563349\n    Log stdout: <REPO>/build/validation/registry-runtime/slurm-01/registry/.gwf/logs/sample__compute__1459ec94ff544364833edd2880fb7ebd__f51f3d90b38c4e10bf6bd54bc9a20bc2.stdout\n    Log stderr: <REPO>/build/validation/registry-runtime/slurm-01/registry/.gwf/logs/sample__compute__1459ec94ff544364833edd2880fb7ebd__f51f3d90b38c4e10bf6bd54bc9a20bc2.stderr\n  sample__gwflow_complete: sample__gwflow_complete__c387d6a011974b839ec5b25fca24ed04__f1a4bc96823b49168055b8a7001655bd (active)\n    Backend job: 1563350\n    Log stdout: <REPO>/build/validation/registry-runtime/slurm-01/registry/.gwf/logs/sample__gwflow_complete__c387d6a011974b839ec5b25fca24ed04__f1a4bc96823b49168055b8a7001655bd.stdout\n    Log stderr: <REPO>/build/validation/registry-runtime/slurm-01/registry/.gwf/logs/sample__gwflow_complete__c387d6a011974b839ec5b25fca24ed04__f1a4bc96823b49168055b8a7001655bd.stderr\n"
+        },
+        {
+          "command": [
+            "<REPO>/build/venv/bin/gwf",
+            "explain"
+          ],
+          "exit": 0,
+          "output": "Managed whole-workflow plan\nTask sample: reuse; checked Completion and retained metadata match\n"
+        },
+        {
+          "command": [
+            "<REPO>/build/venv/bin/gwf",
+            "clean-work",
+            "--delete"
+          ],
+          "exit": 0,
+          "output": "Work cleanup\nTask sample attempt 4d6b7feebba54a5aaaeb73d15af835ad: removed; removed owned disposable work; results and bookkeeping preserved\n  Workspace: <REPO>/build/validation/registry-runtime/slurm-01/registry/work/sample/4d6b7feebba54a5aaaeb73d15af835ad\n  Staging group: <REPO>/build/validation/registry-runtime/slurm-01/registry/.gwf/gwflow/staging/4d6b7feebba54a5aaaeb73d15af835ad\n  Staging: <REPO>/build/validation/registry-runtime/slurm-01/registry/.gwf/gwflow/staging/4d6b7feebba54a5aaaeb73d15af835ad/c387d6a011974b839ec5b25fca24ed04\n  Staging: <REPO>/build/validation/registry-runtime/slurm-01/registry/.gwf/gwflow/staging/4d6b7feebba54a5aaaeb73d15af835ad/.staging-bce1883a9cbf46d699e22d3a290315cb\nTask sample attempt 79b289fad2784de89f504ff66a9bbe41: keep; superseded attempt; default cleanup keeps older work\n  Workspace: <REPO>/build/validation/registry-runtime/slurm-01/registry/work/sample/79b289fad2784de89f504ff66a9bbe41\n  Staging group: <REPO>/build/validation/registry-runtime/slurm-01/registry/.gwf/gwflow/staging/79b289fad2784de89f504ff66a9bbe41\nTask sample attempt 8312ed1481ad4124862e8982684fce7e: keep; superseded attempt; default cleanup keeps older work\n  Workspace: <REPO>/build/validation/registry-runtime/slurm-01/registry/work/sample/8312ed1481ad4124862e8982684fce7e\n  Staging group: <REPO>/build/validation/registry-runtime/slurm-01/registry/.gwf/gwflow/staging/8312ed1481ad4124862e8982684fce7e\nTask sample attempt c5ceb17e36864da3b4ece532043228ee: keep; superseded attempt; default cleanup keeps older work\n  Workspace: <REPO>/build/validation/registry-runtime/slurm-01/registry/work/sample/c5ceb17e36864da3b4ece532043228ee\n  Staging group: <REPO>/build/validation/registry-runtime/slurm-01/registry/.gwf/gwflow/staging/c5ceb17e36864da3b4ece532043228ee\n"
+        },
+        {
+          "command": [
+            "<REPO>/build/venv/bin/gwf",
+            "run"
+          ],
+          "exit": 0,
+          "output": "Task sample: reuse; checked Completion and retained metadata match\n"
+        }
+      ],
+      "observations": [
+        {
+          "time": 1791130193.9143085,
+          "retained_runtime": {
+            "message": "registry image",
+            "architecture": "x86_64",
+            "image": "<REPO>/build/validation/registry-runtime/slurm-01/shared registry images/d53c78bd3d8010b6e5de5c8d1f684bd42f14b3fc96e2ea8041f3396d78e5bb61.sif",
+            "python": "3.12.14 (main, Sep 19 2026, 01:05:48) [GCC 12.2.0]"
+          },
+          "frontend_image": {
+            "path": "<REPO>/build/validation/registry-runtime/slurm-01/shared registry images/d53c78bd3d8010b6e5de5c8d1f684bd42f14b3fc96e2ea8041f3396d78e5bb61.sif",
+            "resolved": "<REPO>/build/validation/registry-runtime/slurm-01/shared registry images/d53c78bd3d8010b6e5de5c8d1f684bd42f14b3fc96e2ea8041f3396d78e5bb61.sif",
+            "size": 44408832,
+            "mtime_ns": 1791129953000000000,
+            "device": 49,
+            "inode": 567683900466266639
+          }
+        },
+        {
+          "time": 1791130476.5481172,
+          "retained_runtime": {
+            "message": "registry image",
+            "architecture": "x86_64",
+            "image": "<REPO>/build/validation/registry-runtime/slurm-01/shared registry images/d53c78bd3d8010b6e5de5c8d1f684bd42f14b3fc96e2ea8041f3396d78e5bb61.sif",
+            "python": "3.12.14 (main, Sep 19 2026, 01:05:48) [GCC 12.2.0]"
+          },
+          "frontend_image": {
+            "path": "<REPO>/build/validation/registry-runtime/slurm-01/shared registry images/d53c78bd3d8010b6e5de5c8d1f684bd42f14b3fc96e2ea8041f3396d78e5bb61.sif",
+            "resolved": "<REPO>/build/validation/registry-runtime/slurm-01/shared registry images/d53c78bd3d8010b6e5de5c8d1f684bd42f14b3fc96e2ea8041f3396d78e5bb61.sif",
+            "size": 44408832,
+            "mtime_ns": 1791129953000000000,
+            "device": 49,
+            "inode": 567683900466266639
+          }
+        },
+        {
+          "time": 1791130674.5656676,
+          "worker_baseline_refusal": "gwflow: External inputs changed after preparation; a fresh attempt is required\n\n"
+        },
+        {
+          "time": 1791130816.621859,
+          "retained_runtime": {
+            "message": "registry image",
+            "architecture": "x86_64",
+            "image": "<REPO>/build/validation/registry-runtime/slurm-01/shared registry images/d53c78bd3d8010b6e5de5c8d1f684bd42f14b3fc96e2ea8041f3396d78e5bb61.sif",
+            "python": "3.12.14 (main, Sep 19 2026, 01:05:48) [GCC 12.2.0]"
+          },
+          "frontend_image": {
+            "path": "<REPO>/build/validation/registry-runtime/slurm-01/shared registry images/d53c78bd3d8010b6e5de5c8d1f684bd42f14b3fc96e2ea8041f3396d78e5bb61.sif",
+            "resolved": "<REPO>/build/validation/registry-runtime/slurm-01/shared registry images/d53c78bd3d8010b6e5de5c8d1f684bd42f14b3fc96e2ea8041f3396d78e5bb61.sif",
+            "size": 44408832,
+            "mtime_ns": 1791129952000000000,
+            "device": 49,
+            "inode": 567683900466266639
+          }
+        }
+      ],
+      "probe_calls": [
+        {
+          "arguments": [
+            "pull",
+            "--disable-cache",
+            "<REPO>/build/validation/registry-runtime/slurm-01/shared registry images/.pull-f976k8f9/image.sif",
+            "docker://docker.io/library/python@sha256:392307d22300de8b5986851a12d9176dfc0fc073e65bf6523ebd7dcbeb23564e"
+          ],
+          "node": "cn-1039",
+          "architecture": "x86_64"
+        },
+        {
+          "arguments": [
+            "exec",
+            "--cleanenv",
+            "--no-eval",
+            "--pwd",
+            "<REPO>/build/validation/registry-runtime/slurm-01/registry/work/sample/c5ceb17e36864da3b4ece532043228ee/compute/5df79ae3af354736b96867c9ed6f285a/staging",
+            "--mount",
+            "type=bind,src=<REPO>/build/validation/registry-runtime/slurm-01/registry/work/sample/c5ceb17e36864da3b4ece532043228ee/gate/76dacf1a7d404478af2e29c4cfd22567/committed,dst=<REPO>/build/validation/registry-runtime/slurm-01/registry/work/sample/c5ceb17e36864da3b4ece532043228ee/gate/76dacf1a7d404478af2e29c4cfd22567/committed,ro",
+            "--mount",
+            "type=bind,src=<REPO>/build/validation/registry-runtime/slurm-01/registry/work/sample/c5ceb17e36864da3b4ece532043228ee/compute/5df79ae3af354736b96867c9ed6f285a/staging,dst=<REPO>/build/validation/registry-runtime/slurm-01/registry/work/sample/c5ceb17e36864da3b4ece532043228ee/compute/5df79ae3af354736b96867c9ed6f285a/staging",
+            "--mount",
+            "type=bind,src=<REPO>/build/validation/registry-runtime/slurm-01/registry/work/sample/c5ceb17e36864da3b4ece532043228ee/compute/5df79ae3af354736b96867c9ed6f285a/tmp,dst=<REPO>/build/validation/registry-runtime/slurm-01/registry/work/sample/c5ceb17e36864da3b4ece532043228ee/compute/5df79ae3af354736b96867c9ed6f285a/tmp",
+            "<REPO>/build/validation/registry-runtime/slurm-01/shared registry images/d53c78bd3d8010b6e5de5c8d1f684bd42f14b3fc96e2ea8041f3396d78e5bb61.sif",
+            "/bin/bash",
+            "-e",
+            "-c",
+            "python -c 'import json,os,platform,sys; print(json.dumps({'\"'\"'message'\"'\"':'\"'\"'registry image'\"'\"','\"'\"'architecture'\"'\"':platform.machine(),'\"'\"'image'\"'\"':os.environ['\"'\"'APPTAINER_CONTAINER'\"'\"'],'\"'\"'python'\"'\"':sys.version}))' > runtime.json"
+          ],
+          "node": "cn-1048",
+          "architecture": "x86_64",
+          "image": {
+            "path": "<REPO>/build/validation/registry-runtime/slurm-01/shared registry images/d53c78bd3d8010b6e5de5c8d1f684bd42f14b3fc96e2ea8041f3396d78e5bb61.sif",
+            "resolved": "<REPO>/build/validation/registry-runtime/slurm-01/shared registry images/d53c78bd3d8010b6e5de5c8d1f684bd42f14b3fc96e2ea8041f3396d78e5bb61.sif",
+            "size": 44408832,
+            "mtime_ns": 1791129953000000000,
+            "device": 48,
+            "inode": 567683900466266639
+          }
+        },
+        {
+          "arguments": [
+            "exec",
+            "--cleanenv",
+            "--no-eval",
+            "--pwd",
+            "<REPO>/build/validation/registry-runtime/slurm-01/registry/work/sample/79b289fad2784de89f504ff66a9bbe41/compute/89cc6632ed0249bf86d2c54c7caaa2af/staging",
+            "--mount",
+            "type=bind,src=<REPO>/build/validation/registry-runtime/slurm-01/registry/work/sample/79b289fad2784de89f504ff66a9bbe41/gate/5851bcf35691405fae984e1544768cef/committed,dst=<REPO>/build/validation/registry-runtime/slurm-01/registry/work/sample/79b289fad2784de89f504ff66a9bbe41/gate/5851bcf35691405fae984e1544768cef/committed,ro",
+            "--mount",
+            "type=bind,src=<REPO>/build/validation/registry-runtime/slurm-01/registry/work/sample/79b289fad2784de89f504ff66a9bbe41/compute/89cc6632ed0249bf86d2c54c7caaa2af/staging,dst=<REPO>/build/validation/registry-runtime/slurm-01/registry/work/sample/79b289fad2784de89f504ff66a9bbe41/compute/89cc6632ed0249bf86d2c54c7caaa2af/staging",
+            "--mount",
+            "type=bind,src=<REPO>/build/validation/registry-runtime/slurm-01/registry/work/sample/79b289fad2784de89f504ff66a9bbe41/compute/89cc6632ed0249bf86d2c54c7caaa2af/tmp,dst=<REPO>/build/validation/registry-runtime/slurm-01/registry/work/sample/79b289fad2784de89f504ff66a9bbe41/compute/89cc6632ed0249bf86d2c54c7caaa2af/tmp",
+            "<REPO>/build/validation/registry-runtime/slurm-01/shared registry images/d53c78bd3d8010b6e5de5c8d1f684bd42f14b3fc96e2ea8041f3396d78e5bb61.sif",
+            "/bin/bash",
+            "-e",
+            "-c",
+            "python -c 'import json,os,platform,sys; print(json.dumps({'\"'\"'message'\"'\"':'\"'\"'registry image'\"'\"','\"'\"'architecture'\"'\"':platform.machine(),'\"'\"'image'\"'\"':os.environ['\"'\"'APPTAINER_CONTAINER'\"'\"'],'\"'\"'python'\"'\"':sys.version}))' > runtime.json"
+          ],
+          "node": "cn-1092",
+          "architecture": "x86_64",
+          "image": {
+            "path": "<REPO>/build/validation/registry-runtime/slurm-01/shared registry images/d53c78bd3d8010b6e5de5c8d1f684bd42f14b3fc96e2ea8041f3396d78e5bb61.sif",
+            "resolved": "<REPO>/build/validation/registry-runtime/slurm-01/shared registry images/d53c78bd3d8010b6e5de5c8d1f684bd42f14b3fc96e2ea8041f3396d78e5bb61.sif",
+            "size": 44408832,
+            "mtime_ns": 1791129953000000000,
+            "device": 49,
+            "inode": 567683900466266639
+          }
+        },
+        {
+          "arguments": [
+            "exec",
+            "--cleanenv",
+            "--no-eval",
+            "--pwd",
+            "<REPO>/build/validation/registry-runtime/slurm-01/registry/work/sample/4d6b7feebba54a5aaaeb73d15af835ad/compute/1459ec94ff544364833edd2880fb7ebd/staging",
+            "--mount",
+            "type=bind,src=<REPO>/build/validation/registry-runtime/slurm-01/registry/work/sample/4d6b7feebba54a5aaaeb73d15af835ad/gate/c7bee59b23b340d3bf0e943ef524db59/committed,dst=<REPO>/build/validation/registry-runtime/slurm-01/registry/work/sample/4d6b7feebba54a5aaaeb73d15af835ad/gate/c7bee59b23b340d3bf0e943ef524db59/committed,ro",
+            "--mount",
+            "type=bind,src=<REPO>/build/validation/registry-runtime/slurm-01/registry/work/sample/4d6b7feebba54a5aaaeb73d15af835ad/compute/1459ec94ff544364833edd2880fb7ebd/staging,dst=<REPO>/build/validation/registry-runtime/slurm-01/registry/work/sample/4d6b7feebba54a5aaaeb73d15af835ad/compute/1459ec94ff544364833edd2880fb7ebd/staging",
+            "--mount",
+            "type=bind,src=<REPO>/build/validation/registry-runtime/slurm-01/registry/work/sample/4d6b7feebba54a5aaaeb73d15af835ad/compute/1459ec94ff544364833edd2880fb7ebd/tmp,dst=<REPO>/build/validation/registry-runtime/slurm-01/registry/work/sample/4d6b7feebba54a5aaaeb73d15af835ad/compute/1459ec94ff544364833edd2880fb7ebd/tmp",
+            "<REPO>/build/validation/registry-runtime/slurm-01/shared registry images/d53c78bd3d8010b6e5de5c8d1f684bd42f14b3fc96e2ea8041f3396d78e5bb61.sif",
+            "/bin/bash",
+            "-e",
+            "-c",
+            "python -c 'import json,os,platform,sys; print(json.dumps({'\"'\"'message'\"'\"':'\"'\"'registry image'\"'\"','\"'\"'architecture'\"'\"':platform.machine(),'\"'\"'image'\"'\"':os.environ['\"'\"'APPTAINER_CONTAINER'\"'\"'],'\"'\"'python'\"'\"':sys.version}))' > runtime.json"
+          ],
+          "node": "cn-1056",
+          "architecture": "x86_64",
+          "image": {
+            "path": "<REPO>/build/validation/registry-runtime/slurm-01/shared registry images/d53c78bd3d8010b6e5de5c8d1f684bd42f14b3fc96e2ea8041f3396d78e5bb61.sif",
+            "resolved": "<REPO>/build/validation/registry-runtime/slurm-01/shared registry images/d53c78bd3d8010b6e5de5c8d1f684bd42f14b3fc96e2ea8041f3396d78e5bb61.sif",
+            "size": 44408832,
+            "mtime_ns": 1791129952000000000,
+            "device": 48,
+            "inode": 567683900466266639
+          }
+        }
+      ],
+      "cache_preserved": true,
+      "terminal_accounting": "1563182|sample__gwflow_prepare__a50dc4ff29934eeb8cea9a2b59c6ecaf__c76ba33ada064b308bf55952a7c55e67|COMPLETED|0:0|cn-1048\n1563183|sample__gate__76dacf1a7d404478af2e29c4cfd22567__d045923ca4ad464fb82b7f3d8501d32f|COMPLETED|0:0|cn-1086\n1563184|sample__compute__5df79ae3af354736b96867c9ed6f285a__a9064df9d2444df08a69fa11b7484337|COMPLETED|0:0|cn-1048\n1563185|sample__gwflow_complete__a0d3f368d5c34b2990090a2f4379fbb8__7a480c09220f4fa8b14fc8c3d689030c|COMPLETED|0:0|cn-1051\n1563216|sample__gwflow_prepare__03bbc781344641348c8078a49173fe68__8c2c48441dc64f2aa45e888589c46080|COMPLETED|0:0|cn-1107\n1563218|sample__compute__89cc6632ed0249bf86d2c54c7caaa2af__0aa1a464a7ad45d7910a5c42cd5f1b49|COMPLETED|0:0|cn-1092\n1563219|sample__gwflow_complete__d33be75919db41379e6319c6efae1256__fb0a301d1803478ea84156c924d25615|COMPLETED|0:0|cn-1092\n1563217|sample__gate__5851bcf35691405fae984e1544768cef__82b50532370a4c8395632d04a4a13dda|COMPLETED|0:0|cn-1086\n1563294|sample__gwflow_prepare__a162a78d9a4c47239304c4b47dab6e55__de7a4d5e9d9647429093488660b24c81|COMPLETED|0:0|cn-1110\n1563295|sample__gate__46054ba76e184999b76c511a5d014c99__a0a3a7765ffd4a0ebae3313327f5a9c8|COMPLETED|0:0|cn-1050\n1563296|sample__compute__254eedf94dc5446cb24c0c1f210ec178__652b5bf6d9c947bbacd59329a293eacd|FAILED|1:0|cn-1058\n1563297|sample__gwflow_complete__149886e40d1a452ea395740035d08033__dcd89208b50740a393157c41d22b1e95|CANCELLED|0:0|None assigned\n1563340|sample__gwflow_prepare__c32b5945328d4742bc6acafbfb6d21b9__0ba60bf5bab2453293142f6a44ab01c5|COMPLETED|0:0|cn-1058\n1563347|sample__gate__c7bee59b23b340d3bf0e943ef524db59__4c85a8e2c01542df89212cb0c05ac6ba|COMPLETED|0:0|cn-1051\n1563349|sample__compute__1459ec94ff544364833edd2880fb7ebd__f51f3d90b38c4e10bf6bd54bc9a20bc2|COMPLETED|0:0|cn-1056\n1563350|sample__gwflow_complete__c387d6a011974b839ec5b25fca24ed04__f1a4bc96823b49168055b8a7001655bd|COMPLETED|0:0|cn-1046\n"
+    }
+  },
+  "path_normalization": {
+    "<REPO>": "Absolute root of the validation checkout.",
+    "<VALIDATION_ASSETS>": "External directory containing prepared SIF fixtures and the extracted Apptainer runtime.",
+    "<USER_WORKSPACE>": "User-specific shared-storage workspace outside the validation checkout.",
+    "<USER_HOME>": "Home directory of the validating user.",
+    "<SITE_SOFTWARE>": "Site-managed software installation directory.",
+    "verification": "Compared every selected raw field recursively: only path-prefix substitutions and this explanatory metadata differ. Numeric storage observations, timestamps, versions, commands, outcomes and scheduler records are preserved."
+  }
+}

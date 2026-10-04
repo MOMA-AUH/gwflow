@@ -77,11 +77,40 @@ producer/consumer propagation, and activity guards.
 
 ## Recorded run
 
-Runtime and deterministic results are being collected for this implementation.
-Raw commands, logs and transcripts are under the ignored
-`build/validation/registry-runtime/` directory.
+On 2026-10-04, all 32 deterministic registry tests passed in 428.844 seconds.
+The real registry acceptance case passed on local workers in 54.686 seconds and
+on Slurm in 880.459 seconds, with no skips. Each backend performed exactly one
+frontend pull and three real container executions, including warm execution with
+pulls disabled and fresh recovery after the expected worker baseline refusal.
+The 13 pre-existing live acceptance cases were not rerun in these focused runs.
 
-The committed runtime record will use `<REPO>` for the checkout root,
+The [runtime record](validation-registry-runtime.json) preserves the exact
+commands, runner/probe source hashes, tool versions, retained outputs, probe
+observations, and final Slurm accounting. Production source is based on
+`587a49d`; acceptance implementation `86800de` matches the recorded source hashes.
+All 21 installed gwflow Python files were compared with the checkout and matched.
+The host used Python 3.12.14, gwf 2.1.1, gwflow 0.4.1, and Apptainer 1.5.4-1;
+Slurm reported 25.11.6. The image's Python reported 3.12.14. These are validation
+versions, without a release selection or package publication.
+
+The frontend was `cn-1039`, and all observed hosts and container executions used
+`x86_64`. Slurm used ordinary `/usr/bin/sbatch` and `/usr/bin/sacct` with no node
+selection. Its 16 submitted jobs ended as 14 completed, one deliberately failed
+container-admission check, and its cancelled dependent completion. A subsequent
+fresh attempt completed normally. The cached SIF was 44,408,832 bytes and retained
+its path and inode across cleanup and forced attempts. In the Slurm run, the
+frontend observed device 49; the first container node, `cn-1048`, observed device
+48 for the same image inode `567683900466266639`. Later nodes observed the same
+shared image. These host-local device numbers are recorded, not compared as
+cross-host identities.
+
+Raw commands, logs and transcripts are under the ignored
+`build/validation/registry-runtime/` directory. The committed JSON selects command
+results, image observations, and terminal accounting from those raw transcripts.
+Its normalization was checked recursively against the selected raw evidence;
+only path substitutions and explanatory normalization metadata differ.
+
+The committed runtime record uses `<REPO>` for the checkout root,
 `<VALIDATION_ASSETS>` for the separately prepared runtime/fixture directory,
 `<USER_WORKSPACE>` for the user's external shared-storage workspace,
 `<USER_HOME>` for the user's home, and `<SITE_SOFTWARE>` for the site's software
