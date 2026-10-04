@@ -23,7 +23,13 @@ A release of the orchestration that selects task implementations and connects th
 A name identifying one target within its owning task. Different task instances may use the same local target names.
 
 **External input**:
-A file declared by the task author as an input supplied from outside that task, including another task's retained output.
+A file supplied from outside a task, declared as data by its author or implied by a target's image selection. This includes another task's retained output.
+
+**Input baseline**:
+The external-input state accepted at task preparation, against which later input observations are compared.
+
+**Image dependency**:
+An external input selected as a target's container image, required for meaningful workflow inspection as well as container execution, even when its owning task can otherwise be reused.
 
 **Retained output**:
 A file declared by the task author as an output to keep after successful task completion. Files passed from one task to another must be retained outputs of their producing task.
