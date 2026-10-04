@@ -40,7 +40,7 @@ class RegistryAuthoringTests(unittest.TestCase):
                 Task(inputs=[]).target("compute", inputs=[], outputs=["out"], image=reference)
 
 
-class RegistryImageTests(LocalBackendTestCase):
+class RegistryTestCase(LocalBackendTestCase):
     snapshot = test_containers.ContainerRuntimeTests.snapshot
     attempt = test_containers.ContainerRuntimeTests.attempt
     settle = test_managed.ManagedCliTests.settle
@@ -96,6 +96,8 @@ class RegistryImageTests(LocalBackendTestCase):
         # Locate fixture content without depending on the cache's private keys.
         return [path for path in self.cache.rglob("*") if path.is_file() and path.read_bytes() == b"fixture image\n"]
 
+
+class RegistryImageTests(RegistryTestCase):
     def test_status_acquires_missing_image_without_task_state(self):
         declaration = subprocess.run([sys.executable, "workflow.py"], cwd=self.work,
                                      capture_output=True, text=True, timeout=30)

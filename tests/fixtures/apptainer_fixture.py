@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 import shutil
 import sys
+import time
 
 
 controller = Path(os.environ["GWFLOW_TEST_IMAGE_FIXTURE"])
@@ -25,12 +26,20 @@ if arguments[0] == "pull":
     destination, reference = Path(arguments[-2]), arguments[-1]
     record(operation="pull", reference=reference, destination=str(destination))
     destination.write_text("partial image")
+    if name := options.get("gate"):
+        (controller / (name + "-held")).touch()
+        deadline = time.monotonic() + 25
+        while not (controller / (name + "-release")).exists():
+            if time.monotonic() > deadline:
+                sys.exit("fixture acquisition gate timed out")
+            time.sleep(0.025)
     if options.get("fail"):
         sys.exit("fixture registry unavailable")
     if source := options.get("source"):
         shutil.copyfile(source, destination)
     else:
         destination.write_text(options.get("content", "fixture image\n"))
+    record(operation="pull-success", reference=reference)
 elif arguments[0] == "exec":
     command = arguments.index("/bin/bash")
     image = arguments[command - 1]
