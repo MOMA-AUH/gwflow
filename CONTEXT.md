@@ -5,7 +5,7 @@ gwflow extends gwf with tasks that can be reused after their internal intermedia
 ## Language
 
 **Task**:
-A higher-level unit containing multiple ordinary gwf targets, with explicitly declared external inputs and retained outputs.
+A higher-level unit containing multiple ordinary gwf targets, with a defined boundary of external inputs and retained outputs.
 
 **Task name**:
 An author-supplied name identifying one task instance, unique within its workflow and stable across runs. Names may be generated in Python and do not depend on declaration order.
@@ -53,4 +53,4 @@ The task being considered finished under gwf's completion semantics, including t
 Bookkeeping that a task reached completion under gwf's semantics, retained so later reuse can ignore removed internal intermediates. It does not independently certify process success or output correctness.
 
 **File freshness**:
-The task-boundary file check using the same existence and modification-time rules as gwf targets, applied to external inputs and retained outputs. Freshness alone does not establish successful completion.
+The existence-and-modification-time relationship between a target's inputs and outputs under gwf's rules. Freshness alone does not establish successful execution or a managed task's eligibility for Reuse.
