@@ -211,11 +211,24 @@ replacement, and a failed pull leaves a retryable cache miss. Any failed image
 dependency blocks all workflow submissions while inspection still reports
 other Tasks.
 
+Concurrent frontend processes coordinate acquisition separately for each
+reference, including across workflow directories. Waiting planners reuse a
+complete entry published by the owner; they cannot consume its private partial
+output. Failed or interrupted owners leave a retryable miss, and later callers
+can acquire it without manual lock repair. Coordination ownership is released
+when the frontend exits; its external pull process does not keep that ownership.
+The cache filesystem must support atomic file publication and advisory locks
+between the frontend processes sharing it, including across hosts when relevant.
+An interrupted process may leave private temporary files, which are never
+selected as cache entries.
+
 gwflow never evicts published images, including during work cleanup and fresh
 attempts. Users control removal and must keep images stable while jobs use
 them. Removal can affect several workflows; reacquisition can change local
 metadata even for a digest-pinned source, requiring fresh computation under
 the ordinary Input baseline rules. There is no refresh or cache-cleanup command.
+User-initiated removal is not coordinated with workflows or acquisition.
+Sharing a writable cache between different users is outside the supported scope.
 
 Relative images resolve from the Workflow directory, including symlinks and
 paths containing spaces. Each declared image alias is an implicit External

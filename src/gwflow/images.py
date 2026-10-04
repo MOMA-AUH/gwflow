@@ -1,12 +1,14 @@
 """Resolve image dependencies on the frontend and launch local images on workers."""
 
 import csv
+import fcntl
 import hashlib
 import io
 import os
 from pathlib import Path
 import re
 import subprocess
+import sys
 import tempfile
 
 from gwf.exceptions import WorkflowError
@@ -78,6 +80,21 @@ def _acquire(reference, path, locations):
         _readable(path, locations)
         return
     path.parent.mkdir(parents=True, exist_ok=True)
+    # Keep the coordination file: unlinking it could let different callers
+    # lock different inodes for the same entry. Closing the descriptor releases
+    # ownership, including when the frontend is killed; workers do not inherit it.
+    with path.with_suffix(".lock").open("a") as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            print(f"Waiting for image acquisition: {reference}", file=sys.stderr, flush=True)
+            fcntl.flock(lock, fcntl.LOCK_EX)
+        if not os.path.lexists(path):
+            _pull(reference, path, locations)
+        _readable(path, locations)
+
+
+def _pull(reference, path, locations):
     with tempfile.TemporaryDirectory(prefix=".pull-", dir=path.parent) as temporary:
         acquired = Path(temporary) / "image.sif"
         result = subprocess.run(["apptainer", "pull", "--disable-cache", str(acquired), reference],
@@ -88,10 +105,8 @@ def _acquire(reference, path, locations):
         try:
             os.link(acquired, path)
         except FileExistsError:
-            # Another planner may have published a complete image meanwhile.
-            # Coordination of pulls is added separately; never replace an entry.
+            # Never overwrite an entry created outside acquisition coordination.
             pass
-    _readable(path, locations)
 
 
 def resolve(task, structure, locations):
