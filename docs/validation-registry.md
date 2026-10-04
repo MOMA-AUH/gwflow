@@ -7,6 +7,49 @@ and matching frontend/compute CPU architectures. The image cache, installed host
 environment, workflow, and managed storage must be visible at the same absolute
 paths on every execution node.
 
+## Parent acceptance
+
+All five implementation issues for #117 are complete. Each PR passed its
+installed-package and conda CI jobs before merge and received separate Standards
+and Spec reviews with no outstanding findings.
+
+| Issue | Delivered behavior | Merged PR |
+| --- | --- | --- |
+| [#118](https://github.com/MOMA-AUH/gwflow/issues/118) | Local and acquired images share the ordinary Input baseline | [#123](https://github.com/MOMA-AUH/gwflow/pull/123) |
+| [#119](https://github.com/MOMA-AUH/gwflow/issues/119) | Explicit registry references and frontend planning acquisition | [#124](https://github.com/MOMA-AUH/gwflow/pull/124) |
+| [#120](https://github.com/MOMA-AUH/gwflow/issues/120) | Concurrent acquisition and interrupted-owner recovery | [#125](https://github.com/MOMA-AUH/gwflow/pull/125) |
+| [#121](https://github.com/MOMA-AUH/gwflow/issues/121) | Cache-loss recovery, retry, repair, and graph protections | [#126](https://github.com/MOMA-AUH/gwflow/pull/126) |
+| [#122](https://github.com/MOMA-AUH/gwflow/issues/122) | Real local/Slurm acceptance and normalized evidence | [#127](https://github.com/MOMA-AUH/gwflow/pull/127) |
+
+The final implementation revision, `31c7cb92ce6716c452ab872490119c98132e427b`,
+passed [CI run 37216593010](https://github.com/MOMA-AUH/gwflow/actions/runs/37216593010)
+before its squash merge as `b41473f`. The main job passed all 294 tests without
+skips, followed by all 14 real Apptainer acceptance cases. The conda artifact
+passed its 294-test suite with 44 explicit runtime skips and its installed
+packaged smoke test. Those skips are not runtime evidence; the main job and
+recorded real backend runs provide that evidence.
+
+The parent specification's user stories map to these public-interface checks:
+
+| Stories / contract | Behavioral evidence |
+| --- | --- |
+| 1–8: references, per-target selection, implicit boundary, and data staging | [Registry declarations](../tests/test_registry_images.py), [local image baselines and explicit data inputs](../tests/test_containers.py), and [mixed graphs](../tests/test_container_graphs.py) |
+| 9–15: all planning commands, cleaned/filter-independent acquisition, useful blockage, and zero submissions | [Registry planning cases](../tests/test_registry_images.py) and [cleaned recovery snapshots](../tests/test_registry_recovery.py) |
+| 16–24: warm cache, tag stability, missing-only acquisition, sharing, coordination, placement, and cleanup | [Cache behavior](../tests/test_registry_images.py), [concurrent/failing/interrupted frontends](../tests/test_registry_concurrency.py), and the [real acceptance case](../tests/validate_containers.py) |
+| 25–30: preparation, immutable baselines, later metadata/alias/binding changes, and command-tracking independence | [Local image lifecycle gates](../tests/test_containers.py), [ordinary external inputs](../tests/test_inputs.py), and [registry recovery](../tests/test_registry_recovery.py) |
+| 31–36: producer propagation, independent reuse, result preservation, retry/repair, activity guards, and cleaned reuse | [Registry recovery and graphs](../tests/test_registry_recovery.py), [local image recovery](../tests/test_container_recovery.py), and [local image graphs](../tests/test_container_graphs.py) |
+| 37–38: one dependency model and documented limits | [Input-baseline implementation](../src/gwflow/inputs.py), [image decisions](adr/0005-treat-images-as-implicit-external-inputs.md), and [user-facing contracts](../README.md) |
+| Deployment acceptance | [Recorded local/Slurm results](#recorded-run) and [normalized runtime observations](validation-registry-runtime.json) |
+
+The [domain glossary](../CONTEXT.md) and accepted decisions record
+[pre-1.0 simplicity](adr/0001-pre-1-0-development.md),
+[planning-time acquisition](adr/0002-acquire-image-dependencies-during-planning.md),
+[missing-only pulls](adr/0003-pull-registry-images-only-when-missing.md),
+[sharing across workflows](adr/0004-share-acquired-images-across-workflows.md),
+and [images as implicit External inputs](adr/0005-treat-images-as-implicit-external-inputs.md).
+These decisions explain the deliberate inspection side effect and shared lifecycle
+model. No release version or publication is selected by this acceptance.
+
 ## Repeatable acceptance
 
 Install gwflow and the example task packages, and prepare the three existing

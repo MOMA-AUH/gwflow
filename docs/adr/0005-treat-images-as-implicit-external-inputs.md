@@ -1,0 +1,3 @@
+# Treat images as implicit external inputs
+
+Both local and automatically acquired SIF files will be implicit external inputs of their owning Task, using the same input-baseline checks as other external inputs instead of separate image-metadata tracking. Each target retains its image-path binding as declared structure, while image dependencies do not become staged data inputs inside the container. This gives images the ordinary preparation, execution, finishing, and Reuse checks, including after intermediate work has been removed; changed input metadata requires a fresh Task attempt even if the file is older than its outputs.

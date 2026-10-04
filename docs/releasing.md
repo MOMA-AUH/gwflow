@@ -1,5 +1,9 @@
 # Conda release
 
+Before v1.0.0, backward compatibility is not a release constraint; prefer the
+simplest coherent design without compatibility shims or migrations, as recorded
+in the [pre-1.0 development decision](adr/0001-pre-1-0-development.md).
+
 The supported release environment is Python 3.12 and gwf 2.1.1.
 `pyproject.toml` and `conda-recipe/meta.yaml` carry those same bounds.
 The v0.4.0 container profile is Linux local workers and Slurm with
