@@ -18,7 +18,7 @@ import unittest
 
 from gwf.backends.local import Client, LocalStatus
 
-from support import GWF, LocalBackendTestCase
+from support import FIXTURES, GWF, LocalBackendTestCase
 from test_containers import ContainerRuntimeTests
 from test_staging import ContainerStagingTests
 from test_container_graphs import ContainerGraphTests
@@ -56,7 +56,123 @@ class DeploymentTests(LocalBackendTestCase):
             self.assertEqual(version, importlib.metadata.version(name))
 
 
+class RegistryDeploymentTests(LocalBackendTestCase):
+    """Acquire once on the frontend, then exercise real containers on either backend."""
+
+    reference = "docker://docker.io/library/python@sha256:392307d22300de8b5986851a12d9176dfc0fc073e65bf6523ebd7dcbeb23564e"
+    snapshot = ContainerRuntimeTests.snapshot
+
+    def configure_workflow(self):
+        self.cache = self.root / "shared registry images"
+        self.probe = self.work / "image probe"
+        self.probe.mkdir()
+        executable = self.probe / "apptainer"
+        executable.write_text(f"#!{sys.executable}\n" + (FIXTURES / "real_apptainer_probe.py").read_text())
+        executable.chmod(0o755)
+        self.job_environment.update({
+            "GWFLOW_TEST_REAL_APPTAINER": shutil.which("apptainer", path=self.job_environment["PATH"]),
+            "GWFLOW_TEST_IMAGE_PROBE": str(self.probe),
+            "GWFLOW_IMAGE_CACHE": str(self.cache),
+            "PATH": str(self.probe) + os.pathsep + self.job_environment["PATH"],
+        })
+        hold, held, release = (shlex.quote(str(self.work / name)) for name in ("hold", "held", "release"))
+        gate = (f"if [ -e {hold} ]; then touch {held}; "
+                f"for i in $(seq 1 900); do [ -e {release} ] && break; sleep 0.1; done; "
+                f"test -e {release}; fi; printf ready > ready.txt")
+        program = ("import json,os,platform,sys; print(json.dumps({'message':'registry image',"
+                   "'architecture':platform.machine(),'image':os.environ['APPTAINER_CONTAINER'],"
+                   "'python':sys.version}))")
+        command = "python -c " + shlex.quote(program) + " > runtime.json"
+        (self.work / "workflow.py").write_text(
+            "from gwflow import Task, Workflow\ngwf = Workflow()\ntask = Task(inputs=[])\n"
+            "gate = task.target('gate', inputs=[], outputs=['ready.txt'])\n"
+            f"gate << {gate!r}\n"
+            f"compute = task.target('compute', inputs=[gate.output('ready.txt')], outputs=['runtime.json'], image={self.reference!r})\n"
+            f"compute << {command!r}\n"
+            "task.retain('runtime', source=compute.output('runtime.json'), path='runtime.json')\n"
+            "gwf.task_from_template('sample', task)\n"
+        )
+
+    def calls(self, operation):
+        path = self.probe / "calls.jsonl"
+        return [call for call in map(json.loads, path.read_text().splitlines())
+                if call["arguments"][0] == operation]
+
+    def image_observation(self):
+        info = self.image.stat()
+        return {"path": str(self.image), "resolved": str(self.image.resolve()),
+                "size": info.st_size, "mtime_ns": info.st_mtime_ns,
+                "device": info.st_dev, "inode": info.st_ino}
+
+    def check_result(self):
+        result = json.loads((self.work / "results/sample/runtime.json").read_text())
+        self.assertEqual(result["message"], "registry image")
+        self.assertEqual(result["architecture"], platform.machine())
+        self.assertEqual(result["image"], str(self.image))
+        observed = self.image_observation()
+        for call in self.calls("exec"):
+            self.assertEqual(call["architecture"], platform.machine())
+            for field in ("path", "resolved", "size"):
+                self.assertEqual(call["image"][field], observed[field])
+        self.record({"retained_runtime": result, "frontend_image": observed})
+
+    def test_registry_acquisition_warm_execution_cleanup_and_worker_baseline(self):
+        self.cli("status", "--details")
+        self.assertFalse((self.work / ".gwf/gwflow").exists())
+        self.assertFalse((self.work / "work").exists())
+        self.assertFalse((self.work / "results").exists())
+        images = list(self.cache.glob("*.sif"))
+        self.assertEqual(len(images), 1)
+        self.image = images[0]
+        original = self.image_observation()
+        self.assertEqual([call["arguments"][-1] for call in self.calls("pull")], [self.reference])
+        self.assertEqual(self.calls("pull")[0]["node"], platform.node())
+        self.run_complete()
+        self.check_result()
+        self.assertEqual(len(self.calls("exec")), 1)
+        (self.probe / "deny-pull").touch()
+        self.cli("run", "--force")
+        self.finish()
+        self.check_result()
+        self.assertEqual(len(self.calls("exec")), 2)
+        self.cli("clean-work", "--delete")
+        self.assertEqual(self.image_observation(), original)
+        before = self.snapshot()
+        for arguments in (("status", "--details"), ("explain",), ("run", "--dry-run"), ("run",)):
+            output = self.cli(*arguments)
+            self.assertNotIn("Submitted target", output)
+            self.assertEqual(self.snapshot(), before)
+        self.assertEqual(len(self.calls("pull")), 1)
+        (self.work / "hold").touch()
+        self.cli("run", "--force")
+        self.wait_for(lambda: (self.work / "held").exists())
+        try:
+            info = self.image.stat()
+            os.utime(self.image, ns=(info.st_atime_ns, info.st_mtime_ns - 1_000_000_000))
+        finally:
+            (self.work / "release").touch()
+        self.settle()
+        self.assertFalse((self.work / "results/sample/runtime.json").exists())
+        self.assertEqual(len(self.calls("exec")), 2)
+        refusal = self.cli("logs", "sample__compute", "--stderr", "--no-pager")
+        self.assertIn("changed after preparation", refusal)
+        self.record({"worker_baseline_refusal": refusal})
+        self.cli("run")
+        self.settle()
+        self.check_result()
+        self.assertIn("Task sample: reuse;", self.cli("explain"))
+        self.assertEqual(len(self.calls("exec")), 3)
+        self.assertEqual(len(self.calls("pull")), 1)
+        final = self.image_observation()
+        self.cli("clean-work", "--delete")
+        self.assertEqual(self.image_observation(), final)
+        self.assertNotIn("Submitted target", self.cli("run"))
+        self.record({"registry_reference": self.reference, "probe_calls": self.calls("pull") + self.calls("exec"),
+                     "cache_preserved": True, "frontend_image": final})
+
+
 CASES = {
+    "registry": (RegistryDeploymentTests, "test_registry_acquisition_warm_execution_cleanup_and_worker_baseline"),
     "deployment": (DeploymentTests, "test_job_uses_the_installed_validation_environment"),
     "image": (ContainerRuntimeTests, "test_image_software_runs_with_private_scratch_and_reuses_after_cleanup"),
     "overlap": (ContainerStagingTests, "test_source_parent_with_private_work_is_readonly_but_work_and_scratch_are_writable"),
@@ -102,6 +218,7 @@ class RuntimeBackendCase(LocalBackendTestCase):
             if name in ("PATH", "PYTHONPATH", "TMPDIR", "GWFLOW_IMAGE_VALUE", "GWFLOW_TEST_OVERRIDE",
                         "APPTAINER_BIND", "APPTAINER_BINDPATH", "APPTAINER_NO_MOUNT",
                         "APPTAINER_CONFIGDIR", "APPTAINER_CACHEDIR", "APPTAINERENV_TMPDIR",
+                        "GWFLOW_IMAGE_CACHE", "GWFLOW_TEST_IMAGE_PROBE", "GWFLOW_TEST_REAL_APPTAINER",
                         "APPTAINERENV_GWFLOW_TEST_OVERRIDE", "SINGULARITY_BIND", "SINGULARITY_BINDPATH",
                         "SINGULARITYENV_TMPDIR", "SINGULARITYENV_GWFLOW_TEST_OVERRIDE")
         }})
@@ -133,7 +250,7 @@ class RuntimeBackendCase(LocalBackendTestCase):
                 images[str(path)] = {"resolved": str(path.resolve()), "size": info.st_size,
                                      "mtime_ns": info.st_mtime_ns}
         result = subprocess.run([GWF, *args], cwd=self.work, env=env or self.job_environment,
-                                capture_output=True, text=True, timeout=60)
+                                capture_output=True, text=True, timeout=self.timeout)
         output = result.stdout + result.stderr
         self.jobs.update(re.findall(r"Backend job: (\d+)", output))
         self.record({"command": [GWF, *args], "exit": result.returncode,
@@ -217,7 +334,7 @@ def main():
     parser.add_argument("--backend", choices=("local", "slurm"), required=True)
     parser.add_argument("--root", type=Path, required=True, help="New evidence directory on job-visible storage")
     parser.add_argument("--queue", default="short", help="Site Slurm partition (gwf queue option)")
-    parser.add_argument("--timeout", type=int, default=600, help="Seconds per wait; no automatic cancellation")
+    parser.add_argument("--timeout", type=int, default=600, help="Seconds per command/wait; no automatic cancellation")
     parser.add_argument("--case", action="append", choices=CASES, help="Run selected cases; default is all")
     args = parser.parse_args()
     if sys.version_info[:2] != (3, 12) or importlib.metadata.version("gwf") != "2.1.1":
@@ -238,7 +355,8 @@ def main():
     scratch.mkdir()
     tempfile.tempdir = str(scratch)
     metadata = {"backend": args.backend, "platform": platform.platform(), "python": sys.version,
-                "frontend_node": platform.node(), "frontend_device": root.stat().st_dev,
+                "frontend_node": platform.node(), "frontend_architecture": platform.machine(),
+                "frontend_device": root.stat().st_dev,
                 "apptainer": version, "apptainer_path": shutil.which("apptainer"),
                 "packages": {name: importlib.metadata.version(name) for name in
                              ("gwf", "gwflow", "gwflow-summary-task", "gwflow-report-task")}}
