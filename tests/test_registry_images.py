@@ -33,7 +33,9 @@ class RegistryAuthoringTests(unittest.TestCase):
                           "docker://tools/UPPER", "docker://tools/demo:", "docker://tools/demo@sha256:bad",
                           "docker://user:password@example.org/demo", "https://example.org/demo.sif",
                           "library://tools/demo", "docker:/demo", "docker://demo?tag=one",
-                          "docker://tools/demo@sha256:" + "a" * 32):
+                          "docker://tools/demo@sha256:" + "a" * 32,
+                          "docker://tools/demo@unknown:" + "a" * 64,
+                          "docker://tools/demo@SHA256:" + "a" * 64):
             with self.subTest(reference=reference), self.assertRaises(WorkflowError):
                 Task(inputs=[]).target("compute", inputs=[], outputs=["out"], image=reference)
 

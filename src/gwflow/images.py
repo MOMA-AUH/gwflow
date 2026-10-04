@@ -41,7 +41,9 @@ def reference(value):
         if "@" in value:
             algorithm, encoded = value.rsplit("@", 1)[1].split(":", 1)
             length = {"sha256": 64, "sha384": 96, "sha512": 128}.get(algorithm)
-            if length is not None and (len(encoded) != length or encoded != encoded.lower()):
+            if length is None:
+                raise WorkflowError(f"Unsupported image digest algorithm: {algorithm!r}")
+            if len(encoded) != length or encoded != encoded.lower():
                 raise WorkflowError(f"Malformed {algorithm} image digest: {value!r}")
         return value
     if "://" in value or re.match(r"^[A-Za-z][A-Za-z0-9+.-]*:/", value):
