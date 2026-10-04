@@ -277,7 +277,10 @@ The frontend and computation nodes must see the image, inputs, and managed
 storage. The supported validation profile is Linux local workers and Slurm,
 Python 3.12, gwf 2.1.1, and Apptainer 1.5.4. See the
 [container validation instructions](docs/validation-v0.4.0.md) for the tested
-deployment and repeatable checks. Configure the same shared storage paths on all
+deployment and repeatable checks, and the
+[registry acceptance record](docs/validation-registry.md) for frontend acquisition,
+warm-cache execution, and worker baseline enforcement on both backends.
+Configure the same shared storage paths on all
 hosts. Local device numbers may differ, including on BeeGFS clients; gwflow does
 not compare them across hosts. Directory inode numbers are used within those
 trusted locations to recognize interrupted transfers and recorded work.
