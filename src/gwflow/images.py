@@ -90,13 +90,18 @@ def _acquire(reference, path, locations):
             print(f"Waiting for image acquisition: {reference}", file=sys.stderr, flush=True)
             fcntl.flock(lock, fcntl.LOCK_EX)
         if not os.path.lexists(path):
-            _pull(reference, path, locations)
+            try:
+                _pull(reference, path, locations)
+            except (WorkflowError, OSError, RuntimeError) as error:
+                print(f"Failed to pull image: {reference}: {error}", file=sys.stderr, flush=True)
+                raise
         _readable(path, locations)
 
 
 def _pull(reference, path, locations):
     with tempfile.TemporaryDirectory(prefix=".pull-", dir=path.parent) as temporary:
         acquired = Path(temporary) / "image.sif"
+        print(f"Pulling image: {reference}", file=sys.stderr, flush=True)
         result = subprocess.run(["apptainer", "pull", "--disable-cache", str(acquired), reference],
                                 capture_output=True, text=True)
         if result.returncode:
@@ -107,6 +112,7 @@ def _pull(reference, path, locations):
         except FileExistsError:
             # Never overwrite an entry created outside acquisition coordination.
             pass
+    print(f"Pulled image: {reference}", file=sys.stderr, flush=True)
 
 
 def resolve(task, structure, locations):

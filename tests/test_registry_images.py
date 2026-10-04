@@ -98,6 +98,27 @@ class RegistryTestCase(LocalBackendTestCase):
 
 
 class RegistryImageTests(RegistryTestCase):
+    def test_status_reports_pull_before_acquisition_finishes(self):
+        self.options(gate="progress")
+        progress = self.work / "pull-progress.log"
+        with progress.open("w") as stream, subprocess.Popen(
+            [GWF, "status"], cwd=self.work, stdout=subprocess.PIPE, stderr=stream, text=True,
+        ) as process:
+            try:
+                self.wait_for(lambda: (self.controller / "progress-held").exists())
+                self.assertIsNone(process.poll())
+                self.assertEqual(progress.read_text(), f"Pulling image: {self.reference}\n")
+                self.assertEqual(self.cached_images(), [])
+            finally:
+                (self.controller / "progress-release").touch()
+            output, _ = process.communicate(timeout=30)
+        self.assertEqual(process.returncode, 0, output + progress.read_text())
+        self.assertEqual(progress.read_text(),
+                         f"Pulling image: {self.reference}\nPulled image: {self.reference}\n")
+        self.assertNotIn("Pulling image:", output)
+        self.assertNotIn("Pulled image:", output)
+        self.assertEqual(len(self.cached_images()), 1)
+
     def test_status_acquires_missing_image_without_task_state(self):
         declaration = subprocess.run([sys.executable, "workflow.py"], cwd=self.work,
                                      capture_output=True, text=True, timeout=30)
@@ -120,7 +141,9 @@ class RegistryImageTests(RegistryTestCase):
                 # bytecode cache even when CI rewrites within one clock tick.
                 reference = "docker://example.org/tool:v" + "1" * (index + 1)
                 self.configure_workflow(reference)
-                self.cli(*arguments)
+                output = self.cli(*arguments)
+                self.assertIn(f"Pulling image: {reference}", output)
+                self.assertIn(f"Pulled image: {reference}", output)
                 self.assertEqual(self.calls("pull")[-1]["reference"], reference)
                 self.assertEqual(len(self.calls("pull")), index + 1)
                 if arguments == ("run",):
@@ -146,6 +169,9 @@ class RegistryImageTests(RegistryTestCase):
             output = self.cli(*arguments, env=environment)
             self.assertNotIn("blocked", output)
             self.assertNotIn("Submitted target", output)
+            self.assertNotIn("Pulling image:", output)
+            self.assertNotIn("Pulled image:", output)
+            self.assertNotIn("Failed to pull image:", output)
             self.assertEqual(self.snapshot(), before)
         self.assertEqual(len(self.calls("pull")), 1)
         self.assertEqual((image.read_bytes(), image.stat().st_mtime_ns), original)
@@ -153,11 +179,18 @@ class RegistryImageTests(RegistryTestCase):
     def test_pull_failure_blocks_every_submission_and_can_retry(self):
         self.configure_workflow(other=True)
         self.options(fail=True)
-        for arguments, success in ((("status", "--details"), True), (("explain",), True),
+        for arguments, success in ((("status",), True), (("explain",), True),
                                    (("run", "--dry-run"), False), (("run",), False)):
-            output = self.cli(*arguments, success=success)
+            result = subprocess.run([GWF, *arguments], cwd=self.work,
+                                    capture_output=True, text=True, timeout=30)
+            output = result.stdout + result.stderr
+            self.assertEqual(result.returncode == 0, success, output)
+            self.assertIn(f"Failed to pull image: {self.reference}", result.stderr)
+            self.assertIn("Apptainer pull failed (exit 1): fixture registry unavailable", result.stderr)
             for diagnostic in ("sample", "compute", self.reference, "fixture registry unavailable", "independent"):
                 self.assertIn(diagnostic, output)
+            self.assertIn(f"Pulling image: {self.reference}", output)
+            self.assertNotIn("Pulled image:", output)
             self.assertNotIn("Submitted target", output)
             self.assertFalse((self.work / ".gwf/gwflow").exists())
             self.assertFalse(self.cached_images())
@@ -171,6 +204,8 @@ class RegistryImageTests(RegistryTestCase):
         output = self.cli("run", env=environment, success=False)
         self.assertIn("apptainer", output)
         self.assertIn(self.reference, output)
+        self.assertIn(f"Failed to pull image: {self.reference}", output)
+        self.assertNotIn("Pulled image:", output)
         self.assertNotIn("Submitted target", output)
         self.assertFalse(self.cached_images())
 
