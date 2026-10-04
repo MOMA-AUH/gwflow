@@ -39,6 +39,8 @@ if arguments[0] == "pull":
         shutil.copyfile(source, destination)
     else:
         destination.write_text(options.get("content", "fixture image\n"))
+    if "mtime_ns" in options:
+        os.utime(destination, ns=(destination.stat().st_atime_ns, options["mtime_ns"]))
     record(operation="pull-success", reference=reference)
 elif arguments[0] == "exec":
     command = arguments.index("/bin/bash")
