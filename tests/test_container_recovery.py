@@ -56,7 +56,7 @@ class ContainerRecoveryTests(LocalBackendTestCase):
 
     def preview(self, reason):
         before = self.snapshot()
-        for arguments in (("explain",), ("status", "--details"), ("run", "--dry-run")):
+        for arguments in (("explain", "--details"), ("status", "--details"), ("run", "--dry-run", "--details")):
             self.assertIn(reason, self.cli(*arguments))
             self.assertEqual(self.snapshot(), before)
 
@@ -201,7 +201,7 @@ class ContainerRecoveryTests(LocalBackendTestCase):
         result.write_text("protected damaged result")
         before = self.snapshot()
         env = self.inject(running_prefix="sample")
-        for arguments in (("explain",), ("status", "--details"), ("run", "--dry-run"), ("run",)):
+        for arguments in (("explain", "--details"), ("status", "--details"), ("run", "--dry-run", "--details"), ("run", "--details")):
             output = self.cli("-b", "recovery_fixture", *arguments, env=env)
             self.assertIn("queued/running work", output)
             self.assertNotIn("Submitted target", output)

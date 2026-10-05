@@ -1,6 +1,5 @@
 """Initialize and admit only the jobs selected by a managed lifecycle plan."""
 
-import logging
 import os
 import shlex
 import sys
@@ -12,12 +11,8 @@ from gwf.exceptions import WorkflowError
 
 from . import _files, admission, transfer
 from .lifecycle import producer_names
-from .inspection import action_line, blockage_line
 
 from .workflow import lifecycle_jobs
-
-
-logger = logging.getLogger(__name__)
 
 
 def _job(store, attempt, local, workflow, intent):
@@ -54,17 +49,9 @@ def _log_aliases(working_dir, public_name, job_name):
 
 
 def submit_plan(plan, workflow, ctx, *, dry_run):
-    for task in plan.tasks:
-        logger.info(action_line(task))
     if plan.blocked:
-        logger.info(blockage_line(plan))
         raise WorkflowError("; ".join(f"Task {task.name}: {task.reason}" for task in plan.blocked))
     if dry_run:
-        for task in plan.tasks:
-            for local in task.pending:
-                logger.info("Would submit %s__%s", task.name, local)
-            if task.action == "prepare":
-                logger.info("Would restart preparation in the same attempt")
         return
     replacements = [task for task in plan.tasks if task.action in ("fresh", "initialize") and task.attempt is not None]
     transfers = [task for task in plan.tasks if task.action in ("transfer", "repair")]
@@ -82,7 +69,7 @@ def submit_plan(plan, workflow, ctx, *, dry_run):
                 if task.action == "transfer":
                     transfer.inspect(plan.store, task.attempt)
                 elif task.action == "repair":
-                    transfer.repair_sources(plan.store, task.attempt)
+                    transfer.inspect_repair(plan.store, task.attempt)
                 elif plan.store.result_removal(task.attempt) != task.removal:
                     raise WorkflowError(f"Task {task.name}: results ownership changed after planning")
             if recreate:
@@ -106,7 +93,7 @@ def submit_plan(plan, workflow, ctx, *, dry_run):
             elif task.action == "initialize":
                 attempt = plan.store.finish_initialization(attempt)
             elif task.action == "repair":
-                attempt = plan.store.start_repair(attempt, transfer.repair_sources(plan.store, attempt))
+                attempt = plan.store.start_repair(attempt, transfer.inspect_repair(plan.store, attempt).sources)
             selected.append((task, attempt))
     if not selected:
         return

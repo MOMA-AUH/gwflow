@@ -149,14 +149,22 @@ in all four command routes.
 Managed workflows use this Task presentation; `--format` modes are reserved for
 ordinary gwf workflows, which retain their original formats and selection rules.
 
-`gwf explain` and `gwf run --dry-run` report the same lifecycle decisions used by
-run: Reuse, same-attempt retry or preparation, submission continuation, transfer,
-repair, fresh computation, and deferred decisions. Reasons identify changed input
-paths and metadata fields, declared structure, commands, and producer identities.
-Fresh plans disclose previous-result removal. A fresh UUID is allocated only by
-run; the detailed view identifies an existing attempt separately from that plan.
-If any Task blocks submission, the whole-workflow preview says no jobs will be
-submitted, even if other Tasks have pending work.
+`gwf explain`, `gwf run --dry-run`, and `gwf run` print the same intended
+**Task / Next action / Why** plan to stdout. Actions are Run, Continue, Retry,
+Finish, Repair, Reuse, Wait, Defer, or Blocked. Reasons summarize the planned
+treatment; `--details` exposes changed input paths and metadata fields, commands,
+producer identities, and individual planned submissions. Current job states
+remain separate from next actions: a failed completion job can need Finish,
+and a failed consumer can need Defer until upstream results recover.
+
+Plans prominently disclose previous retained-result removal, including Repair
+and transfer recovery that will replace existing results. Dry-run and
+blocked notices use conditional wording, and required notices always wrap in
+full. A fresh UUID is allocated only by run; details identify an existing
+attempt separately from that plan. If any Task blocks submission, the report
+says **Workflow blocked — no new jobs will be submitted** while preserving the
+other Tasks' intended actions. Blocked status and explain remain successful
+inspections; blocked run and dry-run return an error before submission.
 
 Use `gwf explain TASK` or `gwf status TASK` to narrow the display. These filters
 still validate and plan the entire workflow. Explain accepts the same `--force`

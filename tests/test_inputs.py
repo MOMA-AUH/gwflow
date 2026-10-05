@@ -50,7 +50,7 @@ class ExternalInputTests(LocalBackendTestCase):
         source = self.work / "input.txt"
         source.chmod(0)
         try:
-            self.assertIn("Task sample: reuse;", self.cli("explain"))
+            self.assertRegex(self.cli("explain"), r"Task sample\s+Reuse\s+")
             self.assertNotIn("Submitted target", self.cli("run"))
         finally:
             source.chmod(0o600)
@@ -71,7 +71,7 @@ class ExternalInputTests(LocalBackendTestCase):
             (self.work / "preparation-release").touch()
         self.finish()
         self.assertEqual((self.work / "results/sample/result.txt").read_text(), "changed before preparation\n")
-        self.assertIn("reuse", self.cli("explain"))
+        self.assertIn("Reuse", self.cli("explain"))
 
     def test_changed_input_immediately_before_installation_prevents_completion(self):
         env = self.fault(job="gwflow_complete", gate_after_manifest=True)
@@ -98,7 +98,7 @@ class ExternalInputTests(LocalBackendTestCase):
         self.settle()
         self.assertEqual((self.work / "results/sample/result.txt").read_text(), "baseline was not committed\n")
         self.assertIn(attempt_line, self.cli("explain", "--details"))
-        self.assertIn("reuse", self.cli("explain"))
+        self.assertIn("Reuse", self.cli("explain"))
 
     def test_retry_never_replaces_a_committed_baseline(self):
         env = self.fault(crash_after_baseline=True)
@@ -115,7 +115,7 @@ class ExternalInputTests(LocalBackendTestCase):
         self.cli("run")
         self.settle()
         self.assertEqual((self.work / "results/sample/result.txt").read_bytes(), original)
-        self.assertIn("reuse", self.cli("explain"))
+        self.assertIn("Reuse", self.cli("explain"))
         # Fault injection intentionally locates a record by kind; user behavior
         # above establishes its meaning, this check enforces immutability.
         baselines = [path for path, content in evidence.items() if json.loads(content).get("kind") == "gwflow.inputs"]
@@ -139,7 +139,7 @@ class ExternalInputTests(LocalBackendTestCase):
         # Deliberately document the accepted metadata-only detection limit.
         source.write_bytes(b"other\n")
         os.utime(source, ns=(info.st_atime_ns, info.st_mtime_ns))
-        self.assertIn("reuse", self.cli("explain"))
+        self.assertIn("Reuse", self.cli("explain"))
         self.assertEqual((self.work / "results/sample/result.txt").read_bytes(), original)
 
     def test_equal_metadata_symlink_retarget_after_preparation_blocks_computation(self):
@@ -210,7 +210,7 @@ class ExternalInputTests(LocalBackendTestCase):
     def test_disappeared_input_requires_fresh_attempt_without_changing_completion(self):
         self.run_complete()
         (self.work / "input.txt").unlink()
-        self.assertIn("fresh attempt", self.cli("explain"))
+        self.assertIn("external input unavailable", self.cli("explain"))
         self.assertIn("fresh attempt", self.cli("run", success=False))
         self.assertEqual((self.work / "results/sample/result.txt").read_text(), "hello\n")
 
@@ -233,7 +233,7 @@ class ExternalInputTests(LocalBackendTestCase):
         self.cli("-b", "recovery_fixture", "run", env=env, success=False)
         self.wait_for(lambda: (self.work / "preparation-held").exists())
         try:
-            self.assertIn("unresolved submission", self.cli("explain"))
+            self.assertIn("submission outcome unknown", self.cli("explain"))
             self.assertIn("unresolved submission", self.cli("run", success=False))
         finally:
             (self.work / "preparation-release").touch()

@@ -93,7 +93,7 @@ class TaskPresentationTests(LocalBackendTestCase):
         for options in ((), ("--plain",)):
             output = self.terminal_cli("--no-color", "status", *options, width=32).stdout
             compact = re.sub(r"[\s│]", "", output)
-            self.assertIn("Nojobswillbesubmitted;blockedTasks:" + name, compact)
+            self.assertIn("Workflowblocked—nonewjobswillbesubmitted.BlockedTasks:" + name, compact)
             self.assertIn("?/5", output)
             self.assertNotIn("━", output)
 

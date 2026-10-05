@@ -1,6 +1,7 @@
 """Explicit inactive-attempt cleanup through the public CLI."""
 
 from collections import Counter
+import re
 import json
 import shlex
 import subprocess
@@ -55,7 +56,7 @@ class ExplicitCleanupTests(LocalBackendTestCase):
         self.cli("run")
         self.settle()
         previous = self.attempt("sample")
-        self.assertIn("Task sample: retry;", self.cli("explain"))
+        self.assertRegex(self.cli("explain"), r"Task sample\s+Retry\s+")
         self.assertEqual(Counter((self.work / "trace").read_text().splitlines()), {"left": 1, "right": 1})
         logs = self.cli("logs", "sample__right", "--no-pager")
         self.assertIn("failure-diagnostic", logs)
@@ -63,7 +64,7 @@ class ExplicitCleanupTests(LocalBackendTestCase):
         self.assertFalse((self.work / "work/sample" / previous).exists())
         self.assertEqual(self.cli("logs", "sample__right", "--no-pager"), logs)
         self.assertEqual((self.work / "input.txt").read_text(), "hello\n")
-        self.assertIn("Task sample: fresh;", self.cli("explain"))
+        self.assertRegex(self.cli("explain"), r"Task sample\s+Run\s+")
         failing.unlink()
         self.cli("run")
         self.settle()
@@ -94,7 +95,7 @@ class ExplicitCleanupTests(LocalBackendTestCase):
         self.cli("run")
         self.wait_for(held.exists)
         try:
-            self.wait_for(lambda: "Task b: reuse;" in self.cli("explain", "b"))
+            self.wait_for(lambda: re.search(r"Task b\s+Reuse\s+", self.cli("explain", "b")))
             a, b = self.attempt("a"), self.attempt("b")
             preview = self.cli("clean-work", "--attempt", a)
             self.assertIn(f"Task a attempt {a}: blocked; active work", preview)
@@ -120,8 +121,8 @@ class ExplicitCleanupTests(LocalBackendTestCase):
         self.cli("-b", "recovery_fixture", "run", env=self.inject(reject_before_admission=True), success=False)
         a, b = self.attempt("a"), self.attempt("b")
         self.cli("clean-work", "--delete", "--attempt", a, "--attempt", b)
-        self.assertIn("Task a: fresh;", self.cli("explain"))
-        self.assertIn("Task b: fresh;", self.cli("explain"))
+        self.assertRegex(self.cli("explain"), r"Task a\s+Run\s+")
+        self.assertRegex(self.cli("explain"), r"Task b\s+Run\s+")
         self.run_complete()
         self.assertNotEqual(self.attempt("a"), a)
         self.assertNotEqual(self.attempt("b"), b)
@@ -138,7 +139,7 @@ class ExplicitCleanupTests(LocalBackendTestCase):
                         if json.loads(path.read_text())["attempt"] == attempt)
         baseline.write_text("{")
         self.cli("clean-work", "--delete", "--attempt", attempt)
-        self.assertIn("Task a: fresh;", self.cli("explain"))
+        self.assertRegex(self.cli("explain"), r"Task a\s+Run\s+")
         (self.work / "input.txt").unlink()
         self.assertIn("Cannot observe external input", self.cli("run", success=False))
         self.assertEqual(Counter((self.work / "trace").read_text().splitlines()), {"a": 1, "b": 1})
@@ -166,7 +167,7 @@ class ExplicitCleanupTests(LocalBackendTestCase):
                     "clean-work", "--delete", "--attempt", attempt,
                 ], cwd=self.work, capture_output=True, text=True, timeout=30)
                 self.assertIn(outcome.returncode, (102, 103, 104, 105), outcome.stdout + outcome.stderr)
-                self.assertIn("Task b: fresh;", self.cli("explain"))
+                self.assertRegex(self.cli("explain"), r"Task b\s+Run\s+")
                 self.cli("clean-work", "--delete", "--attempt", attempt)
                 self.assertFalse((self.work / "work/b" / attempt).exists())
                 self.assertIn("already removed", self.cli("clean-work", "--delete", "--attempt", attempt))
@@ -183,12 +184,12 @@ class ExplicitCleanupTests(LocalBackendTestCase):
         attempt = self.attempt("a")
         result = self.work / "results/a/result.txt"
         result.write_text("manually edited")
-        self.assertIn("Task a: repair;", self.cli("explain"))
+        self.assertRegex(self.cli("explain"), r"Task a\s+Repair\s+")
         preview = self.cli("clean-work", "--attempt", attempt)
         self.assertIn("repair sources", preview)
         self.cli("clean-work", "--delete", "--attempt", attempt)
         self.assertEqual(result.read_text(), "manually edited")
-        self.assertIn("Task a: fresh;", self.cli("explain"))
+        self.assertRegex(self.cli("explain"), r"Task a\s+Run\s+")
         self.run_complete()
         self.assertNotEqual(self.attempt("a"), attempt)
         self.assertEqual(result.read_text(), "a")
@@ -224,7 +225,7 @@ class ExplicitStagingCleanupTests(LocalBackendTestCase):
         self.cli("-b", "recovery_fixture", "run", env=self.fault(crash_during_copy=True))
         self.settle()
         attempt = self.attempt("a")
-        self.assertIn("Task a: transfer;", self.cli("explain"))
+        self.assertRegex(self.cli("explain"), r"Task a\s+Finish\s+")
         self.assertIn("keep", self.cli("clean-work"))
         preview = self.cli("clean-work", "--attempt", attempt)
         self.assertIn("eligible", preview)
@@ -234,7 +235,7 @@ class ExplicitStagingCleanupTests(LocalBackendTestCase):
         self.cli("clean-work", "--delete", "--attempt", attempt)
         self.assertTrue(all(not path.exists() for path in leftovers))
         self.assertFalse((self.work / "work/a" / attempt).exists())
-        self.assertIn("Task a: fresh;", self.cli("explain"))
+        self.assertRegex(self.cli("explain"), r"Task a\s+Run\s+")
         self.cli("run")
         self.settle()
         self.assertNotEqual(self.attempt("a"), attempt)

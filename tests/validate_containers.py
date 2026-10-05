@@ -160,7 +160,7 @@ class RegistryDeploymentTests(LocalBackendTestCase):
         self.cli("run")
         self.settle()
         self.check_result()
-        self.assertIn("Task sample: reuse;", self.cli("explain"))
+        self.assertRegex(self.cli("explain"), r"Task sample\s+Reuse\s+")
         self.assertEqual(len(self.calls("exec")), 3)
         self.assertEqual(len(self.calls("pull")), 1)
         final = self.image_observation()

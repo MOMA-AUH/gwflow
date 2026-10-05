@@ -3,12 +3,9 @@
 from .workflow import lifecycle_jobs
 
 
-def action_line(task):
-    return f"Task {task.name}: {task.action}; {task.reason}"
-
-
 def blockage_line(plan):
-    return "No jobs will be submitted; blocked Tasks: " + ", ".join(task.name for task in plan.blocked)
+    return ("Workflow blocked — no new jobs will be submitted. Blocked Tasks: "
+            + ", ".join(task.name for task in plan.blocked))
 
 
 def condition(task):

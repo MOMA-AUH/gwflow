@@ -78,7 +78,7 @@ class ContainerGraphTests(LocalBackendTestCase):
 
     def assert_blocked_without_changes(self, reason, *, backend=(), env=None):
         before = self.snapshot()
-        for arguments, success in ((("explain",), True), (("status", "--details"), True),
+        for arguments, success in ((("explain", "--details"), True), (("status", "--details"), True),
                                    (("run", "--dry-run"), False), (("run",), False)):
             self.assertIn(reason, self.cli(*backend, *arguments, env=env, success=success))
             self.assertEqual(self.snapshot(), before)
@@ -112,7 +112,7 @@ class ContainerGraphTests(LocalBackendTestCase):
         result = self.work / "results/producer/result.txt"
         info = result.stat()
         self.change_image()
-        for arguments in (("explain",), ("status", "--details"), ("run", "--dry-run")):
+        for arguments in (("explain", "--details"), ("status", "--details"), ("run", "--dry-run", "--details")):
             preview = self.cli(*arguments)
             self.assertIn("input metadata changed", preview)
             if arguments[0] == "status":
@@ -120,9 +120,9 @@ class ContainerGraphTests(LocalBackendTestCase):
                 self.assertRegex(preview, r"Task consumer\s+pending\s+0/3\s+fresh attempt required")
                 self.assertRegex(preview, r"Task independent\s+reusable")
             else:
-                self.assertIn("Task producer: fresh;", preview)
-                self.assertIn("Task consumer: fresh;", preview)
-                self.assertIn("Task independent: reuse;", preview)
+                self.assertRegex(preview, r"Task producer\s+Run\s+")
+                self.assertRegex(preview, r"Task consumer\s+Run\s+")
+                self.assertRegex(preview, r"Task independent\s+Reuse\s+")
             self.assertEqual(result.read_text(), "start:first:second")
             self.assertEqual(self.attempts(), before)
         self.run_complete()
