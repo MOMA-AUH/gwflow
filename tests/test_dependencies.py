@@ -49,7 +49,7 @@ class TaskDependencyTests(LocalBackendTestCase):
         self.assertEqual(Counter((self.work / "trace").read_text().splitlines()), {"producer": 2, "consumer": 1})
         for name in ("a", "b"):
             self.assertFalse((self.work / "work" / name).exists())
-        self.assertEqual(self.cli("explain").count(": reuse;"), 3)
+        self.assertEqual(self.cli("explain").count("Reuse"), 3)
         self.cli("run")
         self.assertEqual(Counter((self.work / "trace").read_text().splitlines()), {"producer": 2, "consumer": 1})
 

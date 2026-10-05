@@ -69,7 +69,7 @@ def submit_plan(plan, workflow, ctx, *, dry_run):
                 if task.action == "transfer":
                     transfer.inspect(plan.store, task.attempt)
                 elif task.action == "repair":
-                    transfer.repair_sources(plan.store, task.attempt)
+                    transfer.inspect_repair(plan.store, task.attempt)
                 elif plan.store.result_removal(task.attempt) != task.removal:
                     raise WorkflowError(f"Task {task.name}: results ownership changed after planning")
             if recreate:
@@ -93,7 +93,7 @@ def submit_plan(plan, workflow, ctx, *, dry_run):
             elif task.action == "initialize":
                 attempt = plan.store.finish_initialization(attempt)
             elif task.action == "repair":
-                attempt = plan.store.start_repair(attempt, transfer.repair_sources(plan.store, attempt))
+                attempt = plan.store.start_repair(attempt, transfer.inspect_repair(plan.store, attempt).sources)
             selected.append((task, attempt))
     if not selected:
         return

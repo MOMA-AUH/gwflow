@@ -210,7 +210,7 @@ class ExternalInputTests(LocalBackendTestCase):
     def test_disappeared_input_requires_fresh_attempt_without_changing_completion(self):
         self.run_complete()
         (self.work / "input.txt").unlink()
-        self.assertIn("fresh attempt", self.cli("explain"))
+        self.assertIn("external input unavailable", self.cli("explain"))
         self.assertIn("fresh attempt", self.cli("run", success=False))
         self.assertEqual((self.work / "results/sample/result.txt").read_text(), "hello\n")
 

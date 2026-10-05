@@ -4,11 +4,15 @@ import re
 
 from support import LocalBackendTestCase
 import test_fresh
+import test_graphs
+import test_transfer
 
 
 class TaskPlanTests(LocalBackendTestCase):
     configure_workflow = test_fresh.FreshAttemptTests.configure_workflow
     settle = test_fresh.FreshAttemptTests.settle
+    inject = test_fresh.FreshAttemptTests.inject
+    fault = test_transfer.TransferRecoveryTests.fault
 
     def test_fresh_explanation_dry_run_and_run_share_the_same_compact_plan(self):
         explanation = self.cli_result("explain")
@@ -67,3 +71,35 @@ class TaskPlanTests(LocalBackendTestCase):
         for width in (32, 100):
             output = self.terminal_cli("--no-color", "explain", width=width).stdout
             self.assertIn("run again after upstream result recovery", " ".join(output.split()))
+
+    def test_retry_keeps_queued_completion_followup_visible(self):
+        test_graphs.TaskGraphTests.configure_workflow(self, right_command="exit 8")
+        self.cli("run")
+        self.settle()
+        environment = self.inject(queued_prefix="sample__gwflow_complete")
+        output = self.cli_result("-b", "recovery_fixture", "explain", env=environment).stdout
+        self.assertRegex(output, r"Task sample\s+Retry\s+")
+        for width in (32, 100):
+            output = self.terminal_cli("--no-color", "-b", "recovery_fixture", "explain",
+                                       width=width, env=environment).stdout
+            self.assertIn("run again after the queued completion job settles", " ".join(output.split()))
+
+    def test_repair_and_transfer_disclose_only_removal_still_needed(self):
+        self.run_complete()
+        (self.work / "results/a/result.txt").write_text("manual edit")
+        preview = self.cli_result("explain").stdout
+        self.assertRegex(preview, r"Task a\s+Repair\s+")
+        self.assertIn("Would remove previous retained results for Tasks: a", preview)
+        actual = self.cli_result("-b", "recovery_fixture", "run",
+                                 env=self.fault(crash_before_installation_intent=True)).stdout
+        self.assertIn("Will remove previous retained results for Tasks: a", actual)
+        self.assertNotIn("before submitting", actual)
+        self.settle()
+        preview = self.cli_result("explain").stdout
+        self.assertRegex(preview, r"Task a\s+Finish\s+")
+        self.assertIn("Would remove previous retained results for Tasks: a", preview)
+        self.cli("-b", "recovery_fixture", "run", env=self.fault(crash_after_results_install=True))
+        self.settle()
+        preview = self.cli_result("explain").stdout
+        self.assertRegex(preview, r"Task a\s+Finish\s+")
+        self.assertNotIn("Would remove", preview)

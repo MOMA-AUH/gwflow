@@ -62,14 +62,20 @@ def _sources(store, attempt, *, check_files):
         raise InvalidSources(f"Invalid transfer source: {error}") from error
 
 
-def repair_sources(store, attempt):
+@dataclass
+class RepairObservation:
+    sources: dict
+    removal: dict | None
+
+
+def inspect_repair(store, attempt):
     """Establish repair eligibility before invalidating the previous Completion."""
     store.validate_roots()
     if store.cleanup_record(attempt) is not None:
         raise InvalidSources("Work is marked for cleanup; repair requires fresh computation")
     store.check_inputs(attempt)
-    store.result_removal(attempt)
-    return _sources(store, attempt, check_files=True)
+    removal = store.result_removal(attempt)
+    return RepairObservation(_sources(store, attempt, check_files=True), removal)
 
 
 def _installation(store, attempt, manifest):

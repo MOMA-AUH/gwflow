@@ -143,6 +143,11 @@ def blocking_reason(reason):
     return reason
 
 
+def needs_later_finish(task):
+    finishing = task.submissions.get("gwflow_complete")
+    return task.action == "retry" and finishing is not None and finishing.state == "active"
+
+
 def plan_reason(task):
     """Keep the treatment legible; full planner diagnostics remain in details."""
     if task.action == "blocked":
@@ -153,10 +158,10 @@ def plan_reason(task):
             return "image unavailable; check image access"
         return "validation prevents proceeding; see --details"
     if task.action == "fresh":
-        return task.reason.split(";", 1)[0].split(":", 1)[0]
+        return task.reason.split(";", 1)[0].split(":", 1)[0] + "; fresh attempt required"
     if task.action == "retry":
         reason = "repeat failed, canceled, or invalid jobs; retain valid completed work"
-        if "run again afterward" in task.reason:
+        if needs_later_finish(task):
             reason += "; run again after the queued completion job settles"
         return reason
     return {
@@ -321,7 +326,7 @@ class Report:
             message = ("Would remove" if preview or plan.blocked else "Will remove")
             message += " previous retained results for Tasks: " + ", ".join(removal)
             message += (" if the blocked plan can proceed." if plan.blocked else
-                        " when this plan is run." if preview else " before submitting replacement work.")
+                        " when this plan is run." if preview else " during execution of this plan.")
             self.notice(message)
         table = Table(box=box.SIMPLE_HEAD, expand=True, padding=(0, 1))
         table.add_column("Task", ratio=2, min_width=12)
@@ -334,15 +339,16 @@ class Report:
             task = row.task
             action = NEXT_ACTIONS[task.action]
             reason = plan_reason(task)
+            complete = task.action == "deferred" or needs_later_finish(task)
             if self.terminal and (self.plain or self.console.width < 64):
                 self.line("Task " + task.name)
                 self.line("  " + action, complete=True, style="bold cyan")
-                self.line("  " + reason, complete=task.action == "deferred")
+                self.line("  " + reason, complete=complete)
             elif self.plain:
                 self.line(f"{'Task ' + task.name:<33} {action:<14} {reason}")
             else:
                 table.add_row(self.text(task.name), Text(action, style="bold cyan"),
-                              self.text(reason, complete=task.action == "deferred"))
+                              self.text(reason, complete=complete))
         if not self.plain and self.console.width >= 64:
             self.console.print(table)
         if expand:

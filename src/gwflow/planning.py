@@ -143,6 +143,7 @@ def recover_transfer(store, observation, jobs):
         fresh_observation(store, observation, "transfer sources cannot be recovered")
         return
     observation.action, observation.reason = "transfer", recovery.reason
+    observation.removal = recovery.removal
     observation.repeated_jobs.add("gwflow_complete")
     observation.pending = ["gwflow_complete"]
 
@@ -168,11 +169,12 @@ def completed_observation(store, observation):
         fresh_observation(store, observation, "; ".join([reason, *retained_changes]))
         return
     try:
-        transfer.repair_sources(store, observation.attempt)
+        repair = transfer.inspect_repair(store, observation.attempt)
     except transfer.InvalidSources:
         fresh_observation(store, observation, "; ".join(["retained repair sources are unavailable or invalid", *retained_changes]))
         return
     observation.action, observation.reason = "repair", "restore damaged retained results from checked work under the same attempt"
+    observation.removal = repair.removal
     observation.repeated_jobs.add("gwflow_complete")
     if retained_changes:
         observation.reason += "; " + "; ".join(retained_changes)

@@ -157,7 +157,8 @@ producer identities, and individual planned submissions. Current job states
 remain separate from next actions: a failed completion job can need Finish,
 and a failed consumer can need Defer until upstream results recover.
 
-Fresh plans prominently disclose previous retained-result removal. Dry-run and
+Plans prominently disclose previous retained-result removal, including Repair
+and transfer recovery that will replace existing results. Dry-run and
 blocked notices use conditional wording, and required notices always wrap in
 full. A fresh UUID is allocated only by run; details identify an existing
 attempt separately from that plan. If any Task blocks submission, the report
