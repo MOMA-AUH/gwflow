@@ -19,7 +19,7 @@ class TaskPlanTests(LocalBackendTestCase):
         dry_run = self.cli_result("run", "--dry-run")
         actual = self.cli_result("run")
         self.assertEqual(explanation.stdout, dry_run.stdout)
-        self.assertEqual(explanation.stdout, actual.stdout)
+        self.assertEqual(explanation.stdout, actual.stdout.split("Submitted 9 jobs", 1)[0])
         self.assertRegex(explanation.stdout, r"Task\s+Next action\s+Why")
         for name in ("a", "b", "c"):
             self.assertRegex(explanation.stdout, rf"Task {name}\s+Run\s+no completed managed attempt")

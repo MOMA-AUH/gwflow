@@ -358,6 +358,33 @@ class Report:
                     for local in row.task.pending:
                         self.line(f"  Would submit {row.task.name}__{local}")
 
+    def submissions(self, outcomes, *, interrupted=False, details=False):
+        confirmed = [outcome for outcome in outcomes if outcome.confirmed]
+        jobs, tasks = len(confirmed), len({outcome.task for outcome in confirmed})
+        if interrupted:
+            unknown = sum(outcome.entered and not outcome.confirmed for outcome in outcomes)
+            unattempted = sum(not outcome.entered for outcome in outcomes)
+            self.notice(f"Submission interrupted: {jobs} job{'s' if jobs != 1 else ''} confirmed submitted "
+                        f"across {tasks} Task{'s' if tasks != 1 else ''}; "
+                        f"{unknown} submission outcome{'s' if unknown != 1 else ''} unknown; "
+                        f"{unattempted} planned job{'s' if unattempted != 1 else ''} not attempted. "
+                        "Already submitted jobs may continue; submission was not rolled back.")
+        elif confirmed:
+            self.line(f"Submitted {jobs} job{'s' if jobs != 1 else ''} across {tasks} Task{'s' if tasks != 1 else ''}.",
+                      complete=True, style="bold green")
+        else:
+            self.line("No new jobs were submitted.", complete=True)
+        if details and outcomes:
+            self.line("Submission outcomes:", complete=True)
+            for outcome in outcomes:
+                state = ("confirmed submitted" if outcome.confirmed else
+                         "outcome unknown" if outcome.entered else "not attempted")
+                self.line(f"  {outcome.task}__{outcome.local}: {state}")
+                if outcome.submission:
+                    self.line("    Submission: " + outcome.submission)
+                if outcome.job_id is not None:
+                    self.line(f"    Backend job: {outcome.job_id}")
+
     def details(self, row):
         task = row.task
         self.line(f"Details for Task {task.name}:")

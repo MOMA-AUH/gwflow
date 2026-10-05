@@ -36,6 +36,8 @@ def replace(source, destination, **kwargs):
         os._exit(90)
     if selected and destination == "repair.json" and phase == "before_repair_intent":
         os._exit(99)
+    if selected and destination == "ack.json" and phase == "ack_write_error":
+        raise OSError("injected acknowledgement storage failure")
     if selected and destination == "attempt.json" and phase == "before_repair_selection":
         os._exit(100)
     if destination == "owner.json" and phase == "before_work_recreation":

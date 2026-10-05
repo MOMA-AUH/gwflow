@@ -35,6 +35,18 @@ class JobObservation:
         return self.intent["submission"] if self.intent else None
 
 
+@dataclass
+class SubmissionOutcome:
+    """What this frontend invocation knows about one planned backend call."""
+
+    task: str
+    local: str
+    submission: str | None = None
+    entered: bool = False
+    confirmed: bool = False
+    job_id: str | int | None = None
+
+
 def backend_identity(backend, name):
     if isinstance(backend, TrackingBackend):
         if isinstance(backend.ops, LocalOps):
@@ -275,29 +287,32 @@ def new_intent(store, attempt, local, dependencies, backend, name):
 class _AdmissionCall:
     """Identify gwf preflight errors without interpreting backend exceptions."""
 
-    def __init__(self, backend, accepted):
+    def __init__(self, backend, accepted, outcome):
         self.backend = backend
         self.accepted = accepted
-        self.entered = False
+        self.outcome = outcome
 
     @property
     def target_defaults(self):
         return self.backend.target_defaults
 
     def submit(self, target, dependencies):
-        self.entered = True
+        self.outcome.entered = True
+        self.outcome.submission = target.name
         result = self.backend.submit(target, dependencies)
+        self.outcome.confirmed = True
         job_id = self.backend.get_tracked_id(target) if hasattr(self.backend, "get_tracked_id") else None
+        self.outcome.job_id = job_id
         self.accepted(job_id)
         return result
 
 
-def submit(store, attempt, intent, target, dependencies, backend, hashes):
-    call = _AdmissionCall(backend, lambda job_id: acknowledge(store, attempt, intent, job_id))
+def submit(store, attempt, intent, target, dependencies, backend, hashes, outcome):
+    call = _AdmissionCall(backend, lambda job_id: acknowledge(store, attempt, intent, job_id), outcome)
     try:
         submit_backend(target, dependencies, call, hashes)
     except BaseException:
-        if not call.entered:
+        if not outcome.entered:
             store.publish(attempt, f"admissions/{intent['admission']}/rejected.json", "submission-rejected", **identity(intent))
         raise
     job_id = backend.get_tracked_id(target) if hasattr(backend, "get_tracked_id") else None
