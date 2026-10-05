@@ -179,7 +179,7 @@ class RegistryImageTests(RegistryTestCase):
     def test_pull_failure_blocks_every_submission_and_can_retry(self):
         self.configure_workflow(other=True)
         self.options(fail=True)
-        for arguments, success in ((("status",), True), (("explain",), True),
+        for arguments, success in ((("status", "--details"), True), (("explain", "--details"), True),
                                    (("run", "--dry-run"), False), (("run",), False)):
             result = subprocess.run([GWF, *arguments], cwd=self.work,
                                     capture_output=True, text=True, timeout=30)
