@@ -233,7 +233,7 @@ class ExternalInputTests(LocalBackendTestCase):
         self.cli("-b", "recovery_fixture", "run", env=env, success=False)
         self.wait_for(lambda: (self.work / "preparation-held").exists())
         try:
-            self.assertIn("unresolved submission", self.cli("explain"))
+            self.assertIn("submission outcome unknown", self.cli("explain"))
             self.assertIn("unresolved submission", self.cli("run", success=False))
         finally:
             (self.work / "preparation-release").touch()

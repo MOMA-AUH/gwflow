@@ -279,7 +279,7 @@ class ContainerRuntimeTests(LocalBackendTestCase):
         attempt = self.attempt()
         info = self.image.stat()
         os.utime(self.image, ns=(info.st_atime_ns, info.st_mtime_ns - 1_000_000_000))
-        self.assertIn("restart interrupted preparation", self.cli("explain"))
+        self.assertIn("preparation interrupted", self.cli("explain"))
         self.cli("run")
         self.settle()
         self.assertEqual(self.attempt(), attempt)
