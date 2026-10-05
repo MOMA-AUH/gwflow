@@ -15,7 +15,7 @@ from rich.progress_bar import ProgressBar
 from rich.table import Table
 from rich.text import Text
 
-from .inspection import condition, task_details
+from .inspection import blockage_line, condition, task_details
 from .lifecycle import TaskObservation, ordered_targets, producer_names
 from .workflow import lifecycle_jobs
 
@@ -23,6 +23,11 @@ from .workflow import lifecycle_jobs
 STATES = ("pending", "queued", "preparing", "running", "finishing", "reusable",
           "repairable", "deferred", "failed", "canceled", "blocked")
 ACTIVE = ("preparing", "running", "finishing")
+NEXT_ACTIONS = {
+    "fresh": "Run", "initialize": "Run", "continue": "Continue",
+    "retry": "Retry", "prepare": "Retry", "transfer": "Finish", "repair": "Repair",
+    "reuse": "Reuse", "active": "Wait", "deferred": "Defer", "blocked": "Blocked",
+}
 
 
 @dataclass
@@ -136,6 +141,32 @@ def blocking_reason(reason):
         if reason.lower().startswith(fragment.lower()):
             return concise
     return reason
+
+
+def plan_reason(task):
+    """Keep the treatment legible; full planner diagnostics remain in details."""
+    if task.action == "blocked":
+        concise = blocking_reason(task.reason)
+        if concise != task.reason:
+            return concise + "; resolve before proceeding"
+        if task.reason.startswith("Target ") and ": image unavailable for " in task.reason:
+            return "image unavailable; check image access"
+        return "validation prevents proceeding; see --details"
+    if task.action == "fresh":
+        return task.reason.split(";", 1)[0].split(":", 1)[0]
+    if task.action == "retry":
+        reason = "repeat failed, canceled, or invalid jobs; retain valid completed work"
+        if "run again afterward" in task.reason:
+            reason += "; run again after the queued completion job settles"
+        return reason
+    return {
+        "initialize": "resume selected initialization before computation",
+        "continue": "submit remaining jobs without repeating admitted work",
+        "prepare": "preparation interrupted; restart in the same attempt",
+        "repair": "retained results missing or changed; restore from valid work",
+        "deferred": "run again after upstream result recovery",
+        "active": "jobs queued or running; no new submission needed now",
+    }.get(task.action, task.reason)
 
 
 def summary(rows, total):
@@ -281,6 +312,46 @@ class Report:
         if row.detail:
             self.line("  " + row.detail, complete=row.task.action == "deferred")
 
+    def plan(self, plan, rows, *, expand=False, preview=True):
+        self.line("Managed whole-workflow plan", complete=True)
+        if plan.blocked:
+            self.notice(blockage_line(plan))
+        removal = [task.name for task in plan.tasks if task.removal is not None]
+        if removal:
+            message = ("Would remove" if preview or plan.blocked else "Will remove")
+            message += " previous retained results for Tasks: " + ", ".join(removal)
+            message += (" if the blocked plan can proceed." if plan.blocked else
+                        " when this plan is run." if preview else " before submitting replacement work.")
+            self.notice(message)
+        table = Table(box=box.SIMPLE_HEAD, expand=True, padding=(0, 1))
+        table.add_column("Task", ratio=2, min_width=12)
+        table.add_column("Next action", width=11, no_wrap=True)
+        table.add_column("Why", ratio=3)
+        if self.plain or self.console.width < 64:
+            self.line("Task / Next action / Why" if self.terminal else
+                      f"{'Task':<33} {'Next action':<14} Why", complete=True)
+        for row in rows:
+            task = row.task
+            action = NEXT_ACTIONS[task.action]
+            reason = plan_reason(task)
+            if self.terminal and (self.plain or self.console.width < 64):
+                self.line("Task " + task.name)
+                self.line("  " + action, complete=True, style="bold cyan")
+                self.line("  " + reason, complete=task.action == "deferred")
+            elif self.plain:
+                self.line(f"{'Task ' + task.name:<33} {action:<14} {reason}")
+            else:
+                table.add_row(self.text(task.name), Text(action, style="bold cyan"),
+                              self.text(reason, complete=task.action == "deferred"))
+        if not self.plain and self.console.width >= 64:
+            self.console.print(table)
+        if expand:
+            for row in rows:
+                self.details(row)
+                if not plan.blocked:
+                    for local in row.task.pending:
+                        self.line(f"  Would submit {row.task.name}__{local}")
+
     def details(self, row):
         task = row.task
         self.line(f"Details for Task {task.name}:")
@@ -312,7 +383,7 @@ class Report:
                 table.add_row(self.text(name, style=style), self.state(state))
         if not self.plain and self.console.width >= 48:
             self.console.print(table)
-        for line in (f"Condition: {condition(task)}", f"Next: {task.action}", f"Reason: {task.reason}",
+        for line in (f"Condition: {condition(task)}", f"Next action: {NEXT_ACTIONS[task.action]}", f"Reason: {task.reason}",
                      *task_details(self.store, task)):
             self.line("  " + line)
 

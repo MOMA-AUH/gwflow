@@ -41,7 +41,7 @@ class TaskGraphTests(LocalBackendTestCase):
         self.run_complete()
         self.assertEqual((self.work / "results/sample/result.txt").read_text(), "leftright")
         self.assertCountEqual((self.work / "trace").read_text().splitlines(), ["left", "right", "join"])
-        self.assertIn("reuse", self.cli("explain"))
+        self.assertIn("Reuse", self.cli("explain"))
 
     def test_retry_preserves_successful_sibling_and_uses_fresh_execution_storage(self):
         failing = self.work / "fail-right"
@@ -58,7 +58,7 @@ class TaskGraphTests(LocalBackendTestCase):
         first_logs = self.cli("logs", "sample__right", "--no-pager")
         first_location = next(line for line in first_logs.splitlines() if line.startswith("LOCATION="))
         attempt_line = next(line for line in self.cli("explain", "--details").splitlines() if "Attempt:" in line)
-        self.assertIn("Task sample: retry;", self.cli("explain"))
+        self.assertRegex(self.cli("explain"), r"Task sample\s+Retry\s+")
         failing.unlink()
         workflow = self.work / "workflow.py"
         workflow.write_text(workflow.read_text().replace("gwf = Workflow()", "gwf = Workflow(defaults={'cores': 3})"))
@@ -72,7 +72,7 @@ class TaskGraphTests(LocalBackendTestCase):
         for directory in first_location.removeprefix("LOCATION=").split("|"):
             self.assertTrue(Path(directory).is_dir())
         self.assertIn(attempt_line, self.cli("explain", "--details"))
-        self.assertIn("reuse", self.cli("explain"))
+        self.assertIn("Reuse", self.cli("explain"))
 
     def test_failed_branch_retries_while_unrelated_sibling_keeps_running(self):
         from gwf.backends.local import Client, LocalStatus
@@ -121,7 +121,7 @@ class TaskGraphTests(LocalBackendTestCase):
         attempt_line = next(line for line in self.cli("explain", "--details").splitlines() if "Attempt:" in line)
         failing.unlink()
         self.cli("-b", "recovery_fixture", "run", env=self.inject(reject_before_admission=True), success=False)
-        self.assertIn("continue", self.cli("explain"))
+        self.assertIn("Continue", self.cli("explain"))
         self.cli("run")
         self.settle()
         self.assertEqual((self.work / "results/sample/result.txt").read_text(), "leftright")
@@ -134,7 +134,7 @@ class TaskGraphTests(LocalBackendTestCase):
         self.cli("-b", "recovery_fixture", "run", env=self.inject(job_fault="sample__right"))
         self.settle()
         self.assertFalse((self.work / "results/sample").exists())
-        self.assertIn("Task sample: retry;", self.cli("explain"))
+        self.assertRegex(self.cli("explain"), r"Task sample\s+Retry\s+")
         self.cli("run")
         self.settle()
         self.assertEqual((self.work / "results/sample/result.txt").read_text(), "leftright")
@@ -203,7 +203,7 @@ class TaskGraphTests(LocalBackendTestCase):
         self.settle()
         failing.unlink()
         self.configure_workflow(right_command=f"echo right >> {trace}; printf repaired > same.txt")
-        self.assertIn("fresh attempt", self.cli("explain"))
+        self.assertIn("Run", self.cli("explain"))
         self.configure(use_spec_hashes=False)
         self.cli("run")
         self.settle()
@@ -211,7 +211,7 @@ class TaskGraphTests(LocalBackendTestCase):
         self.assertEqual(Counter((self.work / "trace").read_text().splitlines()), {"left":1, "right":2, "join":1})
         self.configure_workflow(right_command=original)
         self.configure(use_spec_hashes=True)
-        self.assertIn("fresh attempt", self.cli("explain"))
+        self.assertIn("Run", self.cli("explain"))
         self.cli("run")
         self.settle()
         self.assertEqual((self.work / "results/sample/result.txt").read_text(), "leftright")

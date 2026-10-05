@@ -41,7 +41,7 @@ class ManagedStatusTests(LocalBackendTestCase):
         self.assertNotIn("Attempt:", output)
         self.assertNotIn("__gwflow_", output)
         details = self.cli("status", "--details")
-        self.assertIn("Next: retry", details)
+        self.assertIn("Next action: Retry", details)
         for label in ("Reason:", "Attempt:", "Workspace:", "Backend job:", "Log stderr:"):
             self.assertIn(label, details)
 

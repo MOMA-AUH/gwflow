@@ -81,7 +81,7 @@ class RegistryConcurrencyTests(test_registry_images.RegistryTestCase):
         finally:
             self.release("failure")
         output = self.completed_plan(owner, success=False)
-        for text in ("failed_owner", "compute", self.reference, "fixture registry unavailable", "No jobs will be submitted"):
+        for text in ("failed_owner", "compute", self.reference, "fixture registry unavailable", "no new jobs will be submitted"):
             self.assertIn(text, output)
         self.completed_plan(waiter)
         self.assertEqual(len(self.calls("pull")), 2)
@@ -135,7 +135,7 @@ class RegistryConcurrencyTests(test_registry_images.RegistryTestCase):
         for process in (owner, waiter):
             output = self.completed_plan(process, success=False)
             self.assertIn("fixture registry unavailable", output)
-            self.assertIn("No jobs will be submitted", output)
+            self.assertIn("no new jobs will be submitted", output)
         self.assertEqual(len(self.calls("pull")), 2)
         self.assertEqual(self.calls("pull-success"), [])
         self.assertEqual(self.cached_images(), [])

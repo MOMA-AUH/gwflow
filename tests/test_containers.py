@@ -36,7 +36,7 @@ class ContainerPlanningTests(LocalBackendTestCase):
         )
 
     def test_unavailable_image_blocks_all_frontend_decisions_without_storage(self):
-        for arguments, success in ((('explain',), True), (('status', '--details'), True),
+        for arguments, success in ((('explain', '--details'), True), (('status', '--details'), True),
                                    (('run', '--dry-run'), False), (('run',), False)):
             with self.subTest(arguments=arguments):
                 output = self.cli(*arguments, success=success)
@@ -141,10 +141,10 @@ class ContainerRuntimeTests(LocalBackendTestCase):
                     self.image.unlink()
                     self.image.symlink_to(replacement)
                 before = self.snapshot()
-                preview = self.cli("explain")
+                preview = self.cli("explain", "--details")
                 self.assertIn("input metadata changed", preview)
                 self.assertIn(str(self.image), preview)
-                self.assertIn("remove previous results", preview)
+                self.assertIn("remove previous retained results", preview)
                 self.cli("status", "--details")
                 self.cli("run", "--dry-run")
                 self.assertEqual(self.snapshot(), before)
@@ -167,7 +167,7 @@ class ContainerRuntimeTests(LocalBackendTestCase):
         saved = self.work / "saved.sif"
         self.image.rename(saved)
         before = self.snapshot()
-        for arguments, success in ((('explain',), True), (('status', '--details'), True),
+        for arguments, success in ((('explain', '--details'), True), (('status', '--details'), True),
                                    (('run', '--dry-run'), False), (('run',), False)):
             output = self.cli(*arguments, success=success)
             self.assertIn("image unavailable", output)
@@ -197,7 +197,7 @@ class ContainerRuntimeTests(LocalBackendTestCase):
             (self.work / "preparation-release").touch()
         self.finish()
         self.assertEqual((self.work / "results/sample/out.txt").read_text(), "from-image\n")
-        self.assertIn("reuse", self.cli("explain"))
+        self.assertIn("Reuse", self.cli("explain"))
         self.assertIn(str(replacement), self.cli("logs", "sample__compute", "--stderr", "--no-pager"))
 
     def test_image_retarget_after_baseline_prevents_computation(self):
@@ -284,7 +284,7 @@ class ContainerRuntimeTests(LocalBackendTestCase):
         self.settle()
         self.assertEqual(self.attempt(), attempt)
         self.assertEqual((self.work / "results/sample/out.txt").read_text(), "from-image\n")
-        self.assertIn("reuse", self.cli("explain"))
+        self.assertIn("Reuse", self.cli("explain"))
 
     def test_image_changes_after_cleanup_still_require_fresh_attempt(self):
         self.configure(use_spec_hashes=False)
@@ -313,7 +313,7 @@ class ContainerRuntimeTests(LocalBackendTestCase):
                 self.cli("run", "--force")
                 self.settle()
                 self.assertFalse((self.work / "results/sample/out.txt").exists())
-                self.assertIn(": retry;", self.cli("explain"))
+                self.assertIn("Retry", self.cli("explain"))
                 log = self.cli("logs", "sample__compute", "--stderr", "--no-pager")
                 self.assertIn(str(self.image), log)
                 self.assertIn("target compute", log)

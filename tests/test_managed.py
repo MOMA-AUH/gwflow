@@ -111,7 +111,7 @@ class ManagedCliTests(LocalBackendTestCase):
                 self.cli("run")
                 self.settle()
                 self.assertFalse((self.work / "results" / name).exists())
-                self.assertIn(": retry;", self.cli("explain"))
+                self.assertIn("Retry", self.cli("explain"))
                 self.cli("run")
                 self.settle()
                 self.assertFalse((self.work / "results" / name).exists())
@@ -305,13 +305,13 @@ class ManagedCliTests(LocalBackendTestCase):
         self.write_task("exit 1", retained=False)
         self.cli("run")
         self.settle()
-        self.assertIn(": retry;", self.cli("explain"))
+        self.assertIn("Retry", self.cli("explain"))
         self.assertFalse((self.work / "results/sample").exists())
 
     def test_retained_results_survive_work_removal_and_are_reused(self):
         initial = self.cli("explain")
-        self.assertIn("fresh", initial)
-        self.assertIn("Would submit sample__write", self.cli("run", "--dry-run"))
+        self.assertRegex(initial, r"Task sample\s+Run\s+")
+        self.assertIn("Would submit sample__write", self.cli("run", "--dry-run", "--details"))
         self.assertFalse((self.work / "work").exists())
         self.run_complete()
         result = self.work / "results" / "sample" / "report.txt"
@@ -327,4 +327,4 @@ class ManagedCliTests(LocalBackendTestCase):
         self.assertEqual(result.read_text(), "hello")
         self.assertFalse((self.work / "work").exists())
         self.assertRegex(self.cli("status"), r"Task sample\s+reusable\s+3/3\s+work cleaned")
-        self.assertIn("reuse", self.cli("explain"))
+        self.assertIn("Reuse", self.cli("explain"))

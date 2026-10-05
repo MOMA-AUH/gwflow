@@ -53,10 +53,8 @@ def _run(ctx, targets, dry_run, force, no_deps, group, force_task=(), details=Fa
         )
     with _submission_guard(ctx.working_dir):
         plan = plan_workflow(workflow, ctx, force=force, force_tasks=force_task)
-        if details:
-            report = Report(plan.store, plain=plain, no_truncate=no_truncate)
-            for row in selected_rows(workflow, plan):
-                report.details(row)
+        report = Report(plan.store, plain=plain, no_truncate=no_truncate)
+        report.plan(plan, selected_rows(workflow, plan), expand=details, preview=dry_run)
         submit_plan(plan, workflow, ctx, dry_run=dry_run)
 
 
