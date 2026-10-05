@@ -186,6 +186,7 @@ class TaskGraphTests(LocalBackendTestCase):
         output = next(line.removeprefix("SOURCE=") for line in logs.splitlines() if line.startswith("SOURCE="))
         Path(output).write_text("damaged source")
         failing.unlink()
+        self.assertRegex(self.cli("status"), r"Task sample\s+failed\s+1/6")
         self.cli("run")
         self.settle()
         self.assertEqual((self.work / "results/sample/result.txt").read_text(), "leftright")

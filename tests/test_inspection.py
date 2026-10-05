@@ -105,18 +105,18 @@ class LifecycleInspectionTests(LocalBackendTestCase):
         self.assertEqual(self.cli("logs", "sample__right", "--no-pager"), latest_log)
 
     def test_compact_status_distinguishes_condition_from_next_action_and_cleaned_work(self):
-        self.assertRegex(self.cli("status"), r"Task a\s+pending\s+0/1 target completed")
+        self.assertRegex(self.cli("status"), r"Task a\s+pending\s+0/3")
         self.assertIn("Next: fresh", self.cli("status", "a", "--details"))
         self.run_complete()
-        self.assertRegex(self.cli("status"), r"Task a\s+reusable\s+1/1 target completed; work-present")
+        self.assertRegex(self.cli("status"), r"Task a\s+reusable\s+3/3\s+work present")
         (self.work / "results/a/result.txt").unlink()
-        self.assertRegex(self.cli("status"), r"Task a\s+repair needed\s+retained results damaged")
+        self.assertRegex(self.cli("status"), r"Task a\s+repairable\s+2/3\s+retained results need repair")
         self.assertIn("Next: repair", self.cli("status", "a", "--details"))
         self.cli("run")
         self.finish()
         self.cli("clean-work", "--delete", "--task", "a")
         before = self.snapshot()
-        self.assertRegex(self.cli("status"), r"Task a\s+reusable\s+work-cleaned")
+        self.assertRegex(self.cli("status"), r"Task a\s+reusable\s+3/3\s+work cleaned")
         self.assertEqual(self.snapshot(), before)
 
     def test_changed_structure_and_commands_have_specific_reasons(self):
@@ -306,7 +306,7 @@ class FinishingInspectionTests(LocalBackendTestCase):
         self.settle()
         preview = self.preview()
         self.assertIn("Task a: transfer;", preview)
-        self.assertRegex(self.cli("status"), r"Task a\s+results transfer\s+recovery needed")
+        self.assertRegex(self.cli("status"), r"Task a\s+failed\s+2/3\s+results transfer needs recovery")
         self.assertIn("Next: transfer", self.cli("status", "--details"))
         self.run_previewed(preview)
         self.settle()
@@ -318,7 +318,7 @@ class FinishingInspectionTests(LocalBackendTestCase):
         try:
             preview = self.preview()
             self.assertIn("Task a: active;", preview)
-            self.assertRegex(self.cli("status"), r"Task a\s+results transfer\s+running")
+            self.assertRegex(self.cli("status"), r"Task a\s+finishing\s+2/3")
             self.assertNotIn("reusable", self.cli("status"))
             self.run_previewed(preview)
         finally:

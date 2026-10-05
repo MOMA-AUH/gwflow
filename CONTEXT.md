@@ -22,6 +22,21 @@ A release of the orchestration that selects task implementations and connects th
 **Local target name**:
 A name identifying one target within its owning task. Different task instances may use the same local target names.
 
+**Computation target**:
+An author-declared gwf target within a Task that performs part of its computation.
+
+**Lifecycle job**:
+A job introduced by gwflow to prepare a Task for computation or bring it to Completion. Preparation and completion jobs are distinct from the Task's computation targets.
+
+**Task progress**:
+The count of completed computation targets and lifecycle jobs, relative to their total, after excluding steps known to require repetition; a required fresh attempt starts at zero, while retries and Repair retain valid completed steps. It measures completed steps rather than time, effort, or eligibility for Reuse; the count is unknown when completion cannot be established.
+
+**Task state**:
+The primary condition of a Task, summarizing its lifecycle, blockers, and job observations. Blockage, failure, and cancellation take precedence in that order over ongoing work.
+
+**Next action**:
+The decision about how a Task will be handled when the workflow is run, together with its reason. It describes what is planned rather than the Task's current state.
+
 **External input**:
 A file supplied from outside a task, declared as data by its author or implied by a target's image selection. This includes another task's retained output.
 
@@ -45,6 +60,12 @@ A file used within a task that need not be retained after successful completion 
 
 **Reuse**:
 Accepting a completed task without rerunning its targets while its external inputs and retained outputs remain valid. Completion carries the same guarantees and limitations as gwf target completion.
+
+**Repair**:
+Restoring missing or changed retained outputs from a Task's valid existing work without rerunning its computation.
+
+**Deferral**:
+Postponing further handling of a Task until upstream retained outputs have been recovered and its external-input state can be reassessed. Proceeding requires a later workflow invocation.
 
 **Completion**:
 The task being considered finished under gwf's completion semantics, including their limitations. This does not imply stronger proof of successful execution or output correctness.

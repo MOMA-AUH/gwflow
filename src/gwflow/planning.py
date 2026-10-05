@@ -73,6 +73,7 @@ def retry_observation(store, observation, jobs):
     replaced = retry_targets(store, attempt, jobs)
     if not replaced:
         return False
+    observation.repeated_jobs.update([*replaced, "gwflow_complete"])
     store.check_inputs(attempt)
     if not observation.work_present:
         raise WorkflowError("Missing attempt workspace requires a fresh attempt")
@@ -100,6 +101,7 @@ def pending_submissions(attempt, jobs):
 
 
 def fresh_observation(store, observation, reason):
+    observation.restart_required = True
     active = [item.submission for item in observation.submissions.values() if item.state in ("active", "uncertain")]
     if active:
         raise WorkflowError("Unresolved or active work blocks replacement: " + ", ".join(active))
@@ -141,6 +143,7 @@ def recover_transfer(store, observation, jobs):
         fresh_observation(store, observation, "transfer sources cannot be recovered")
         return
     observation.action, observation.reason = "transfer", recovery.reason
+    observation.repeated_jobs.add("gwflow_complete")
     observation.pending = ["gwflow_complete"]
 
 
@@ -170,6 +173,7 @@ def completed_observation(store, observation):
         fresh_observation(store, observation, "; ".join(["retained repair sources are unavailable or invalid", *retained_changes]))
         return
     observation.action, observation.reason = "repair", "restore damaged retained results from checked work under the same attempt"
+    observation.repeated_jobs.add("gwflow_complete")
     if retained_changes:
         observation.reason += "; " + "; ".join(retained_changes)
     observation.pending = ["gwflow_complete"]
@@ -220,6 +224,7 @@ def plan_workflow(workflow, ctx, *, force=False, force_tasks=()):
                     jobs = admission.observe(store, attempt, backend, ctx.backend)
                     finishing = jobs["gwflow_complete"]
                     observation.submissions = jobs
+                    observation.observations_available = True
                     uncertain = [item.submission for item in jobs.values() if item.state == "uncertain"]
                     active = [item.submission for item in jobs.values() if item.state == "active"]
                     pending = pending_submissions(attempt, jobs)
@@ -231,6 +236,7 @@ def plan_workflow(workflow, ctx, *, force=False, force_tasks=()):
                                                       tracking=ctx.config.get("use_spec_hashes"), initializing=initializing):
                         fresh_observation(store, observation, change)
                     elif initializing:
+                        observation.restart_required = True
                         observation.removal = store.result_removal(attempt)
                         observation.action, observation.reason = "initialize", "resume selected initialization; remove previous results before submission"
                         observation.pending = lifecycle_jobs(ordered_targets(structure))
@@ -252,6 +258,7 @@ def plan_workflow(workflow, ctx, *, force=False, force_tasks=()):
                         if _files.exists(store.attempt_dir(attempt) / "inputs.json"):
                             store.check_inputs(attempt)
                         observation.action, observation.reason = "prepare", "restart interrupted preparation in the same attempt"
+                        observation.repeated_jobs.update(lifecycle_jobs(structure["targets"]))
                         observation.pending = lifecycle_jobs(ordered_targets(attempt["structure"]))
                         observation.retry = ordered_targets(attempt["structure"])
                     elif (not active and (finishing.state in ("failed", "cancelled")
