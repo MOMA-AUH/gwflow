@@ -46,12 +46,22 @@ class TaskPresentationTests(LocalBackendTestCase):
         self.assertIn("pending", narrow)
         self.assertIn("0/5", narrow)
         self.assertNotIn("━", narrow)
-        for environment in ({"TERM": "dumb"}, {"PYTHONIOENCODING": "ascii"}):
+        for environment in ({"TERM": "dumb"}, {"PYTHONIOENCODING": "ascii"}, {"PYTHONIOENCODING": "shift_jis"}):
             with self.subTest(environment=environment):
                 output = self.terminal_cli("--use-color", "status", width=40, env=environment).stdout
                 self.assertIn("pending", output)
                 self.assertIn("0/5", output)
                 self.assertNotRegex(output, "[╭○━\\x1b]")
+
+    def test_narrow_expansion_preserves_job_states_beside_long_names(self):
+        workflow = self.work / "workflow.py"
+        workflow.write_text(workflow.read_text().replace("'left'", repr("job_" + "x" * 80)))
+        for options, width in ((("--plain",), 32), ((), 20)):
+            with self.subTest(options=options, width=width):
+                output = self.terminal_cli("--no-color", "status", "--details", *options, width=width).stdout
+                self.assertRegex(output, r"\[preparation\]\s+(?:○ )?pending")
+                self.assertRegex(output, r"job_[^\n]*(?:\n\s+)?(?:○ )?pending")
+                self.assertRegex(output, r"\[completion\]\s+(?:○ )?pending")
 
     def test_job_and_group_selection_expand_all_jobs_in_both_inspectors(self):
         workflow = self.work / "workflow.py"
@@ -86,6 +96,14 @@ class TaskPresentationTests(LocalBackendTestCase):
             self.assertIn("Nojobswillbesubmitted;blockedTasks:" + name, compact)
             self.assertIn("?/5", output)
             self.assertNotIn("━", output)
+
+    def test_required_deferral_reminder_is_not_truncated(self):
+        test_fresh.FreshAttemptTests.configure_workflow(self)
+        self.run_complete()
+        (self.work / "results/a/result.txt").unlink()
+        for width in (40, 110):
+            output = self.terminal_cli("--no-color", "status", width=width).stdout
+            self.assertIn("run again after upstream result recovery", " ".join(output.split()))
 
     def test_presentation_options_do_not_add_backend_observations(self):
         self.run_complete()

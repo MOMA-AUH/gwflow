@@ -177,6 +177,7 @@ _VISUALS = {
     "failed": ("✗", "bold red"), "canceled": ("⊘", "red"),
     "blocked": ("!", "bold yellow"), "unknown": ("?", "yellow"),
 }
+_LIFECYCLE_NAMES = {"gwflow_prepare": "[preparation]", "gwflow_complete": "[completion]"}
 
 
 class Report:
@@ -187,7 +188,7 @@ class Report:
         stream = sys.stdout
         self.terminal = stream.isatty()
         try:
-            "─○".encode(stream.encoding or "utf-8")
+            ("╭╮╰╯│─━╸╺" + "".join(symbol for symbol, _ in _VISUALS.values())).encode(stream.encoding or "utf-8")
             self.unicode = True
         except UnicodeEncodeError:
             self.unicode = False
@@ -207,12 +208,12 @@ class Report:
         return Text(value, style=style, no_wrap=self.truncate and not complete,
                     overflow="ellipsis" if self.truncate and not complete else "fold")
 
-    def line(self, value, *, complete=False):
+    def line(self, value, *, complete=False, style=""):
         if not self.terminal:
             click.echo(value, color=False)
         else:
             truncate = self.truncate and not complete
-            text = self.text(value, complete=complete)
+            text = self.text(value, complete=complete, style=style if not self.plain else "")
             if not self.unicode:
                 text = Text(value.encode(self.console.encoding, errors="backslashreplace").decode(self.console.encoding))
                 if truncate and text.cell_len > self.console.width:
@@ -262,7 +263,7 @@ class Report:
                         cells.append(ProgressBar(total=row.total, completed=row.completed,
                                                  complete_style=_VISUALS[row.state][1], finished_style="green")
                                      if row.completed is not None else Text(""))
-                    cells.append(self.text(row.detail))
+                    cells.append(self.text(row.detail, complete=row.task.action == "deferred"))
                     table.add_row(*cells, style="on grey11" if row.state in ("blocked", "failed") else None)
                 self.console.print(table)
         if expand:
@@ -276,27 +277,40 @@ class Report:
         else:
             text = self.state(row.state)
             text.append("  " + row.progress)
-            self.console.print(text)
+            self.console.print(text, no_wrap=False, overflow="fold")
         if row.detail:
-            self.line("  " + row.detail)
+            self.line("  " + row.detail, complete=row.task.action == "deferred")
 
     def details(self, row):
         task = row.task
         self.line(f"Details for Task {task.name}:")
         self.line(f"  State: {row.state}; Jobs completed: {row.progress}", complete=True)
         names = lifecycle_jobs(ordered_targets(task.structure))
-        if self.plain:
-            for local in names:
-                name = {"gwflow_prepare": "[preparation]", "gwflow_complete": "[completion]"}.get(local, local)
-                self.line(f"  {name:<28} {row.jobs[local]}")
-        else:
-            table = Table(box=None, show_header=False, padding=(0, 1))
-            table.add_column(ratio=2, min_width=12)
-            table.add_column(width=12, no_wrap=True)
-            for local in names:
-                name = {"gwflow_prepare": "[preparation]", "gwflow_complete": "[completion]"}.get(local, local)
-                table.add_row(self.text(name, style="dim" if local.startswith("gwflow_") else ""),
-                              self.state(row.jobs[local]))
+        table = Table(box=None, show_header=False, padding=(0, 1))
+        table.add_column(ratio=2, min_width=12)
+        table.add_column(width=12, no_wrap=True)
+        for local in names:
+            name = _LIFECYCLE_NAMES.get(local, local)
+            state = row.jobs[local]
+            style = "dim" if local in _LIFECYCLE_NAMES else ""
+            if self.terminal and self.console.width < 48:
+                self.line("  " + name, style=style)
+                if self.plain:
+                    self.line("    " + state, complete=True)
+                else:
+                    self.console.print(Text("    ") + self.state(state), no_wrap=False, overflow="fold")
+            elif self.plain:
+                width = max(1, self.console.width - 16) if self.terminal else 28
+                label = Text(name)
+                if self.truncate and label.cell_len > width:
+                    label.truncate(width if self.unicode else width - 3,
+                                   overflow="ellipsis" if self.unicode else "crop")
+                    if not self.unicode:
+                        label.append("...")
+                self.line(f"  {label.plain:<{width}}  {state}", complete=True)
+            else:
+                table.add_row(self.text(name, style=style), self.state(state))
+        if not self.plain and self.console.width >= 48:
             self.console.print(table)
         for line in (f"Condition: {condition(task)}", f"Next: {task.action}", f"Reason: {task.reason}",
                      *task_details(self.store, task)):

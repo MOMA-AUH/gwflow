@@ -136,8 +136,9 @@ class LocalBackendTestCase(unittest.TestCase):
                     process.kill()
                     process.wait()
             errors.seek(0)
+            encoding = environment["PYTHONIOENCODING"].split(":")[0]
             result = subprocess.CompletedProcess(process.args, process.returncode,
-                                                 output.decode().replace("\r\n", "\n"), errors.read().decode())
+                                                 output.decode(encoding).replace("\r\n", "\n"), errors.read().decode(encoding))
         if success:
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         else:
