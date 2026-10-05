@@ -37,6 +37,25 @@ class TaskPresentationTests(LocalBackendTestCase):
         self.assertFalse((self.work / ".gwf/gwflow").exists())
         self.assertFalse((self.work / "results").exists())
 
+    def test_damaged_record_keeps_paths_in_details_and_preserves_evidence(self):
+        self.run_complete()
+        damaged = next((self.work / ".gwf/gwflow").rglob("completion.json"))
+        damaged.unlink()
+        damaged.mkdir()
+        before = self.snapshot()
+        for command in (("status",), ("explain",), ("run", "--dry-run"), ("run",)):
+            with self.subTest(command=command):
+                success = command[0] != "run"
+                compact = self.cli_result(*command, success=success).stdout
+                self.assertIn("validation prevents proceeding; see --details", compact)
+                self.assertNotIn(str(self.work), compact)
+                self.assertNotIn("completion.json", compact)
+                detailed = self.cli_result(*command, "--details", success=success).stdout
+                self.assertIn(str(damaged), detailed)
+                self.assertIn("State: blocked; Jobs completed: 5/5", detailed)
+                self.assertEqual(self.snapshot(), before)
+                self.assertTrue(damaged.is_dir())
+
     def test_details_on_each_managed_command_show_the_complete_lifecycle(self):
         self.run_complete()
         before = self.snapshot()

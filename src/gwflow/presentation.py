@@ -106,7 +106,7 @@ def task_row(task):
         completed = None
     detail = []
     if task.action == "blocked":
-        detail.append(blocking_reason(task.reason))
+        detail.append(blocking_reason(task.reason) or "validation prevents proceeding; see --details")
     elif task.action == "reuse":
         detail.append("work present" if task.work_present else "work cleaned")
     elif task.action == "repair":
@@ -142,7 +142,7 @@ def blocking_reason(reason):
     ):
         if reason.lower().startswith(fragment.lower()):
             return concise
-    return reason
+    return None
 
 
 def needs_later_finish(task):
@@ -156,7 +156,7 @@ def plan_reason(task):
         concise = blocking_reason(task.reason)
         if concise == "image unavailable":
             return "image unavailable; check image access"
-        if concise != task.reason:
+        if concise:
             return concise + "; resolve before proceeding"
         return "validation prevents proceeding; see --details"
     if task.action == "fresh":
