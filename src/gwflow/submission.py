@@ -48,7 +48,7 @@ def _log_aliases(working_dir, public_name, job_name):
         _files.sync_directory(logs)
 
 
-def submit_plan(plan, workflow, ctx, *, dry_run):
+def submit_plan(plan, workflow, ctx, *, dry_run, outcomes):
     if plan.blocked:
         raise WorkflowError("; ".join(f"Task {task.name}: {task.reason}" for task in plan.blocked))
     if dry_run:
@@ -141,4 +141,5 @@ def submit_plan(plan, workflow, ctx, *, dry_run):
                     intent = admission.new_intent(plan.store, attempt, local, references, backend, ctx.backend)
                     target = _job(plan.store, attempt, local, workflow, intent)
                     _log_aliases(ctx.working_dir, f"{attempt['task']}__{local}", target.name)
-                    observed[local] = admission.submit(plan.store, attempt, intent, target, dependencies, backend, hashes)
+                    observed[local] = admission.submit(plan.store, attempt, intent, target, dependencies, backend, hashes,
+                                                       outcomes[task.name, local])

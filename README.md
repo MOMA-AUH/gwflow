@@ -166,6 +166,22 @@ says **Workflow blocked — no new jobs will be submitted** while preserving the
 other Tasks' intended actions. Blocked status and explain remain successful
 inspections; blocked run and dry-run return an error before submission.
 
+Actual runs end with a submission summary, such as `Submitted 9 jobs across
+3 Tasks.` Counts include preparation and completion and only new confirmed
+backend acceptances from this invocation. A Task is counted when it receives
+at least one new job; this does not mean the Task is fully submitted or finished.
+Runs with no new submissions say so explicitly. Dry-run and globally blocked
+plans do not claim submissions.
+
+If submission stops, the report separates confirmed jobs, unknown acceptance
+outcomes, and planned jobs whose backend submission was not attempted.
+An exception after entering the backend may happen after acceptance; it does
+not prove rejection or job execution failure. Already submitted jobs may
+continue, and submission is not rolled back. `--details` includes individual
+outcomes and available submission names and backend IDs. Reports and required
+notices go to stdout; operational diagnostics and command errors go to stderr.
+These counts use the existing admission boundary without scheduler queries.
+
 Use `gwf explain TASK` or `gwf status TASK` to narrow the display. These filters
 still validate and plan the entire workflow. Explain accepts the same `--force`
 and repeatable `--force-task` options as run; a display filter does not choose

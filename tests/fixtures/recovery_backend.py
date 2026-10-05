@@ -76,10 +76,15 @@ class RecoveryBackend(TrackingBackend):
             target.spec = shlex.join([sys.executable, str(self.work / "job_fault.py"), str(self.work), *original[1:]])
         super().submit(target, dependencies)
         self.submitted = True
+        if self.options.get("record_acceptances"):
+            with (self.work / "backend-acceptances.jsonl").open("a") as stream:
+                stream.write(json.dumps({"name": target.name, "id": super().get_tracked_id(target)}) + "\n")
         if self.options.get("lose_tracking") and target.name.startswith(self.options["lose_tracking"] + "__"):
             os._exit(93)
         if self.options.get("lose_ack") and target.name.startswith(self.options["lose_ack"] + "__"):
             raise RuntimeError("injected lost acknowledgement after acceptance")
+        if self.options.get("interrupt_after_acceptance") and target.name.startswith(self.options["interrupt_after_acceptance"] + "__"):
+            raise KeyboardInterrupt
 
     def get_tracked_id(self, target):
         return super().get_tracked_id(target)
