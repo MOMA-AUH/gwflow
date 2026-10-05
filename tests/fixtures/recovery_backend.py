@@ -47,6 +47,9 @@ class RecoveryBackend(TrackingBackend):
         return super().target_defaults
 
     def status(self, target):
+        if self.options.get("record_status"):
+            with (self.work / "backend-observations.jsonl").open("a") as stream:
+                stream.write(json.dumps(target.name) + "\n")
         for prefix, state in self.options.get("job_states", {}).items():
             if target.name.startswith(prefix + "__"):
                 return BackendStatus[state]

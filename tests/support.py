@@ -1,14 +1,20 @@
 """Completion and reuse through the installed API and ordinary gwf CLI."""
 
 from collections import Counter
+import errno
+import fcntl
 import json
 import os
+import pty
 from pathlib import Path
 import shutil
+import select
 import socket
 import subprocess
+import struct
 import sys
 import tempfile
+import termios
 import time
 import unittest
 
@@ -81,7 +87,7 @@ class LocalBackendTestCase(unittest.TestCase):
     def configure_workflow(self, **options):
         raise NotImplementedError("Tests supply the public workflow declaration")
 
-    def cli(self, *args, success=True, env=None):
+    def cli_result(self, *args, success=True, env=None):
         result = subprocess.run(
             [GWF, *args], cwd=self.work, capture_output=True, text=True,
             timeout=30, env=env,
@@ -91,7 +97,53 @@ class LocalBackendTestCase(unittest.TestCase):
             self.assertEqual(result.returncode, 0, output)
         else:
             self.assertNotEqual(result.returncode, 0, output)
-        return output
+        return result
+
+    def cli(self, *args, success=True, env=None):
+        result = self.cli_result(*args, success=success, env=env)
+        return result.stdout + result.stderr
+
+    def terminal_cli(self, *args, width=100, env=None, success=True):
+        master, slave = pty.openpty()
+        fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 24, width, 0, 0))
+        environment = {**os.environ, "TERM": "xterm-256color", "COLUMNS": str(width),
+                       "PYTHONIOENCODING": "utf-8", **(env or {})}
+        output = bytearray()
+        with tempfile.TemporaryFile() as errors:
+            process = subprocess.Popen([GWF, *args], cwd=self.work, stdout=slave,
+                                       stderr=errors, env=environment)
+            os.close(slave)
+            deadline = time.monotonic() + 30
+            try:
+                while True:
+                    if time.monotonic() >= deadline:
+                        self.fail("Timed out reading terminal command")
+                    if not select.select([master], [], [], 0.1)[0]:
+                        continue
+                    try:
+                        chunk = os.read(master, 65536)
+                    except OSError as error:
+                        if error.errno != errno.EIO:
+                            raise
+                        break
+                    if not chunk:
+                        break
+                    output.extend(chunk)
+                process.wait(timeout=10)
+            finally:
+                os.close(master)
+                if process.poll() is None:
+                    process.kill()
+                    process.wait()
+            errors.seek(0)
+            encoding = environment["PYTHONIOENCODING"].split(":")[0]
+            result = subprocess.CompletedProcess(process.args, process.returncode,
+                                                 output.decode(encoding).replace("\r\n", "\n"), errors.read().decode(encoding))
+        if success:
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        else:
+            self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+        return result
 
     def finish(self):
         def done():

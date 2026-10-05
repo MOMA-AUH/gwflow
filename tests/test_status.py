@@ -1,12 +1,9 @@
 """Readable managed status through the installed CLI and local backend."""
 
-import errno
-import os
-import pty
+import re
 import shlex
-import subprocess
 
-from support import GWF, LocalBackendTestCase
+from support import LocalBackendTestCase
 import test_fresh
 import test_graphs
 
@@ -26,11 +23,12 @@ class ManagedStatusTests(LocalBackendTestCase):
         self.assertNotIn("left", output)
         self.assertNotIn("next:", output)
         selected = self.cli("status", "sample")
-        self.assertRegex(selected, r"(?m)^  \|-- \. left\s+pending$")
-        self.assertRegex(selected, r"(?m)^  `-- \. join\s+pending$")
-        self.assertNotIn("gwflow_prepare", selected)
-        self.assertNotIn("Attempt:", selected)
-        self.assertRegex(self.cli("status", "sample__gwflow_prepare"), r"preparation\s+pending")
+        for name in ("[preparation]", "left", "right", "join", "[completion]"):
+            self.assertRegex(selected, re.escape(name) + r"\s+pending")
+        self.assertLess(selected.index("[preparation]"), selected.index("left"))
+        self.assertLess(selected.index("join"), selected.index("[completion]"))
+        self.assertIn("Attempt:", selected)
+        self.assertRegex(self.cli("status", "sample__gwflow_prepare"), r"\[preparation\]\s+pending")
 
     def test_failed_task_stays_compact_and_matches_primary_filter_before_retry(self):
         self.configure_workflow(right_command="exit 8")
@@ -70,37 +68,23 @@ class ManagedStatusTests(LocalBackendTestCase):
             release.touch()
         self.finish()
 
-    def terminal_status(self, *options):
-        master, slave = pty.openpty()
-        try:
-            result = subprocess.run([GWF, *options, "status"], cwd=self.work,
-                                    stdout=slave, stderr=slave, timeout=30)
-            os.close(slave)
-            slave = None
-            output = b""
-            while True:
-                try:
-                    chunk = os.read(master, 4096)
-                except OSError as error:
-                    if error.errno != errno.EIO:
-                        raise
-                    break
-                if not chunk:
-                    break
-                output += chunk
-            self.assertEqual(result.returncode, 0, output.decode())
-            return output.decode()
-        finally:
-            os.close(master)
-            if slave is not None:
-                os.close(slave)
-
-    def test_terminal_colors_and_readable_piped_and_no_color_output(self):
-        self.assertIn("\x1b[35mTask sample", self.terminal_status("--use-color"))
-        self.assertNotIn("\x1b[", self.cli("status"))
-        self.assertNotIn("\x1b[", self.terminal_status("--no-color"))
-        self.run_complete()
-        self.assertIn("\x1b[32mTask sample", self.terminal_status("--use-color"))
+    def test_terminal_layout_plain_redirection_and_no_color_are_distinct(self):
+        decorated = self.terminal_cli("--use-color", "status").stdout
+        self.assertIn("\x1b[", decorated)
+        self.assertIn("╭", decorated)
+        self.assertIn("○", decorated)
+        self.assertIn("━", decorated)
+        self.assertIn("0/5", decorated)
+        monochrome = self.terminal_cli("--no-color", "status").stdout
+        self.assertNotIn("\x1b[", monochrome)
+        self.assertIn("╭", monochrome)
+        self.assertIn("○", monochrome)
+        plain = self.terminal_cli("--use-color", "status", "--plain").stdout
+        redirected = self.cli_result("--use-color", "status").stdout
+        for output in (plain, redirected):
+            self.assertNotIn("\x1b[", output)
+            self.assertNotRegex(output, "[╭○━]")
+            self.assertRegex(output, r"Task sample\s+pending\s+0/5")
 
     def test_formats_group_patterns_and_empty_selections(self):
         workflow = self.work / "workflow.py"

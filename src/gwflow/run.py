@@ -12,6 +12,7 @@ from .submission import submit_plan
 
 from ._frontend import _submission_guard
 from .planning import plan_workflow
+from .presentation import Report, output_options, selected_rows
 from .workflow import Workflow
 
 
@@ -36,7 +37,7 @@ def _submit_graph(graph, ctx, fs, *, dry_run, force,
 
 
 @pass_context
-def _run(ctx, targets, dry_run, force, no_deps, group, force_task=()):
+def _run(ctx, targets, dry_run, force, no_deps, group, force_task=(), details=False, plain=False, no_truncate=False):
     workflow = GwfWorkflow.from_context(ctx)
     if not isinstance(workflow, Workflow):
         if force_task:
@@ -52,6 +53,10 @@ def _run(ctx, targets, dry_run, force, no_deps, group, force_task=()):
         )
     with _submission_guard(ctx.working_dir):
         plan = plan_workflow(workflow, ctx, force=force, force_tasks=force_task)
+        if details:
+            report = Report(plan.store, plain=plain, no_truncate=no_truncate)
+            for row in selected_rows(workflow, plan):
+                report.details(row)
         submit_plan(plan, workflow, ctx, dry_run=dry_run)
 
 
@@ -59,4 +64,5 @@ def _run(ctx, targets, dry_run, force, no_deps, group, force_task=()):
 if not any(parameter.name == "force_task" for parameter in gwf_run.params):
     gwf_run.params.append(click.Option(["--force-task"], multiple=True, help="Start a fresh attempt for a named whole Task."))
 gwf_run.callback = _run
+output_options(gwf_run)
 run = gwf_run
