@@ -47,6 +47,9 @@ class RecoveryBackend(TrackingBackend):
         return super().target_defaults
 
     def status(self, target):
+        for prefix, state in self.options.get("job_states", {}).items():
+            if target.name.startswith(prefix + "__"):
+                return BackendStatus[state]
         if self.options.get("queued_prefix") and target.name.startswith(self.options["queued_prefix"] + "__"):
             return BackendStatus.SUBMITTED
         if self.options.get("running_prefix") and target.name.startswith(self.options["running_prefix"] + "__"):

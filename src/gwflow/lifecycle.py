@@ -275,6 +275,10 @@ class TaskObservation:
     retry: list = field(default_factory=list)
     consumers: dict = field(default_factory=dict)
     removal: dict | None = None
+    # Presentation facts survive a later submission gate without changing the plan.
+    observations_available: bool = False
+    restart_required: bool = False
+    repeated_jobs: set[str] = field(default_factory=set)
 
 
 class Store:

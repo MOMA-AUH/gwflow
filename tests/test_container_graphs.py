@@ -116,7 +116,8 @@ class ContainerGraphTests(LocalBackendTestCase):
             preview = self.cli(*arguments)
             self.assertIn("input metadata changed", preview)
             if arguments[0] == "status":
-                self.assertEqual(preview.count("fresh computation required"), 2)
+                self.assertRegex(preview, r"Task producer\s+pending\s+0/6\s+fresh attempt required")
+                self.assertRegex(preview, r"Task consumer\s+pending\s+0/3\s+fresh attempt required")
                 self.assertRegex(preview, r"Task independent\s+reusable")
             else:
                 self.assertIn("Task producer: fresh;", preview)
