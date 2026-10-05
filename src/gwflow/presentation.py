@@ -45,12 +45,12 @@ def job_states(task):
         item = task.submissions.get(local)
         if task.action == "reuse":
             state = "completed"
+        elif item is not None and item.state == "active":
+            state = "queued" if item.backend_state == BackendStatus.SUBMITTED else "running"
         elif task.restart_required:
             state = "pending"
         elif item is None:
             state = "pending" if task.observations_available else "unknown"
-        elif item.state == "active":
-            state = "queued" if item.backend_state == BackendStatus.SUBMITTED else "running"
         else:
             state = {"complete": "completed", "cancelled": "canceled", "uncertain": "unknown"}.get(item.state, item.state)
         if state == "completed" and local in task.repeated_jobs:
@@ -62,6 +62,11 @@ def job_states(task):
 def task_row(task):
     jobs = job_states(task)
     counts = Counter(jobs.values())
+    # A declaration edit can remove a job that is still protecting the old
+    # attempt. Its activity belongs in Detail, outside the new denominator.
+    for local, item in task.submissions.items():
+        if local not in jobs and item.state == "active":
+            counts["queued" if item.backend_state == BackendStatus.SUBMITTED else "running"] += 1
     if task.action == "blocked":
         state = "blocked"
     elif task.action == "reuse":
@@ -111,14 +116,14 @@ def task_row(task):
 
 def blocking_reason(reason):
     for fragment, concise in (
-        ("unresolved submission", "submission outcome unknown"),
-        ("Active consumers", "active consumers block replacement"),
-        ("active work blocks", "active work blocks replacement"),
-        ("Active dependent", "active dependent jobs block retry"),
-        ("Inputs unavailable", "external input unavailable"),
-        ("Missing external input", "missing external input"),
+        ("unresolved submission:", "submission outcome unknown"),
+        ("Active consumers block replacement:", "active consumers block replacement"),
+        ("Unresolved or active work blocks replacement:", "active work blocks replacement"),
+        ("Active dependent work blocks retry:", "active dependent jobs block retry"),
+        ("Inputs unavailable;", "external input unavailable"),
+        ("Missing external input:", "missing external input"),
     ):
-        if fragment.lower() in reason.lower():
+        if reason.lower().startswith(fragment.lower()):
             return concise
     return reason
 

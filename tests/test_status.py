@@ -180,6 +180,29 @@ class ManagedStatusTests(LocalBackendTestCase):
         self.assertRegex(output, r"Task a\s+blocked\s+0/3\s+.*fresh attempt required")
         self.assertNotIn("progress unavailable", output)
 
+    def test_fresh_blocked_by_own_running_work_keeps_activity_visible(self):
+        held, release = self.work / "held", self.work / "release"
+        self.configure(use_spec_hashes=True)
+        self.configure_workflow(left_command=(
+            f"touch {shlex.quote(str(held))}; while [ ! -e {shlex.quote(str(release))} ]; "
+            "do sleep 0.025; done; printf left > same.txt"
+        ))
+        self.cli("run")
+        self.wait_for(held.exists)
+        try:
+            workflow = self.work / "workflow.py"
+            original = workflow.read_text()
+            for before, after in (("printf left", "printf updated"), ("'left'", "'renamed'")):
+                with self.subTest(change=before):
+                    workflow.write_text(original.replace(before, after))
+                    output = self.cli("status")
+                    self.assertRegex(output, r"Task sample\s+blocked\s+0/5")
+                    self.assertIn("fresh attempt required; 1 job still running", output)
+                    self.assertNotIn("1 active", output)
+        finally:
+            release.touch()
+        self.finish()
+
     def test_missing_image_has_unknown_progress_with_declared_denominator(self):
         workflow = self.work / "workflow.py"
         workflow.write_text(workflow.read_text().replace(
