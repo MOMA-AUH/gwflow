@@ -235,6 +235,9 @@ class ManagedStatusTests(LocalBackendTestCase):
             "    task.retain('value', source=target.output('out.txt'), path='out.txt')\n"
             "    gwf.task_from_template(name, task)\n"
         )
-        output = self.cli("status")
-        names = [line.split()[1] for line in output.splitlines() if line.startswith("Task ") and "pending" in line]
-        self.assertEqual(names, ["z_independent", "source", "consumer", "a_independent"])
+        for command in (("status",), ("explain",), ("run", "--dry-run"), ("run",)):
+            with self.subTest(command=command):
+                output = self.cli_result(*command).stdout
+                names = re.findall(r"^Task (\S+)", output, re.MULTILINE)
+                self.assertEqual(names, ["z_independent", "source", "consumer", "a_independent"])
+        self.finish()

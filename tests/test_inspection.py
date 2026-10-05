@@ -1,6 +1,7 @@
 """Lifecycle explanations at the installed CLI, filesystem, and backend seams."""
 
 from collections import Counter
+import json
 import re
 import os
 import shlex
@@ -277,6 +278,46 @@ class FinishingInspectionTests(LocalBackendTestCase):
     preview = LifecycleInspectionTests.preview
     run_previewed = LifecycleInspectionTests.run_previewed
 
+    def test_repair_progress_stays_reopened_through_queued_and_running_completion(self):
+        self.run_complete()
+        result = self.work / "results/samples/a/report/renamed.txt"
+        expected = result.read_bytes()
+        result.unlink()
+        before = self.snapshot()
+        for command in (("status",), ("explain",), ("run", "--dry-run")):
+            output = self.cli_result(*command, "--details").stdout
+            self.assertIn("State: repairable; Jobs completed: 2/3", output)
+            self.assertIn("Next action: Repair", output)
+            self.assertEqual(self.snapshot(), before)
+        actual = self.cli_result("-b", "recovery_fixture", "run", "--details",
+                                 env=self.fault(gate_after_manifest=True)).stdout
+        self.assertIn("State: repairable; Jobs completed: 2/3", actual)
+        self.assertIn("Submitted 1 job across 1 Task.", actual)
+        self.wait_for((self.work / "manifest-held").exists)
+        try:
+            for state, backend, environment in (
+                ("queued", ("-b", "recovery_fixture"), self.inject(queued_prefix="a__gwflow_complete")),
+                ("finishing", (), None),
+            ):
+                before = self.snapshot()
+                for command in (("status",), ("explain",), ("run", "--dry-run"), ("run",)):
+                    with self.subTest(state=state, command=command):
+                        output = self.cli_result(*backend, *command, "--details", env=environment).stdout
+                        self.assertIn(f"State: {state}; Jobs completed: 2/3", output)
+                        self.assertIn("Next action: Wait", output)
+                        if command == ("run",):
+                            self.assertIn("No new jobs were submitted.", output)
+                        self.assertEqual(self.snapshot(), before)
+        finally:
+            (self.work / "manifest-release").touch()
+        self.finish()
+        for command in (("status",), ("explain",), ("run", "--dry-run"), ("run",)):
+            output = self.cli_result(*command, "--details").stdout
+            self.assertIn("State: reusable; Jobs completed: 3/3", output)
+            self.assertIn("Next action: Reuse", output)
+        self.assertEqual(result.read_bytes(), expected)
+        self.assertEqual((self.work / "trace").read_text().splitlines(), ["compute"])
+
     def test_repair_and_fresh_fallback_identify_missing_and_changed_retained_files(self):
         self.run_complete()
         root = self.work / "results/samples/a/report"
@@ -334,6 +375,36 @@ class PreparationInspectionTests(LocalBackendTestCase):
     snapshot = LifecycleInspectionTests.snapshot
     preview = LifecycleInspectionTests.preview
     run_previewed = LifecycleInspectionTests.run_previewed
+
+    def test_continue_preserves_running_preparation_and_submits_only_remaining_jobs(self):
+        self.fault(gate_before_preparation=True)
+        environment = self.inject(job_fault="sample__gwflow_prepare", record_acceptances=True)
+        submitter = subprocess.run([
+            sys.executable, str(FIXTURES / "frontend_fault.py"), str(self.work), "after_preparation_ack", "sample",
+            "-b", "recovery_fixture", "run",
+        ], cwd=self.work, capture_output=True, text=True, env=environment, timeout=30)
+        try:
+            self.assertEqual(submitter.returncode, 110, submitter.stdout + submitter.stderr)
+            self.wait_for((self.work / "preparation-held").exists)
+            before = self.snapshot()
+            for command in (("status",), ("explain",), ("run", "--dry-run")):
+                output = self.cli_result("-b", "recovery_fixture", *command, "--details", env=environment).stdout
+                self.assertIn("State: preparing; Jobs completed: 0/3", output)
+                self.assertIn("Next action: Continue", output)
+                self.assertRegex(output, r"\[preparation\]\s+running")
+                self.assertEqual(self.snapshot(), before)
+            output = self.cli_result("-b", "recovery_fixture", "run", "--details", env=environment).stdout
+            self.assertIn("State: preparing; Jobs completed: 0/3", output)
+            self.assertIn("Next action: Continue", output)
+            self.assertIn("Submitted 2 jobs across 1 Task.", output)
+        finally:
+            (self.work / "preparation-release").touch()
+        self.finish()
+        accepted = [json.loads(line)["name"] for line in (self.work / "backend-acceptances.jsonl").read_text().splitlines()]
+        self.assertEqual(len(accepted), 3)
+        for local in ("gwflow_prepare", "read", "gwflow_complete"):
+            self.assertEqual(sum(name.startswith(f"sample__{local}__") for name in accepted), 1)
+        self.assertEqual((self.work / "results/sample/result.txt").read_text(), "hello\n")
 
     def test_preparation_retry_preview_matches_actual_submission(self):
         self.cli("-b", "recovery_fixture", "run", env=self.fault(crash_before_baseline=True))
