@@ -4,10 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "gwflow-summary-task"
-version = "0.3.0"
+version = "0.4.0"
 description = "Sample summary task package for the gwflow packaged example"
 requires-python = ">=3.12,<3.13"
-dependencies = ["gwflow>=0.4,<0.5"]
+dependencies = ["gwflow>=0.5,<0.6"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
