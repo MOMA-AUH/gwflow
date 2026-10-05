@@ -4,6 +4,15 @@ gwflow adds managed Tasks to [gwf](https://gwf.app/): computation runs in dispos
 work storage, while named retained files are copied into stable results storage.
 Checked completion evidence lets a Task remain reusable after its work is removed.
 
+The v0.5.0 release adds a lifecycle-aware Task overview with progress that counts
+preparation, computation, and completion. Status, explain, dry-run, and run share
+static terminal presentation, complete Task details, and plain output for logs.
+Explain, dry-run, and run show the same intended Task plan; actual runs also
+report confirmed submissions, uncertain acceptance, and jobs not attempted.
+Managed status filters now select whole Tasks by their primary state, and
+`--format` modes are reserved for ordinary gwf workflows. See the command guide
+below for selection, presentation controls, and recovery notices.
+
 The v0.4.2 release adds explicit `docker://` registry images, acquired on the
 frontend during planning and shared across a user's workflows. Missing images
 are pulled into a shared cache with progress and failure reporting; cached
