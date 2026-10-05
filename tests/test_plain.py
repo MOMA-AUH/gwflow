@@ -1,5 +1,7 @@
 """Installing gwflow must preserve ordinary gwf command behavior."""
 
+import re
+
 from support import LocalBackendTestCase
 
 
@@ -30,6 +32,40 @@ class PlainWorkflowTests(LocalBackendTestCase):
                 (self.work / "loads.txt").unlink(missing_ok=True)
                 self.cli("status", "--format", output_format)
                 self.assertEqual((self.work / "loads.txt").read_text(), "loaded\n")
+
+    def test_status_preserves_target_formats_patterns_groups_endpoints_and_states(self):
+        workflow = self.work / "workflow.py"
+        workflow.write_text(workflow.read_text() +
+                            "gwf.targets['selected'].group = 'analysis'\n"
+                            "gwf.targets['other'].group = 'auxiliary'\n"
+                            "gwf.target('consumer', inputs=['selected.txt'], outputs=['consumer.txt'], "
+                            "group='analysis') << 'touch consumer.txt'\n")
+        self.cli("run", "selected")
+        self.finish()
+        default = self.cli_result("status", "--format", "default").stdout
+        self.assertEqual(default, self.cli_result("status", "--format", "tree").stdout)
+        self.assertRegex(default, r"selected\s+completed \(id: (?:none|\d+)\)")
+        self.assertRegex(default, r"consumer\s+shouldrun \(id: none\)")
+        for options, expected in (
+            (("sel*",), {"selected"}),
+            (("--group", "anal*"), {"selected", "consumer"}),
+            (("--endpoints",), {"other", "consumer"}),
+            (("--status", "completed"), {"selected"}),
+            (("--status", "shouldrun"), {"other", "consumer"}),
+            (("--group", "anal*", "--endpoints", "--status", "shouldrun"), {"consumer"}),
+        ):
+            with self.subTest(options=options):
+                output = self.cli_result("status", *options).stdout
+                names = re.findall(r"^\S+ (\S+)\s+(?:completed|shouldrun) \(id: [^)]+\)$", output, re.MULTILINE)
+                self.assertEqual(set(names), expected)
+                self.assertNotIn("Task status", output)
+                self.assertNotIn("Jobs completed", output)
+        summary = self.cli_result("status", "--format", "summary").stdout
+        self.assertRegex(summary, r"completed\s+1")
+        self.assertRegex(summary, r"shouldrun\s+2")
+        grouped = self.cli_result("status", "--format", "grouped").stdout
+        self.assertRegex(grouped, r"analysis\s+1 shouldrun\s+.*1 completed")
+        self.assertRegex(grouped, r"auxiliary\s+1 shouldrun\s+.*0 completed")
 
     def test_generic_clean_and_touch_still_work(self):
         self.cli("touch", "selected")
