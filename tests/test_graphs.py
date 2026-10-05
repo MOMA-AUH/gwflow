@@ -98,8 +98,16 @@ class TaskGraphTests(LocalBackendTestCase):
         self.wait_for(right_failed)
         self.wait_for(lambda: "done" in (self.work / "trace").read_text().splitlines())
         try:
+            for command in (("status",), ("explain",), ("run", "--dry-run")):
+                output = self.cli_result(*command, "--details").stdout
+                self.assertIn("State: failed; Jobs completed:", output)
+                self.assertIn("Next action: Retry", output)
+                self.assertRegex(output, r"left\s+running")
             failing.unlink()
-            self.cli("run")
+            output = self.cli_result("run", "--details").stdout
+            self.assertIn("State: failed; Jobs completed:", output)
+            self.assertIn("Next action: Retry", output)
+            self.assertRegex(output, r"left\s+running")
             self.wait_for(lambda: Counter((self.work / "trace").read_text().splitlines())["right"] == 2)
             self.assertEqual(Counter((self.work / "trace").read_text().splitlines())["left"], 1)
             self.assertFalse((self.work / "results/sample").exists())

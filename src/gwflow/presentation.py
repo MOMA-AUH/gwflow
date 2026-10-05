@@ -106,7 +106,7 @@ def task_row(task):
         completed = None
     detail = []
     if task.action == "blocked":
-        detail.append(blocking_reason(task.reason))
+        detail.append(blocking_reason(task.reason) or "validation prevents proceeding; see --details")
     elif task.action == "reuse":
         detail.append("work present" if task.work_present else "work cleaned")
     elif task.action == "repair":
@@ -130,6 +130,8 @@ def task_row(task):
 
 
 def blocking_reason(reason):
+    if reason.startswith("Target ") and ": image unavailable for " in reason:
+        return "image unavailable"
     for fragment, concise in (
         ("unresolved submission:", "submission outcome unknown"),
         ("Active consumers block replacement:", "active consumers block replacement"),
@@ -140,7 +142,7 @@ def blocking_reason(reason):
     ):
         if reason.lower().startswith(fragment.lower()):
             return concise
-    return reason
+    return None
 
 
 def needs_later_finish(task):
@@ -152,10 +154,10 @@ def plan_reason(task):
     """Keep the treatment legible; full planner diagnostics remain in details."""
     if task.action == "blocked":
         concise = blocking_reason(task.reason)
-        if concise != task.reason:
-            return concise + "; resolve before proceeding"
-        if task.reason.startswith("Target ") and ": image unavailable for " in task.reason:
+        if concise == "image unavailable":
             return "image unavailable; check image access"
+        if concise:
+            return concise + "; resolve before proceeding"
         return "validation prevents proceeding; see --details"
     if task.action == "fresh":
         return task.reason.split(";", 1)[0].split(":", 1)[0] + "; fresh attempt required"

@@ -46,6 +46,9 @@ def replace(source, destination, **kwargs):
         if json.loads((parent / source).read_text()).get("state") == "removed":
             os._exit(105)
     result = original_replace(source, destination, **kwargs)
+    if selected and destination == "ack.json" and phase == "after_preparation_ack":
+        if "__gwflow_prepare__" in json.loads((parent / destination).read_text())["job"]:
+            os._exit(110)
     if selected and destination == "ack.json" and phase == "after_computation_ack":
         job = json.loads((parent / destination).read_text())["job"]
         if "__gwflow_prepare__" not in job and "__gwflow_complete__" not in job:

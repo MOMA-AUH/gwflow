@@ -222,6 +222,40 @@ class ManagedStatusTests(LocalBackendTestCase):
         self.assertIn("1 job canceled", output)
         self.assertNotIn("1 failed", output)
 
+    def test_canceled_task_keeps_running_sibling_visible_without_double_counting(self):
+        held, release = self.work / "held", self.work / "release"
+        self.configure_workflow(left_command=(
+            f"touch {shlex.quote(str(held))}; while [ ! -e {shlex.quote(str(release))} ]; "
+            "do sleep 0.025; done; printf left > same.txt"
+        ))
+        workflow = self.work / "workflow.py"
+        workflow.write_text(workflow.read_text().split("join = task.target")[0] +
+                            "task.retain('left', source=left.output('same.txt'), path='result.txt')\n"
+                            "gwf.task_from_template('sample', task)\n")
+        self.cli("run")
+        self.wait_for(held.exists)
+        try:
+            environment = self.inject(job_states={"sample__right": "CANCELLED"})
+            output = self.cli_result("-b", "recovery_fixture", "status", env=environment).stdout
+            self.assertRegex(output, r"Task sample\s+canceled\s+1/4")
+            self.assertIn("1 Task shown: 1 canceled", output)
+            self.assertIn("1 job canceled; 1 job still running", output)
+            self.assertNotIn("1 active", output)
+            self.assertNotIn("1 failed", output)
+            selected = self.cli_result("-b", "recovery_fixture", "status", "sample__right",
+                                       "--status", "canceled", env=environment).stdout
+            self.assertIn("State: canceled; Jobs completed: 1/4", selected)
+            for name, state in (("[preparation]", "completed"), ("left", "running"),
+                                ("right", "canceled"), ("[completion]", "queued")):
+                self.assertRegex(selected, re.escape(name) + r"\s+" + state)
+            for state in ("failed", "running", "queued"):
+                output = self.cli_result("-b", "recovery_fixture", "status", "--status", state,
+                                         env=environment).stdout
+                self.assertIn("0 of 1 Tasks shown", output)
+        finally:
+            release.touch()
+        self.finish()
+
     def test_dependency_order_uses_declaration_order_for_eligible_ties(self):
         (self.work / "workflow.py").write_text(
             "from gwflow import Task, Workflow\n"
@@ -235,6 +269,9 @@ class ManagedStatusTests(LocalBackendTestCase):
             "    task.retain('value', source=target.output('out.txt'), path='out.txt')\n"
             "    gwf.task_from_template(name, task)\n"
         )
-        output = self.cli("status")
-        names = [line.split()[1] for line in output.splitlines() if line.startswith("Task ") and "pending" in line]
-        self.assertEqual(names, ["z_independent", "source", "consumer", "a_independent"])
+        for command in (("status",), ("explain",), ("run", "--dry-run"), ("run",)):
+            with self.subTest(command=command):
+                output = self.cli_result(*command).stdout
+                names = re.findall(r"^Task (\S+)", output, re.MULTILINE)
+                self.assertEqual(names, ["z_independent", "source", "consumer", "a_independent"])
+        self.finish()
