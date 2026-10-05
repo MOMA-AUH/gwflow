@@ -2,11 +2,21 @@
 
 from collections import Counter
 from dataclasses import dataclass
+from fnmatch import fnmatchcase
+import os
+import sys
 
 import click
 from gwf.backends import BackendStatus
+from rich import box
+from rich.console import Console
+from rich.panel import Panel
+from rich.progress_bar import ProgressBar
+from rich.table import Table
+from rich.text import Text
 
-from .lifecycle import TaskObservation, producer_names
+from .inspection import condition, task_details
+from .lifecycle import TaskObservation, ordered_targets, producer_names
 from .workflow import lifecycle_jobs
 
 
@@ -136,12 +146,169 @@ def summary(rows, total):
     return shown + (": " + ", ".join(f"{value} {state}" for state, value in counts.items()) if counts else "")
 
 
-def print_status(rows, total):
-    click.echo(summary(rows, total))
-    click.echo(f"{'Task':<33} {'State':<14} {'Jobs completed':<16} Detail")
-    for row in rows:
-        color = ("red" if row.state in ("failed", "canceled") else
-                 "yellow" if row.state in ("blocked", "repairable", "deferred") else
-                 "green" if row.state == "reusable" else
-                 "blue" if row.state in ACTIVE else "cyan" if row.state == "queued" else "magenta")
-        click.secho(f"{'Task ' + row.task.name:<33} {row.state:<14} {row.progress:<16} {row.detail}".rstrip(), fg=color)
+def matches(name, patterns):
+    return any(fnmatchcase(name, pattern) for pattern in patterns)
+
+
+def selected_rows(workflow, plan, *, targets=(), endpoints=False, statuses=(), group=()):
+    producers = {name for task in plan.tasks for name in producer_names(task.structure)}
+    rows = []
+    for task in task_order(workflow, plan):
+        if endpoints and task.name in producers:
+            continue
+        names = lifecycle_jobs(task.structure["targets"])
+        if targets and not (matches(task.name, targets)
+                            or any(matches(f"{task.name}__{local}", targets) for local in names)):
+            continue
+        if group and not any(matches(workflow.targets[f"{task.name}__{local}"].group or "none", group)
+                             for local in task.structure["targets"]):
+            continue
+        row = task_row(task)
+        if not statuses or row.state in statuses:
+            rows.append(row)
+    return rows
+
+
+_VISUALS = {
+    "pending": ("○", "magenta"), "queued": ("◷", "cyan"),
+    "preparing": ("↻", "blue"), "running": ("▶", "blue"), "finishing": ("↗", "blue"),
+    "reusable": ("✓", "green"), "completed": ("✓", "green"),
+    "repairable": ("◇", "yellow"), "deferred": ("…", "yellow"),
+    "failed": ("✗", "bold red"), "canceled": ("⊘", "red"),
+    "blocked": ("!", "bold yellow"), "unknown": ("?", "yellow"),
+}
+
+
+class Report:
+    """Print a static snapshot; terminal controls never change observations."""
+
+    def __init__(self, store, *, plain=False, no_truncate=False):
+        self.store = store
+        stream = sys.stdout
+        self.terminal = stream.isatty()
+        try:
+            "─○".encode(stream.encoding or "utf-8")
+            self.unicode = True
+        except UnicodeEncodeError:
+            self.unicode = False
+        self.plain = plain or not self.terminal or not self.unicode or os.environ.get("TERM", "").lower() in ("dumb", "unknown")
+        self.truncate = self.terminal and not no_truncate
+        root = click.get_current_context().find_root()
+        no_color = root.params.get("no_color")
+        if no_color is None:
+            no_color = root.obj.config.get("no_color")
+        if no_color is None:
+            no_color = bool(os.environ.get("NO_COLOR"))
+        self.console = Console(file=stream, force_terminal=self.terminal and not self.plain,
+                               color_system=None if self.plain or no_color else "auto",
+                               no_color=self.plain or no_color, markup=False, highlight=False)
+
+    def text(self, value, *, style="", complete=False):
+        return Text(value, style=style, no_wrap=self.truncate and not complete,
+                    overflow="ellipsis" if self.truncate and not complete else "fold")
+
+    def line(self, value, *, complete=False):
+        if not self.terminal:
+            click.echo(value, color=False)
+        else:
+            truncate = self.truncate and not complete
+            text = self.text(value, complete=complete)
+            if not self.unicode:
+                text = Text(value.encode(self.console.encoding, errors="backslashreplace").decode(self.console.encoding))
+                if truncate and text.cell_len > self.console.width:
+                    text.truncate(max(1, self.console.width - 3), overflow="crop")
+                    text.append("...")
+            self.console.print(text, no_wrap=truncate, overflow="ellipsis" if truncate and self.unicode else "fold")
+
+    def notice(self, message):
+        if self.plain:
+            self.line(message, complete=True)
+        else:
+            self.console.print(Panel(self.text(message, complete=True), border_style="yellow", title="Notice"))
+
+    def state(self, name):
+        symbol, style = _VISUALS[name]
+        return Text(f"{symbol} {name}", style=style, no_wrap=True)
+
+    def status(self, rows, total, *, expand=False):
+        heading = summary(rows, total)
+        if self.plain:
+            self.line(heading, complete=True)
+            self.line("Task / State / Jobs completed / Detail" if self.terminal else
+                      f"{'Task':<33} {'State':<14} {'Jobs completed':<16} Detail", complete=True)
+            for row in rows:
+                if self.terminal:
+                    self._compact_row(row)
+                else:
+                    self.line(f"{'Task ' + row.task.name:<33} {row.state:<14} {row.progress:<16} {row.detail}".rstrip())
+        else:
+            self.console.print(Panel(Text(heading, style="bold cyan"), border_style="cyan", title="Task status"))
+            if self.console.width < 64:
+                self.line("Jobs completed (steps)", complete=True)
+                for row in rows:
+                    self._compact_row(row)
+            else:
+                table = Table(box=box.SIMPLE_HEAD, expand=True, padding=(0, 1))
+                table.add_column("Task", ratio=2, min_width=12)
+                table.add_column("State", width=12, no_wrap=True)
+                table.add_column("Jobs completed", width=14, justify="right", no_wrap=True)
+                bars = self.console.width >= 90
+                if bars:
+                    table.add_column("", width=min(14, (self.console.width - 80) // 2))
+                table.add_column("Detail", ratio=3)
+                for row in rows:
+                    cells = [self.text(row.task.name), self.state(row.state), Text(row.progress)]
+                    if bars:
+                        cells.append(ProgressBar(total=row.total, completed=row.completed,
+                                                 complete_style=_VISUALS[row.state][1], finished_style="green")
+                                     if row.completed is not None else Text(""))
+                    cells.append(self.text(row.detail))
+                    table.add_row(*cells, style="on grey11" if row.state in ("blocked", "failed") else None)
+                self.console.print(table)
+        if expand:
+            for row in rows:
+                self.details(row)
+
+    def _compact_row(self, row):
+        self.line("Task " + row.task.name)
+        if self.plain:
+            self.line(f"  {row.state}  {row.progress}", complete=True)
+        else:
+            text = self.state(row.state)
+            text.append("  " + row.progress)
+            self.console.print(text)
+        if row.detail:
+            self.line("  " + row.detail)
+
+    def details(self, row):
+        task = row.task
+        self.line(f"Details for Task {task.name}:")
+        self.line(f"  State: {row.state}; Jobs completed: {row.progress}", complete=True)
+        names = lifecycle_jobs(ordered_targets(task.structure))
+        if self.plain:
+            for local in names:
+                name = {"gwflow_prepare": "[preparation]", "gwflow_complete": "[completion]"}.get(local, local)
+                self.line(f"  {name:<28} {row.jobs[local]}")
+        else:
+            table = Table(box=None, show_header=False, padding=(0, 1))
+            table.add_column(ratio=2, min_width=12)
+            table.add_column(width=12, no_wrap=True)
+            for local in names:
+                name = {"gwflow_prepare": "[preparation]", "gwflow_complete": "[completion]"}.get(local, local)
+                table.add_row(self.text(name, style="dim" if local.startswith("gwflow_") else ""),
+                              self.state(row.jobs[local]))
+            self.console.print(table)
+        for line in (f"Condition: {condition(task)}", f"Next: {task.action}", f"Reason: {task.reason}",
+                     *task_details(self.store, task)):
+            self.line("  " + line)
+
+
+def output_options(command):
+    for name, help_text in (
+        ("details", "Expand whole Tasks with lifecycle jobs and diagnostics."),
+        ("plain", "Use undecorated output."),
+        ("no_truncate", "Show full names and reasons, wrapping in terminals."),
+    ):
+        if not isinstance(command, click.Command) or not any(parameter.name == name for parameter in command.params):
+            command = click.option("--" + name.replace("_", "-"), is_flag=True, help=help_text)(command)
+    return command

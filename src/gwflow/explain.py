@@ -6,36 +6,36 @@ from gwf.core import pass_context
 from gwf.exceptions import WorkflowError
 
 from ._frontend import _submission_guard
-from .inspection import action_line, blockage_line, task_details
+from .inspection import action_line, blockage_line
 from .planning import plan_workflow
+from .presentation import Report, output_options, selected_rows
 from .workflow import Workflow
 
 
 @click.command()
-@click.option("--details", is_flag=True, help="Show Task attempts and execution jobs.")
+@output_options
 @click.option("--force", is_flag=True, help="Preview a forced whole-workflow run.")
 @click.option("--force-task", multiple=True, help="Preview fresh computation for a named whole Task.")
-@click.argument("task_name", required=False)
+@click.option("--endpoints", is_flag=True, help="Show endpoint Tasks.")
+@click.option("-g", "--group", multiple=True, help="Select Tasks by computation-target group.")
+@click.argument("targets", nargs=-1)
 @pass_context
-def explain(ctx, details, force, force_task, task_name):
+def explain(ctx, details, force, force_task, targets, endpoints, group, plain, no_truncate):
     """Explain a whole-workflow run without changing managed state."""
     workflow = GwfWorkflow.from_context(ctx)
     if not isinstance(workflow, Workflow):
         raise WorkflowError("gwf explain requires a gwflow.Workflow")
     with _submission_guard(ctx.working_dir, waiting_message="Waiting for frontend submission bookkeeping..."):
         plan = plan_workflow(workflow, ctx, force=force, force_tasks=force_task)
-        if task_name is not None and task_name not in workflow._task_declarations:
-            raise WorkflowError(f"Unknown Task name {task_name!r}")
-        click.echo("Managed whole-workflow plan")
+        report = Report(plan.store, plain=plain, no_truncate=no_truncate)
+        report.line("Managed whole-workflow plan")
         if plan.blocked:
-            click.echo(blockage_line(plan))
-        for task in plan.tasks:
-            if task_name is not None and task.name != task_name:
-                continue
-            click.echo(action_line(task))
+            report.notice(blockage_line(plan))
+        for row in selected_rows(workflow, plan, targets=targets, endpoints=endpoints, group=group):
+            task = row.task
+            report.line(action_line(task))
             if task.pending and not plan.blocked:
                 for local in task.pending:
-                    click.echo(f"  Would submit {task.name}__{local}")
-            if details:
-                for line in task_details(plan.store, task):
-                    click.echo(f"  {line}")
+                    report.line(f"  Would submit {task.name}__{local}")
+            if details or targets or group:
+                report.details(row)

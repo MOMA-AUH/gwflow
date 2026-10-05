@@ -1,7 +1,5 @@
 """Compact managed Task status and unchanged gwf formatting for plain workflows."""
 
-from fnmatch import fnmatchcase
-
 import click
 from gwf import Workflow as GwfWorkflow
 from gwf.backends import create_backend
@@ -12,58 +10,15 @@ from gwf.scheduling import get_status_map
 
 from ._frontend import _submission_guard
 from ._state import state_name
-from .inspection import blockage_line, condition, task_details
-from .lifecycle import ordered_targets, producer_names
+from .inspection import blockage_line
 from .planning import plan_workflow
-from .presentation import STATES, print_status, task_order, task_row
-from .workflow import Workflow, lifecycle_jobs
+from .presentation import STATES, Report, output_options, selected_rows
+from .workflow import Workflow
 
 
 class _StatusChoice(click.Choice):
     def convert(self, value, param, ctx):
         return super().convert("canceled" if value == "cancelled" else value, param, ctx)
-
-
-def _matches(name, patterns):
-    return any(fnmatchcase(name, pattern) for pattern in patterns)
-
-
-def _managed_rows(workflow, plan, targets, endpoints, statuses, group):
-    producers = {name for task in plan.tasks for name in producer_names(task.structure)}
-    for task in task_order(workflow, plan):
-        if endpoints and task.name in producers:
-            continue
-        row = task_row(task)
-        names = lifecycle_jobs(ordered_targets(task.structure))
-        if targets and not (_matches(task.name, targets)
-                            or any(_matches(f"{task.name}__{local}", targets) for local in names)):
-            continue
-        if group and not any(_matches(workflow.targets[f"{task.name}__{local}"].group or "none", group)
-                             for local in task.structure["targets"]):
-            continue
-        if statuses and row.state not in statuses:
-            continue
-        yield row
-
-
-def _print_details(plan, rows, *, details, focused, targets):
-    for row in rows:
-        task = row.task
-        if details or focused:
-            names = lifecycle_jobs(ordered_targets(task.structure))
-            children = [local for local in names if local in task.structure["targets"] or details
-                        or _matches(f"{task.name}__{local}", targets)]
-            for index, local in enumerate(children):
-                name = {"gwflow_prepare": "preparation", "gwflow_complete": "completion"}.get(local, local)
-                state = row.jobs[local]
-                prefix = "  `-- " if index == len(children) - 1 else "  |-- "
-                click.echo(f"{prefix}. {name:<28} {state}")
-        if details:
-            click.echo(f"  Condition: {condition(task)}")
-            click.echo(f"  Next: {task.action}")
-            click.echo(f"  Reason: {task.reason}")
-            for line in task_details(plan.store, task):
-                click.echo(f"  {line}")
 
 
 def _plain_status(workflow, ctx, targets, endpoints, output_format, statuses, group):
@@ -98,9 +53,9 @@ def _plain_status(workflow, ctx, targets, endpoints, output_format, statuses, gr
               help="Format for ordinary gwf workflows only.")
 @click.option("-s", "--status", "statuses", multiple=True, type=_StatusChoice(tuple(dict.fromkeys((*STATES, *(state_name(state) for state in Status))))))
 @click.option("-g", "--group", multiple=True)
-@click.option("--details", is_flag=True, help="Expand the tree and include lifecycle diagnostics and execution jobs.")
+@output_options
 @pass_context
-def managed_status(ctx, targets, endpoints, output_format, statuses, group, details):
+def managed_status(ctx, targets, endpoints, output_format, statuses, group, details, plain, no_truncate):
     """Show managed Task condition, including reusable cleaned work."""
     workflow = GwfWorkflow.from_context(ctx)
     if not isinstance(workflow, Workflow):
@@ -112,11 +67,11 @@ def managed_status(ctx, targets, endpoints, output_format, statuses, group, deta
         raise click.UsageError("Managed status filters use Task states: " + ", ".join(STATES))
     with _submission_guard(ctx.working_dir, waiting_message="Waiting for frontend submission bookkeeping..."):
         plan = plan_workflow(workflow, ctx)
+        report = Report(plan.store, plain=plain, no_truncate=no_truncate)
         if plan.blocked:
-            click.secho(blockage_line(plan), fg="yellow")
-        rows = list(_managed_rows(workflow, plan, targets, endpoints, statuses, group))
-        print_status(rows, len(plan.tasks))
-        _print_details(plan, rows, details=details, focused=bool(targets or group), targets=targets)
+            report.notice(blockage_line(plan))
+        rows = selected_rows(workflow, plan, targets=targets, endpoints=endpoints, statuses=statuses, group=group)
+        report.status(rows, len(plan.tasks), expand=details or bool(targets or group))
 
 
 gwf_status.params = managed_status.params

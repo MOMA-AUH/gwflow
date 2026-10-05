@@ -115,16 +115,36 @@ precedence over failure, then cancellation, then ongoing work. Aggregate details
 still show jobs running within a failed, canceled, or blocked Task. Historical
 backend failures do not override valid Completion and Reuse.
 
-Use `gwf status --details` for debugging. It expands jobs and adds the current
-condition, next planned action, full reason, attempt UUIDs, workspace, results and
-staging paths, expected producer attempts, active consumers, and the mapping from
-public Task/local target names to execution submissions, backend job IDs, and logs.
+Supported terminals use a static Rich presentation with a colored summary frame,
+Unicode state symbols, and slim progress bars. The bars are snapshots of completed
+steps; presentation adds no scheduler polling or live refresh. Narrow terminals
+omit bars before losing textual states and numeric progress.
 
-Task names and public names such as `sample_b__sort` accept glob patterns and
-expand the owning Task. `--group` selects whole Tasks with a matching computation
-target group. `--status` matches only the primary Task state: a blocked Task with
-failed jobs matches blocked, not failed. `--endpoints` shows Tasks whose retained
-outputs have no declared consumers. All counts describe complete selected Tasks.
+Use `--details` with status, explain, run, or run --dry-run to expand complete
+Tasks. Each expansion names its owning Task, gives its state and progress, then
+shows `[preparation]`, every computation target, and `[completion]` in that order.
+Only the bracketed lifecycle names are dimmed; their states remain prominent.
+Details also include the current condition, planned action, full diagnostic reason,
+attempt UUIDs, workspace, results and staging paths, expected producer attempts,
+active consumers, public job names, available backend IDs, and log paths.
+
+Task names and public names such as `sample_b__sort` accept glob patterns in
+status and explain. Selecting a Task or job expands the complete owning Task.
+`--group` selects and expands whole Tasks with any matching computation target
+group. `--status` on managed status matches only the primary Task state: a blocked
+Task with failed jobs matches blocked, not failed. `--endpoints` shows Tasks whose
+retained outputs have no declared consumers. All counts describe complete selected
+Tasks. Inspection filters preserve whole-workflow validation; managed run remains
+a whole-workflow operation.
+
+Long names and diagnostics truncate with an ellipsis in a terminal. Use
+`--no-truncate` to wrap their full text. `--plain` removes colors, symbols, borders,
+and graphical bars, while keeping terminal truncation independent. Redirected
+stdout automatically uses plain, untruncated reports, even with forced color.
+`gwf --no-color status` preserves supported layout decorations without color;
+unsupported terminals fall back to plain output. Required notices always wrap
+completely. These presentation controls apply consistently to expanded details
+in all four command routes.
 
 Managed workflows use this Task presentation; `--format` modes are reserved for
 ordinary gwf workflows, which retain their original formats and selection rules.
