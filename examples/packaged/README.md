@@ -27,7 +27,7 @@ cd examples/packaged
 gwf config set use_spec_hashes true
 ```
 
-The example packages are version 0.3.0 and require gwflow 0.4.x. Use `-e` for
+The example packages are version 0.4.0 and require gwflow 0.5.x. Use `-e` for
 editable package development if desired. Package version or implementation
 changes have no independent invalidation; changed generated commands are tracked
 when hashes are enabled. Use explicit force for otherwise untracked changes.
@@ -122,7 +122,7 @@ cd build/packaged-container-demo
 gwf config set use_spec_hashes true
 ```
 
-Use a fresh demonstration directory for v0.4 state; existing older managed
+Use a fresh demonstration directory for v0.5 state; existing older managed
 records are not migrated. Building these images is fixture/deployment setup,
 requiring network access to the Python base image and package build requirements.
 gwflow itself accepts already prepared local SIF paths and does not acquire them.
