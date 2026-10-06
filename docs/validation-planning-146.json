@@ -1,0 +1,670 @@
+{
+  "issue": "https://github.com/MOMA-AUH/gwflow/issues/146",
+  "baseline_revision": "abd68ef932a5f0c8528b4e26f67064a3aa308ded",
+  "implementation": "PR containing this record; Task job observation reuse only",
+  "environment": {
+    "python": "3.12.14",
+    "gwf": "2.1.1",
+    "gwflow": "0.5.0",
+    "rich": "15.0.0",
+    "platform": "Linux"
+  },
+  "paths": {
+    "<REPO>": "repository checkout",
+    "<WORKFLOW>": "fresh temporary directory created by LocalBackendTestCase",
+    "<PYTHON>": "Python 3.12 environment with gwflow installed"
+  },
+  "commands": {
+    "baseline": "GWFLOW_IO_EVIDENCE=<REPO>/build/validation/planning/146-baseline <PYTHON> -m unittest discover -s tests -p test_planning_io.py -v (only the initial I/O test existed; six expected failing subtests)",
+    "optimized": "GWFLOW_IO_EVIDENCE=<REPO>/build/validation/planning/146-optimized <PYTHON> -m unittest discover -s tests -p test_planning_io.py -v (initial I/O test; all six command cases passed)",
+    "direct_probe": "cd <WORKFLOW> && <PYTHON> <REPO>/tests/fixtures/planning_probe.py report.json status"
+  },
+  "fixture": "FreshAttemptTests public workflow: independent producers a and b, consumer c bound to a; one computation and two lifecycle jobs per Task. Execute all nine jobs on the local backend, await Completion, then inspect stable retained files. Baseline and optimized use equivalent separately created states, equal path depth, and the same environment; no private data, live registry, or Slurm.",
+  "measurement_contract": [
+    "Counts are real Python os.open/close/stat/lstat/fstat/readlink/listdir/read calls and C stream read/readinto/readline calls; attempts include failed opens. They are not a complete kernel syscall trace. Imports may use C-level opens not intercepted by os.open.",
+    "The profile callback assigns phases to installed CLI activity without replacing planner or storage implementations. Filesystem counting excludes the harness own descriptor bookkeeping.",
+    "Scheduler requests count local Client.status RPCs (and corresponding fixture/Slurm query boundaries), not cached TrackingBackend.status lookups. Local batching remains one request.",
+    "Peak descriptors counts concurrently open descriptors introduced through os.open, including regular files; Python-stream-owned and inherited sockets are excluded. No retained planning descriptors are introduced in this stage.",
+    "Instrumented phase times include profiler overhead and are retained as measurements, not used to claim latency improvements. The 418-job fixture, scaling, uninstrumented repeated timings, and directory reuse evidence belong to subsequent tickets.",
+    "Each command output was compared byte-for-byte with a normal installed CLI invocation on the same completed workflow. Forced replacement is preview-only.",
+    "The regression requires nine distinct acknowledgement reads exactly once per planning pass, including replacement checks. This rejects the baseline, which reads consumer acknowledgements twice and up to three times during forced replacement.",
+    "Current admission selection and archived intent validation are deliberately re-read before job-observation reuse, so a newly selected admission cannot inherit trusted state from an earlier submission. Later record reuse must preserve this identity boundary."
+  ],
+  "results": {
+    "146-baseline": {
+      "explain---force-task-a": {
+        "counts": {
+          "startup": {
+            "stream_reads": 4,
+            "stat": 6
+          },
+          "imports": {
+            "stream_reads": 269,
+            "stat": 11,
+            "listdir": 9
+          },
+          "construction": {
+            "stream_reads": 3,
+            "lstat": 3,
+            "stat": 1
+          },
+          "backend": {
+            "stream_reads": 30,
+            "stat": 72,
+            "listdir": 2,
+            "scheduler_requests": 1
+          },
+          "rendering": {
+            "stream_reads": 7
+          },
+          "planning": {
+            "lstat": 11,
+            "stat": 25,
+            "directory_opens": 2100,
+            "close": 2101,
+            "file_opens": 158,
+            "fstat": 143,
+            "stream_reads": 138,
+            "listdir": 1
+          }
+        },
+        "seconds": {
+          "startup": 0.007742280082311481,
+          "imports": 1.2172313360497355,
+          "construction": 0.023672120994888246,
+          "backend": 0.10229792416794226,
+          "rendering": 0.019359186990186572,
+          "planning": 0.0801976477378048
+        },
+        "path_depth": 2,
+        "peak_opened_descriptors": 2,
+        "acknowledgements": {
+          "distinct": 9,
+          "total_reads": 18,
+          "maximum_per_path": 3
+        }
+      },
+      "explain": {
+        "counts": {
+          "startup": {
+            "stream_reads": 4,
+            "stat": 6
+          },
+          "imports": {
+            "stream_reads": 269,
+            "stat": 11,
+            "listdir": 9
+          },
+          "construction": {
+            "stream_reads": 3,
+            "lstat": 3,
+            "stat": 1
+          },
+          "backend": {
+            "stream_reads": 30,
+            "stat": 72,
+            "listdir": 2,
+            "scheduler_requests": 1
+          },
+          "rendering": {
+            "stream_reads": 7
+          },
+          "planning": {
+            "lstat": 11,
+            "stat": 25,
+            "directory_opens": 2358,
+            "close": 2365,
+            "file_opens": 188,
+            "fstat": 185,
+            "stream_reads": 166,
+            "listdir": 1
+          }
+        },
+        "seconds": {
+          "startup": 0.019903878041077405,
+          "imports": 1.2156724700471386,
+          "construction": 0.021669402020052075,
+          "backend": 0.09950713417492807,
+          "rendering": 0.024203093897085637,
+          "planning": 0.09689792385324836
+        },
+        "path_depth": 2,
+        "peak_opened_descriptors": 2,
+        "acknowledgements": {
+          "distinct": 9,
+          "total_reads": 12,
+          "maximum_per_path": 2
+        }
+      },
+      "run---dry-run": {
+        "counts": {
+          "startup": {
+            "stream_reads": 4,
+            "stat": 6
+          },
+          "imports": {
+            "stream_reads": 269,
+            "stat": 11,
+            "listdir": 9
+          },
+          "construction": {
+            "stream_reads": 3,
+            "lstat": 3,
+            "stat": 1
+          },
+          "backend": {
+            "stream_reads": 30,
+            "stat": 72,
+            "listdir": 2,
+            "scheduler_requests": 1
+          },
+          "rendering": {
+            "stream_reads": 7
+          },
+          "planning": {
+            "lstat": 11,
+            "stat": 25,
+            "directory_opens": 2358,
+            "close": 2365,
+            "file_opens": 188,
+            "fstat": 185,
+            "stream_reads": 166,
+            "listdir": 1
+          }
+        },
+        "seconds": {
+          "startup": 0.008499312156345695,
+          "imports": 1.3767545812297612,
+          "construction": 0.026348785846494138,
+          "backend": 0.10053802892798558,
+          "rendering": 0.025923414796125144,
+          "planning": 0.09371030406327918
+        },
+        "path_depth": 2,
+        "peak_opened_descriptors": 2,
+        "acknowledgements": {
+          "distinct": 9,
+          "total_reads": 12,
+          "maximum_per_path": 2
+        }
+      },
+      "run": {
+        "counts": {
+          "startup": {
+            "stream_reads": 4,
+            "stat": 6
+          },
+          "imports": {
+            "stream_reads": 269,
+            "stat": 11,
+            "listdir": 9
+          },
+          "construction": {
+            "stream_reads": 3,
+            "lstat": 3,
+            "stat": 1
+          },
+          "backend": {
+            "stream_reads": 30,
+            "stat": 72,
+            "listdir": 2,
+            "scheduler_requests": 1
+          },
+          "rendering": {
+            "stream_reads": 7
+          },
+          "planning": {
+            "lstat": 11,
+            "stat": 25,
+            "directory_opens": 2358,
+            "close": 2365,
+            "file_opens": 188,
+            "fstat": 185,
+            "stream_reads": 166,
+            "listdir": 1
+          }
+        },
+        "seconds": {
+          "startup": 0.010220084164757282,
+          "imports": 1.4207881991751492,
+          "construction": 0.029693125863559544,
+          "backend": 0.09816177800530568,
+          "rendering": 0.025533948908559978,
+          "planning": 0.09456121292896569
+        },
+        "path_depth": 2,
+        "peak_opened_descriptors": 2,
+        "acknowledgements": {
+          "distinct": 9,
+          "total_reads": 12,
+          "maximum_per_path": 2
+        }
+      },
+      "status---details-c": {
+        "counts": {
+          "startup": {
+            "stream_reads": 4,
+            "stat": 6
+          },
+          "imports": {
+            "stream_reads": 269,
+            "stat": 11,
+            "listdir": 9
+          },
+          "construction": {
+            "stream_reads": 3,
+            "lstat": 3,
+            "stat": 1
+          },
+          "backend": {
+            "stream_reads": 30,
+            "stat": 72,
+            "listdir": 2,
+            "scheduler_requests": 1
+          },
+          "rendering": {
+            "stream_reads": 7
+          },
+          "planning": {
+            "lstat": 11,
+            "stat": 25,
+            "directory_opens": 2358,
+            "close": 2365,
+            "file_opens": 188,
+            "fstat": 185,
+            "stream_reads": 166,
+            "listdir": 1
+          }
+        },
+        "seconds": {
+          "startup": 0.013133850938174874,
+          "imports": 1.6581189901335165,
+          "construction": 0.026816591853275895,
+          "backend": 0.17865778889972717,
+          "rendering": 0.0308295440627262,
+          "planning": 0.09583195811137557
+        },
+        "path_depth": 2,
+        "peak_opened_descriptors": 2,
+        "acknowledgements": {
+          "distinct": 9,
+          "total_reads": 12,
+          "maximum_per_path": 2
+        }
+      },
+      "status": {
+        "counts": {
+          "startup": {
+            "stream_reads": 4,
+            "stat": 6
+          },
+          "imports": {
+            "stream_reads": 269,
+            "stat": 11,
+            "listdir": 9
+          },
+          "construction": {
+            "stream_reads": 3,
+            "lstat": 3,
+            "stat": 1
+          },
+          "backend": {
+            "stream_reads": 30,
+            "stat": 72,
+            "listdir": 2,
+            "scheduler_requests": 1
+          },
+          "rendering": {
+            "stream_reads": 7
+          },
+          "planning": {
+            "lstat": 11,
+            "stat": 25,
+            "directory_opens": 2358,
+            "close": 2365,
+            "file_opens": 188,
+            "fstat": 185,
+            "stream_reads": 166,
+            "listdir": 1
+          }
+        },
+        "seconds": {
+          "startup": 0.008009022974874824,
+          "imports": 1.4683942889096215,
+          "construction": 0.02489121095277369,
+          "backend": 0.12459397199563682,
+          "rendering": 0.020477423153351992,
+          "planning": 0.09506773500470445
+        },
+        "path_depth": 2,
+        "peak_opened_descriptors": 2,
+        "acknowledgements": {
+          "distinct": 9,
+          "total_reads": 12,
+          "maximum_per_path": 2
+        }
+      }
+    },
+    "146-optimized": {
+      "explain---force-task-a": {
+        "counts": {
+          "startup": {
+            "stream_reads": 4,
+            "stat": 6
+          },
+          "imports": {
+            "stream_reads": 270,
+            "stat": 11,
+            "listdir": 9
+          },
+          "construction": {
+            "stream_reads": 3,
+            "lstat": 3,
+            "stat": 1
+          },
+          "backend": {
+            "stream_reads": 30,
+            "stat": 72,
+            "listdir": 2,
+            "scheduler_requests": 1
+          },
+          "rendering": {
+            "stream_reads": 7
+          },
+          "planning": {
+            "lstat": 11,
+            "stat": 25,
+            "directory_opens": 1632,
+            "close": 1633,
+            "file_opens": 122,
+            "fstat": 116,
+            "stream_reads": 111,
+            "listdir": 1
+          }
+        },
+        "seconds": {
+          "startup": 0.010346562834456563,
+          "imports": 1.725384125194978,
+          "construction": 0.02896293898811564,
+          "backend": 0.15019394893897697,
+          "rendering": 0.022757796046789736,
+          "planning": 0.06724052299978212
+        },
+        "path_depth": 2,
+        "peak_opened_descriptors": 2,
+        "acknowledgements": {
+          "distinct": 9,
+          "total_reads": 9,
+          "maximum_per_path": 1
+        }
+      },
+      "explain": {
+        "counts": {
+          "startup": {
+            "stream_reads": 4,
+            "stat": 6
+          },
+          "imports": {
+            "stream_reads": 270,
+            "stat": 11,
+            "listdir": 9
+          },
+          "construction": {
+            "stream_reads": 3,
+            "lstat": 3,
+            "stat": 1
+          },
+          "backend": {
+            "stream_reads": 30,
+            "stat": 72,
+            "listdir": 2,
+            "scheduler_requests": 1
+          },
+          "rendering": {
+            "stream_reads": 7
+          },
+          "planning": {
+            "lstat": 11,
+            "stat": 25,
+            "directory_opens": 2202,
+            "close": 2209,
+            "file_opens": 176,
+            "fstat": 176,
+            "stream_reads": 157,
+            "listdir": 1
+          }
+        },
+        "seconds": {
+          "startup": 0.008976975979749113,
+          "imports": 1.4049269179231487,
+          "construction": 0.02650915499543771,
+          "backend": 0.12486074503976852,
+          "rendering": 0.022710500983521342,
+          "planning": 0.09186859906185418
+        },
+        "path_depth": 2,
+        "peak_opened_descriptors": 2,
+        "acknowledgements": {
+          "distinct": 9,
+          "total_reads": 9,
+          "maximum_per_path": 1
+        }
+      },
+      "run---dry-run": {
+        "counts": {
+          "startup": {
+            "stream_reads": 4,
+            "stat": 6
+          },
+          "imports": {
+            "stream_reads": 270,
+            "stat": 11,
+            "listdir": 9
+          },
+          "construction": {
+            "stream_reads": 3,
+            "lstat": 3,
+            "stat": 1
+          },
+          "backend": {
+            "stream_reads": 30,
+            "stat": 72,
+            "listdir": 2,
+            "scheduler_requests": 1
+          },
+          "rendering": {
+            "stream_reads": 7
+          },
+          "planning": {
+            "lstat": 11,
+            "stat": 25,
+            "directory_opens": 2202,
+            "close": 2209,
+            "file_opens": 176,
+            "fstat": 176,
+            "stream_reads": 157,
+            "listdir": 1
+          }
+        },
+        "seconds": {
+          "startup": 0.012824969948269427,
+          "imports": 1.3517987069208175,
+          "construction": 0.021531045145820826,
+          "backend": 0.12167324783513322,
+          "rendering": 0.020492189971264452,
+          "planning": 0.09120001114206389
+        },
+        "path_depth": 2,
+        "peak_opened_descriptors": 2,
+        "acknowledgements": {
+          "distinct": 9,
+          "total_reads": 9,
+          "maximum_per_path": 1
+        }
+      },
+      "run": {
+        "counts": {
+          "startup": {
+            "stream_reads": 4,
+            "stat": 6
+          },
+          "imports": {
+            "stream_reads": 270,
+            "stat": 11,
+            "listdir": 9
+          },
+          "construction": {
+            "stream_reads": 3,
+            "lstat": 3,
+            "stat": 1
+          },
+          "backend": {
+            "stream_reads": 30,
+            "stat": 72,
+            "listdir": 2,
+            "scheduler_requests": 1
+          },
+          "rendering": {
+            "stream_reads": 7
+          },
+          "planning": {
+            "lstat": 11,
+            "stat": 25,
+            "directory_opens": 2202,
+            "close": 2209,
+            "file_opens": 176,
+            "fstat": 176,
+            "stream_reads": 157,
+            "listdir": 1
+          }
+        },
+        "seconds": {
+          "startup": 0.010394896031357348,
+          "imports": 1.417600716871675,
+          "construction": 0.024155326129402965,
+          "backend": 0.13911909208400175,
+          "rendering": 0.030132678046356887,
+          "planning": 0.0902491498272866
+        },
+        "path_depth": 2,
+        "peak_opened_descriptors": 2,
+        "acknowledgements": {
+          "distinct": 9,
+          "total_reads": 9,
+          "maximum_per_path": 1
+        }
+      },
+      "status---details-c": {
+        "counts": {
+          "startup": {
+            "stream_reads": 4,
+            "stat": 6
+          },
+          "imports": {
+            "stream_reads": 270,
+            "stat": 11,
+            "listdir": 9
+          },
+          "construction": {
+            "stream_reads": 3,
+            "lstat": 3,
+            "stat": 1
+          },
+          "backend": {
+            "stream_reads": 30,
+            "stat": 72,
+            "listdir": 2,
+            "scheduler_requests": 1
+          },
+          "rendering": {
+            "stream_reads": 7
+          },
+          "planning": {
+            "lstat": 11,
+            "stat": 25,
+            "directory_opens": 2202,
+            "close": 2209,
+            "file_opens": 176,
+            "fstat": 176,
+            "stream_reads": 157,
+            "listdir": 1
+          }
+        },
+        "seconds": {
+          "startup": 0.008842980081681162,
+          "imports": 1.5554008287144825,
+          "construction": 0.032990096195135266,
+          "backend": 0.1424775931518525,
+          "rendering": 0.0312939629657194,
+          "planning": 0.0913256969070062
+        },
+        "path_depth": 2,
+        "peak_opened_descriptors": 2,
+        "acknowledgements": {
+          "distinct": 9,
+          "total_reads": 9,
+          "maximum_per_path": 1
+        }
+      },
+      "status": {
+        "counts": {
+          "startup": {
+            "stream_reads": 4,
+            "stat": 6
+          },
+          "imports": {
+            "stream_reads": 270,
+            "stat": 11,
+            "listdir": 9
+          },
+          "construction": {
+            "stream_reads": 3,
+            "lstat": 3,
+            "stat": 1
+          },
+          "backend": {
+            "stream_reads": 30,
+            "stat": 72,
+            "listdir": 2,
+            "scheduler_requests": 1
+          },
+          "rendering": {
+            "stream_reads": 7
+          },
+          "planning": {
+            "lstat": 11,
+            "stat": 25,
+            "directory_opens": 2202,
+            "close": 2209,
+            "file_opens": 176,
+            "fstat": 176,
+            "stream_reads": 157,
+            "listdir": 1
+          }
+        },
+        "seconds": {
+          "startup": 0.008397570927627385,
+          "imports": 1.487045478192158,
+          "construction": 0.030026760883629322,
+          "backend": 0.10739749984350055,
+          "rendering": 0.023191273969132453,
+          "planning": 0.09056604414945468
+        },
+        "path_depth": 2,
+        "peak_opened_descriptors": 2,
+        "acknowledgements": {
+          "distinct": 9,
+          "total_reads": 9,
+          "maximum_per_path": 1
+        }
+      }
+    }
+  },
+  "behavior_coverage": {
+    "new_admission_during_pass": "test_changed_admission_during_inspection_protects_its_producer",
+    "selected_identities": "test_new_selected_execution_preparation_and_operation_are_observed",
+    "later_pass_and_unwind": "test_later_cli_pass_observes_publication_after_success_error_or_interruption",
+    "fresh_submission_checks": "test_submission_rechecks_observations_after_planning_on_the_same_store",
+    "existing_contracts": "Existing test_plan, test_status, test_inspection, test_dependencies, test_submission and full suite"
+  }
+}
