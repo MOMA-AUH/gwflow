@@ -109,6 +109,20 @@ class PlanningObservationTests(LocalBackendTestCase):
         self.assertEqual((self.work / "results/a/result.txt").read_text(), "a")
         self.assertEqual((self.work / "trace").read_text().splitlines().count("a"), 1)
 
+    def test_changed_acknowledgement_with_the_same_admission_blocks_submission(self):
+        self.run_complete()
+        _, _, _, ack = self.new_admission()
+        changed = json.loads(Path(ack).read_text())
+        changed["job_id"] = "different-scheduler-job"
+        run, status = self.scenario([["run", "--force-task", "a"], ["status", "c"]],
+                                   [{"pass": 0, "after": "planned", "write": {ack: changed}}])
+        self.assertNotEqual(run["exit_code"], 0)
+        self.assertIn("Active consumers block replacement", run["output"])
+        self.assertEqual(status["exit_code"], 0)
+        self.assertIn("unresolved submission", status["output"])
+        self.assertEqual((self.work / "results/a/result.txt").read_text(), "a")
+        self.assertEqual((self.work / "trace").read_text().splitlines().count("a"), 1)
+
     def test_later_cli_pass_observes_publication_after_success_error_or_interruption(self):
         self.run_complete()
         for failure in (None, "error", "interrupt"):

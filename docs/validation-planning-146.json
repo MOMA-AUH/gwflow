@@ -665,6 +665,11 @@
     "selected_identities": "test_new_selected_execution_preparation_and_operation_are_observed",
     "later_pass_and_unwind": "test_later_cli_pass_observes_publication_after_success_error_or_interruption",
     "fresh_submission_checks": "test_submission_rechecks_observations_after_planning_on_the_same_store",
-    "existing_contracts": "Existing test_plan, test_status, test_inspection, test_dependencies, test_submission and full suite"
+    "existing_contracts": "Existing test_plan, test_status, test_inspection, test_dependencies, test_submission and full suite",
+    "same_admission_acknowledgement_change": "test_changed_acknowledgement_with_the_same_admission_blocks_submission"
+  },
+  "reviews": {
+    "standards": "0 findings",
+    "spec": "0 findings; added suggested same-admission acknowledgement publication regression"
   }
 }
