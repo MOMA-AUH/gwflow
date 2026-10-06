@@ -9,7 +9,7 @@ description = "Composable tasks, container execution, and managed storage for gw
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
 license = {file = "LICENSE"}
-dependencies = ["gwf==2.1.1", "rich>=14.1,<15"]
+dependencies = ["gwf==2.1.1", "rich>=15.0.0,<16"]
 
 [project.entry-points."gwf.plugins"]
 run = "gwflow.run:run"
