@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from gwf.backends import BackendStatus, create_backend
 from gwf.exceptions import WorkflowError
 
-from . import _files, admission, images, inputs, transfer
+from . import _files, _observations, admission, images, inputs, transfer
 from .lifecycle import Store, TaskObservation, declarations, ordered_tasks, ordered_targets, producer_names, target_dependencies
 from .workflow import lifecycle_jobs
 
@@ -189,6 +189,7 @@ def awaiting_producer_metadata(store, observation):
             and store.read(attempt, "completion.json", "completion", operation=attempt["operation"]) is None)
 
 
+@_observations.planning_pass()
 def plan_workflow(workflow, ctx, *, force=False, force_tasks=()):
     if force and force_tasks:
         raise WorkflowError("Cannot combine --force and --force-task")

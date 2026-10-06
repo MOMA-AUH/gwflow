@@ -5,6 +5,7 @@ is read-only; restoration happens under the frontend guard during submission.
 """
 
 from dataclasses import dataclass
+import json
 import os
 from uuid import uuid4
 
@@ -16,7 +17,7 @@ from gwf.backends.slurm import SlurmOps
 from gwf.exceptions import WorkflowError
 from gwf.scheduling import submit_backend
 
-from . import _files
+from . import _files, _observations
 from .lifecycle import _uuid, ordered_targets, target_dependencies
 from .workflow import lifecycle_jobs
 
@@ -161,9 +162,18 @@ def require_dependencies(store, attempt, intent):
 
 
 def observe(store, attempt, backend, name):
+    # Resolve the selected admissions before reuse: the attempt's execution
+    # identity alone does not identify a resubmission of the same job.
+    intents = {local: read_intent(store, attempt, local)
+               for local in lifecycle_jobs(ordered_targets(attempt["structure"]))}
+    key = (store, id(backend), name, json.dumps(backend_identity(backend, name), sort_keys=True),
+           json.dumps(attempt, sort_keys=True), json.dumps(intents, sort_keys=True))
+    return _observations.reuse("jobs", key, lambda: _observe(store, attempt, backend, name, intents))
+
+
+def _observe(store, attempt, backend, name, intents):
     observations = {}
-    for local in lifecycle_jobs(ordered_targets(attempt["structure"])):
-        intent = read_intent(store, attempt, local)
+    for local, intent in intents.items():
         if intent is None:
             observations[local] = JobObservation(local, "pending")
             continue
