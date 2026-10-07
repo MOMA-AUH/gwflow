@@ -19,7 +19,8 @@
     "baseline_source": "mkdir -p build/validation/planning/147-baseline-source && git archive d3d1c77 | tar -x -C build/validation/planning/147-baseline-source",
     "baseline": "PATH=<REPO>/.conda-env/bin:$PATH PYTHONPATH=<REPO>/build/validation/planning/147-baseline-source/src:<REPO>/tests GWFLOW_IO_EVIDENCE=<REPO>/build/validation/planning/147-baseline-verified <PYTHON> -m unittest test_planning_io.ProducerEvidenceTests.test_single_consumer_reads_each_producer_record_once test_planning_io.ProducerEvidenceTests.test_more_consumers_share_complete_producer_validation test_planning_io.ProducerEvidenceTests.test_multiple_retained_references_share_producer_evidence -v",
     "optimized": "PATH=<REPO>/.conda-env/bin:$PATH GWFLOW_IO_EVIDENCE=<REPO>/build/validation/planning/147-verified <PYTHON> -m unittest discover -s tests -p test_planning_io.py -v",
-    "types": "<PYTHON> -m mypy --follow-imports=silent --ignore-missing-imports src/gwflow/_files.py src/gwflow/_observations.py src/gwflow/lifecycle.py"
+    "types": "<PYTHON> -m mypy --follow-imports=silent --ignore-missing-imports src/gwflow/_files.py src/gwflow/_observations.py src/gwflow/lifecycle.py",
+    "extended_local_diagnostic": "PATH=<REPO>/.conda-env/bin:$PATH <PYTHON> build/validation/planning/147-local-timeout-check.py; ignored diagnostic runner invokes the two named unchanged unittest cases, overriding only LocalBackendTestCase.wait_for to poll the same predicate every 0.05 seconds with a 90-second deadline instead of 20."
   },
   "measurement_contract": [
     "tests/fixtures/planning_probe.py counts real Python OS operations and stream reads through the installed CLI entry point; these are attempted operations, not a complete kernel syscall trace or private cache hits.",
@@ -349,5 +350,15 @@
         }
       }
     }
+  },
+  "validation_results": {
+    "baseline": "Three expected test failures: maximum producer-record reads per path were 17, 53, and 33 instead of one.",
+    "optimized_counts": "All three fan-out count and byte-for-byte normal-status comparisons passed.",
+    "optimized_suite": "12 of 14 tests passed in 521.107 seconds. The execution-generation and nested-cleanup tests timed out in fixture run_complete while waiting for local jobs, before regression assertions.",
+    "isolated_generation_rerun": "Passed, one test in 34.622 seconds with the standard 20-second fixture wait.",
+    "isolated_cleanup_rerun": "Still timed out during fixture setup, one test in 28.471 seconds; a longer local observation window was needed to investigate.",
+    "typechecking": "mypy: Success, no issues found in three source files.",
+    "ci": "Full installed-package and Conda CI is required before merge; see the containing PR for authoritative run results.",
+    "extended_local_diagnostic": "Both unchanged scenarios passed in 89.510 seconds with the test harness observation limit raised from 20 to 90 seconds locally. Fixture job completion took 18.784 seconds (generation) and 27.052 seconds (nested cleanup). No repository timeout or production behavior was changed."
   }
 }
