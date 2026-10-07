@@ -1,0 +1,585 @@
+{
+  "issue": "https://github.com/MOMA-AUH/gwflow/issues/149",
+  "baseline_revision": "f07f929 (combined Task, producer and input/image observation reuse)",
+  "implementation_revision": "Containing PR: scoped directory reads",
+  "environment": {
+    "python": "3.12.14",
+    "gwf": "2.1.1",
+    "gwflow": "0.5.0",
+    "platform": "Linux"
+  },
+  "paths": {
+    "<REPO>": "repository checkout",
+    "<WORKFLOW>": "fresh temporary workflow directory; extra level components vary depth",
+    "<PYTHON>": "Python 3.12 environment with the project installed"
+  },
+  "commands": {
+    "baseline_source": "mkdir -p build/validation/planning/149-baseline-source && git archive f07f929 | tar -x -C build/validation/planning/149-baseline-source",
+    "baseline": "PATH=<REPO>/.conda-env/bin:$PATH PYTHONPATH=<REPO>/build/validation/planning/149-baseline-source/src GWFLOW_IO_EVIDENCE=<REPO>/build/validation/planning/149-before <PYTHON> -m unittest discover -s tests -p test_planning_directories.py -v",
+    "optimized": "PATH=<REPO>/.conda-env/bin:$PATH GWFLOW_IO_EVIDENCE=<REPO>/build/validation/planning/149-final <PYTHON> -m unittest discover -s tests -p test_planning_directories.py -v",
+    "types": "<PYTHON> -m mypy --follow-imports=silent --ignore-missing-imports src/gwflow/_files.py src/gwflow/_observations.py"
+  },
+  "measurement_contract": [
+    "The common CLI probe counts attempted OS operations and stream reads, not kernel syscalls. All selected scalar counts below are preserved from the raw reports in ignored build/validation/planning. No raw machine paths are published.",
+    "Public-authoring fan-out fixture: one completed reference Task and 1 or 4 completed consumers; 1 or 3 retained references. Depth and records per directory vary independently. The initial baseline runs just the prefix regression; later safety tests are added with the optimization. Each measured command matches ordinary CLI stdout exactly.",
+    "The combined observation-reuse baseline still traverses the full absolute prefix 113 to 269 times per inspection. At extra depth 12 this costs 2683 or 2791 directory opens for two Tasks. Managed record reads, metadata, existence and identity checks share these prefixes.",
+    "Read-only directory handles now live inside the planning observation scope. Every accepted read verifies current no-follow ancestry from / using directory-relative metadata checks; a cached descriptor alone never establishes configured-path identity. Opening new directories uses O_NOFOLLOW; regular-file, file-signature, owner, schema and generation checks remain in their existing callers.",
+    "Up to 64 directory handles are retained with least-recently-used eviction. One new handle may be open during eviction; existing fresh traversal uses at most two, or three during the deep-path post-read comparison. The tested whole-command peak is bounded by 67; counters cover os.open descriptors, not all inherited/C-level handles. Paths longer than 64 components deliberately use fresh traversal and are exempt from the prefix-reuse ceiling. Retained-directory scans also use at most two transient handles, reopening descendants relative to the pinned root instead of retaining a recursive stack. Deep retained trees therefore trade additional relative opens for bounded descriptors.",
+    "A changed pathname relationship conservatively rejects that observation. The next command starts without pinned identities and accepts a valid replacement root. Device/inode comparisons are process-local access checks, not persisted ownership changes; no standalone device/inode measurements were collected in these count runs.",
+    "All cached handles close at planning exit, including ordinary errors and KeyboardInterrupt. Write/removal/installation operations still use fresh directory(), never the read cache. The Plan Store does not retain the scope or handles.",
+    "Regression ceilings allow at most eight / opens (six observed, two one-off checks of margin), and 100 + 6*extra_depth + 30*consumers total directory opens. Six uncached traversals explain the remaining depth slope; declaration-specific directories explain consumer growth. More retained files in the same directories do not increase directory opens. All five baseline cases fail the ceiling.",
+    "Extra reads/stat checks remain mandatory after changed file signatures, missing-then-published records, acquisition, and after planning. New-directory opens and no-follow ancestry metadata checks are included, not suppressed. No wall-clock speedup is claimed by these instrumented measurements; the full-size repeated timing comparison belongs to #150."
+  ],
+  "validation_results": {
+    "new_tests": "Five CLI tests passed in 109.735 seconds, covering five independent count variants, root replacement, symlink substitution with unchanged outside data, repeated success/failure/interruption and depth 72 across status/explain/dry-run/run.",
+    "types": "mypy passes for both changed source modules.",
+    "existing_regressions": "All 27 existing planning and storage tests passed in 243.140 seconds, including post-planning submission checks and cross-host device semantics.",
+    "review_regression": "The initial scoped-read implementation used 104 descriptors during CLI recovery of a retained file nested 72 levels. Iterative scans reduced this to 35 for status, explain and dry-run. Recovery completed without repeating computation; the regression passed in 15.138 seconds."
+  },
+  "results": {
+    "before": {
+      "consumers-1-references-1-depth-0-status": {
+        "counts": {
+          "startup": {
+            "stream_reads": 4,
+            "stat": 6
+          },
+          "imports": {
+            "stream_reads": 270,
+            "stat": 11,
+            "listdir": 9
+          },
+          "construction": {
+            "stream_reads": 3,
+            "lstat": 4,
+            "stat": 1
+          },
+          "backend": {
+            "stream_reads": 30,
+            "stat": 77,
+            "listdir": 2,
+            "access": 2,
+            "scheduler_requests": 1
+          },
+          "rendering": {
+            "stream_reads": 7
+          },
+          "planning": {
+            "lstat": 19,
+            "stat": 115,
+            "directory_opens": 1327,
+            "close": 1329,
+            "file_opens": 53,
+            "fstat": 49,
+            "stream_reads": 43,
+            "listdir": 1
+          }
+        },
+        "path_depth": 3,
+        "peak_opened_descriptors": 2,
+        "absolute_prefix_opens": 113
+      },
+      "consumers-1-references-1-depth-12-status": {
+        "counts": {
+          "startup": {
+            "stream_reads": 4,
+            "stat": 6
+          },
+          "imports": {
+            "stream_reads": 270,
+            "stat": 11,
+            "listdir": 9
+          },
+          "construction": {
+            "stream_reads": 3,
+            "lstat": 16,
+            "stat": 1
+          },
+          "backend": {
+            "stream_reads": 30,
+            "stat": 77,
+            "listdir": 2,
+            "access": 2,
+            "scheduler_requests": 1
+          },
+          "rendering": {
+            "stream_reads": 7
+          },
+          "planning": {
+            "lstat": 79,
+            "stat": 115,
+            "directory_opens": 2683,
+            "close": 2685,
+            "file_opens": 53,
+            "fstat": 49,
+            "stream_reads": 43,
+            "listdir": 1
+          }
+        },
+        "path_depth": 15,
+        "peak_opened_descriptors": 2,
+        "absolute_prefix_opens": 113
+      },
+      "consumers-1-references-3-depth-0-status": {
+        "counts": {
+          "startup": {
+            "stream_reads": 4,
+            "stat": 6
+          },
+          "imports": {
+            "stream_reads": 270,
+            "stat": 11,
+            "listdir": 9
+          },
+          "construction": {
+            "stream_reads": 3,
+            "lstat": 4,
+            "stat": 1
+          },
+          "backend": {
+            "stream_reads": 30,
+            "stat": 77,
+            "listdir": 2,
+            "access": 2,
+            "scheduler_requests": 1
+          },
+          "rendering": {
+            "stream_reads": 7
+          },
+          "planning": {
+            "lstat": 19,
+            "stat": 121,
+            "directory_opens": 1363,
+            "close": 1367,
+            "file_opens": 55,
+            "fstat": 53,
+            "stream_reads": 43,
+            "listdir": 1
+          }
+        },
+        "path_depth": 3,
+        "peak_opened_descriptors": 2,
+        "absolute_prefix_opens": 119
+      },
+      "consumers-1-references-3-depth-12-status": {
+        "counts": {
+          "startup": {
+            "stream_reads": 4,
+            "stat": 6
+          },
+          "imports": {
+            "stream_reads": 270,
+            "stat": 11,
+            "listdir": 9
+          },
+          "construction": {
+            "stream_reads": 3,
+            "lstat": 16,
+            "stat": 1
+          },
+          "backend": {
+            "stream_reads": 30,
+            "stat": 77,
+            "listdir": 2,
+            "access": 2,
+            "scheduler_requests": 1
+          },
+          "rendering": {
+            "stream_reads": 7
+          },
+          "planning": {
+            "lstat": 79,
+            "stat": 121,
+            "directory_opens": 2791,
+            "close": 2795,
+            "file_opens": 55,
+            "fstat": 53,
+            "stream_reads": 43,
+            "listdir": 1
+          }
+        },
+        "path_depth": 15,
+        "peak_opened_descriptors": 2,
+        "absolute_prefix_opens": 119
+      },
+      "consumers-4-references-1-depth-0-status": {
+        "counts": {
+          "startup": {
+            "stream_reads": 4,
+            "stat": 6
+          },
+          "imports": {
+            "stream_reads": 270,
+            "stat": 11,
+            "listdir": 9
+          },
+          "construction": {
+            "stream_reads": 3,
+            "lstat": 4,
+            "stat": 1
+          },
+          "backend": {
+            "stream_reads": 30,
+            "stat": 77,
+            "listdir": 2,
+            "access": 2,
+            "scheduler_requests": 1
+          },
+          "rendering": {
+            "stream_reads": 7
+          },
+          "planning": {
+            "lstat": 19,
+            "stat": 268,
+            "directory_opens": 3265,
+            "close": 3270,
+            "file_opens": 131,
+            "fstat": 121,
+            "stream_reads": 106,
+            "listdir": 1
+          }
+        },
+        "path_depth": 3,
+        "peak_opened_descriptors": 2,
+        "absolute_prefix_opens": 269
+      }
+    },
+    "after": {
+      "consumers-1-references-1-depth-0-status": {
+        "counts": {
+          "startup": {
+            "stream_reads": 4,
+            "stat": 6,
+            "close": 45
+          },
+          "imports": {
+            "stream_reads": 270,
+            "stat": 11,
+            "listdir": 9
+          },
+          "construction": {
+            "stream_reads": 3,
+            "lstat": 4,
+            "stat": 1
+          },
+          "backend": {
+            "stream_reads": 30,
+            "stat": 77,
+            "listdir": 2,
+            "access": 2,
+            "scheduler_requests": 1
+          },
+          "rendering": {
+            "stream_reads": 7
+          },
+          "planning": {
+            "lstat": 19,
+            "stat": 1532,
+            "directory_opens": 76,
+            "fstat": 94,
+            "file_opens": 53,
+            "stream_reads": 43,
+            "close": 33,
+            "listdir": 1
+          }
+        },
+        "path_depth": 3,
+        "peak_opened_descriptors": 47,
+        "absolute_prefix_opens": 6
+      },
+      "consumers-1-references-1-depth-12-status": {
+        "counts": {
+          "startup": {
+            "stream_reads": 4,
+            "stat": 6,
+            "close": 57
+          },
+          "imports": {
+            "stream_reads": 270,
+            "stat": 11,
+            "listdir": 9
+          },
+          "construction": {
+            "stream_reads": 3,
+            "lstat": 16,
+            "stat": 1
+          },
+          "backend": {
+            "stream_reads": 30,
+            "stat": 77,
+            "listdir": 2,
+            "access": 2,
+            "scheduler_requests": 1
+          },
+          "rendering": {
+            "stream_reads": 7
+          },
+          "planning": {
+            "lstat": 79,
+            "stat": 2996,
+            "directory_opens": 148,
+            "fstat": 106,
+            "file_opens": 53,
+            "stream_reads": 43,
+            "close": 93,
+            "listdir": 1
+          }
+        },
+        "path_depth": 15,
+        "peak_opened_descriptors": 59,
+        "absolute_prefix_opens": 6
+      },
+      "consumers-1-references-3-depth-0-status": {
+        "counts": {
+          "startup": {
+            "stream_reads": 4,
+            "stat": 6,
+            "close": 45
+          },
+          "imports": {
+            "stream_reads": 270,
+            "stat": 11,
+            "listdir": 9
+          },
+          "construction": {
+            "stream_reads": 3,
+            "lstat": 4,
+            "stat": 1
+          },
+          "backend": {
+            "stream_reads": 30,
+            "stat": 77,
+            "listdir": 2,
+            "access": 2,
+            "scheduler_requests": 1
+          },
+          "rendering": {
+            "stream_reads": 7
+          },
+          "planning": {
+            "lstat": 19,
+            "stat": 1574,
+            "directory_opens": 76,
+            "fstat": 98,
+            "file_opens": 55,
+            "stream_reads": 43,
+            "close": 35,
+            "listdir": 1
+          }
+        },
+        "path_depth": 3,
+        "peak_opened_descriptors": 47,
+        "absolute_prefix_opens": 6
+      },
+      "consumers-1-references-3-depth-12-status": {
+        "counts": {
+          "startup": {
+            "stream_reads": 4,
+            "stat": 6,
+            "close": 57
+          },
+          "imports": {
+            "stream_reads": 270,
+            "stat": 11,
+            "listdir": 9
+          },
+          "construction": {
+            "stream_reads": 3,
+            "lstat": 16,
+            "stat": 1
+          },
+          "backend": {
+            "stream_reads": 30,
+            "stat": 77,
+            "listdir": 2,
+            "access": 2,
+            "scheduler_requests": 1
+          },
+          "rendering": {
+            "stream_reads": 7
+          },
+          "planning": {
+            "lstat": 79,
+            "stat": 3110,
+            "directory_opens": 148,
+            "fstat": 110,
+            "file_opens": 55,
+            "stream_reads": 43,
+            "close": 95,
+            "listdir": 1
+          }
+        },
+        "path_depth": 15,
+        "peak_opened_descriptors": 59,
+        "absolute_prefix_opens": 6
+      },
+      "consumers-4-references-1-depth-0-status": {
+        "counts": {
+          "startup": {
+            "stream_reads": 4,
+            "stat": 6,
+            "close": 64
+          },
+          "imports": {
+            "stream_reads": 270,
+            "stat": 11,
+            "listdir": 9
+          },
+          "construction": {
+            "stream_reads": 3,
+            "lstat": 4,
+            "stat": 1
+          },
+          "backend": {
+            "stream_reads": 30,
+            "stat": 77,
+            "listdir": 2,
+            "access": 2,
+            "scheduler_requests": 1
+          },
+          "rendering": {
+            "stream_reads": 7
+          },
+          "planning": {
+            "lstat": 19,
+            "stat": 4078,
+            "directory_opens": 157,
+            "fstat": 247,
+            "file_opens": 131,
+            "stream_reads": 106,
+            "close": 98,
+            "listdir": 1
+          }
+        },
+        "path_depth": 3,
+        "peak_opened_descriptors": 66,
+        "absolute_prefix_opens": 6
+      }
+    },
+    "deep_retained_recovery": {
+      "explain": {
+        "counts": {
+          "startup": {
+            "stream_reads": 4,
+            "stat": 6,
+            "close": 32
+          },
+          "imports": {
+            "stream_reads": 270,
+            "stat": 11,
+            "listdir": 9
+          },
+          "construction": {
+            "stream_reads": 3,
+            "lstat": 3,
+            "stat": 1
+          },
+          "backend": {
+            "stream_reads": 32,
+            "stat": 77,
+            "listdir": 5,
+            "access": 2,
+            "scheduler_requests": 1
+          },
+          "rendering": {
+            "stream_reads": 7
+          },
+          "planning": {
+            "lstat": 11,
+            "stat": 856,
+            "directory_opens": 2862,
+            "fstat": 62,
+            "file_opens": 33,
+            "stream_reads": 21,
+            "close": 2832,
+            "listdir": 74
+          }
+        },
+        "path_depth": 2,
+        "peak_opened_descriptors": 35
+      },
+      "status": {
+        "counts": {
+          "startup": {
+            "stream_reads": 4,
+            "stat": 6,
+            "close": 32
+          },
+          "imports": {
+            "stream_reads": 270,
+            "stat": 11,
+            "listdir": 9
+          },
+          "construction": {
+            "stream_reads": 3,
+            "lstat": 3,
+            "stat": 1
+          },
+          "backend": {
+            "stream_reads": 32,
+            "stat": 77,
+            "listdir": 5,
+            "access": 2,
+            "scheduler_requests": 1
+          },
+          "rendering": {
+            "stream_reads": 7
+          },
+          "planning": {
+            "lstat": 11,
+            "stat": 856,
+            "directory_opens": 2862,
+            "fstat": 62,
+            "file_opens": 33,
+            "stream_reads": 21,
+            "close": 2832,
+            "listdir": 74
+          }
+        },
+        "path_depth": 2,
+        "peak_opened_descriptors": 35
+      },
+      "run---dry-run": {
+        "counts": {
+          "startup": {
+            "stream_reads": 4,
+            "stat": 6,
+            "close": 32
+          },
+          "imports": {
+            "stream_reads": 270,
+            "stat": 11,
+            "listdir": 9
+          },
+          "construction": {
+            "stream_reads": 3,
+            "lstat": 3,
+            "stat": 1
+          },
+          "backend": {
+            "stream_reads": 32,
+            "stat": 77,
+            "listdir": 5,
+            "access": 2,
+            "scheduler_requests": 1
+          },
+          "rendering": {
+            "stream_reads": 7
+          },
+          "planning": {
+            "lstat": 11,
+            "stat": 856,
+            "directory_opens": 2862,
+            "fstat": 62,
+            "file_opens": 33,
+            "stream_reads": 21,
+            "close": 2832,
+            "listdir": 74
+          }
+        },
+        "path_depth": 2,
+        "peak_opened_descriptors": 35
+      }
+    }
+  }
+}
