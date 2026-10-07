@@ -6,6 +6,15 @@ gwflow adds managed Tasks to [gwf](https://gwf.app/): computation runs in dispos
 work storage, while named retained files are copied into stable results storage.
 Checked completion evidence lets a Task remain reusable after its work is removed.
 
+The v0.5.1 release reduces repeated planning reads for Task jobs, producer
+completion evidence, shared inputs, and container images. Scoped directory
+handles reduce repeated directory opens while preserving pathname validation.
+These observations last for one planning pass; submission and workers still
+perform fresh checks. The [planning validation record](docs/validation-planning-150.json)
+documents reduced reads and opens, lifecycle regression coverage, and timing
+limits: measured command times remain broadly similar. Python and Conda packages
+now both require Rich `>=15.0.0,<16`.
+
 The v0.5.0 release adds a lifecycle-aware Task overview with progress that counts
 preparation, computation, and completion. Status, explain, dry-run, and run share
 static terminal presentation, complete Task details, and plain output for logs.
