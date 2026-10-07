@@ -239,25 +239,33 @@ def metadata(root, filenames, *, sync=False):
 
 
 def file_set(root):
-    """List the complete regular-file set without traversing any symlinks."""
-    def visit(parent, prefix):
-        files = set()
-        for name in os.listdir(parent):
-            relative = prefix + name
-            info = os.stat(name, dir_fd=parent, follow_symlinks=False)
-            if stat.S_ISDIR(info.st_mode):
-                child = os.open(name, _DIRECTORY_FLAGS, dir_fd=parent)
-                try:
-                    files.update(visit(child, relative + "/"))
-                finally:
-                    os.close(child)
-            elif stat.S_ISREG(info.st_mode):
-                files.add(relative)
-            else:
-                raise WorkflowError(f"Non-regular retained output: {relative}")
-        return files
-    with _read_directory(root) as parent:
-        return visit(parent, "")
+    """List regular files with at most two transient directory descriptors."""
+    files, pending = set(), [()]
+    with _read_directory(root) as anchor:
+        while pending:
+            parts = pending.pop()
+            parent = anchor
+            try:
+                # Reopen relative to the pinned root; retaining a recursive
+                # stack would make descriptor use grow with output depth.
+                for part in parts:
+                    child = os.open(part, _DIRECTORY_FLAGS, dir_fd=parent)
+                    if parent != anchor:
+                        os.close(parent)
+                    parent = child
+                for name in os.listdir(parent):
+                    relative = (*parts, name)
+                    info = os.stat(name, dir_fd=parent, follow_symlinks=False)
+                    if stat.S_ISDIR(info.st_mode):
+                        pending.append(relative)
+                    elif stat.S_ISREG(info.st_mode):
+                        files.add("/".join(relative))
+                    else:
+                        raise WorkflowError(f"Non-regular retained output: {'/'.join(relative)}")
+            finally:
+                if parent != anchor:
+                    os.close(parent)
+    return files
 
 
 def read_json(path):

@@ -4,6 +4,7 @@ import shutil
 
 from support import LocalBackendTestCase
 import test_planning_io
+import test_transfer
 
 
 class DirectoryObservationTests(LocalBackendTestCase):
@@ -95,3 +96,28 @@ class DirectoryObservationTests(LocalBackendTestCase):
                 output, report = self.probe(*command)
                 self.assertEqual(output, self.cli_result(*command).stdout)
                 self.assertLessEqual(report["peak_opened_descriptors"], 67)
+
+
+class DirectoryRecoveryTests(LocalBackendTestCase):
+    configure_workflow = test_transfer.TransferRecoveryTests.configure_workflow
+    fault = test_transfer.TransferRecoveryTests.fault
+    inject = test_transfer.TransferRecoveryTests.inject
+    settle = test_transfer.TransferRecoveryTests.settle
+    probe = test_planning_io.PlanningObservationTests.probe
+
+    def test_deep_retained_directory_scans_bound_descriptors_during_recovery(self):
+        workflow = self.work / "workflow.py"
+        nested = "nested/" * 72 + "two.txt"
+        workflow.write_text(workflow.read_text().replace("path='nested/two.txt'", f"path={nested!r}"))
+        self.cli("-b", "recovery_fixture", "run", env=self.fault(crash_after_results_install=True))
+        self.settle()
+        for command in (("status",), ("explain",), ("run", "--dry-run")):
+            with self.subTest(command=command):
+                output, report = self.probe(*command)
+                self.assertEqual(output, self.cli_result(*command).stdout)
+                self.assertLessEqual(report["peak_opened_descriptors"], 67)
+        self.cli("run")
+        self.settle()
+        self.assertRegex(self.cli("explain"), r"Task a\s+Reuse")
+        self.assertEqual((self.work / "results/samples/a/report" / nested).read_text(), "second")
+        self.assertEqual((self.work / "trace").read_text().splitlines(), ["compute"])
