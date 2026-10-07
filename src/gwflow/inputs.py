@@ -21,7 +21,7 @@ def validate_location(path, resolved, locations):
             raise WorkflowError(f"External input points into managed storage: {path}")
 
 
-def observe(paths, locations):
+def observe(paths, locations, *, refresh=False):
     result = {}
     for alias in paths:
         try:
@@ -35,7 +35,8 @@ def observe(paths, locations):
                 return {"resolved": str(resolved), "size": info.st_size, "mtime_ns": info.st_mtime_ns}
             # Failed observations are never retained, so acquisition/publication
             # after an absence can be observed immediately in this pass.
-            result[alias] = _observations.reuse("external-input", (alias, tuple(sorted(locations.items()))), read)
+            result[alias] = _observations.reuse("external-input", (alias, tuple(sorted(locations.items()))),
+                                              read, refresh=refresh)
         except (OSError, RuntimeError) as error:
             raise WorkflowError(f"Cannot observe external input {alias}: {error}") from error
     return result

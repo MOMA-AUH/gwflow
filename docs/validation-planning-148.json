@@ -23,7 +23,7 @@
     "<STAGE> is before or after; before runs the initial scaling test against the prerequisite implementation, after runs the same test after this change. Raw logs and counters remain in ignored build/validation/planning.",
     "Attempted OS operations and stream reads, not a kernel syscall trace. Profiling times include instrumentation and are not wall-clock speedup evidence. Phase counts and selected per-path counters below are copied unchanged from raw reports.",
     "One successful input observation is reused for an identical declared alias and managed-location context. One successful image resolution/readability check is reused for identical reference, local path and location context. Unchanged repeated references do not multiply checks.",
-    "Failed observations are never stored. A missing local image can be acquired by a later registry declaration in the same pass. After acquisition the destination is freshly observed. Temporary acquisition paths and mandatory checks outside planning still incur their own reads.",
+    "Failed observations are never stored. A missing local image can be acquired by a later registry declaration in the same pass. After acquisition coordination the destination observation is explicitly refreshed, including any prior positive observation of a removed image. Temporary acquisition paths and mandatory checks outside planning still incur their own reads.",
     "Each pass releases all observations before Repair/submission/worker checks. Existing input, container, registry, concurrency and recovery suites retain baseline, alias, acquisition and fresh-check contracts. No image policy change or new persistent state.",
     "Three baseline subcases failed the one-observation assertions; the same three pass after implementation. Larger total declaration-specific work remains expected. No standalone device/inode identities are collected by these count runs."
   ],
@@ -284,5 +284,11 @@
         }
       }
     }
+  },
+  "validation_results": {
+    "initial_scaling": "Three expected failures before implementation; all three pass after.",
+    "review_regression": "The CLI initially incorrectly reported Reuse after an observed image was removed and reacquired with changed contents. Explicit destination refresh now detects the changed Input baseline.",
+    "focused_suite": "Seven CLI tests; see ignored 148-reviewed-tests.log and PR CI for execution results.",
+    "types": "mypy passes for _observations.py, inputs.py and images.py."
   }
 }

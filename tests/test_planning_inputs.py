@@ -110,3 +110,21 @@ class SharedInputObservationTests(RegistryTestCase):
                 self.assertEqual(paths["stat:" + str(image)], 1)
                 self.assertEqual(paths["access:" + str(image)], 1)
         self.assertEqual(len(self.calls("pull")), 1)
+
+    def test_reacquired_image_replaces_prior_positive_observation_in_same_pass(self):
+        self.cli("status")
+        image, = self.cached_images()
+        self.configure_workflow(tasks=2)
+        workflow = self.work / "workflow.py"
+        workflow.write_text(workflow.read_text().replace(repr(self.reference), repr(str(image)), 1))
+        self.run_complete()
+        self.options(content="changed image acquired during planning\n")
+        first, second = self.scenario(
+            [["explain", "--details"], ["explain", "--details"]],
+            [{"pass": 0, "after": "image:" + str(image), "remove": [str(image)]}],
+        )
+        sample = first["output"].split("Details for Task sample1:")[1]
+        self.assertIn("input metadata changed", sample)
+        self.assertIn("fresh attempt", sample)
+        self.assertIn("input metadata changed", second["output"])
+        self.assertEqual(len(self.calls("pull")), 2)

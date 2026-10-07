@@ -68,8 +68,8 @@ def binding(reference, working_dir):
     return str(cache / (key + ".sif"))
 
 
-def _readable(path, locations):
-    observed = inputs.observe([str(path)], locations)
+def _readable(path, locations, *, refresh=False):
+    observed = inputs.observe([str(path)], locations, refresh=refresh)
     if not os.access(observed[str(path)]["resolved"], os.R_OK):
         raise WorkflowError("image is not readable")
 
@@ -95,7 +95,9 @@ def _acquire(reference, path, locations):
             except (WorkflowError, OSError, RuntimeError) as error:
                 print(f"Failed to pull image: {reference}: {error}", file=sys.stderr, flush=True)
                 raise
-        _readable(path, locations)
+        # This process or the lock's previous owner may have installed a new
+        # image after an earlier successful observation of this same alias.
+        _readable(path, locations, refresh=True)
 
 
 def _pull(reference, path, locations):

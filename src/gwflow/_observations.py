@@ -23,11 +23,13 @@ def planning_pass():
         _current.reset(token)
 
 
-def reuse(kind, key, observe):
+def reuse(kind, key, observe, *, refresh=False):
     facts = _current.get()
     if facts is None:
         return observe()
     key = kind, key
+    if refresh:
+        facts.pop(key, None)
     if key not in facts:
         facts[key] = observe()
     # Callers own their observations, including nested admission records.

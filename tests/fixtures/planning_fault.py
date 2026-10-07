@@ -22,6 +22,8 @@ def fault(frame, event, arg):
     boundary = None
     if module == "gwflow.planning" and name == "plan_workflow":
         boundary = "planned"
+    elif module == "gwflow.images" and name == "_readable" and arg is None:
+        boundary = "image:" + str(frame.f_locals["path"])
     elif module == "gwflow._files" and name == "read_json" and arg is None:
         boundary = "missing:" + str(frame.f_locals["path"])
     elif module == "gwflow._files" and name == "metadata" and arg:
