@@ -42,7 +42,7 @@ class ContainerPlanningTests(LocalBackendTestCase):
                 output = self.cli(*arguments, success=success)
                 self.assertIn('blocked', output)
                 self.assertIn('compute', output)
-                self.assertIn('missing image.sif', output)
+                self.assertIn('image unavailable' if arguments[0] == 'status' else 'missing image.sif', output)
                 self.assertFalse((self.work / 'work').exists())
                 self.assertFalse((self.work / 'results').exists())
 

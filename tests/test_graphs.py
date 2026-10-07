@@ -100,8 +100,12 @@ class TaskGraphTests(LocalBackendTestCase):
         try:
             for command in (("status",), ("explain",), ("run", "--dry-run")):
                 output = self.cli_result(*command, "--details").stdout
-                self.assertIn("State: failed; Jobs completed:", output)
-                self.assertIn("Next action: Retry", output)
+                if command[0] == "status":
+                    self.assertRegex(output, r"Task sample\s+failed\s+\d+/5")
+                    self.assertIn("retry available", output)
+                else:
+                    self.assertIn("State: failed; Jobs completed:", output)
+                    self.assertIn("Next action: Retry", output)
                 self.assertRegex(output, r"left\s+running")
             failing.unlink()
             output = self.cli_result("run", "--details").stdout

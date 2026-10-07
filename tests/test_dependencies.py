@@ -109,7 +109,7 @@ class TaskDependencyTests(LocalBackendTestCase):
             self.assertIn("Expected producer b:", expected)
             self.configure_workflow(consumer=False)
             self.assertIn("Active consumer c:", self.cli("explain", "--details", "a"))
-            self.assertIn("Active consumer c:", self.cli("status", "--details", "b"))
+            self.assertIn("Active consumer c:", self.cli("explain", "--details", "b"))
         finally:
             release.touch()
         self.finish()

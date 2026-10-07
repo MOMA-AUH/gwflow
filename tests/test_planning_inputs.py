@@ -52,7 +52,7 @@ class SharedInputObservationTests(RegistryTestCase):
             [["status", "--details"], ["status", "--details"]],
             [{"pass": 0, "after": "planned", "write": {str(self.work / "input.txt"): "published"}}],
         )
-        self.assertIn("Cannot observe external input", first["output"])
+        self.assertRegex(first["output"], r"Task sample0\s+blocked")
         self.assertNotIn("blocked", second["output"].lower())
         self.assertEqual(len(self.calls("pull")), 2)
         self.assertEqual(len(self.cached_images()), 1)
@@ -83,7 +83,8 @@ class SharedInputObservationTests(RegistryTestCase):
             [{"pass": 0, "after": "planned", "remove": [str(alias)], "symlink": {str(alias): str(other)}}],
         )
         self.assertNotIn("blocked", first["output"].lower())
-        self.assertIn("External input points into managed storage", second["output"])
+        self.assertRegex(second["output"], r"Task sample0\s+blocked")
+        self.assertIn("External input points into managed storage", self.cli("explain", "--details"))
 
     def test_missing_local_image_does_not_poison_later_acquisition_in_same_pass(self):
         self.cli("status")

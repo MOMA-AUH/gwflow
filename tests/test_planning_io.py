@@ -121,7 +121,7 @@ class PlanningObservationTests(LocalBackendTestCase):
         self.assertNotEqual(run["exit_code"], 0)
         self.assertIn("Active consumers block replacement", run["output"])
         self.assertEqual(status["exit_code"], 0)
-        self.assertIn("unresolved submission", status["output"])
+        self.assertIn("submission outcome unknown", status["output"])
         self.assertEqual((self.work / "results/a/result.txt").read_text(), "a")
         self.assertEqual((self.work / "trace").read_text().splitlines().count("a"), 1)
 
@@ -135,8 +135,8 @@ class PlanningObservationTests(LocalBackendTestCase):
                 first, second = self.scenario([["status"], ["status", "c"]], actions)
                 self.assertEqual(first["exit_code"], 0 if failure is None else 1)
                 self.assertEqual(second["exit_code"], 0)
-                self.assertIn("State: blocked", second["output"])
-                self.assertIn("unresolved submission", second["output"])
+                self.assertRegex(second["output"], r"Task c\s+blocked")
+                self.assertIn("submission outcome unknown", second["output"])
                 selected.write_text(json.dumps(original))
 
 

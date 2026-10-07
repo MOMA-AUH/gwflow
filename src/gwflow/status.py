@@ -45,6 +45,7 @@ def _plain_status(workflow, ctx, targets, endpoints, output_format, statuses, gr
                 {target: state for target, state in states.items() if target in selected}, backend)
 
 
+@output_options
 @click.command(name="status")
 @click.argument("targets", nargs=-1)
 @click.option("--endpoints", is_flag=True, default=False,
@@ -53,7 +54,8 @@ def _plain_status(workflow, ctx, targets, endpoints, output_format, statuses, gr
               help="Format for ordinary gwf workflows only.")
 @click.option("-s", "--status", "statuses", multiple=True, type=_StatusChoice(tuple(dict.fromkeys((*STATES, *(state_name(state) for state in Status))))))
 @click.option("-g", "--group", multiple=True)
-@output_options
+@click.option("--details", is_flag=True,
+              help="Expand Tasks with nested targets and lifecycle jobs. Use gwf explain --details for diagnostics.")
 @pass_context
 def managed_status(ctx, targets, endpoints, output_format, statuses, group, details, plain, no_truncate):
     """Show managed Task condition, including reusable cleaned work."""

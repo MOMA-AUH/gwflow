@@ -181,7 +181,9 @@ class ContainerStagingTests(LocalBackendTestCase):
         write_workflow(self.work, sources, command=command, stage_as={"new dir/input.txt": "input.txt"})
         before = self.snapshot()
         for arguments in (("explain", "--details"), ("status", "--details"), ("run", "--dry-run", "--details")):
-            self.assertIn("changed declared structure: target membership or file declarations", self.cli(*arguments))
+            reason = ("fresh attempt required" if arguments[0] == "status" else
+                      "changed declared structure: target membership or file declarations")
+            self.assertIn(reason, self.cli(*arguments))
             self.assertEqual(self.snapshot(), before)
         self.run_complete()
         self.assertNotEqual(self.attempt(), previous)
@@ -206,7 +208,8 @@ class ContainerStagingTests(LocalBackendTestCase):
                 before = self.snapshot()
                 for arguments, success in ((("explain", "--details"), True), (("status", "--details"), True),
                                            (("run", "--dry-run"), False), (("run",), False)):
-                    self.assertIn(reason, self.cli(*backend, *arguments, env=env, success=success))
+                    output = self.cli(*backend, *arguments, env=env, success=success)
+                    self.assertIn("blocked" if arguments[0] == "status" else reason, output)
                     self.assertEqual(self.snapshot(), before)
 
 

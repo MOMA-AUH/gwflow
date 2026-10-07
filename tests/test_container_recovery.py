@@ -57,7 +57,9 @@ class ContainerRecoveryTests(LocalBackendTestCase):
     def preview(self, reason):
         before = self.snapshot()
         for arguments in (("explain", "--details"), ("status", "--details"), ("run", "--dry-run", "--details")):
-            self.assertIn(reason, self.cli(*arguments))
+            output = self.cli(*arguments)
+            expected = reason if reason in ("retry", "repair", "transfer") else "fresh attempt required"
+            self.assertIn(expected if arguments[0] == "status" else reason, output)
             self.assertEqual(self.snapshot(), before)
 
     def fault(self, **options):
@@ -203,7 +205,7 @@ class ContainerRecoveryTests(LocalBackendTestCase):
         env = self.inject(running_prefix="sample")
         for arguments in (("explain", "--details"), ("status", "--details"), ("run", "--dry-run", "--details"), ("run", "--details")):
             output = self.cli("-b", "recovery_fixture", *arguments, env=env)
-            self.assertIn("queued/running work", output)
+            self.assertIn("running" if arguments[0] == "status" else "queued/running work", output)
             self.assertNotIn("Submitted target", output)
             self.assertEqual(self.snapshot(), before)
         self.assert_blocked_without_changes("Active consumers block replacement: consumer",
