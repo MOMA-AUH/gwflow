@@ -1,5 +1,6 @@
 """Non-following, directory-relative operations for owned managed storage."""
 
+from collections import OrderedDict
 from contextlib import contextmanager
 import errno
 import json
@@ -55,9 +56,91 @@ def directory(path, *, create=False):
         os.close(fd)
 
 
+class _ReadDirectories:
+    """Bounded handles, with current no-follow ancestry checked on every use."""
+
+    limit = 64
+
+    def __init__(self):
+        self.handles = OrderedDict()
+        self.ancestry = {}
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        for fd, _ in self.handles.values():
+            os.close(fd)
+        self.handles.clear()
+        self.ancestry.clear()
+
+    def borrow(self, path):
+        if path not in self.handles:
+            return self.open(path)
+        self.handles.move_to_end(path)
+        return self.handles[path][0]
+
+    def open(self, path):
+        parent = None
+        if path not in self.ancestry:
+            self.ancestry[path] = [(p, p.name or "/") for p in (*reversed(path.parents), path)]
+        for current, part in self.ancestry[path]:
+            if current in self.handles:
+                fd, identity = self.handles[current]
+                info = os.stat(part, dir_fd=parent, follow_symlinks=False)
+                if not stat.S_ISDIR(info.st_mode) or (info.st_dev, info.st_ino) != identity:
+                    raise WorkflowError(f"Managed directory changed while observing evidence: {current}")
+                self.handles.move_to_end(current)
+            else:
+                try:
+                    fd = os.open(part, _DIRECTORY_FLAGS, dir_fd=parent)
+                except OSError as exc:
+                    if exc.errno in (errno.ELOOP, errno.ENOTDIR):
+                        raise WorkflowError(f"Managed directory contains a symlink or non-directory: {path}") from exc
+                    raise
+                try:
+                    info = os.fstat(fd)
+                    self.handles[current] = fd, (info.st_dev, info.st_ino)
+                except BaseException:
+                    os.close(fd)
+                    raise
+                if len(self.handles) > self.limit:
+                    _, (old, _) = self.handles.popitem(last=False)
+                    os.close(old)
+            parent = fd
+        return parent
+
+
+@contextmanager
+def _read_directory(path):
+    path = Path(path)
+    if not path.is_absolute() or ".." in path.parts:
+        raise WorkflowError(f"Invalid managed directory: {path}")
+    reader = _observations.resource("directories", _ReadDirectories)
+    if reader is None:
+        with directory(path) as fd:
+            yield fd
+    elif len(path.parts) > reader.limit:
+        # Very deep paths use bounded fresh traversal rather than retaining
+        # their entire ancestry. Check the configured pathname after reading.
+        with directory(path) as fd:
+            expected = os.fstat(fd)
+            yield fd
+            with directory(path) as current:
+                observed = os.fstat(current)
+                if (expected.st_dev, expected.st_ino) != (observed.st_dev, observed.st_ino):
+                    raise WorkflowError(f"Managed directory changed while observing evidence: {path}")
+    else:
+        fd = reader.borrow(path)
+        yield fd
+        # A retained handle may now name a displaced directory. Recheck every
+        # link from / before accepting evidence read through that handle.
+        reader.open(path)
+
+
 def identity(path):
     """Track a directory within trusted storage; device numbers are host-local."""
-    with directory(path) as fd:
+    with _read_directory(path) as fd:
         info = os.fstat(fd)
         return {"inode": info.st_ino}
 
@@ -74,7 +157,7 @@ def same_directory(left, right):
 
 def exists(path):
     try:
-        with directory(Path(path).parent) as fd:
+        with _read_directory(Path(path).parent) as fd:
             os.stat(Path(path).name, dir_fd=fd, follow_symlinks=False)
         return True
     except FileNotFoundError:
@@ -123,7 +206,7 @@ def _unchanged(path, expected, observed):
 
 
 def _observed_file(path, kind, read):
-    with directory(path.parent) as parent:
+    with _read_directory(path.parent) as parent:
         if not _observations.active():
             return read(parent, None)
         try:
@@ -173,7 +256,7 @@ def file_set(root):
             else:
                 raise WorkflowError(f"Non-regular retained output: {relative}")
         return files
-    with directory(root) as parent:
+    with _read_directory(root) as parent:
         return visit(parent, "")
 
 

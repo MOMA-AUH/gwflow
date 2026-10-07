@@ -3,6 +3,7 @@
 import json
 import os
 from pathlib import Path
+import stat
 import sys
 
 from click.testing import CliRunner
@@ -53,11 +54,23 @@ def fault(frame, event, arg):
             raise RuntimeError("Injected observation failure")
 
 
+def directory_descriptors():
+    count = 0
+    for value in os.listdir("/proc/self/fd"):
+        try:
+            count += stat.S_ISDIR(os.fstat(int(value)).st_mode)
+        except OSError:
+            pass
+    return count
+
+
 for invocation, arguments in enumerate(scenario["commands"]):
+    before = directory_descriptors()
     sys.setprofile(fault)
     try:
         result = CliRunner().invoke(main, arguments)
-        results.append({"exit_code": result.exit_code, "output": result.output})
+        results.append({"exit_code": result.exit_code, "output": result.output,
+                        "directories_before": before, "directories_after": directory_descriptors()})
     finally:
         sys.setprofile(None)
 print(json.dumps({"results": results, "unreached_actions": actions}))
