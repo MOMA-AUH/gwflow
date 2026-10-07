@@ -8,6 +8,10 @@ from copy import deepcopy
 _current = ContextVar("gwflow_planning_observations", default=None)
 
 
+def active():
+    return _current.get() is not None
+
+
 @contextmanager
 def planning_pass():
     facts = {}

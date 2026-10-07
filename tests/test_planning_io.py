@@ -1,5 +1,6 @@
 """Planning I/O and observation lifetime through the installed CLI."""
 
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -23,7 +24,8 @@ class PlanningObservationTests(LocalBackendTestCase):
         if destination := os.environ.get("GWFLOW_IO_EVIDENCE"):
             root = Path(destination)
             root.mkdir(parents=True, exist_ok=True)
-            (root / ("-".join(arguments).replace("/", "_") + ".json")).write_text(report.read_text())
+            label = getattr(self, "evidence_label", "") + "-".join(arguments).replace("/", "_")
+            (root / (label + ".json")).write_text(report.read_text())
         return result.stdout, measured
 
     def test_consumer_and_replacement_checks_share_job_evidence(self):
@@ -136,3 +138,151 @@ class PlanningObservationTests(LocalBackendTestCase):
                 self.assertIn("State: blocked", second["output"])
                 self.assertIn("unresolved submission", second["output"])
                 selected.write_text(json.dumps(original))
+
+
+class ProducerEvidenceTests(LocalBackendTestCase):
+    workers = 4
+    probe = PlanningObservationTests.probe
+    scenario = PlanningObservationTests.scenario
+
+    def configure_workflow(self, consumers=1, references=1):
+        source = (
+            "from gwflow import Task, Workflow, shell\n"
+            "gwf = Workflow()\n"
+            "task = Task(inputs=['input.txt'])\n"
+            "target = task.target('compute', inputs=task.inputs, outputs=['value.txt'])\n"
+            "target << shell('cat {source} > value.txt', source='input.txt')\n"
+        )
+        for index in range(references):
+            source += f"task.retain('value{index}', source=target.output('value.txt'), path='value{index}.txt')\n"
+        source += "reference = gwf.task_from_template('reference', task)\n"
+        incoming = ", ".join(f"reference.outputs['value{index}']" for index in range(references))
+        parameters = ", ".join(f"i{index}=reference.outputs['value{index}']" for index in range(references))
+        command = "cat " + " ".join("{i" + str(index) + "}" for index in range(references)) + " > copy.txt"
+        for index in range(consumers):
+            source += (
+                f"task = Task(inputs=[{incoming}])\n"
+                "target = task.target('compute', inputs=task.inputs, outputs=['copy.txt'])\n"
+                f"target << shell({command!r}, {parameters})\n"
+                "task.retain('copy', source=target.output('copy.txt'), path='copy.txt')\n"
+                f"sample{index} = gwf.task_from_template('sample{index}', task)\n"
+            )
+        (self.work / "workflow.py").write_text(source)
+        self.evidence_label = f"consumers-{consumers}-references-{references}-"
+
+    def check_shared_evidence(self, consumers, references):
+        self.configure_workflow(consumers, references)
+        self.run_complete()
+        output, report = self.probe("status")
+        self.assertEqual(output, self.cli_result("status").stdout)
+        self.assertEqual(output.count("reusable"), consumers + 2)
+        producer_reads = {path: count for path, count in report["paths"]["planning"].items()
+                          if path.startswith("read:") and "/tasks/reference/" in path}
+        self.assertTrue(producer_reads)
+        self.assertEqual(max(producer_reads.values()), 1)
+        self.assertLessEqual(report["paths"]["planning"].get("stat:" + str(self.work / "input.txt"), 0), 2)
+
+    def test_single_consumer_reads_each_producer_record_once(self):
+        self.check_shared_evidence(1, 1)
+
+    def test_more_consumers_share_complete_producer_validation(self):
+        self.check_shared_evidence(4, 1)
+
+    def test_multiple_retained_references_share_producer_evidence(self):
+        self.check_shared_evidence(1, 3)
+
+    def test_nested_producers_remain_reusable_after_cleanup(self):
+        workflow = self.work / "workflow.py"
+        with workflow.open("a") as stream:
+            stream.write(
+                "task = Task(inputs=[sample0.outputs['copy'], reference.outputs['value0']])\n"
+                "target = task.target('compute', inputs=task.inputs, outputs=['nested.txt'])\n"
+                "target << shell('cat {left} {right} > nested.txt', left=sample0.outputs['copy'], right=reference.outputs['value0'])\n"
+                "task.retain('nested', source=target.output('nested.txt'), path='nested.txt')\n"
+                "gwf.task_from_template('nested', task)\n"
+            )
+        self.run_complete()
+        self.cli("clean-work", "--delete")
+        self.assertEqual(self.cli("explain").count("Reuse"), 3)
+        self.assertIn("No new jobs were submitted", self.cli("run"))
+        self.assertEqual((self.work / "results/nested/nested.txt").read_text(), "hello\nhello\n")
+
+    def test_one_consumer_cannot_reuse_another_consumers_expected_attempt(self):
+        self.configure_workflow(consumers=2)
+        self.run_complete()
+        record = next((self.work / ".gwf/gwflow").glob("owners/*/tasks/sample1/attempts/*/attempt.json"))
+        attempt = json.loads(record.read_text())
+        attempt["producers"]["reference"] = "0" * 32
+        record.write_text(json.dumps(attempt))
+        selected = record.parent / "submissions" / attempt["preparation"] / "gwflow_prepare-intent.json"
+        intent = json.loads(selected.read_text())
+        intent["producers"] = attempt["producers"]
+        selected.write_text(json.dumps(intent))
+        (record.parent / "admissions" / intent["admission"] / "intent.json").write_text(json.dumps(intent))
+        output = self.cli("explain")
+        self.assertRegex(output, r"Task sample0\s+Reuse\s+")
+        self.assertRegex(output, r"Task sample1\s+Run\s+")
+        self.assertNotRegex(output, r"Task sample1\s+Reuse\s+")
+
+    def test_missing_then_incompatible_completion_is_never_reused_and_next_pass_refreshes(self):
+        self.run_complete()
+        completion = next((self.work / ".gwf/gwflow").glob("owners/*/tasks/sample0/attempts/*/operations/*/completion.json"))
+        original = json.loads(completion.read_text())
+        completion.unlink()
+        first, second = self.scenario([["explain"], ["explain"]], [
+            {"pass": 0, "after": "missing:" + str(completion),
+             "write": {str(completion): {**original, "attempt": "0" * 32}}},
+            {"pass": 0, "after": "planned", "write": {str(completion): original}},
+        ])
+        self.assertEqual(first["exit_code"], 0)
+        self.assertRegex(first["output"], r"Task sample0\s+Blocked\s+")
+        self.assertEqual(second["exit_code"], 0)
+        self.assertRegex(second["output"], r"Task sample0\s+Reuse\s+")
+        self.assertIn("No new jobs were submitted", self.cli("run"))
+
+    def test_reused_metadata_cannot_authorize_a_substituted_symlink(self):
+        self.run_complete()
+        retained = self.work / "results/reference/value0.txt"
+        sentinel = self.work / "outside-sentinel.txt"
+        sentinel.write_text("outside data")
+        result, = self.scenario([["explain", "--details"]], [{
+            "pass": 0, "after": "metadata:" + str(retained),
+            "rename": {str(retained): str(retained) + ".saved"},
+            "symlink": {str(retained): str(sentinel)},
+        }])
+        self.assertEqual(result["exit_code"], 0)
+        self.assertIn("Task sample0", result["output"])
+        self.assertIn("State: blocked", result["output"])
+        self.assertEqual(sentinel.read_text(), "outside data")
+
+    def test_recorded_cycle_is_rejected_after_prior_producer_validation(self):
+        self.run_complete()
+        records = self.work / ".gwf/gwflow"
+        producer_path = next(records.glob("owners/*/tasks/reference/attempts/*/attempt.json"))
+        consumer_path = next(records.glob("owners/*/tasks/sample0/attempts/*/attempt.json"))
+        producer = json.loads(producer_path.read_text())
+        consumer = json.loads(consumer_path.read_text())
+        dependency = {"task": "sample0", "output": "copy"}
+        producer["structure"]["inputs"].append(dependency)
+        producer["structure"]["targets"]["compute"]["inputs"].append(dependency)
+        producer["producers"] = {"sample0": consumer["attempt"]}
+        definition = {"structure": producer["structure"],
+                      "commands": producer["commands"] if producer["command_tracking"] else None}
+        producer["fingerprint"] = hashlib.sha256(json.dumps(definition, sort_keys=True).encode()).hexdigest()
+        baseline_path = producer_path.parent / "inputs.json"
+        baseline = json.loads(baseline_path.read_text())
+        incoming = self.work / "results/sample0/copy.txt"
+        info = incoming.stat()
+        baseline["inputs"][str(incoming)] = {"resolved": str(incoming), "size": info.st_size, "mtime_ns": info.st_mtime_ns}
+        baseline["producers"] = producer["producers"]
+        intent_path = producer_path.parent / "submissions" / producer["preparation"] / "gwflow_prepare-intent.json"
+        intent = json.loads(intent_path.read_text())
+        intent["producers"] = producer["producers"]
+        writes = {str(producer_path): producer, str(baseline_path): baseline, str(intent_path): intent,
+                  str(producer_path.parent / "admissions" / intent["admission"] / "intent.json"): intent}
+        result, = self.scenario([["explain", "--details"]],
+                               [{"pass": 0, "after": str(consumer_path), "write": writes}])
+        self.assertEqual(result["exit_code"], 0)
+        self.assertIn("Recorded Task dependency graph contains a cycle", result["output"])
+        self.assertIn("State: blocked", result["output"])
+        self.assertEqual(incoming.read_text(), "hello\n")

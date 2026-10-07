@@ -12,7 +12,7 @@ from uuid import uuid4
 from gwf.exceptions import WorkflowError
 from gwf.utils import is_valid_name
 
-from . import _files, images, inputs, staging
+from . import _files, _observations, images, inputs, staging
 from .commands import Command, shell
 from .workflow import RetainedOutput, TargetOutput, relative_path, validate_destinations
 
@@ -620,7 +620,7 @@ class Store:
         return result
 
     def producer_attempt(self, attempt, name):
-        producer = self.recorded_current(name)
+        producer = _observations.reuse("producer", (self, name), lambda: self.recorded_current(name))
         if producer["attempt"] != attempt["producers"][name]:
             raise WorkflowError(f"Expected producer {name} attempt {attempt['producers'][name]} changed; a fresh consumer attempt is required")
         return producer
@@ -759,6 +759,10 @@ class Store:
         return changes
 
     def completed(self, attempt):
+        return _observations.reuse("completion", (self, json.dumps(attempt, sort_keys=True)),
+                                   lambda: self._completed(attempt))
+
+    def _completed(self, attempt):
         self.check_inputs(attempt)
         operation = attempt["operation"]
         completion = self.read(attempt, "completion.json", "completion", operation=operation)
