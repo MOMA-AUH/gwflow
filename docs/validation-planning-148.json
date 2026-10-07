@@ -1,0 +1,294 @@
+{
+  "issue": "https://github.com/MOMA-AUH/gwflow/issues/148",
+  "baseline_revision": "d4795d7213219b40bb46ada20276df605813faeb",
+  "implementation_revision": "Containing PR: shared external-input and image observations",
+  "environment": {
+    "python": "3.12.14",
+    "gwf": "2.1.1",
+    "gwflow": "0.5.0",
+    "rich": "15.0.0",
+    "platform": "Linux"
+  },
+  "paths": {
+    "<REPO>": "repository checkout",
+    "<WORKFLOW>": "temporary CLI fixture directory",
+    "<PYTHON>": "Python 3.12 environment with the project installed"
+  },
+  "fixture": "Public authoring, local backend, fake Apptainer acquisition of one registry image, shared input.txt. Freeze fresh workflow state after the first image acquisition. Vary Tasks and targets independently; compare instrumented and ordinary status stdout exactly.",
+  "commands": {
+    "counts": "PATH=<REPO>/.conda-env/bin:$PATH GWFLOW_IO_EVIDENCE=<REPO>/build/validation/planning/148-<STAGE> <PYTHON> -m unittest discover -s tests -p test_planning_inputs.py -v",
+    "types": "<PYTHON> -m mypy --follow-imports=silent --ignore-missing-imports src/gwflow/inputs.py src/gwflow/images.py"
+  },
+  "measurement_contract": [
+    "<STAGE> is before or after; before runs the initial scaling test against the prerequisite implementation, after runs the same test after this change. Raw logs and counters remain in ignored build/validation/planning.",
+    "Attempted OS operations and stream reads, not a kernel syscall trace. Profiling times include instrumentation and are not wall-clock speedup evidence. Phase counts and selected per-path counters below are copied unchanged from raw reports.",
+    "One successful input observation is reused for an identical declared alias and managed-location context. One successful image resolution/readability check is reused for identical reference, local path and location context. Unchanged repeated references do not multiply checks.",
+    "Failed observations are never stored. A missing local image can be acquired by a later registry declaration in the same pass. After acquisition coordination the destination observation is explicitly refreshed, including any prior positive observation of a removed image. Temporary acquisition paths and mandatory checks outside planning still incur their own reads.",
+    "Each pass releases all observations before Repair/submission/worker checks. Existing input, container, registry, concurrency and recovery suites retain baseline, alias, acquisition and fresh-check contracts. No image policy change or new persistent state.",
+    "Three baseline subcases failed the one-observation assertions; the same three pass after implementation. Larger total declaration-specific work remains expected. No standalone device/inode identities are collected by these count runs."
+  ],
+  "results": {
+    "before": {
+      "tasks-1-targets-1-status": {
+        "counts": {
+          "startup": {
+            "stream_reads": 4,
+            "stat": 6
+          },
+          "imports": {
+            "stream_reads": 270,
+            "stat": 11,
+            "listdir": 9
+          },
+          "construction": {
+            "stream_reads": 3,
+            "lstat": 3,
+            "stat": 1
+          },
+          "backend": {
+            "stream_reads": 30,
+            "stat": 82,
+            "listdir": 3,
+            "access": 2,
+            "scheduler_requests": 1
+          },
+          "rendering": {
+            "stream_reads": 7
+          },
+          "planning": {
+            "lstat": 30,
+            "stat": 20,
+            "directory_opens": 35,
+            "close": 31,
+            "access": 1
+          }
+        },
+        "path_depth": 2,
+        "peak_opened_descriptors": 2,
+        "shared_observations": {
+          "image_metadata": 3,
+          "image_readability": 1,
+          "input_metadata": 1
+        }
+      },
+      "tasks-1-targets-4-status": {
+        "counts": {
+          "startup": {
+            "stream_reads": 4,
+            "stat": 6
+          },
+          "imports": {
+            "stream_reads": 270,
+            "stat": 11,
+            "listdir": 9
+          },
+          "construction": {
+            "stream_reads": 3,
+            "lstat": 3,
+            "stat": 1
+          },
+          "backend": {
+            "stream_reads": 30,
+            "stat": 82,
+            "listdir": 3,
+            "access": 2,
+            "scheduler_requests": 1
+          },
+          "rendering": {
+            "stream_reads": 7
+          },
+          "planning": {
+            "lstat": 66,
+            "stat": 29,
+            "directory_opens": 35,
+            "close": 31,
+            "access": 4
+          }
+        },
+        "path_depth": 2,
+        "peak_opened_descriptors": 2,
+        "shared_observations": {
+          "image_metadata": 9,
+          "image_readability": 4,
+          "input_metadata": 1
+        }
+      },
+      "tasks-4-targets-1-status": {
+        "counts": {
+          "startup": {
+            "stream_reads": 4,
+            "stat": 6
+          },
+          "imports": {
+            "stream_reads": 270,
+            "stat": 11,
+            "listdir": 9
+          },
+          "construction": {
+            "stream_reads": 3,
+            "lstat": 3,
+            "stat": 1
+          },
+          "backend": {
+            "stream_reads": 30,
+            "stat": 82,
+            "listdir": 3,
+            "access": 2,
+            "scheduler_requests": 1
+          },
+          "rendering": {
+            "stream_reads": 7
+          },
+          "planning": {
+            "lstat": 87,
+            "stat": 35,
+            "directory_opens": 59,
+            "close": 49,
+            "access": 4
+          }
+        },
+        "path_depth": 2,
+        "peak_opened_descriptors": 2,
+        "shared_observations": {
+          "image_metadata": 12,
+          "image_readability": 4,
+          "input_metadata": 4
+        }
+      }
+    },
+    "after": {
+      "tasks-1-targets-1-status": {
+        "counts": {
+          "startup": {
+            "stream_reads": 4,
+            "stat": 6
+          },
+          "imports": {
+            "stream_reads": 270,
+            "stat": 11,
+            "listdir": 9
+          },
+          "construction": {
+            "stream_reads": 3,
+            "lstat": 3,
+            "stat": 1
+          },
+          "backend": {
+            "stream_reads": 30,
+            "stat": 82,
+            "listdir": 3,
+            "access": 2,
+            "scheduler_requests": 1
+          },
+          "rendering": {
+            "stream_reads": 7
+          },
+          "planning": {
+            "lstat": 22,
+            "stat": 18,
+            "directory_opens": 35,
+            "close": 31,
+            "access": 1
+          }
+        },
+        "path_depth": 2,
+        "peak_opened_descriptors": 2,
+        "shared_observations": {
+          "image_metadata": 1,
+          "image_readability": 1,
+          "input_metadata": 1
+        }
+      },
+      "tasks-1-targets-4-status": {
+        "counts": {
+          "startup": {
+            "stream_reads": 4,
+            "stat": 6
+          },
+          "imports": {
+            "stream_reads": 270,
+            "stat": 11,
+            "listdir": 9
+          },
+          "construction": {
+            "stream_reads": 3,
+            "lstat": 3,
+            "stat": 1
+          },
+          "backend": {
+            "stream_reads": 30,
+            "stat": 82,
+            "listdir": 3,
+            "access": 2,
+            "scheduler_requests": 1
+          },
+          "rendering": {
+            "stream_reads": 7
+          },
+          "planning": {
+            "lstat": 31,
+            "stat": 21,
+            "directory_opens": 35,
+            "close": 31,
+            "access": 1
+          }
+        },
+        "path_depth": 2,
+        "peak_opened_descriptors": 2,
+        "shared_observations": {
+          "image_metadata": 1,
+          "image_readability": 1,
+          "input_metadata": 1
+        }
+      },
+      "tasks-4-targets-1-status": {
+        "counts": {
+          "startup": {
+            "stream_reads": 4,
+            "stat": 6
+          },
+          "imports": {
+            "stream_reads": 270,
+            "stat": 11,
+            "listdir": 9
+          },
+          "construction": {
+            "stream_reads": 3,
+            "lstat": 3,
+            "stat": 1
+          },
+          "backend": {
+            "stream_reads": 30,
+            "stat": 82,
+            "listdir": 3,
+            "access": 2,
+            "scheduler_requests": 1
+          },
+          "rendering": {
+            "stream_reads": 7
+          },
+          "planning": {
+            "lstat": 31,
+            "stat": 21,
+            "directory_opens": 59,
+            "close": 49,
+            "access": 1
+          }
+        },
+        "path_depth": 2,
+        "peak_opened_descriptors": 2,
+        "shared_observations": {
+          "image_metadata": 1,
+          "image_readability": 1,
+          "input_metadata": 1
+        }
+      }
+    }
+  },
+  "validation_results": {
+    "initial_scaling": "Three expected failures before implementation; all three pass after.",
+    "review_regression": "The CLI initially incorrectly reported Reuse after an observed image was removed and reacquired with changed contents. Explicit destination refresh now detects the changed Input baseline.",
+    "focused_suite": "Seven CLI tests; see ignored 148-reviewed-tests.log and PR CI for execution results.",
+    "types": "mypy passes for _observations.py, inputs.py and images.py."
+  }
+}

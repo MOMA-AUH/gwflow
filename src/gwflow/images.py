@@ -14,7 +14,7 @@ import tempfile
 from gwf.exceptions import WorkflowError
 from gwf.executors import Bash
 
-from . import inputs
+from . import _observations, inputs
 
 
 # Docker distribution reference grammar: repository, optional tag and digest.
@@ -68,17 +68,17 @@ def binding(reference, working_dir):
     return str(cache / (key + ".sif"))
 
 
-def _readable(path, locations):
-    observed = inputs.observe([str(path)], locations)
+def _readable(path, locations, *, refresh=False):
+    observed = inputs.observe([str(path)], locations, refresh=refresh)
     if not os.access(observed[str(path)]["resolved"], os.R_OK):
         raise WorkflowError("image is not readable")
 
 
 def _acquire(reference, path, locations):
-    inputs.validate_location(path, path.resolve(), locations)
     if os.path.lexists(path):
         _readable(path, locations)
         return
+    inputs.validate_location(path, path.resolve(), locations)
     path.parent.mkdir(parents=True, exist_ok=True)
     # Keep the coordination file: unlinking it could let different callers
     # lock different inodes for the same entry. Closing the descriptor releases
@@ -95,7 +95,9 @@ def _acquire(reference, path, locations):
             except (WorkflowError, OSError, RuntimeError) as error:
                 print(f"Failed to pull image: {reference}: {error}", file=sys.stderr, flush=True)
                 raise
-        _readable(path, locations)
+        # This process or the lock's previous owner may have installed a new
+        # image after an earlier successful observation of this same alias.
+        _readable(path, locations, refresh=True)
 
 
 def _pull(reference, path, locations):
@@ -121,10 +123,12 @@ def resolve(task, structure, locations):
             continue
         reference = task.targets[local].image
         try:
-            if reference.startswith("docker://"):
-                _acquire(reference, Path(target["image"]), locations)
-            else:
-                _readable(target["image"], locations)
+            def inspect():
+                if reference.startswith("docker://"):
+                    _acquire(reference, Path(target["image"]), locations)
+                else:
+                    _readable(target["image"], locations)
+            _observations.reuse("image", (reference, target["image"], tuple(sorted(locations.items()))), inspect)
         except (WorkflowError, OSError, RuntimeError) as error:
             raise WorkflowError(f"Target {local}: image unavailable for {reference!r} at {target['image']}: {error}") from error
 
