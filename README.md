@@ -6,6 +6,12 @@ gwflow adds managed Tasks to [gwf](https://gwf.app/): computation runs in dispos
 work storage, while named retained files are copied into stable results storage.
 Checked completion evidence lets a Task remain reusable after its work is removed.
 
+The v0.5.2 release makes `gwf status --details` a compact nested view: a Target
+column shows preparation, computation targets, and completion beneath each Task.
+Selecting a Task, job, or group uses the same expansion. Full reasons, attempts,
+paths, and backend information remain available through `gwf explain --details`.
+Task states, progress, filters, and execution and recovery semantics are unchanged.
+
 The v0.5.1 release reduces repeated planning reads for Task jobs, producer
 completion evidence, shared inputs, and container images. Scoped directory
 handles reduce repeated directory opens while preserving pathname validation.
