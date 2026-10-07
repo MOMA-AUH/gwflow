@@ -47,7 +47,7 @@ class Probe:
                     self.counts[phase]["scheduler_requests"] += 1
             elif module == "gwflow.presentation":
                 phase = "rendering"
-            elif module == "gwflow.images" and name == "acquire":
+            elif module == "gwflow.images" and name == "_pull":
                 phase = "image_acquisition"
             elif name == "<module>":
                 phase = "construction" if Path(frame.f_code.co_filename).name == "workflow.py" else "imports"
