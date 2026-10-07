@@ -10,6 +10,7 @@ from uuid import uuid4
 
 from gwf.exceptions import WorkflowError
 
+from . import _observations
 from .workflow import relative_path
 
 
@@ -89,30 +90,68 @@ def mkdir(path):
 def regular_file(root, relative, *, create=False):
     path = Path(root) / relative_path(relative)
     with directory(path.parent, create=create) as parent:
-        flags = os.O_NOFOLLOW | os.O_CLOEXEC
-        flags |= (os.O_WRONLY | os.O_CREAT | os.O_EXCL) if create else os.O_RDONLY | os.O_NONBLOCK
-        try:
-            fd = os.open(path.name, flags, 0o600, dir_fd=parent)
-        except OSError as exc:
-            raise WorkflowError(f"Cannot open regular managed file {path}: {exc}") from exc
-        try:
-            if not stat.S_ISREG(os.fstat(fd).st_mode):
-                raise WorkflowError(f"Managed output must be a regular file: {path}")
+        with _regular_at(parent, path, create=create) as fd:
             yield fd
             if create:
                 sync_directory(parent)
-        finally:
-            os.close(fd)
+
+
+@contextmanager
+def _regular_at(parent, path, *, create=False):
+    flags = os.O_NOFOLLOW | os.O_CLOEXEC
+    flags |= (os.O_WRONLY | os.O_CREAT | os.O_EXCL) if create else os.O_RDONLY | os.O_NONBLOCK
+    try:
+        fd = os.open(path.name, flags, 0o600, dir_fd=parent)
+    except OSError as exc:
+        raise WorkflowError(f"Cannot open regular managed file {path}: {exc}") from exc
+    try:
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            raise WorkflowError(f"Managed output must be a regular file: {path}")
+        yield fd
+    finally:
+        os.close(fd)
+
+
+def _signature(info):
+    # Device numbers identify observations only in this process, never owners.
+    return (info.st_dev, info.st_ino, info.st_mode, info.st_size, info.st_mtime_ns, info.st_ctime_ns)
+
+
+def _unchanged(path, expected, observed):
+    if expected is not None and _signature(expected) != _signature(observed):
+        raise WorkflowError(f"Managed file changed while observing evidence: {path}")
+
+
+def _observed_file(path, kind, read):
+    with directory(path.parent) as parent:
+        if not _observations.active():
+            return read(parent, None)
+        try:
+            info = os.stat(path.name, dir_fd=parent, follow_symlinks=False)
+        except OSError:
+            # Preserve the reader's missing-file/error semantics and permit
+            # publication after this absent observation to be seen immediately.
+            return read(parent, None)
+        return _observations.reuse(kind, (str(path), _signature(info)), lambda: read(parent, info))
 
 
 def metadata(root, filenames, *, sync=False):
     result = {}
     for filename in filenames:
-        with regular_file(root, filename) as fd:
-            info = os.fstat(fd)
-            result[filename] = {"size": info.st_size, "mtime_ns": info.st_mtime_ns}
-            if sync:
-                os.fsync(fd)
+        path = Path(root) / relative_path(filename)
+        def read(parent, expected):
+            with _regular_at(parent, path) as fd:
+                info = os.fstat(fd)
+                _unchanged(path, expected, info)
+                if sync:
+                    os.fsync(fd)
+                return {"size": info.st_size, "mtime_ns": info.st_mtime_ns}
+        if sync:
+            # Durability checks must always reach the filesystem.
+            with directory(path.parent) as parent:
+                result[filename] = read(parent, None)
+        else:
+            result[filename] = _observed_file(path, "managed-metadata", read)
     return result
 
 
@@ -140,14 +179,17 @@ def file_set(root):
 
 def read_json(path):
     path = Path(path)
+    def read(parent, expected):
+        fd = os.open(path.name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=parent)
+        with os.fdopen(fd) as stream:
+            info = os.fstat(stream.fileno())
+            _unchanged(path, expected, info)
+            if not stat.S_ISREG(info.st_mode):
+                return None
+            value = json.load(stream)
+            return value if isinstance(value, dict) else None
     try:
-        with directory(path.parent) as parent:
-            fd = os.open(path.name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=parent)
-            with os.fdopen(fd) as stream:
-                if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
-                    return None
-                value = json.load(stream)
-                return value if isinstance(value, dict) else None
+        return _observed_file(path, "json", read)
     except (FileNotFoundError, ValueError, UnicodeError):
         return None
     except OSError as exc:

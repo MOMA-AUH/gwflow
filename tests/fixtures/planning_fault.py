@@ -22,6 +22,10 @@ def fault(frame, event, arg):
     boundary = None
     if module == "gwflow.planning" and name == "plan_workflow":
         boundary = "planned"
+    elif module == "gwflow._files" and name == "read_json" and arg is None:
+        boundary = "missing:" + str(frame.f_locals["path"])
+    elif module == "gwflow._files" and name == "metadata" and arg:
+        boundary = "metadata:" + str(Path(frame.f_locals["root"]) / next(iter(arg)))
     elif module == "json" and name == "load":
         try:
             boundary = os.readlink(f"/proc/self/fd/{frame.f_locals['fp'].fileno()}")
@@ -37,6 +41,10 @@ def fault(frame, event, arg):
             destination.write_text(json.dumps(value))
         for path in action.get("remove", []):
             Path(path).unlink()
+        for source, destination in action.get("rename", {}).items():
+            Path(source).rename(destination)
+        for path, target in action.get("symlink", {}).items():
+            Path(path).symlink_to(target)
         if action.get("interrupt"):
             raise KeyboardInterrupt
         if action.get("error"):

@@ -1,0 +1,364 @@
+{
+  "issue": "https://github.com/MOMA-AUH/gwflow/issues/147",
+  "baseline_revision": "d3d1c77b09601d168a758afc6386ec12eea9f0e5",
+  "implementation_revision": "7c57b07 (implementation); this PR includes validation and any follow-up corrections",
+  "environment": {
+    "python": "3.12.14",
+    "gwf": "2.1.1",
+    "gwflow": "0.5.0",
+    "rich": "15.0.0",
+    "platform": "Linux"
+  },
+  "paths": {
+    "<REPO>": "repository checkout",
+    "<WORKFLOW>": "fresh temporary directory created by LocalBackendTestCase",
+    "<PYTHON>": "repository Python 3.12 environment with the project installed"
+  },
+  "fixture": "Public authoring: reference Task has one cat computation, an external input, and 1 or 3 retained copies; 1 or 4 sample Tasks each consume every copy. Real local workers run to Completion before status. Cases vary consumers and references independently. Equivalent separately created states, the same environment and depth; no private data, live registry, or cluster.",
+  "commands": {
+    "baseline_source": "mkdir -p build/validation/planning/147-baseline-source && git archive d3d1c77 | tar -x -C build/validation/planning/147-baseline-source",
+    "baseline": "PATH=<REPO>/.conda-env/bin:$PATH PYTHONPATH=<REPO>/build/validation/planning/147-baseline-source/src:<REPO>/tests GWFLOW_IO_EVIDENCE=<REPO>/build/validation/planning/147-baseline-verified <PYTHON> -m unittest test_planning_io.ProducerEvidenceTests.test_single_consumer_reads_each_producer_record_once test_planning_io.ProducerEvidenceTests.test_more_consumers_share_complete_producer_validation test_planning_io.ProducerEvidenceTests.test_multiple_retained_references_share_producer_evidence -v",
+    "optimized": "PATH=<REPO>/.conda-env/bin:$PATH GWFLOW_IO_EVIDENCE=<REPO>/build/validation/planning/147-verified <PYTHON> -m unittest discover -s tests -p test_planning_io.py -v",
+    "types": "<PYTHON> -m mypy --follow-imports=silent --ignore-missing-imports src/gwflow/_files.py src/gwflow/_observations.py src/gwflow/lifecycle.py",
+    "extended_local_diagnostic": "PATH=<REPO>/.conda-env/bin:$PATH <PYTHON> build/validation/planning/147-local-timeout-check.py; ignored diagnostic runner invokes the two named unchanged unittest cases, overriding only LocalBackendTestCase.wait_for to poll the same predicate every 0.05 seconds with a 90-second deadline instead of 20."
+  },
+  "measurement_contract": [
+    "tests/fixtures/planning_probe.py counts real Python OS operations and stream reads through the installed CLI entry point; these are attempted operations, not a complete kernel syscall trace or private cache hits.",
+    "Phase seconds include profiler overhead and are not wall-clock speedup evidence. Full-size repeated timing and combined directory measurements belong to #150.",
+    "Peak descriptors covers live os.open descriptors, not inherited sockets or all Python/C-level opens. No retained directory descriptors are introduced by this stage.",
+    "The same harness and three fan-out tests reject the prerequisite implementation. Every optimized producer record is read once: 21 distinct records regardless of consumer count or retained references. Total work still grows for distinct consumer records and actual dependency relationships.",
+    "The regression also caps the shared reference external-input stat calls at two, preserving the distinct planning checks before external-input reuse in #148.",
+    "Repeated managed reads still traverse parents without following symlinks and stat the leaf. Matching device/inode/mode/size/mtime/ctime signatures permit content reuse, while missing records are not cached and changed signatures cause new reads. Device numbers are process-local observations, never persisted ownership.",
+    "Derived producer selections and Completion checks use first observations under matching Store and attempt contexts. Expected producer UUID and retained name remain per-consumer checks; record-kind and owner/generation validation remains in each reader.",
+    "Scope ends before mutation, including when a Plan carries its Store. Existing CLI publication, same-admission changes after planning, cleanup, mismatched generation, nested producer, cycle and symlink scenarios cover conservative behavior.",
+    "Raw logs remain in ignored build/validation/planning. This summary preserves all selected scalar measurements unchanged; raw per-path counters are aggregated only for producer totals. No machine-specific paths or device/inode identities were collected as standalone evidence in these count runs."
+  ],
+  "results": {
+    "147-baseline-verified": {
+      "consumers-1-references-1": {
+        "counts": {
+          "startup": {
+            "stream_reads": 4,
+            "stat": 6
+          },
+          "imports": {
+            "stream_reads": 270,
+            "stat": 12,
+            "listdir": 10
+          },
+          "construction": {
+            "stream_reads": 3,
+            "lstat": 3,
+            "stat": 1
+          },
+          "backend": {
+            "stream_reads": 30,
+            "stat": 79,
+            "listdir": 3,
+            "scheduler_requests": 1
+          },
+          "rendering": {
+            "stream_reads": 7
+          },
+          "planning": {
+            "lstat": 23,
+            "stat": 25,
+            "directory_opens": 1696,
+            "close": 1702,
+            "file_opens": 137,
+            "fstat": 139,
+            "stream_reads": 123,
+            "listdir": 1
+          }
+        },
+        "seconds": {
+          "startup": 0.024239671882241964,
+          "imports": 3.787740303145256,
+          "construction": 0.053220888832584023,
+          "backend": 0.43909238604828715,
+          "rendering": 0.0830319260712713,
+          "planning": 0.07022829802008346
+        },
+        "path_depth": 2,
+        "peak_opened_descriptors": 2,
+        "producer_record_reads": {
+          "distinct": 21,
+          "total": 82,
+          "maximum_per_path": 17
+        }
+      },
+      "consumers-4-references-1": {
+        "counts": {
+          "startup": {
+            "stream_reads": 4,
+            "stat": 6
+          },
+          "imports": {
+            "stream_reads": 270,
+            "stat": 12,
+            "listdir": 10
+          },
+          "construction": {
+            "stream_reads": 3,
+            "lstat": 3,
+            "stat": 1
+          },
+          "backend": {
+            "stream_reads": 30,
+            "stat": 79,
+            "listdir": 3,
+            "scheduler_requests": 1
+          },
+          "rendering": {
+            "stream_reads": 7
+          },
+          "planning": {
+            "lstat": 41,
+            "stat": 43,
+            "directory_opens": 5110,
+            "close": 5131,
+            "file_opens": 428,
+            "fstat": 442,
+            "stream_reads": 387,
+            "listdir": 1
+          }
+        },
+        "seconds": {
+          "startup": 0.010017331049311906,
+          "imports": 3.7001532611320727,
+          "construction": 0.04222609585849568,
+          "backend": 0.49301972694229335,
+          "rendering": 0.11048164893873036,
+          "planning": 0.21999638207489625
+        },
+        "path_depth": 2,
+        "peak_opened_descriptors": 2,
+        "producer_record_reads": {
+          "distinct": 21,
+          "total": 226,
+          "maximum_per_path": 53
+        }
+      },
+      "consumers-1-references-3": {
+        "counts": {
+          "startup": {
+            "stream_reads": 4,
+            "stat": 6
+          },
+          "imports": {
+            "stream_reads": 270,
+            "stat": 12,
+            "listdir": 10
+          },
+          "construction": {
+            "stream_reads": 3,
+            "lstat": 3,
+            "stat": 1
+          },
+          "backend": {
+            "stream_reads": 30,
+            "stat": 79,
+            "listdir": 3,
+            "scheduler_requests": 1
+          },
+          "rendering": {
+            "stream_reads": 7
+          },
+          "planning": {
+            "lstat": 23,
+            "stat": 25,
+            "directory_opens": 2242,
+            "close": 2258,
+            "file_opens": 195,
+            "fstat": 207,
+            "stream_reads": 171,
+            "listdir": 1
+          }
+        },
+        "seconds": {
+          "startup": 0.04965565603924915,
+          "imports": 3.587569954805076,
+          "construction": 0.04257645609322935,
+          "backend": 0.33681774005526677,
+          "rendering": 0.05680582602508366,
+          "planning": 0.09871259401552379
+        },
+        "path_depth": 2,
+        "peak_opened_descriptors": 2,
+        "producer_record_reads": {
+          "distinct": 21,
+          "total": 130,
+          "maximum_per_path": 33
+        }
+      }
+    },
+    "147-verified": {
+      "consumers-1-references-1": {
+        "counts": {
+          "startup": {
+            "stream_reads": 4,
+            "stat": 6
+          },
+          "imports": {
+            "stream_reads": 270,
+            "stat": 11,
+            "listdir": 9
+          },
+          "construction": {
+            "stream_reads": 3,
+            "lstat": 3,
+            "stat": 1
+          },
+          "backend": {
+            "stream_reads": 30,
+            "stat": 77,
+            "listdir": 2,
+            "scheduler_requests": 1
+          },
+          "rendering": {
+            "stream_reads": 7
+          },
+          "planning": {
+            "lstat": 17,
+            "stat": 116,
+            "directory_opens": 1214,
+            "close": 1216,
+            "file_opens": 53,
+            "fstat": 49,
+            "stream_reads": 43,
+            "listdir": 1
+          }
+        },
+        "seconds": {
+          "startup": 0.025770483014639467,
+          "imports": 3.2093193779001012,
+          "construction": 0.04319695621961728,
+          "backend": 0.4388053097645752,
+          "rendering": 0.04002986301202327,
+          "planning": 0.0518740750849247
+        },
+        "path_depth": 2,
+        "peak_opened_descriptors": 2,
+        "producer_record_reads": {
+          "distinct": 21,
+          "total": 21,
+          "maximum_per_path": 1
+        }
+      },
+      "consumers-4-references-1": {
+        "counts": {
+          "startup": {
+            "stream_reads": 4,
+            "stat": 6
+          },
+          "imports": {
+            "stream_reads": 270,
+            "stat": 11,
+            "listdir": 9
+          },
+          "construction": {
+            "stream_reads": 3,
+            "lstat": 3,
+            "stat": 1
+          },
+          "backend": {
+            "stream_reads": 30,
+            "stat": 77,
+            "listdir": 2,
+            "scheduler_requests": 1
+          },
+          "rendering": {
+            "stream_reads": 7
+          },
+          "planning": {
+            "lstat": 17,
+            "stat": 269,
+            "directory_opens": 2996,
+            "close": 3001,
+            "file_opens": 131,
+            "fstat": 121,
+            "stream_reads": 106,
+            "listdir": 1
+          }
+        },
+        "seconds": {
+          "startup": 0.022569347929675132,
+          "imports": 3.1644031249452382,
+          "construction": 0.0428906541201286,
+          "backend": 0.43814650282729417,
+          "rendering": 0.07916494004894048,
+          "planning": 0.12611360411392525
+        },
+        "path_depth": 2,
+        "peak_opened_descriptors": 2,
+        "producer_record_reads": {
+          "distinct": 21,
+          "total": 21,
+          "maximum_per_path": 1
+        }
+      },
+      "consumers-1-references-3": {
+        "counts": {
+          "startup": {
+            "stream_reads": 4,
+            "stat": 6
+          },
+          "imports": {
+            "stream_reads": 270,
+            "stat": 11,
+            "listdir": 9
+          },
+          "construction": {
+            "stream_reads": 3,
+            "lstat": 3,
+            "stat": 1
+          },
+          "backend": {
+            "stream_reads": 30,
+            "stat": 77,
+            "listdir": 2,
+            "scheduler_requests": 1
+          },
+          "rendering": {
+            "stream_reads": 7
+          },
+          "planning": {
+            "lstat": 17,
+            "stat": 122,
+            "directory_opens": 1244,
+            "close": 1248,
+            "file_opens": 55,
+            "fstat": 53,
+            "stream_reads": 43,
+            "listdir": 1
+          }
+        },
+        "seconds": {
+          "startup": 0.01459055597661063,
+          "imports": 3.353382527944632,
+          "construction": 0.041906498081516474,
+          "backend": 0.37960774620296434,
+          "rendering": 0.08478715998353437,
+          "planning": 0.059729757835157216
+        },
+        "path_depth": 2,
+        "peak_opened_descriptors": 2,
+        "producer_record_reads": {
+          "distinct": 21,
+          "total": 21,
+          "maximum_per_path": 1
+        }
+      }
+    }
+  },
+  "validation_results": {
+    "baseline": "Three expected test failures: maximum producer-record reads per path were 17, 53, and 33 instead of one.",
+    "optimized_counts": "All three fan-out count and byte-for-byte normal-status comparisons passed.",
+    "optimized_suite": "12 of 14 tests passed in 521.107 seconds. The execution-generation and nested-cleanup tests timed out in fixture run_complete while waiting for local jobs, before regression assertions.",
+    "isolated_generation_rerun": "Passed, one test in 34.622 seconds with the standard 20-second fixture wait.",
+    "isolated_cleanup_rerun": "Still timed out during fixture setup, one test in 28.471 seconds; a longer local observation window was needed to investigate.",
+    "typechecking": "mypy: Success, no issues found in three source files.",
+    "ci": "Full installed-package and Conda CI is required before merge; see the containing PR for authoritative run results.",
+    "extended_local_diagnostic": "Both unchanged scenarios passed in 89.510 seconds with the test harness observation limit raised from 20 to 90 seconds locally. Fixture job completion took 18.784 seconds (generation) and 27.052 seconds (nested cleanup). No repository timeout or production behavior was changed."
+  }
+}
