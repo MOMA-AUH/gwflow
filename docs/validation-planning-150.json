@@ -1,0 +1,454 @@
+{
+  "issues": [
+    "https://github.com/MOMA-AUH/gwflow/issues/150",
+    "https://github.com/MOMA-AUH/gwflow/issues/145"
+  ],
+  "revisions": {
+    "unoptimized": "abd68ef932a5f0c8528b4e26f67064a3aa308ded",
+    "observations": "f07f929b35fe962cf2767b128b55e256ccb5a866",
+    "optimized": "4d6cec1c8173c627df27b508cffa7810b5ad8b1d (production source; later integration merges preserve this tree)",
+    "harness": "tests/test_planning_workload.py and tests/fixtures/planning_probe.py in the containing PR"
+  },
+  "environment": {
+    "python": "3.12.14",
+    "gwf": "2.1.1",
+    "gwflow": "0.5.0",
+    "rich": "15.0.0",
+    "platform": "Linux 5.14.0-687.48.1.el9_8 x86_64, glibc 2.34",
+    "workflow_filesystem": "XFS temporary storage",
+    "software_filesystem": "Repository and Python dependencies reside on shared BeeGFS (fhgfs). The user reported an ongoing filesystem incident during validation; all local timings are incident-affected observations."
+  },
+  "paths": {
+    "<REPO>": "repository checkout",
+    "<WORKFLOW>": "generated temporary workflow directory",
+    "<PYTHON>": "Python 3.12 environment with gwflow and its dependencies installed",
+    "<VARIANT>": "before, after, final, or interleaved raw measurement directory as specified"
+  },
+  "fixture": {
+    "construction": "Public Task/Workflow authoring: reference has 8 computation targets; 24 sample Tasks each have 15. Each Task also has preparation and completion, totaling 368 computation targets + 50 lifecycle jobs = 418. Every sample consumes two retained reference outputs. The first computation target of every Task shares one fixture-acquired image.",
+    "backend": "Eight real local workers first complete all jobs. The existing recovery_fixture backend then reports the final computation of sample20/21 running, sample22/23 queued, and those four completion jobs queued. Other evidence remains completed. These intentionally mixed scheduler/file observations exercise active precedence; they are fixture observations, not 418 concurrently active real jobs.",
+    "state": "Reference work is cleaned through clean-work. The frozen report has 21 reusable Tasks, 2 running Tasks and 2 queued Tasks; the four active Tasks retain 15/17 progress. The reference remains reusable at 10/10 after cleanup.",
+    "image_cache": "One fixture Apptainer pull during setup, 25 fixture container executions, then a warm cache throughout all comparisons. No live registry, private data or live cluster is required.",
+    "comparability": "Every revision uses the same absolute workflow directory, files, identities, input/image metadata, declarations, scheduler fixture, installed dependency versions and CLI harness. Each instrumented stdout equals its ordinary CLI stdout and the other revisions. Hashes of contents and device/inode/size/mtime facts for managed evidence, work, retained results, images and input.txt remain unchanged after inspection and actual run.",
+    "frozen_state_digest": "ee3c5d9e2547837854df80741bd80cb290a439a997af7529e7ab19d3651d2f14",
+    "filesystem": {
+      "path": "<WORKFLOW>",
+      "device": 66311,
+      "inode": 10737418801
+    },
+    "identity_note": "Device and inode are original process-local observations, preserved unchanged. The digest establishes within-run equivalence; newly generated fixtures have new UUIDs/inodes and need not reproduce it."
+  },
+  "commands": {
+    "install": "<PYTHON> -m pip install -e .",
+    "baseline_archive": "mkdir -p build/validation/planning/150-baseline-source && git archive abd68ef | tar -x -C build/validation/planning/150-baseline-source",
+    "intermediate_archive": "mkdir -p build/validation/planning/150-observation-source && git archive f07f929 | tar -x -C build/validation/planning/150-observation-source",
+    "compare": "PATH=<REPO>/.conda-env/bin:$PATH GWFLOW_PLANNING_BASELINES='{\"unoptimized\":\"build/validation/planning/150-baseline-source\",\"observations\":\"build/validation/planning/150-observation-source\"}' GWFLOW_IO_EVIDENCE=<REPO>/build/validation/planning/150-interleaved <PYTHON> -m unittest discover -s tests -p test_planning_workload.py -v",
+    "incident_diagnostic": "The final local comparison used the same environment variables with <PYTHON> build/validation/planning/150-slow-filesystem.py. This ignored runner imports RepresentativePlanningTests from tests/test_planning_workload.py and replaces only wait_for with the same 0.05-second predicate poll and a 1200-second deadline, then runs the unchanged test. The committed test and CI retain their 300-second setup deadline.",
+    "incident_runner_source": "\"\"\"Local diagnostic: unchanged CLI fixture/assertions, longer setup observation.\"\"\"\nimport os\nfrom pathlib import Path\nimport sys\nimport time\nimport unittest\n\nrepo = Path(__file__).resolve().parents[3]\nsys.path.insert(0, str(repo / 'tests'))\nfrom test_planning_workload import RepresentativePlanningTests\n\n\ndef wait_for(self, predicate):\n    deadline = time.monotonic() + 1200\n    while time.monotonic() < deadline:\n        if predicate():\n            return\n        time.sleep(0.05)\n    self.fail('Local filesystem-incident diagnostic exceeded 1200 seconds')\n\n\nRepresentativePlanningTests.wait_for = wait_for\nsuite = unittest.defaultTestLoader.loadTestsFromTestCase(RepresentativePlanningTests)\nresult = unittest.TextTestRunner(verbosity=2).run(suite)\nsys.exit(not result.wasSuccessful())\n",
+    "ci_regression": "<PYTHON> -m unittest discover -s tests -v; the representative test measures the installed implementation when GWFLOW_PLANNING_BASELINES is absent",
+    "scaling": "<PYTHON> -m unittest discover -s tests -p test_planning_io.py -v; repeat for test_planning_inputs.py and test_planning_directories.py"
+  },
+  "measurement_contract": [
+    "Counts are attempted Python OS operations and Python stream reads through the real CLI, not private cache hits or a complete kernel syscall trace. Reads, metadata calls, directory/file opens and one batched local scheduler request are reported separately.",
+    "Status phase counts/times below distinguish startup, imports, workflow construction, backend observation, planning and rendering. _pull is the separately instrumented image-acquisition phase; warm-cache comparisons have zero acquisitions. Instrumented phase seconds include profiler overhead and are not added to uninstrumented timings.",
+    "Three uninstrumented status samples per revision are interleaved by round after the count runs. Times include process/import startup and backend latency. Host load and shared software-path caching still vary, especially during the reported filesystem incident; these XFS fixture measurements do not establish a fixed speedup or deployment latency.",
+    "Earlier sequential sample sets are retained below to disclose variation instead of selecting the fastest run. The earlier first set froze managed state and image files; the subsequent sets also include input.txt explicitly in the digest. Every set independently compared identical states across its revisions.",
+    "Current no-follow ancestry is checked before each borrowed read is accepted. Metadata stat counts increase at the directory stage; this is required pathname validation, not omitted work. Opens/close operations fall substantially, but local wall time may stay flat or increase. No subsecond or fixed speedup claim follows.",
+    "The 64-handle LRU cache ends at the planning boundary. Peak measured os.open descriptors is bounded by 67 including transient traversal; this excludes inherited sockets and C-level opens. Very deep paths use bounded fresh traversal. Iterative retained-directory scans bound handles while potentially doing additional relative opens.",
+    "Additional reads are required for changed signatures, observed absences followed by publication, acquired/reacquired images, and fresh checks after planning. Their correctness tests are mapped below; their counts are not suppressed to meet a stable-state ceiling.",
+    "All raw logs, per-path counters and machine-specific paths remain under ignored build/validation/planning. Committed counts, timings, versions and device/inode values are copied unchanged; per-path values are only summarized into documented distinct/total/max statistics. JSON and path scans pass, and summaries are checked against their raw sources."
+  ],
+  "regression_limits": {
+    "producer_record_reads_per_path": 1,
+    "shared_image_stat_calls": 1,
+    "shared_image_access_calls": 1,
+    "scheduler_requests": 1,
+    "absolute_prefix_opens": 8,
+    "peak_os_open_descriptors": 67,
+    "directory_opens": "3200 + 418 * max(0, path_depth - 2)",
+    "file_opens": 3300,
+    "stream_reads": 2700,
+    "stat_calls": "90000 + 6000 * max(0, path_depth - 2)",
+    "justification": "At depth 2 the controlled counts are 2703 directory opens, 3101 file opens, 2565 reads, 84119 stats, and 6 prefix opens. Small fixed margins allow incidental distinct evidence; the depth terms allow one extra directory per job and ancestry checks/eviction work. Separate depth/reference/consumer tests enforce scaling. The unoptimized fixture exceeds both file-open and prefix ceilings; the observation-only stage still fails the directory ceiling."
+  },
+  "coverage": [
+    {
+      "contracts": "Task/producer observation reuse; matching expected producers; cycles; malformed/incompatible evidence; publication; fresh post-planning submission checks; two passes and scope cleanup",
+      "tests": [
+        "tests/test_planning_io.py",
+        "tests/test_dependencies.py",
+        "tests/test_managed_recovery.py"
+      ],
+      "evidence": [
+        "docs/validation-planning-146.json",
+        "docs/validation-planning-147.json"
+      ]
+    },
+    {
+      "contracts": "Shared inputs/images, aliases, metadata changes, acquisition after missing or positive observations, cache/context lifetime, fresh worker/Repair checks, registry coordination and recovery",
+      "tests": [
+        "tests/test_planning_inputs.py",
+        "tests/test_inputs.py",
+        "tests/test_containers.py",
+        "tests/test_registry_images.py",
+        "tests/test_registry_concurrency.py",
+        "tests/test_registry_recovery.py"
+      ],
+      "evidence": [
+        "docs/validation-planning-148.json"
+      ]
+    },
+    {
+      "contracts": "Bounded directory access, symlink/rename/replacement gates, valid next-command replacement, success/failure/interruption cleanup, deep roots and retained recovery trees, cross-host ownership",
+      "tests": [
+        "tests/test_planning_directories.py",
+        "tests/test_storage.py",
+        "tests/test_transfer.py"
+      ],
+      "evidence": [
+        "docs/validation-planning-149.json"
+      ]
+    },
+    {
+      "contracts": "Fresh, queued/running, completed/cleaned Reuse, failure/cancellation, uncertainty, retries, command/structure changes, Repair, Deferral, hidden-consumer protection",
+      "tests": [
+        "tests/test_status.py",
+        "tests/test_inspection.py",
+        "tests/test_plan.py",
+        "tests/test_fresh.py",
+        "tests/test_repair.py",
+        "tests/test_cleanup.py",
+        "tests/test_explicit_cleanup.py",
+        "tests/test_submission.py"
+      ]
+    },
+    {
+      "contracts": "Full 418-job counts, warm shared images, compact/detail status, selector/filter, explain, dry-run and actual-run equivalence; ordinary gwf fallback",
+      "tests": [
+        "tests/test_planning_workload.py",
+        "tests/test_plain.py"
+      ],
+      "evidence": [
+        "this record"
+      ]
+    }
+  ],
+  "validation": {
+    "representative": "Ran 1 test in 1444.218s; OK, all three revisions compared with the incident diagnostic setup deadline.",
+    "filesystem_incident": "The ordinary interleaved run timed out during fixture setup after 318.914 seconds (300-second completion deadline): all 418 jobs had been accepted, 191 had completion outcomes and none had failed outcomes. A minimal Python process took 0.912 seconds; importing gwflow.execution took 9.155 and 7.766 seconds in two samples. The final local diagnostic allowed 1200 seconds for setup only. Earlier full comparisons passed in 246.871 and 277.842 seconds. No regression ceiling depends on elapsed time.",
+    "focused": "27 existing planning/storage tests passed in 243.140 seconds; 19 transfer tests passed in 191.417 seconds. Six new directory CLI tests and seven input/image CLI tests passed, including both review-found regressions.",
+    "full_ci": "Production source at 4d6cec1 passed CI run 37591362117: 358 tests in the installed-package job (867.192s), 358 tests in the Conda job (460.699s, 44 real-container tests skipped there), plus 14 real-container acceptance tests (74.272s). The containing PR must also pass both full CI jobs before merge.",
+    "ci_url": "https://github.com/MOMA-AUH/gwflow/actions/runs/37591362117",
+    "typing": "mypy passed for _files.py, _observations.py, inputs.py and images.py with --follow-imports=silent --ignore-missing-imports"
+  },
+  "historical_live_evidence": {
+    "source": "https://github.com/MOMA-AUH/gwflow/issues/145",
+    "reported_wall_seconds": 176.816,
+    "later_profiled_wall_seconds": 31.049,
+    "later_profiled_os_open_calls": 198762,
+    "later_profiled_scheduler_seconds": 0.206,
+    "temporary_json_experiment_wall_seconds": 19.902,
+    "temporary_json_experiment_opens": 67236,
+    "limits": "No new controlled live-workflow rerun was performed: the original changing workflow state is not available as the same frozen workload. These historical observations used different changing shared-storage conditions and are not a baseline for the fixture. The original 176.816-second command was unprofiled, so its exact breakdown is unknown. Neither 67236 opens nor any historical timing is an acceptance threshold."
+  },
+  "results": {
+    "unoptimized": {
+      "status_counts": {
+        "startup": {
+          "stream_reads": 5,
+          "stat": 7
+        },
+        "imports": {
+          "stream_reads": 269,
+          "stat": 12,
+          "listdir": 10
+        },
+        "construction": {
+          "stream_reads": 3,
+          "lstat": 3,
+          "stat": 1
+        },
+        "backend": {
+          "stream_reads": 35,
+          "stat": 84,
+          "listdir": 2,
+          "access": 2,
+          "scheduler_requests": 1
+        },
+        "rendering": {
+          "stream_reads": 7
+        },
+        "planning": {
+          "lstat": 802,
+          "stat": 316,
+          "directory_opens": 106369,
+          "close": 106643,
+          "file_opens": 8583,
+          "fstat": 8076,
+          "stream_reads": 7463,
+          "access": 25,
+          "listdir": 1
+        }
+      },
+      "status_profiled_seconds": {
+        "startup": 0.013104604033287615,
+        "imports": 10.440757343079895,
+        "construction": 0.17999668401898816,
+        "backend": 1.0413611606927589,
+        "rendering": 0.474535490910057,
+        "planning": 5.777577615284827
+      },
+      "path_depth": 2,
+      "peak_opened_descriptors": 2,
+      "absolute_prefix_opens": 8752,
+      "distinct_evidence_reads": 2565,
+      "producer_records": {
+        "distinct": 64,
+        "total_reads": 2282,
+        "maximum_per_path": 445
+      },
+      "shared_image_metadata_calls": 139,
+      "shared_image_readability_calls": 25,
+      "commands": [
+        "status",
+        "status---details",
+        "status-sample00",
+        "status---status-running",
+        "explain",
+        "run---dry-run",
+        "run"
+      ],
+      "planning_counts_identical_across_commands": true,
+      "scheduler_requests_across_commands": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "wall_seconds": [
+        13.410458772967104,
+        14.726589622034226,
+        14.21802046301309
+      ],
+      "wall_summary": {
+        "minimum": 13.410458772967104,
+        "median": 14.21802046301309,
+        "maximum": 14.726589622034226
+      }
+    },
+    "observations": {
+      "status_counts": {
+        "startup": {
+          "stream_reads": 5,
+          "stat": 7
+        },
+        "imports": {
+          "stream_reads": 270,
+          "stat": 12,
+          "listdir": 10
+        },
+        "construction": {
+          "stream_reads": 3,
+          "lstat": 3,
+          "stat": 1
+        },
+        "backend": {
+          "stream_reads": 35,
+          "stat": 84,
+          "listdir": 2,
+          "access": 2,
+          "scheduler_requests": 1
+        },
+        "rendering": {
+          "stream_reads": 7
+        },
+        "planning": {
+          "lstat": 94,
+          "stat": 4803,
+          "directory_opens": 59563,
+          "close": 59661,
+          "file_opens": 3101,
+          "fstat": 2782,
+          "stream_reads": 2565,
+          "access": 1,
+          "listdir": 1
+        }
+      },
+      "status_profiled_seconds": {
+        "startup": 0.018106218019966036,
+        "imports": 9.521180702955462,
+        "construction": 0.1478306410717778,
+        "backend": 0.965120452339761,
+        "rendering": 0.2923372708610259,
+        "planning": 4.255044878751505
+      },
+      "path_depth": 2,
+      "peak_opened_descriptors": 2,
+      "absolute_prefix_opens": 4794,
+      "distinct_evidence_reads": 2565,
+      "producer_records": {
+        "distinct": 64,
+        "total_reads": 64,
+        "maximum_per_path": 1
+      },
+      "shared_image_metadata_calls": 1,
+      "shared_image_readability_calls": 1,
+      "commands": [
+        "status",
+        "status---details",
+        "status-sample00",
+        "status---status-running",
+        "explain",
+        "run---dry-run",
+        "run"
+      ],
+      "planning_counts_identical_across_commands": true,
+      "scheduler_requests_across_commands": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "wall_seconds": [
+        14.466713540023193,
+        13.974653313984163,
+        14.828200221003499
+      ],
+      "wall_summary": {
+        "minimum": 13.974653313984163,
+        "median": 14.466713540023193,
+        "maximum": 14.828200221003499
+      }
+    },
+    "optimized": {
+      "status_counts": {
+        "startup": {
+          "stream_reads": 5,
+          "stat": 7,
+          "close": 64
+        },
+        "imports": {
+          "stream_reads": 270,
+          "stat": 11,
+          "listdir": 9
+        },
+        "construction": {
+          "stream_reads": 3,
+          "lstat": 3,
+          "stat": 1
+        },
+        "backend": {
+          "stream_reads": 35,
+          "stat": 82,
+          "listdir": 2,
+          "access": 2,
+          "scheduler_requests": 1
+        },
+        "rendering": {
+          "stream_reads": 7
+        },
+        "planning": {
+          "lstat": 94,
+          "stat": 84119,
+          "directory_opens": 2703,
+          "fstat": 5459,
+          "file_opens": 3101,
+          "stream_reads": 2565,
+          "close": 2737,
+          "access": 1,
+          "listdir": 1
+        }
+      },
+      "status_profiled_seconds": {
+        "startup": 0.018995602091308683,
+        "imports": 11.545778255036566,
+        "construction": 0.162493466923479,
+        "backend": 1.1229135672328994,
+        "rendering": 0.6563486428931355,
+        "planning": 4.699675025825854
+      },
+      "path_depth": 2,
+      "peak_opened_descriptors": 66,
+      "absolute_prefix_opens": 6,
+      "distinct_evidence_reads": 2565,
+      "producer_records": {
+        "distinct": 64,
+        "total_reads": 64,
+        "maximum_per_path": 1
+      },
+      "shared_image_metadata_calls": 1,
+      "shared_image_readability_calls": 1,
+      "commands": [
+        "status",
+        "status---details",
+        "status-sample00",
+        "status---status-running",
+        "explain",
+        "run---dry-run",
+        "run"
+      ],
+      "planning_counts_identical_across_commands": true,
+      "scheduler_requests_across_commands": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "wall_seconds": [
+        13.640348286018707,
+        14.511341903998982,
+        14.009325547027402
+      ],
+      "wall_summary": {
+        "minimum": 13.640348286018707,
+        "median": 14.009325547027402,
+        "maximum": 14.511341903998982
+      }
+    }
+  },
+  "earlier_sequential_samples": {
+    "150-full": {
+      "unoptimized": [
+        2.0117125299875624,
+        2.0299579830025323,
+        2.0195559909916483
+      ],
+      "observations": [
+        1.7332971440046094,
+        1.7262987259891815,
+        1.766902887960896
+      ],
+      "optimized": [
+        2.008529380953405,
+        1.999831126013305,
+        1.974414959026035
+      ]
+    },
+    "150-final": {
+      "unoptimized": [
+        1.9583627420361154,
+        1.9869668249739334,
+        2.005564470018726
+      ],
+      "observations": [
+        3.0467130160541274,
+        3.812789768970106,
+        2.776074505003635
+      ],
+      "optimized": [
+        3.131737069983501,
+        3.1629539509885944,
+        3.094346457044594
+      ]
+    }
+  }
+}
