@@ -106,7 +106,7 @@ def task_row(task):
         completed = None
     detail = []
     if task.action == "blocked":
-        detail.append(blocking_reason(task.reason) or "validation prevents proceeding; see --details")
+        detail.append(blocking_reason(task.reason) or "validation prevents proceeding; see gwf explain --details")
     elif task.action == "reuse":
         detail.append("work present" if task.work_present else "work cleaned")
     elif task.action == "repair":
@@ -273,40 +273,68 @@ class Report:
         heading = summary(rows, total)
         if self.plain:
             self.line(heading, complete=True)
-            self.line("Task / State / Jobs completed / Detail" if self.terminal else
-                      f"{'Task':<33} {'State':<14} {'Jobs completed':<16} Detail", complete=True)
-            for row in rows:
-                if self.terminal:
-                    self._compact_row(row)
-                else:
-                    self.line(f"{'Task ' + row.task.name:<33} {row.state:<14} {row.progress:<16} {row.detail}".rstrip())
         else:
             self.console.print(Panel(Text(heading, style="bold cyan"), border_style="cyan", title="Task status"))
-            if self.console.width < 64:
-                self.line("Jobs completed (steps)", complete=True)
-                for row in rows:
-                    self._compact_row(row)
-            else:
-                table = Table(box=box.SIMPLE_HEAD, expand=True, padding=(0, 1))
-                table.add_column("Task", ratio=2, min_width=12)
-                table.add_column("State", width=12, no_wrap=True)
-                table.add_column("Jobs completed", width=14, justify="right", no_wrap=True)
-                bars = self.console.width >= 90
-                if bars:
-                    table.add_column("", width=min(14, (self.console.width - 80) // 2))
-                table.add_column("Detail", ratio=3)
-                for row in rows:
-                    cells = [self.text(row.task.name), self.state(row.state), Text(row.progress)]
-                    if bars:
-                        cells.append(ProgressBar(total=row.total, completed=row.completed,
-                                                 complete_style=_VISUALS[row.state][1], finished_style="green")
-                                     if row.completed is not None else Text(""))
-                    cells.append(self.text(row.detail, complete=row.task.action == "deferred"))
-                    table.add_row(*cells, style="on grey11" if row.state in ("blocked", "failed") else None)
-                self.console.print(table)
-        if expand:
+        if not self.terminal:
+            task_width = max([33, *(len(row.task.name) + 5 for row in rows)]) if expand else 33
+            target_width = max([18, *(len(name.plain) for row in rows for name, _ in self._target_rows(row))]) if expand else 0
+
+            def line(task, target, state, progress, detail):
+                target_cell = f"{target:<{target_width}} " if expand else ""
+                self.line(f"{task:<{task_width}} {target_cell}{state:<14} {progress:<16} {detail}".rstrip())
+
+            line("Task", "Target", "State", "Jobs completed", "Detail")
             for row in rows:
-                self.details(row)
+                line("Task " + row.task.name, "", row.state, row.progress, row.detail)
+                if expand:
+                    for name, state in self._target_rows(row):
+                        line("", name.plain, state, "", "")
+        elif self.console.width < (80 if expand else 64) or (self.plain and not expand):
+            columns = "Task / " + ("Target / " if expand else "") + "State / Jobs completed / Detail"
+            self.line(columns if expand or self.plain else "Jobs completed (steps)", complete=True)
+            for row in rows:
+                self._compact_row(row)
+                if expand:
+                    for name, state in self._target_rows(row):
+                        self.line("  " + name.plain, style=name.style)
+                        if self.plain:
+                            self.line("     " + state, complete=True)
+                        else:
+                            self.console.print(Text("     ") + self.state(state), no_wrap=False, overflow="fold")
+        else:
+            table = Table(box=None if self.plain else box.SIMPLE_HEAD, expand=True, padding=(0, 1),
+                          header_style="" if self.plain else "bold")
+            table.add_column("Task", ratio=2, min_width=12)
+            if expand:
+                table.add_column("Target", ratio=3, min_width=16)
+            table.add_column("State", width=12, no_wrap=True)
+            table.add_column("Jobs completed", width=14, justify="right", no_wrap=True)
+            bars = not self.plain and self.console.width >= (114 if expand else 90)
+            if bars:
+                table.add_column("", width=min(14, (self.console.width - (104 if expand else 80)) // 2))
+            table.add_column("Detail", ratio=2 if expand else 3)
+            for row in rows:
+                cells = [self.text(row.task.name)] + ([Text("")] if expand else [])
+                cells.extend((Text(row.state) if self.plain else self.state(row.state), Text(row.progress)))
+                if bars:
+                    cells.append(ProgressBar(total=row.total, completed=row.completed,
+                                             complete_style=_VISUALS[row.state][1], finished_style="green")
+                                 if row.completed is not None else Text(""))
+                cells.append(self.text(row.detail, complete=row.task.action == "deferred"))
+                table.add_row(*cells, style="on grey11" if not self.plain and row.state in ("blocked", "failed") else None)
+                if expand:
+                    for name, state in self._target_rows(row):
+                        cells = [Text(""), name, Text(state) if self.plain else self.state(state), Text("")]
+                        table.add_row(*cells, *([Text("")] if bars else []), Text(""))
+            self.console.print(table)
+
+    def _target_rows(self, row):
+        names = lifecycle_jobs(ordered_targets(row.task.structure))
+        for index, local in enumerate(names):
+            last = index == len(names) - 1
+            branch = ("`- " if last else "|- ") if self.plain else ("└─ " if last else "├─ ")
+            style = "dim" if local in _LIFECYCLE_NAMES and not self.plain else ""
+            yield self.text(branch + _LIFECYCLE_NAMES.get(local, local), style=style), row.jobs[local]
 
     def _compact_row(self, row):
         self.line("Task " + row.task.name)

@@ -80,7 +80,8 @@ class ContainerGraphTests(LocalBackendTestCase):
         before = self.snapshot()
         for arguments, success in ((("explain", "--details"), True), (("status", "--details"), True),
                                    (("run", "--dry-run"), False), (("run",), False)):
-            self.assertIn(reason, self.cli(*backend, *arguments, env=env, success=success))
+            output = self.cli(*backend, *arguments, env=env, success=success)
+            self.assertIn("blocked" if arguments[0] == "status" else reason, output)
             self.assertEqual(self.snapshot(), before)
 
     def test_host_and_different_container_targets_exchange_checked_outputs(self):
@@ -114,12 +115,12 @@ class ContainerGraphTests(LocalBackendTestCase):
         self.change_image()
         for arguments in (("explain", "--details"), ("status", "--details"), ("run", "--dry-run", "--details")):
             preview = self.cli(*arguments)
-            self.assertIn("input metadata changed", preview)
             if arguments[0] == "status":
                 self.assertRegex(preview, r"Task producer\s+pending\s+0/6\s+fresh attempt required")
                 self.assertRegex(preview, r"Task consumer\s+pending\s+0/3\s+fresh attempt required")
                 self.assertRegex(preview, r"Task independent\s+reusable")
             else:
+                self.assertIn("input metadata changed", preview)
                 self.assertRegex(preview, r"Task producer\s+Run\s+")
                 self.assertRegex(preview, r"Task consumer\s+Run\s+")
                 self.assertRegex(preview, r"Task independent\s+Reuse\s+")

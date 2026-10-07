@@ -140,16 +140,34 @@ Unicode state symbols, and slim progress bars. The bars are snapshots of complet
 steps; presentation adds no scheduler polling or live refresh. Narrow terminals
 omit bars before losing textual states and numeric progress.
 
-Use `--details` with status, explain, run, or run --dry-run to expand complete
-Tasks. Each expansion names its owning Task, gives its state and progress, then
-shows `[preparation]`, every computation target, and `[completion]` in that order.
-Only the bracketed lifecycle names are dimmed; their states remain prominent.
-Details also include the current condition, planned action, full diagnostic reason,
-attempt UUIDs, workspace, results and staging paths, expected producer attempts,
-active consumers, public job names, available backend IDs, and log paths.
+`gwf status --details` adds a Target column and nests each Task's jobs directly
+below its summary row. The Task row keeps its state, progress, and brief Detail;
+child rows show local target names and job states. For example:
+
+```text
+Task       Target             State       Jobs completed   Detail
+sample                        running     2/5              1 job running; 2 jobs queued
+           ├─ [preparation]   completed
+           ├─ left            completed
+           ├─ right           running
+           ├─ join            queued
+           └─ [completion]    queued
+```
+
+Each expansion shows `[preparation]`, every computation target in dependency
+order, and `[completion]`. Only the bracketed lifecycle names are dimmed; their
+states remain prominent. Plain and redirected output use ASCII tree branches.
+Narrow terminals stack names and states while keeping jobs beneath their Task.
+
+Use `gwf explain --details` for full diagnostics: the current condition, planned
+action, full reason, attempt UUIDs, workspace, results and staging paths, expected
+producer attempts, active consumers, public job names, available backend IDs,
+and log paths. `gwf run --details` and `gwf run --dry-run --details` also include
+these diagnostics.
 
 Task names and public names such as `sample_b__sort` accept glob patterns in
-status and explain. Selecting a Task or job expands the complete owning Task.
+status and explain. Selecting a Task or job expands the complete owning Task:
+nested status rows in status, and diagnostics in explain.
 `--group` selects and expands whole Tasks with any matching computation target
 group. `--status` on managed status matches only the primary Task state: a blocked
 Task with failed jobs matches blocked, not failed. `--endpoints` shows Tasks whose

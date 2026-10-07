@@ -83,7 +83,8 @@ class SharedInputObservationTests(RegistryTestCase):
             [{"pass": 0, "after": "planned", "remove": [str(alias)], "symlink": {str(alias): str(other)}}],
         )
         self.assertNotIn("blocked", first["output"].lower())
-        self.assertIn("External input points into managed storage", second["output"])
+        self.assertRegex(second["output"], r"Task sample0\s+blocked")
+        self.assertIn("External input points into managed storage", self.cli("explain", "--details"))
 
     def test_missing_local_image_does_not_poison_later_acquisition_in_same_pass(self):
         self.cli("status")

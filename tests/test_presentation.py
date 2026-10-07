@@ -29,9 +29,14 @@ class TaskPresentationTests(LocalBackendTestCase):
                 self.assertNotIn("Workflow blocked", result.stderr)
                 self.assertNotIn("Submitted target", result.stderr)
                 details = self.cli_result(*command, "--details", success=success).stdout
-                self.assertIn("State: blocked; Jobs completed: ?/5", details)
-                self.assertIn("Target left:", details)
-                self.assertIn("missing.sif", details)
+                if command[0] == "status":
+                    self.assertRegex(details, r"Task sample\s+blocked\s+\?/5")
+                    self.assertRegex(details, r"left\s+unknown")
+                    self.assertNotIn("missing.sif", details)
+                else:
+                    self.assertIn("State: blocked; Jobs completed: ?/5", details)
+                    self.assertIn("Target left:", details)
+                    self.assertIn("missing.sif", details)
                 if not success:
                     self.assertIn("image unavailable", result.stderr)
         self.assertFalse((self.work / ".gwf/gwflow").exists())
@@ -47,12 +52,17 @@ class TaskPresentationTests(LocalBackendTestCase):
             with self.subTest(command=command):
                 success = command[0] != "run"
                 compact = self.cli_result(*command, success=success).stdout
-                self.assertIn("validation prevents proceeding; see --details", compact)
+                hint = "gwf explain --details" if command[0] == "status" else "--details"
+                self.assertIn("validation prevents proceeding; see " + hint, compact)
                 self.assertNotIn(str(self.work), compact)
                 self.assertNotIn("completion.json", compact)
                 detailed = self.cli_result(*command, "--details", success=success).stdout
-                self.assertIn(str(damaged), detailed)
-                self.assertIn("State: blocked; Jobs completed: 5/5", detailed)
+                if command[0] == "status":
+                    self.assertNotIn(str(damaged), detailed)
+                    self.assertRegex(detailed, r"Task sample\s+blocked\s+5/5")
+                else:
+                    self.assertIn(str(damaged), detailed)
+                    self.assertIn("State: blocked; Jobs completed: 5/5", detailed)
                 self.assertEqual(self.snapshot(), before)
                 self.assertTrue(damaged.is_dir())
 
@@ -63,12 +73,18 @@ class TaskPresentationTests(LocalBackendTestCase):
             with self.subTest(command=command):
                 result = self.cli_result(*command, "--details")
                 output = result.stdout
-                self.assertIn("State: reusable; Jobs completed: 5/5", output)
+                if command[0] == "status":
+                    self.assertRegex(output, r"Task sample\s+reusable\s+5/5")
+                else:
+                    self.assertIn("State: reusable; Jobs completed: 5/5", output)
                 jobs = ["[preparation]", "left", "right", "join", "[completion]"]
                 positions = [re.search(re.escape(name) + r"\s+completed", output).start() for name in jobs]
                 self.assertEqual(positions, sorted(positions))
                 for label in ("Attempt:", "Workspace:", "Results:", "Reason:", "Backend job:", "Log stderr:"):
-                    self.assertIn(label, output)
+                    if command[0] == "status":
+                        self.assertNotIn(label, output)
+                    else:
+                        self.assertIn(label, output)
                 self.assertNotIn("Details for Task", result.stderr)
                 self.assertEqual(self.snapshot(), before)
 
@@ -140,17 +156,22 @@ class TaskPresentationTests(LocalBackendTestCase):
             for selection in (("sample__left",), ("--group", "map*"), ("sample*",)):
                 with self.subTest(command=command, selection=selection):
                     output = self.cli_result(command, *selection).stdout
-                    self.assertIn("State: pending; Jobs completed: 0/5", output)
+                    if command == "status":
+                        self.assertRegex(output, r"Task sample\s+pending\s+0/5")
+                        self.assertNotIn("Attempt:", output)
+                    else:
+                        self.assertIn("State: pending; Jobs completed: 0/5", output)
                     for name in ("[preparation]", "left", "right", "join", "[completion]"):
                         self.assertRegex(output, re.escape(name) + r"\s+pending")
 
-    def test_multiple_expanded_tasks_keep_their_jobs_under_named_headings(self):
+    def test_multiple_expanded_tasks_keep_their_jobs_under_their_owner(self):
         test_fresh.FreshAttemptTests.configure_workflow(self)
         for command in ("status", "explain"):
             output = self.cli_result(command, "--details", "--endpoints").stdout
-            self.assertNotIn("Details for Task a:", output)
-            first = output.index("Details for Task b:")
-            second = output.index("Details for Task c:")
+            prefix = "Task " if command == "status" else "Details for Task "
+            self.assertNotIn(prefix + "a", output)
+            first = output.index(prefix + "b")
+            second = output.index(prefix + "c")
             for section in (output[first:second], output[second:]):
                 self.assertLess(section.index("[preparation]"), section.index("compute"))
                 self.assertLess(section.index("compute"), section.index("[completion]"))

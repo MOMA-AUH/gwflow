@@ -14,6 +14,61 @@ class ManagedStatusTests(LocalBackendTestCase):
     settle = test_graphs.TaskGraphTests.settle
     inject = test_fresh.FreshAttemptTests.inject
 
+    def test_details_nest_targets_in_one_table_without_diagnostics(self):
+        test_fresh.FreshAttemptTests.configure_workflow(self)
+        output = self.cli_result("status", "--details").stdout
+        self.assertRegex(output, r"Task\s+Target\s+State\s+Jobs completed\s+Detail")
+        self.assertEqual(output.count("Jobs completed"), 1)
+        self.assertIn("3 Tasks shown: 3 pending", output)
+        sections = re.split(r"^Task [abc]\s+pending\s+0/3\s*$", output, flags=re.MULTILINE)
+        self.assertEqual(len(sections), 4)
+        for section in sections[1:]:
+            jobs = re.findall(r"^\s+([|`]-) (\S+)\s+(\S+)\s*$", section, re.MULTILINE)
+            self.assertEqual(jobs, [("|-", "[preparation]", "pending"),
+                                    ("|-", "compute", "pending"),
+                                    ("`-", "[completion]", "pending")])
+        for label in ("Details for Task", "Next action:", "Reason:", "Attempt:",
+                      "Workspace:", "Results:", "Backend job:", "Log stderr:"):
+            self.assertNotIn(label, output)
+        explanation = self.cli_result("explain", "--details").stdout
+        self.assertIn("Next action: Run", explanation)
+        self.assertIn("Attempt:", explanation)
+
+    def test_expanded_terminal_and_plain_tables_keep_targets_beside_states(self):
+        for width in (80, 110, 140):
+            for color, options, branch in (("--no-color", (), "├─"), ("--use-color", (), "├─"),
+                                           ("--no-color", ("--plain",), "|-")):
+                with self.subTest(width=width, color=color, options=options):
+                    output = self.terminal_cli(color, "status", "--details", *options, width=width).stdout
+                    text = re.sub(r"\x1b\[[0-9;]*m", "", output)
+                    self.assertRegex(text, r"Task\s+Target\s+State\s+Jobs completed")
+                    self.assertRegex(text, re.escape(branch) + r" left\s+(?:○ )?pending")
+                    self.assertLess(text.index("sample"), text.index("[preparation]"))
+                    self.assertIn("[completion]", text)
+                    self.assertNotIn("Attempt:", text)
+                    if color == "--no-color":
+                        self.assertNotIn("\x1b[", output)
+                    else:
+                        self.assertIn("\x1b[", output)
+
+    def test_expanded_long_target_names_wrap_only_when_requested(self):
+        name = "left_" + "X" * 100 + "_tail"
+        workflow = self.work / "workflow.py"
+        workflow.write_text(workflow.read_text().replace("'left'", repr(name)))
+        for options in ((), ("--plain",)):
+            with self.subTest(options=options):
+                truncated = self.terminal_cli("--no-color", "status", "--details", *options, width=100).stdout
+                self.assertIn("…", truncated)
+                self.assertNotIn("_tail", truncated)
+                self.assertIn("pending", truncated)
+                wrapped = self.terminal_cli("--no-color", "status", "--details", *options,
+                                            "--no-truncate", width=100).stdout
+                self.assertIn("_tail", wrapped)
+                self.assertEqual(wrapped.count("X"), 100)
+        redirected = self.cli_result("status", "--details").stdout
+        self.assertIn(name, redirected)
+        self.assertNotIn("…", redirected)
+
     def test_default_is_compact_and_task_selection_expands_local_names(self):
         output = self.cli("status")
         self.assertIn("Jobs completed", output)
@@ -27,7 +82,7 @@ class ManagedStatusTests(LocalBackendTestCase):
             self.assertRegex(selected, re.escape(name) + r"\s+pending")
         self.assertLess(selected.index("[preparation]"), selected.index("left"))
         self.assertLess(selected.index("join"), selected.index("[completion]"))
-        self.assertIn("Attempt:", selected)
+        self.assertNotIn("Attempt:", selected)
         self.assertRegex(self.cli("status", "sample__gwflow_prepare"), r"\[preparation\]\s+pending")
 
     def test_failed_task_stays_compact_and_matches_primary_filter_before_retry(self):
@@ -41,9 +96,12 @@ class ManagedStatusTests(LocalBackendTestCase):
         self.assertNotIn("Attempt:", output)
         self.assertNotIn("__gwflow_", output)
         details = self.cli("status", "--details")
-        self.assertIn("Next action: Retry", details)
+        self.assertRegex(details, r"right\s+failed")
+        self.assertNotIn("Backend job:", details)
+        explanation = self.cli("explain", "--details")
+        self.assertIn("Next action: Retry", explanation)
         for label in ("Reason:", "Attempt:", "Workspace:", "Backend job:", "Log stderr:"):
-            self.assertIn(label, details)
+            self.assertIn(label, explanation)
 
     def test_active_targets_distinguish_running_and_submitted(self):
         held, release = self.work / "held", self.work / "release"
@@ -99,6 +157,7 @@ class ManagedStatusTests(LocalBackendTestCase):
         self.assertIn("right", grouped)
         self.assertIn("join", grouped)
         self.assertIn("0 of 1 Tasks shown", self.cli("status", "absent*"))
+        self.assertIn("0 of 1 Tasks shown", self.cli("status", "--details", "absent*"))
 
     def test_reuse_after_cleanup_does_not_display_failed_or_pending_targets(self):
         self.run_complete()
@@ -244,7 +303,7 @@ class ManagedStatusTests(LocalBackendTestCase):
             self.assertNotIn("1 failed", output)
             selected = self.cli_result("-b", "recovery_fixture", "status", "sample__right",
                                        "--status", "canceled", env=environment).stdout
-            self.assertIn("State: canceled; Jobs completed: 1/4", selected)
+            self.assertRegex(selected, r"Task sample\s+canceled\s+1/4")
             for name, state in (("[preparation]", "completed"), ("left", "running"),
                                 ("right", "canceled"), ("[completion]", "queued")):
                 self.assertRegex(selected, re.escape(name) + r"\s+" + state)
