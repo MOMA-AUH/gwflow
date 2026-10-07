@@ -101,7 +101,7 @@ class Probe:
         setattr(os, name, counted)
 
     def __enter__(self):
-        for name in ("fstat", "open", "close", "stat", "lstat", "readlink", "listdir", "read"):
+        for name in ("fstat", "open", "close", "stat", "lstat", "readlink", "listdir", "read", "access"):
             self.operation(name)
         sys.setprofile(self.profile)
         return self

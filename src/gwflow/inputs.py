@@ -6,6 +6,8 @@ import stat
 
 from gwf.exceptions import WorkflowError
 
+from . import _observations
+
 
 def declared_path(value, working_dir):
     if not isinstance(value, (str, os.PathLike)) or not os.fspath(value):
@@ -23,13 +25,17 @@ def observe(paths, locations):
     result = {}
     for alias in paths:
         try:
-            path = Path(alias)
-            resolved = path.resolve(strict=True)
-            validate_location(path, resolved, locations)
-            info = resolved.stat()
-            if not stat.S_ISREG(info.st_mode):
-                raise WorkflowError(f"External input must resolve to a regular file: {alias}")
-            result[alias] = {"resolved": str(resolved), "size": info.st_size, "mtime_ns": info.st_mtime_ns}
+            def read():
+                path = Path(alias)
+                resolved = path.resolve(strict=True)
+                validate_location(path, resolved, locations)
+                info = resolved.stat()
+                if not stat.S_ISREG(info.st_mode):
+                    raise WorkflowError(f"External input must resolve to a regular file: {alias}")
+                return {"resolved": str(resolved), "size": info.st_size, "mtime_ns": info.st_mtime_ns}
+            # Failed observations are never retained, so acquisition/publication
+            # after an absence can be observed immediately in this pass.
+            result[alias] = _observations.reuse("external-input", (alias, tuple(sorted(locations.items()))), read)
         except (OSError, RuntimeError) as error:
             raise WorkflowError(f"Cannot observe external input {alias}: {error}") from error
     return result

@@ -14,7 +14,7 @@ import tempfile
 from gwf.exceptions import WorkflowError
 from gwf.executors import Bash
 
-from . import inputs
+from . import _observations, inputs
 
 
 # Docker distribution reference grammar: repository, optional tag and digest.
@@ -75,10 +75,10 @@ def _readable(path, locations):
 
 
 def _acquire(reference, path, locations):
-    inputs.validate_location(path, path.resolve(), locations)
     if os.path.lexists(path):
         _readable(path, locations)
         return
+    inputs.validate_location(path, path.resolve(), locations)
     path.parent.mkdir(parents=True, exist_ok=True)
     # Keep the coordination file: unlinking it could let different callers
     # lock different inodes for the same entry. Closing the descriptor releases
@@ -121,10 +121,12 @@ def resolve(task, structure, locations):
             continue
         reference = task.targets[local].image
         try:
-            if reference.startswith("docker://"):
-                _acquire(reference, Path(target["image"]), locations)
-            else:
-                _readable(target["image"], locations)
+            def inspect():
+                if reference.startswith("docker://"):
+                    _acquire(reference, Path(target["image"]), locations)
+                else:
+                    _readable(target["image"], locations)
+            _observations.reuse("image", (reference, target["image"], tuple(sorted(locations.items()))), inspect)
         except (WorkflowError, OSError, RuntimeError) as error:
             raise WorkflowError(f"Target {local}: image unavailable for {reference!r} at {target['image']}: {error}") from error
 
