@@ -1,0 +1,3 @@
+# Keep factory provenance separate from Reuse
+
+Factory provenance identifies the currently loaded implementation for naming and grouped status, and remains outside the persisted computation structure and Reuse fingerprint so module moves alone do not invalidate completed work. Reuse continues to depend on registered Task names, result-directory ownership, and all existing input, retained-output, declared-work, and command-tracking checks; changing a generated name through its prefix, alias, or key still changes Task identity. This separation uses current declaration/presentation metadata without migrations or provenance-specific identity mapping, and must be revisited if preserving it requires substantial new complexity.

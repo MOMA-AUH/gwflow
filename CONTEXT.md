@@ -8,10 +8,16 @@ gwflow extends gwf with tasks that can be reused after their internal intermedia
 A higher-level unit containing multiple ordinary gwf targets, with a defined boundary of external inputs and retained outputs.
 
 **Task name**:
-An author-supplied name identifying one task instance, unique within its workflow and stable across runs. Names may be generated in Python and do not depend on declaration order.
+A stable name identifying one Task instance, unique within its workflow and independent of declaration order. It uses the Task alias when supplied, or otherwise the Task implementation's name, with an Instance key appended when supplied.
+
+**Instance key**:
+An optional author-supplied value distinguishing Task instances under the same name prefix, stable across runs and independent of declaration order.
 
 **Task implementation**:
-A reusable definition of the work used to construct task instances.
+A reusable definition of the work used to construct Task instances. Distinct implementations remain distinct even when they share a short name.
+
+**Task alias**:
+An author-supplied name for a particular use of a Task implementation, used as its Task-name prefix and status-group label. Different aliases do not create different Task implementations.
 
 **Task version**:
 A release identifier for a task implementation, independent of the main pipeline's release. It is distinct from the name of an individual task instance.
