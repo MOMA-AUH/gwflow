@@ -9,6 +9,8 @@ import test_container_graphs
 import test_inputs
 import test_registry_images
 
+from support import TASK_FACTORY
+
 
 class RegistryRecoveryTests(test_registry_images.RegistryTestCase):
     fault = test_inputs.ExternalInputTests.fault
@@ -209,7 +211,7 @@ class RegistryGraphRecoveryTests(test_registry_images.RegistryTestCase):
     def write_workflow(self, *, consumer=True):
         trace = shlex.quote(str(self.work / "trace"))
         failure = shlex.quote(str(self.failure))
-        declaration = "from gwflow import Task, Workflow, shell\ngwf = Workflow()\ntask = Task(inputs=[])\n"
+        declaration = TASK_FACTORY + "from gwflow import Task, Workflow, shell\ngwf = Workflow()\ntask = empty_task(inputs=[])\n"
         for branch in ("left", "right"):
             command = f"echo {branch} >> {trace}; printf {branch} > {branch}.txt"
             if branch == "right":
@@ -223,20 +225,20 @@ class RegistryGraphRecoveryTests(test_registry_images.RegistryTestCase):
             "join = task.target('join', inputs=[left.output('left.txt'), right.output('right.txt')], outputs=['joined.txt'])\n"
             f"join << shell({command!r}, left=left.output('left.txt'), right=right.output('right.txt'))\n"
             "task.retain('value', source=join.output('joined.txt'), path='result.txt')\n"
-            "producer = gwf.task_from_template('sample', task)\n"
-            "task = Task(inputs=[])\n"
+            "producer = gwf.task(task, alias='sample')\n"
+            "task = empty_task(inputs=[])\n"
             "alone = task.target('compute', inputs=[], outputs=['out.txt'])\n"
             f"alone << {'echo independent >> ' + trace + '; printf independent > out.txt'!r}\n"
             "task.retain('value', source=alone.output('out.txt'), path='result.txt')\n"
-            "gwf.task_from_template('independent', task)\n"
+            "gwf.task(task, alias='independent')\n"
         )
         if consumer:
             declaration += (
-                "task = Task(inputs=[producer.outputs['value']])\n"
+                "task = empty_task(inputs=[producer.outputs['value']])\n"
                 "read = task.target('read', inputs=task.inputs, outputs=['out.txt'])\n"
                 f"read << shell({'echo consumer >> ' + trace + '; cat {source} > out.txt'!r}, source=producer.outputs['value'])\n"
                 "task.retain('value', source=read.output('out.txt'), path='result.txt')\n"
-                "gwf.task_from_template('consumer', task)\n"
+                "gwf.task(task, alias='consumer')\n"
             )
         (self.work / "workflow.py").write_text(declaration)
 

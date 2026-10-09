@@ -151,7 +151,7 @@ class TaskPresentationTests(LocalBackendTestCase):
 
     def test_job_and_group_selection_expand_all_jobs_in_both_inspectors(self):
         workflow = self.work / "workflow.py"
-        workflow.write_text(workflow.read_text().replace("gwf.task_from_template", "left.group = 'mapping'\ngwf.task_from_template"))
+        workflow.write_text(workflow.read_text().replace("gwf.task", "left.group = 'mapping'\ngwf.task"))
         for command in ("status", "explain"):
             for selection in (("sample__left",), ("--group", "map*"), ("sample*",)):
                 with self.subTest(command=command, selection=selection):

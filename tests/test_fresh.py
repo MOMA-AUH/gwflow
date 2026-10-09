@@ -8,7 +8,7 @@ import shutil
 import subprocess
 import sys
 
-from support import FIXTURES, LocalBackendTestCase
+from support import TASK_FACTORY, FIXTURES, LocalBackendTestCase
 import test_managed
 import test_managed_recovery
 
@@ -18,22 +18,22 @@ class FreshAttemptTests(LocalBackendTestCase):
     inject = test_managed_recovery.ManagedCoordinationTests.inject
     def configure_workflow(self):
         trace = shlex.quote(str(self.work / "trace"))
-        declaration = "from gwflow import Task, Workflow, shell\ngwf = Workflow()\n"
+        declaration = TASK_FACTORY + "from gwflow import Task, Workflow, shell\ngwf = Workflow()\n"
         for name in ("a", "b"):
             command = f"echo {name} >> {trace}; printf {name} > private.txt; touch -m -d @946684800 private.txt"
             declaration += (
-                "task = Task(inputs=[])\n"
+                "task = empty_task(inputs=[])\n"
                 "target = task.target('compute', inputs=[], outputs=['private.txt'])\n"
                 f"target << {command!r}\n"
                 "task.retain('value', source=target.output('private.txt'), path='result.txt')\n"
-                f"{name} = gwf.task_from_template({name!r}, task)\n"
+                f"{name} = gwf.task(task, alias={name!r})\n"
             )
         declaration += (
-            "task = Task(inputs=[a.outputs['value']])\n"
+            "task = empty_task(inputs=[a.outputs['value']])\n"
             "target = task.target('compute', inputs=task.inputs, outputs=['copy.txt'])\n"
             f"target << shell({'echo c >> ' + trace + '; cat {source} > {out}'!r}, source=a.outputs['value'], out=target.output('copy.txt'))\n"
             "task.retain('value', source=target.output('copy.txt'), path='result.txt')\n"
-            "gwf.task_from_template('c', task)\n"
+            "gwf.task(task, alias='c')\n"
         )
         (self.work / "workflow.py").write_text(declaration)
 
@@ -81,12 +81,12 @@ class FreshAttemptTests(LocalBackendTestCase):
         command = (f". {shlex.quote(str(environment))}; {shlex.quote(sys.executable)} "
                    f"{shlex.quote(str(package))} {shlex.quote(str(parameter))} > out.txt")
         (self.work / "workflow.py").write_text(
-            "from gwflow import Task, Workflow\ngwf = Workflow()\n"
-            "task = Task(inputs=[])\n"
+            TASK_FACTORY + "from gwflow import Task, Workflow\ngwf = Workflow()\n"
+            "task = empty_task(inputs=[])\n"
             "target = task.target('compute', inputs=[], outputs=['out.txt'])\n"
             f"target << {command!r}\n"
             "task.retain('value', source=target.output('out.txt'), path='out.txt')\n"
-            "gwf.task_from_template('runtime', task)\n"
+            "gwf.task(task, alias='runtime')\n"
         )
         self.run_complete()
         result = self.work / "results/runtime/out.txt"
@@ -124,7 +124,7 @@ class FreshAttemptTests(LocalBackendTestCase):
 
     def test_changed_input_metadata_starts_fresh_producer_and_consumer(self):
         workflow = self.work / "workflow.py"
-        workflow.write_text(workflow.read_text().replace("Task(inputs=[])", "Task(inputs=['input.txt'])", 1))
+        workflow.write_text(workflow.read_text().replace("empty_task(inputs=[])", "empty_task(inputs=['input.txt'])", 1))
         self.run_complete()
         before = self.attempts()
         source = self.work / "input.txt"
@@ -173,7 +173,7 @@ class FreshAttemptTests(LocalBackendTestCase):
             pending = self.attempts()["c"]
             self.assertIn("work blocks replacement", self.cli("run", "--force-task", "c", success=False))
             self.assertEqual(self.attempts()["c"], pending)
-            workflow.write_text(original.split("task = Task(inputs=[a.outputs")[0])
+            workflow.write_text(original.split("task = empty_task(inputs=[a.outputs")[0])
             self.assertIn("Active consumers block replacement: c", self.cli("run", "--force-task", "a", success=False))
             self.assertEqual((self.work / "results/a/result.txt").read_text(), "a")
             self.assertEqual(Counter((self.work / "trace").read_text().splitlines())["a"], 1)
@@ -260,7 +260,7 @@ class FreshAttemptTests(LocalBackendTestCase):
         self.assertEqual(result.returncode, 92, result.stdout + result.stderr)
         pending = self.attempts()["a"]
         workflow = self.work / "workflow.py"
-        workflow.write_text(workflow.read_text().replace("a = gwf.task_from_template", "task.retain('extra', source=target.output('private.txt'), path='extra.txt')\na = gwf.task_from_template"))
+        workflow.write_text(workflow.read_text().replace("a = gwf.task", "task.retain('extra', source=target.output('private.txt'), path='extra.txt')\na = gwf.task"))
         self.cli("run")
         self.finish()
         self.assertNotEqual(self.attempts()["a"], pending)
@@ -331,16 +331,16 @@ class FreshAttemptTests(LocalBackendTestCase):
         extra = ("extra = task.target('extra', inputs=[], outputs=['one.txt', 'two.txt'])\n"
                  "extra << 'printf one > one.txt; printf two > two.txt'\n"
                  "task.retain('extra', source=extra.output('one.txt'), path='extras/one.txt')\n")
-        workflow.write_text(workflow.read_text().replace("a = gwf.task_from_template", extra + "a = gwf.task_from_template"))
+        workflow.write_text(workflow.read_text().replace("a = gwf.task", extra + "a = gwf.task"))
         self.configure(use_spec_hashes=True)
         self.run_complete()
         before = self.attempts()
         workflow.write_text(workflow.read_text().replace("Workflow()", "Workflow(defaults={'cores': 3})").replace(
-            "a = gwf.task_from_template", "extra.outputs.reverse()\ntask.targets = dict(reversed(list(task.targets.items())))\ntask.retained = dict(reversed(list(task.retained.items())))\na = gwf.task_from_template"))
+            "a = gwf.task", "extra.outputs.reverse()\ntask.targets = dict(reversed(list(task.targets.items())))\ntask.retained = dict(reversed(list(task.retained.items())))\na = gwf.task"))
         self.cli("run")
         self.assertEqual(self.attempts(), before)
         self.assertEqual(Counter((self.work / "trace").read_text().splitlines()), {"a": 1, "b": 1, "c": 1})
-        workflow.write_text(workflow.read_text().replace("a = gwf.task_from_template", "task.retain('second', source=extra.output('two.txt'), path='extras/two.txt')\na = gwf.task_from_template"))
+        workflow.write_text(workflow.read_text().replace("a = gwf.task", "task.retain('second', source=extra.output('two.txt'), path='extras/two.txt')\na = gwf.task"))
         self.cli("run")
         self.finish()
         self.assertEqual((self.work / "results/a/extras/two.txt").read_text(), "two")

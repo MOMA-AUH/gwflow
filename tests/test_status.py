@@ -3,7 +3,7 @@
 import re
 import shlex
 
-from support import LocalBackendTestCase
+from support import TASK_FACTORY, LocalBackendTestCase
 import test_fresh
 import test_graphs
 
@@ -147,7 +147,7 @@ class ManagedStatusTests(LocalBackendTestCase):
     def test_formats_group_patterns_and_empty_selections(self):
         workflow = self.work / "workflow.py"
         workflow.write_text(workflow.read_text().replace(
-            "gwf.task_from_template", "left.group = 'mapping'\nright.group = 'mapping'\ngwf.task_from_template"))
+            "gwf.task", "left.group = 'mapping'\nright.group = 'mapping'\ngwf.task"))
         for output_format in ("default", "summary", "grouped"):
             self.assertIn("--format is only supported for ordinary gwf", self.cli(
                 "status", "--format", output_format, success=False))
@@ -290,7 +290,7 @@ class ManagedStatusTests(LocalBackendTestCase):
         workflow = self.work / "workflow.py"
         workflow.write_text(workflow.read_text().split("join = task.target")[0] +
                             "task.retain('left', source=left.output('same.txt'), path='result.txt')\n"
-                            "gwf.task_from_template('sample', task)\n")
+                            "gwf.task(task, alias='sample')\n")
         self.cli("run")
         self.wait_for(held.exists)
         try:
@@ -317,16 +317,16 @@ class ManagedStatusTests(LocalBackendTestCase):
 
     def test_dependency_order_uses_declaration_order_for_eligible_ties(self):
         (self.work / "workflow.py").write_text(
-            "from gwflow import Task, Workflow\n"
+            TASK_FACTORY + "from gwflow import Task, Workflow\n"
             "from gwflow.workflow import RetainedOutput\n"
             "gwf = Workflow()\n"
             "for name in ('z_independent', 'consumer', 'source', 'a_independent'):\n"
             "    inputs = [RetainedOutput(gwf, 'source', 'value')] if name == 'consumer' else []\n"
-            "    task = Task(inputs=inputs)\n"
+            "    task = empty_task(inputs=inputs)\n"
             "    target = task.target('compute', inputs=inputs, outputs=['out.txt'])\n"
             "    target << 'touch out.txt'\n"
             "    task.retain('value', source=target.output('out.txt'), path='out.txt')\n"
-            "    gwf.task_from_template(name, task)\n"
+            "    gwf.task(task, alias=name)\n"
         )
         for command in (("status",), ("explain",), ("run", "--dry-run"), ("run",)):
             with self.subTest(command=command):

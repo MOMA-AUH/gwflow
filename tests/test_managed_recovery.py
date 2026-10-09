@@ -86,7 +86,7 @@ class ManagedCoordinationTests(LocalBackendTestCase):
     def test_completion_resources_overlay_workflow_defaults(self):
         self.write_task("touch out.txt", settings="defaults={'cores':3, 'memory':'8g'}, completion_defaults={'cores':1, 'memory':None}")
         workflow = self.work / "workflow.py"
-        workflow.write_text(workflow.read_text().replace("Task(inputs=[])", "Task(inputs=[], defaults={'cores':7})"))
+        workflow.write_text(workflow.read_text().replace("empty_task(inputs=[])", "empty_task(inputs=[], defaults={'cores':7})"))
         self.cli("-b", "recovery_fixture", "run", env=self.inject(capture_options=True))
         self.finish()
         options = [json.loads(line) for line in (self.work / "submitted-options.jsonl").read_text().splitlines()]

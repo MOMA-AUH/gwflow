@@ -7,7 +7,7 @@ import shlex
 import shutil
 import tempfile
 
-from support import FIXTURES, LocalBackendTestCase
+from support import TASK_FACTORY, FIXTURES, LocalBackendTestCase
 import test_managed
 import test_managed_recovery
 
@@ -22,14 +22,14 @@ class StoragePlacementTests(LocalBackendTestCase):
                    "printf second > two.txt; printf scratch > scratch.txt; "
                    "touch -m -d @946684800.123456789 nested/one.txt two.txt")
         (self.work / "workflow.py").write_text(
-            "from gwflow import Task, Workflow\n"
+            TASK_FACTORY + "from gwflow import Task, Workflow\n"
             f"gwf = Workflow({settings})\n"
-            "task = Task(inputs=[])\n"
+            "task = empty_task(inputs=[])\n"
             "target = task.target('compute', inputs=[], outputs=['nested/one.txt', 'two.txt'])\n"
             f"target << {command!r}\n"
             "task.retain('one', source=target.output('nested/one.txt'), path='renamed.txt')\n"
             "task.retain('two', source=target.output('two.txt'), path='nested/two.txt')\n"
-            f"gwf.task_from_template('a', task, result_dir={result_dir!r})\n"
+            f"gwf.task(task, alias='a', result_dir={result_dir!r})\n"
         )
 
     def separate_filesystem(self):
@@ -186,7 +186,7 @@ class StoragePlacementTests(LocalBackendTestCase):
         self.configure_workflow(settings=f"work_root={str(roots / 'scratch')!r}, results_root={str(result_root)!r}")
         self.assertNotIn("Submitted target", self.cli("run"))
         with (self.work / "workflow.py").open('a') as stream:
-            stream.write("gwf.task_from_template('b', task, result_dir='samples/b/report')\n")
+            stream.write("gwf.task(task, alias='b', result_dir='samples/b/report')\n")
         self.run_complete()
         self.assert_results(result_root / "samples/b/report")
         self.assertEqual((self.work / "trace").read_text().splitlines(), ["compute", "compute"])
@@ -253,7 +253,7 @@ class StoragePlacementTests(LocalBackendTestCase):
         original = workflow.read_text()
         for result_dir in ("samples/a", "samples/a/report", "samples/a/report/nested"):
             with self.subTest(result_dir=result_dir):
-                workflow.write_text(original + f"gwf.task_from_template('b', task, result_dir={result_dir!r})\n")
+                workflow.write_text(original + f"gwf.task(task, alias='b', result_dir={result_dir!r})\n")
                 self.cli("run", success=False)
                 self.assertFalse((self.work / ".gwf/gwflow").exists())
         workflow.write_text(original)

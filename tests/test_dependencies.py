@@ -5,7 +5,7 @@ import json
 import shlex
 import shutil
 
-from support import FIXTURES, LocalBackendTestCase
+from support import TASK_FACTORY, FIXTURES, LocalBackendTestCase
 import test_managed
 import test_managed_recovery
 
@@ -19,22 +19,22 @@ class TaskDependencyTests(LocalBackendTestCase):
     def configure_workflow(self, *, consumer=True):
         trace = shlex.quote(str(self.work / "trace"))
         declaration = (
-            "from gwflow import Task, Workflow, shell\n"
+            TASK_FACTORY + "from gwflow import Task, Workflow, shell\n"
             "gwf = Workflow(results_root='retained data')\n"
-            "producer = Task(inputs=[])\n"
+            "producer = empty_task(inputs=[])\n"
             "target = producer.target('compute', inputs=[], outputs=['private.txt'])\n"
             f"target << {'echo producer >> ' + trace + '; printf data > private.txt'!r}\n"
             "producer.retain('value', source=target.output('private.txt'), path='nested/public.txt')\n"
-            "a = gwf.task_from_template('a', producer, result_dir='first producer')\n"
-            "b = gwf.task_from_template('b', producer, result_dir='second producer')\n"
+            "a = gwf.task(producer, alias='a', result_dir='first producer')\n"
+            "b = gwf.task(producer, alias='b', result_dir='second producer')\n"
         )
         if consumer:
             declaration += (
-                "consumer = Task(inputs=[a.outputs['value'], b.outputs['value']])\n"
+                "consumer = empty_task(inputs=[a.outputs['value'], b.outputs['value']])\n"
                 "combine = consumer.target('combine', inputs=consumer.inputs, outputs=['combined.txt'])\n"
                 f"combine << shell({'echo consumer >> ' + trace + '; cat {a} {b} > {out}'!r}, a=a.outputs['value'], b=b.outputs['value'], out=combine.output('combined.txt'))\n"
                 "consumer.retain('combined', source=combine.output('combined.txt'), path='result.txt')\n"
-                "gwf.task_from_template('c', consumer)\n"
+                "gwf.task(consumer, alias='c')\n"
             )
         (self.work / "workflow.py").write_text(declaration)
 
@@ -84,11 +84,11 @@ class TaskDependencyTests(LocalBackendTestCase):
         original = workflow.read_text()
         variants = {
             "unknown public output": original.replace("a.outputs['value']", "a.outputs['private.txt']"),
-            "foreign Workflow": original.replace("a = gwf.task_from_template", "a = Workflow().task_from_template"),
+            "foreign Workflow": original.replace("a = gwf.task", "a = Workflow().task"),
             "internal output": original.replace("a.outputs['value']", "target.output('private.txt')"),
-            "undeclared boundary": original.replace("Task(inputs=[a.outputs['value'], b.outputs['value']])", "Task(inputs=[b.outputs['value']])"),
+            "undeclared boundary": original.replace("empty_task(inputs=[a.outputs['value'], b.outputs['value']])", "empty_task(inputs=[b.outputs['value']])"),
             "undeclared target input": original.replace("inputs=consumer.inputs", "inputs=[b.outputs['value']]"),
-            "Task cycle": original.replace("consumer = Task(", "cyclic = type(a.outputs['value'])(gwf, 'c', 'combined')\nconsumer = Task(").replace("a.outputs['value'], b.outputs['value']", "cyclic, b.outputs['value']").replace("a=a.outputs['value']", "a=cyclic"),
+            "Task cycle": original.replace("consumer = empty_task(", "cyclic = type(a.outputs['value'])(gwf, 'c', 'combined')\nconsumer = empty_task(").replace("a.outputs['value'], b.outputs['value']", "cyclic, b.outputs['value']").replace("a=a.outputs['value']", "a=cyclic"),
         }
         for label, declaration in variants.items():
             with self.subTest(label=label):

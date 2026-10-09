@@ -57,8 +57,8 @@ class SubmissionReportTests(LocalBackendTestCase):
         self.assertNotIn("Submitted ", result.stdout)
         self.assertEqual(self.acceptances(), [])
         workflow = self.work / "workflow.py"
-        workflow.write_text(workflow.read_text().replace("b = gwf.task_from_template",
-                            "target.image = 'missing.sif'\nb = gwf.task_from_template"))
+        workflow.write_text(workflow.read_text().replace("b = gwf.task",
+                            "target.image = 'missing.sif'\nb = gwf.task"))
         for options in ((), ("--dry-run",)):
             result = self.cli_result("-b", "recovery_fixture", "run", *options, env=environment, success=False)
             self.assertIn("Workflow blocked — no new jobs will be submitted", result.stdout)

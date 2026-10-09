@@ -3,8 +3,10 @@
 from collections.abc import Mapping
 from copy import deepcopy
 from dataclasses import dataclass, field
+from functools import wraps
 from inspect import getfile
 import os
+import re
 from pathlib import Path, PurePosixPath
 from sys import _getframe
 from types import MappingProxyType
@@ -98,6 +100,7 @@ class Task:
         self.executor = executor
         self.targets = {}
         self.retained = {}
+        self._factory = None
 
     def target(self, name, inputs, outputs, *, image=None, stage_as=None, executor=None, group=None, **options):
         _require_name(name, "local target")
@@ -136,6 +139,26 @@ class Task:
         self.retained[name] = (source, path)
 
 
+def task_template(factory):
+    """Decorate a factory producing independent Task definitions."""
+    @wraps(factory)
+    def define(*args, **kwargs):
+        task = factory(*args, **kwargs)
+        if not isinstance(task, Task):
+            raise TypeError(f"Task factory {factory.__qualname__} must return a Task definition")
+        task = deepcopy(task)
+        task._factory = (factory.__module__ + "." + factory.__qualname__, factory.__name__)
+        return task
+    return define
+
+
+@dataclass(frozen=True)
+class TaskNaming:
+    factory: str
+    prefix: str
+    key: str | None
+
+
 def lifecycle_jobs(targets):
     """Public job names in preparation/computation/finishing order."""
     return ["gwflow_prepare", *targets, "gwflow_complete"]
@@ -170,24 +193,43 @@ class Workflow(GwfWorkflow):
         self.results_root = results_root
         self.results_staging_root = results_staging_root
         self._task_declarations = {}
+        self._task_naming = {}
         self._result_dirs = {}
         self.targets = _TaskTargets()
 
     def _add_target(self, target):
         raise WorkflowError("Every computation target in gwflow.Workflow must belong to a Task")
 
-    def task_from_template(self, name, task, *, result_dir=None):
-        _require_name(name, "task")
+    def task(self, definition, *, key=None, alias=None, result_dir=None):
+        task = definition
         if not isinstance(task, Task):
-            raise TypeError("task_from_template requires a Task definition")
+            raise TypeError("workflow.task requires a Task definition from a decorated factory")
+        if task._factory is None:
+            raise WorkflowError("Task definition must come from a factory decorated with @task_template")
+        factory, default_prefix = task._factory
+        prefix = default_prefix if alias is None else alias
+        if not isinstance(prefix, str) or re.fullmatch(r"[A-Za-z_][A-Za-z0-9_.]*", prefix) is None:
+            kind = "factory prefix" if alias is None else "alias"
+            raise WorkflowError(f"Invalid Task {kind}: {prefix!r}")
+        if key is not None and (not isinstance(key, str) or re.fullmatch(r"[A-Za-z0-9_.]+", key) is None):
+            raise WorkflowError(f"Invalid Task key: {key!r}")
+        name = prefix if key is None else f"{prefix}__{key}"
         if name in self._task_declarations:
-            raise WorkflowError(f"Task name {name!r} already exists in workflow")
+            previous = self._task_naming[name]
+            raise WorkflowError(f"Task name {name!r} collides between {previous.factory} "
+                                f"(prefix={previous.prefix!r}, key={previous.key!r}) and "
+                                f"{factory} (prefix={prefix!r}, key={key!r})")
         result_dir = relative_path(name if result_dir is None else result_dir)
         validate_destinations([*self._result_dirs.values(), result_dir])
         snapshot = deepcopy(task)
         names = {f"{name}__{local}" for local in lifecycle_jobs(snapshot.targets)}
-        if names & self.targets.keys():
-            raise WorkflowError("Task registration name collision")
+        for previous_name, previous in self._task_declarations.items():
+            previous_names = {f"{previous_name}__{local}" for local in lifecycle_jobs(previous.targets)}
+            collisions = names & previous_names
+            if collisions:
+                raise WorkflowError(f"Public job name {sorted(collisions)[0]!r} collides between "
+                                    f"Task {previous_name!r} ({self._task_naming[previous_name].factory}) "
+                                    f"and Task {name!r} ({factory})")
         for local, target in snapshot.targets.items():
             target.options = {**self.defaults, **target.options}
             self.targets[f"{name}__{local}"] = GwfTarget(
@@ -200,6 +242,7 @@ class Workflow(GwfWorkflow):
                 working_dir=self.working_dir,
             )
         self._task_declarations[name] = snapshot
+        self._task_naming[name] = TaskNaming(factory, prefix, key)
         self._result_dirs[name] = result_dir
         return TaskHandle(MappingProxyType({key: RetainedOutput(self, name, key)
                                             for key in snapshot.retained}))

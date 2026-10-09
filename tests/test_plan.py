@@ -30,8 +30,8 @@ class TaskPlanTests(LocalBackendTestCase):
     def test_blocked_force_keeps_intended_actions_and_complete_conditional_notices(self):
         self.run_complete()
         workflow = self.work / "workflow.py"
-        workflow.write_text(workflow.read_text().replace("b = gwf.task_from_template",
-                            "target.image = 'missing-image.sif'\nb = gwf.task_from_template"))
+        workflow.write_text(workflow.read_text().replace("b = gwf.task",
+                            "target.image = 'missing-image.sif'\nb = gwf.task"))
         before = {str(path): path.read_bytes() for root in (self.work / "results", self.work / ".gwf/gwflow")
                   for path in root.rglob("*") if path.is_file()}
         for command in (("explain",), ("run", "--dry-run"), ("run",)):

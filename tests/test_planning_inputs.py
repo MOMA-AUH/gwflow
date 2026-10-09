@@ -5,6 +5,8 @@ import shutil
 import test_planning_io
 from test_registry_images import RegistryTestCase
 
+from support import TASK_FACTORY
+
 
 class SharedInputObservationTests(RegistryTestCase):
     probe = test_planning_io.PlanningObservationTests.probe
@@ -13,16 +15,16 @@ class SharedInputObservationTests(RegistryTestCase):
     def configure_workflow(self, tasks=1, targets=1, reference=None):
         RegistryTestCase.configure_workflow(self, reference)
         reference = self.reference if reference is None else reference
-        source = "from gwflow import Task, Workflow, shell\ngwf = Workflow()\n"
+        source = TASK_FACTORY + "from gwflow import Task, Workflow, shell\ngwf = Workflow()\n"
         for index in range(tasks):
-            source += "task = Task(inputs=['input.txt'])\n"
+            source += "task = empty_task(inputs=['input.txt'])\n"
             for local in range(targets):
                 source += (
                     f"target = task.target('compute{local}', inputs=task.inputs, outputs=['out{local}.txt'], image={reference!r})\n"
                     f"target << shell('cat {{source}} > out{local}.txt', source='input.txt')\n"
                     f"task.retain('result{local}', source=target.output('out{local}.txt'), path='out{local}.txt')\n"
                 )
-            source += f"gwf.task_from_template('sample{index}', task)\n"
+            source += f"gwf.task(task, alias='sample{index}')\n"
         (self.work / "workflow.py").write_text(source)
         shutil.rmtree(self.work / "__pycache__", ignore_errors=True)
         self.evidence_label = f"tasks-{tasks}-targets-{targets}-"

@@ -8,7 +8,7 @@ import subprocess
 import sys
 from uuid import uuid4
 
-from support import FIXTURES, LocalBackendTestCase
+from support import TASK_FACTORY, FIXTURES, LocalBackendTestCase
 import test_fresh
 
 
@@ -147,25 +147,25 @@ class ProducerEvidenceTests(LocalBackendTestCase):
 
     def configure_workflow(self, consumers=1, references=1):
         source = (
-            "from gwflow import Task, Workflow, shell\n"
+            TASK_FACTORY + "from gwflow import Task, Workflow, shell\n"
             "gwf = Workflow()\n"
-            "task = Task(inputs=['input.txt'])\n"
+            "task = empty_task(inputs=['input.txt'])\n"
             "target = task.target('compute', inputs=task.inputs, outputs=['value.txt'])\n"
             "target << shell('cat {source} > value.txt', source='input.txt')\n"
         )
         for index in range(references):
             source += f"task.retain('value{index}', source=target.output('value.txt'), path='value{index}.txt')\n"
-        source += "reference = gwf.task_from_template('reference', task)\n"
+        source += "reference = gwf.task(task, alias='reference')\n"
         incoming = ", ".join(f"reference.outputs['value{index}']" for index in range(references))
         parameters = ", ".join(f"i{index}=reference.outputs['value{index}']" for index in range(references))
         command = "cat " + " ".join("{i" + str(index) + "}" for index in range(references)) + " > copy.txt"
         for index in range(consumers):
             source += (
-                f"task = Task(inputs=[{incoming}])\n"
+                f"task = empty_task(inputs=[{incoming}])\n"
                 "target = task.target('compute', inputs=task.inputs, outputs=['copy.txt'])\n"
                 f"target << shell({command!r}, {parameters})\n"
                 "task.retain('copy', source=target.output('copy.txt'), path='copy.txt')\n"
-                f"sample{index} = gwf.task_from_template('sample{index}', task)\n"
+                f"sample{index} = gwf.task(task, alias='sample{index}')\n"
             )
         (self.work / "workflow.py").write_text(source)
         self.evidence_label = f"consumers-{consumers}-references-{references}-"
@@ -195,11 +195,11 @@ class ProducerEvidenceTests(LocalBackendTestCase):
         workflow = self.work / "workflow.py"
         with workflow.open("a") as stream:
             stream.write(
-                "task = Task(inputs=[sample0.outputs['copy'], reference.outputs['value0']])\n"
+                "task = empty_task(inputs=[sample0.outputs['copy'], reference.outputs['value0']])\n"
                 "target = task.target('compute', inputs=task.inputs, outputs=['nested.txt'])\n"
                 "target << shell('cat {left} {right} > nested.txt', left=sample0.outputs['copy'], right=reference.outputs['value0'])\n"
                 "task.retain('nested', source=target.output('nested.txt'), path='nested.txt')\n"
-                "gwf.task_from_template('nested', task)\n"
+                "gwf.task(task, alias='nested')\n"
             )
         self.run_complete()
         self.cli("clean-work", "--delete")

@@ -356,7 +356,7 @@ class ResultsRepairTests(LocalBackendTestCase):
         self.wait_for((self.work / "manifest-held").exists)
         try:
             workflow = self.work / "workflow.py"
-            workflow.write_text(workflow.read_text() + "gwf.task_from_template('b', task)\n")
+            workflow.write_text(workflow.read_text() + "gwf.task(task, alias='b')\n")
             preview = self.cli("explain")
             self.assertRegex(preview, r"Task a\s+Wait\s+")
             self.assertRegex(preview, r"Task c\s+Defer\s+")

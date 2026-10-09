@@ -1,8 +1,8 @@
 # Packaged workflow
 
 This example assembles three managed Tasks from two independently installable
-Python packages. A and B use `summary_task.summarize(source)` to clean and total
-sales and returns. C uses `report_task.net_report(sales, returns)` with the
+Python packages. A and B use `summary_task.templates.summarize(source)` to clean and total
+sales and returns. C uses `report_task.templates.net_report(sales, returns)` with the
 **named retained references** returned by registering A and B. Factories declare
 local outputs and retained mappings; the pipeline chooses each `result_dir`.
 
@@ -91,15 +91,12 @@ placement, force, repair, uncertainty and operational assumptions, and the
 `container-workflow.py` selects images through ordinary factory arguments:
 
 ```python
-sales = gwf.task_from_template(
-    "A", summarize("data/sales.csv", image="images/summary.sif"), result_dir="sales",
+sales = gwf.task(summarize("data/sales.csv", image="images/summary.sif"), alias="A", result_dir="sales",
 )
-returns = gwf.task_from_template(
-    "B", summarize("data/returns.csv", image="images/summary.sif"), result_dir="returns",
+returns = gwf.task(summarize("data/returns.csv", image="images/summary.sif"), alias="B", result_dir="returns",
 )
-gwf.task_from_template(
-    "C", net_report(sales.outputs["summary"], returns.outputs["summary"],
-                    image="images/report.sif"), result_dir="net",
+gwf.task(net_report(sales.outputs["summary"], returns.outputs["summary"],
+                    image="images/report.sif"), alias="C", result_dir="net",
 )
 ```
 

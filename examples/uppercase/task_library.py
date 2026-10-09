@@ -1,8 +1,9 @@
 """Independent task implementation used by the README example."""
 
-from gwflow import Task, shell
+from gwflow import Task, shell, task_template
 
 
+@task_template
 def uppercase(source):
     task = Task(inputs=[source])
     copy = task.target("copy", inputs=[source], outputs=["copy.txt"])

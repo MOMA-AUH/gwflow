@@ -10,7 +10,7 @@ from unittest.mock import patch
 from gwf.exceptions import WorkflowError
 from gwflow import Task
 
-from support import FIXTURES, LocalBackendTestCase
+from support import TASK_FACTORY, FIXTURES, LocalBackendTestCase
 import test_managed
 import test_managed_recovery
 import test_inputs
@@ -26,13 +26,13 @@ class ContainerAuthoringTests(unittest.TestCase):
 class ContainerPlanningTests(LocalBackendTestCase):
     def configure_workflow(self, image="missing image.sif", command="printf result > out.txt"):
         (self.work / "workflow.py").write_text(
-            "from gwflow import Task, Workflow\n"
+            TASK_FACTORY + "from gwflow import Task, Workflow\n"
             "gwf = Workflow()\n"
-            "task = Task(inputs=[])\n"
+            "task = empty_task(inputs=[])\n"
             f"target = task.target('compute', inputs=[], outputs=['out.txt'], image={image!r})\n"
             f"target << {command!r}\n"
             "task.retain('result', source=target.output('out.txt'), path='out.txt')\n"
-            "gwf.task_from_template('sample', task)\n"
+            "gwf.task(task, alias='sample')\n"
         )
 
     def test_unavailable_image_blocks_all_frontend_decisions_without_storage(self):
@@ -57,7 +57,7 @@ class ContainerPlanningTests(LocalBackendTestCase):
                 if setting == "workflow":
                     source = source.replace("Workflow()", "Workflow(executor=Conda('unused'))")
                 elif setting == "task":
-                    source = source.replace("Task(inputs=[])", "Task(inputs=[], executor=Conda('unused'))")
+                    source = source.replace("empty_task(inputs=[])", "empty_task(inputs=[], executor=Conda('unused'))")
                 elif setting == "target":
                     source = source.replace("image=", "executor=Conda('unused'), image=")
                 else:
@@ -262,13 +262,13 @@ class ContainerRuntimeTests(LocalBackendTestCase):
 
     def test_explicit_image_data_input_is_staged_and_bound(self):
         (self.work / "workflow.py").write_text(
-            "from gwflow import Task, Workflow, shell\ngwf = Workflow()\n"
-            f"task = Task(inputs=[{self.image.name!r}])\n"
+            TASK_FACTORY + "from gwflow import Task, Workflow, shell\ngwf = Workflow()\n"
+            f"task = empty_task(inputs=[{self.image.name!r}])\n"
             f"target = task.target('compute', inputs=task.inputs, outputs=['out.txt'], image={self.image.name!r}, "
             f"stage_as={{'selected.sif': {self.image.name!r}}})\n"
             f"target << shell('test -L selected.sif; test -s {{source}}; printf staged > out.txt', source={self.image.name!r})\n"
             "task.retain('result', source=target.output('out.txt'), path='out.txt')\n"
-            "gwf.task_from_template('sample', task)\n"
+            "gwf.task(task, alias='sample')\n"
         )
         self.run_complete()
         self.assertEqual((self.work / "results/sample/out.txt").read_text(), "staged")

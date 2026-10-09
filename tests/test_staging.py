@@ -10,7 +10,7 @@ from unittest.mock import patch
 from gwf.exceptions import WorkflowError
 from gwflow import Task
 
-from support import LocalBackendTestCase
+from support import TASK_FACTORY, LocalBackendTestCase
 import test_containers
 import test_managed_recovery
 
@@ -21,13 +21,13 @@ def write_workflow(work, sources, *, command, outputs=("out.txt",), bound=True, 
     expression = f"shell({command!r}, {bindings})" if bound else repr(command)
     staging = "" if stage_as is None else f", stage_as={stage_as!r}"
     (work / "workflow.py").write_text(
-        "from gwflow import Task, Workflow, shell\n"
+        TASK_FACTORY + "from gwflow import Task, Workflow, shell\n"
         "gwf = Workflow()\n"
-        f"task = Task(inputs={sources!r})\n"
+        f"task = empty_task(inputs={sources!r})\n"
         f"target = task.target('read', inputs={sources!r}, outputs={list(outputs)!r}, image={image!r}{staging})\n"
         f"target << {expression}\n"
         f"task.retain('result', source=target.output({outputs[0]!r}), path='result.txt')\n"
-        "gwf.task_from_template('sample', task)\n"
+        "gwf.task(task, alias='sample')\n"
     )
 
 

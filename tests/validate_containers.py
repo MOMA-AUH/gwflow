@@ -18,7 +18,7 @@ import unittest
 
 from gwf.backends.local import Client, LocalStatus
 
-from support import FIXTURES, GWF, LocalBackendTestCase
+from support import TASK_FACTORY, FIXTURES, GWF, LocalBackendTestCase
 from test_containers import ContainerRuntimeTests
 from test_staging import ContainerStagingTests
 from test_container_graphs import ContainerGraphTests
@@ -40,11 +40,11 @@ class DeploymentTests(LocalBackendTestCase):
         )
         command = f"{shlex.quote(sys.executable)} -c {shlex.quote(program)} > runtime.json"
         (self.work / "workflow.py").write_text(
-            "from gwflow import Task,Workflow\ngwf = Workflow()\ntask = Task(inputs=[])\n"
+            TASK_FACTORY + "from gwflow import Task,Workflow\ngwf = Workflow()\ntask = empty_task(inputs=[])\n"
             "probe = task.target('probe',inputs=[],outputs=['runtime.json'])\n"
             f"probe << {command!r}\n"
             "task.retain('runtime',source=probe.output('runtime.json'),path='runtime.json')\n"
-            "gwf.task_from_template('deployment',task)\n"
+            "gwf.task(task, alias='deployment')\n"
         )
 
     def test_job_uses_the_installed_validation_environment(self):
@@ -84,13 +84,13 @@ class RegistryDeploymentTests(LocalBackendTestCase):
                    "'python':sys.version}))")
         command = "python -c " + shlex.quote(program) + " > runtime.json"
         (self.work / "workflow.py").write_text(
-            "from gwflow import Task, Workflow\ngwf = Workflow()\ntask = Task(inputs=[])\n"
+            TASK_FACTORY + "from gwflow import Task, Workflow\ngwf = Workflow()\ntask = empty_task(inputs=[])\n"
             "gate = task.target('gate', inputs=[], outputs=['ready.txt'])\n"
             f"gate << {gate!r}\n"
             f"compute = task.target('compute', inputs=[gate.output('ready.txt')], outputs=['runtime.json'], image={self.reference!r})\n"
             f"compute << {command!r}\n"
             "task.retain('runtime', source=compute.output('runtime.json'), path='runtime.json')\n"
-            "gwf.task_from_template('sample', task)\n"
+            "gwf.task(task, alias='sample')\n"
         )
 
     def calls(self, operation):
