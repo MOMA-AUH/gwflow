@@ -34,7 +34,7 @@ class ExternalInputTests(LocalBackendTestCase):
         alias.symlink_to("input.txt")
         self.configure_workflow(source=alias.name)
         before = (self.work / "input.txt").read_bytes()
-        for command in (("explain",), ("status",), ("run", "--dry-run")):
+        for command in (("explain",), ("status", "--instances",), ("run", "--dry-run")):
             self.cli(*command)
         self.assertFalse((self.work / ".gwf/gwflow").exists())
         self.run_complete()
@@ -131,7 +131,7 @@ class ExternalInputTests(LocalBackendTestCase):
             with self.subTest(content=content, mtime=mtime):
                 source.write_bytes(content)
                 os.utime(source, ns=(info.st_atime_ns, mtime))
-                self.assertRegex(self.cli("status"), r"Task sample\s+pending\s+0/3\s+fresh attempt required")
+                self.assertRegex(self.cli("status", "--instances"), r"Task sample\s+pending\s+0/3\s+fresh attempt required")
                 for command in (("explain",), ("status", "--details")):
                     self.assertIn("fresh attempt", self.cli(*command))
                 self.assertIn("fresh attempt", self.cli("run", "--dry-run"))

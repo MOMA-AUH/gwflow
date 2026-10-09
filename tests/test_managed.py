@@ -330,5 +330,5 @@ class ManagedCliTests(LocalBackendTestCase):
         self.assertNotIn("Submitted target", self.cli("run"))
         self.assertEqual(result.read_text(), "hello")
         self.assertFalse((self.work / "work").exists())
-        self.assertRegex(self.cli("status"), r"Task sample\s+reusable\s+3/3\s+work cleaned")
+        self.assertRegex(self.cli("status", "--instances"), r"Task sample\s+reusable\s+3/3\s+work cleaned")
         self.assertIn("Reuse", self.cli("explain"))

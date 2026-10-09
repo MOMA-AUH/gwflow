@@ -44,6 +44,34 @@ class TaskRow:
         return f"{'?' if self.completed is None else self.completed}/{self.total}"
 
 
+@dataclass
+class TaskGroup:
+    prefix: str
+    factory: str
+    label: str
+    members: list[str]
+
+    @property
+    def qualified(self):
+        return f"{self.prefix}@{self.factory}"
+
+
+def task_groups(workflow, plan):
+    """Resolve labels and group order from the entire current declaration."""
+    groups = {}
+    for task in task_order(workflow, plan):
+        naming = workflow._task_naming[task.name]
+        key = naming.factory, naming.prefix
+        if key not in groups:
+            groups[key] = TaskGroup(naming.prefix, naming.factory, naming.prefix, [])
+        groups[key].members.append(task.name)
+    prefixes = Counter(group.prefix for group in groups.values())
+    for group in groups.values():
+        if prefixes[group.prefix] > 1:
+            group.label = group.qualified
+    return list(groups.values())
+
+
 def task_order(workflow, plan):
     """Choose the earliest declared eligible Task at each dependency step."""
     remaining = {name: next(task for task in plan.tasks if task.name == name)
@@ -177,11 +205,13 @@ def plan_reason(task):
 
 
 def summary(rows, total):
-    count = len(rows)
-    label = "Task" if count == 1 else "Tasks"
-    shown = f"{count} {label} shown" if count == total else f"{count} of {total} Tasks shown"
-    counts = Counter("active" if row.state in ACTIVE else row.state for row in rows)
-    return shown + (": " + ", ".join(f"{value} {state}" for state, value in counts.items()) if counts else "")
+    counts = Counter(row.state for row in rows)
+    return f"{len(rows)} of {total} Tasks selected" + (
+        "\n" + ", ".join(f"{value} {state}" for state, value in counts.items()) if counts else "")
+
+
+def overview_counts(rows):
+    return Counter("active" if row.state in ACTIVE else row.state for row in rows)
 
 
 def matches(name, patterns):
@@ -269,12 +299,37 @@ class Report:
         symbol, style = _VISUALS[name]
         return Text(f"{symbol} {name}", style=style, no_wrap=True)
 
+    def overview(self, groups, rows, total):
+        self.line(f"{len(rows)} of {total} Tasks selected", complete=True)
+        counts = overview_counts(rows)
+        self.line(", ".join(f"{count} {state}" for state, count in counts.items()), complete=True)
+        selected = {row.task.name: row for row in rows}
+        visible = [(group, [selected[name] for name in group.members if name in selected]) for group in groups]
+        visible = [(group, members) for group, members in visible if members]
+        if not visible:
+            self.line("No Tasks selected.", complete=True)
+            return
+        width = max(5, *(len(group.label) for group, _ in visible))
+        self.line("")
+        self.line(f"{'Group':<{width}}  Reusable  Other states", complete=True)
+        for group, members in visible:
+            counts = overview_counts(members)
+            fraction = f"{counts['reusable']}/{len(members)}"
+            other = ", ".join(f"{count} {state}" for state, count in counts.items() if state != "reusable")
+            self.line(f"{group.label:<{width}}  {fraction:>8}  {other}".rstrip(), complete=True)
+        for row in rows:
+            if row.task.action == "deferred" or needs_later_finish(row.task):
+                self.line(f"Task {row.task.name}: {plan_reason(row.task)}", complete=True)
+
     def status(self, rows, total, *, expand=False):
         heading = summary(rows, total)
         if self.plain:
             self.line(heading, complete=True)
         else:
             self.console.print(Panel(Text(heading, style="bold cyan"), border_style="cyan", title="Task status"))
+        if not rows:
+            self.line("No Tasks selected.", complete=True)
+            return
         if not self.terminal:
             task_width = max([33, *(len(row.task.name) + 5 for row in rows)]) if expand else 33
             target_width = max([18, *(len(name.plain) for row in rows for name, _ in self._target_rows(row))]) if expand else 0

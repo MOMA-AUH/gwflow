@@ -144,13 +144,43 @@ Submission returns without waiting for computation. Run all frontend commands
 for a workflow on one physical frontend; a guard serializes submission and
 inspection through backend tracking persistence.
 
-`gwf status` shows one row per Task, in dependency order, with declaration
-order breaking ties. The summary classifies each displayed Task once and shows
-the workflow total when filtered. Preparation, computation, and finishing phases
-count as active in the summary; queued work remains separate. For example:
+`gwf status` shows one row per Task group. Groups combine the same qualified
+factory implementation and effective name prefix: a default use and an alias
+matching that default share a group; other aliases remain separate. Group names
+are never inferred by splitting Task identifiers. Unique prefixes display alone;
+when different factories share a prefix, every such group displays
+`prefix@module.qualified_factory`. Labels are determined before filtering.
+
+The header reports selected Tasks against the whole workflow, and classifies each
+selected Task once. Each group's `Reusable` fraction counts selected reusable
+Tasks over selected group members; every other nonzero state appears separately.
+Only overview summaries combine preparing, running, and finishing as `active`;
+queued work remains separate. For example:
 
 ```text
-3 Tasks shown: 1 reusable, 1 active, 1 failed
+45 of 45 Tasks selected
+33 reusable, 4 active, 6 failed, 2 queued
+
+Group              Reusable  Other states
+prepare_reference       1/1
+duplex_mapping        14/24  4 active, 6 failed
+mutect2_calling        18/20  2 queued
+```
+
+Filters apply before counting, empty groups are omitted, and an empty selection
+succeeds with `No Tasks selected.`. Filter-only requests keep the group overview.
+Groups rank by their earliest member in the full dependency-respecting Task order,
+with declaration-order ties. Filtering an early member never reorders the
+surviving groups. Task rows follow that same dependency order.
+
+`gwf status --instances` shows every selected Task once, with its exact state and
+completed-job progress. `--details` expands every selected Task with its jobs and
+wins when both flags are supplied. Reuse fractions count Tasks; completed-job
+progress counts steps inside one Task. Neither measures elapsed time or effort.
+
+```text
+3 of 3 Tasks selected
+1 reusable, 1 running, 1 failed
 Task                              State          Jobs completed   Detail
 Task sample_a                     reusable       5/5              work cleaned
 Task sample_b                     running        2/5              1 job running; 2 jobs queued
@@ -171,7 +201,7 @@ precedence over failure, then cancellation, then ongoing work. Aggregate details
 still show jobs running within a failed, canceled, or blocked Task. Historical
 backend failures do not override valid Completion and Reuse.
 
-Supported terminals use a static Rich presentation with a colored summary frame,
+Expanded and instance views in supported terminals use a static Rich presentation with a colored summary frame,
 Unicode state symbols, and slim progress bars. The bars are snapshots of completed
 steps; presentation adds no scheduler polling or live refresh. Narrow terminals
 omit bars before losing textual states and numeric progress.
@@ -204,8 +234,9 @@ these diagnostics.
 Task names and public names such as `sample_b__sort` accept glob patterns in
 status and explain. Selecting a Task or job expands the complete owning Task:
 nested status rows in status, and diagnostics in explain.
-`--group` selects and expands whole Tasks with any matching computation target
-group. `--status` on managed status matches only the primary Task state: a blocked
+`--group` selects whole Tasks with any matching computation-target group; use
+`--details` to expand them. `--instances` keeps selected Tasks flat even when
+positional names are supplied. `--status` on managed status matches only the primary Task state: a blocked
 Task with failed jobs matches blocked, not failed. `--endpoints` shows Tasks whose
 retained outputs have no declared consumers. All counts describe complete selected
 Tasks. Inspection filters preserve whole-workflow validation; managed run remains

@@ -98,7 +98,7 @@ class TaskGraphTests(LocalBackendTestCase):
         self.wait_for(right_failed)
         self.wait_for(lambda: "done" in (self.work / "trace").read_text().splitlines())
         try:
-            for command in (("status",), ("explain",), ("run", "--dry-run")):
+            for command in (("status", "--instances",), ("explain",), ("run", "--dry-run")):
                 output = self.cli_result(*command, "--details").stdout
                 if command[0] == "status":
                     self.assertRegex(output, r"Task sample\s+failed\s+\d+/5")
@@ -198,7 +198,7 @@ class TaskGraphTests(LocalBackendTestCase):
         output = next(line.removeprefix("SOURCE=") for line in logs.splitlines() if line.startswith("SOURCE="))
         Path(output).write_text("damaged source")
         failing.unlink()
-        self.assertRegex(self.cli("status"), r"Task sample\s+failed\s+1/6")
+        self.assertRegex(self.cli("status", "--instances"), r"Task sample\s+failed\s+1/6")
         self.cli("run")
         self.settle()
         self.assertEqual((self.work / "results/sample/result.txt").read_text(), "leftright")

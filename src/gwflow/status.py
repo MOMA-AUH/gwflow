@@ -12,7 +12,7 @@ from ._frontend import _submission_guard
 from ._state import state_name
 from .inspection import blockage_line
 from .planning import plan_workflow
-from .presentation import STATES, Report, output_options, selected_rows
+from .presentation import STATES, Report, output_options, selected_rows, task_groups
 from .workflow import Workflow
 
 
@@ -54,11 +54,12 @@ def _plain_status(workflow, ctx, targets, endpoints, output_format, statuses, gr
               help="Format for ordinary gwf workflows only.")
 @click.option("-s", "--status", "statuses", multiple=True, type=_StatusChoice(tuple(dict.fromkeys((*STATES, *(state_name(state) for state in Status))))))
 @click.option("-g", "--group", multiple=True)
+@click.option("--instances", is_flag=True, help="Show every selected Task with its exact state and completed-job progress.")
 @click.option("--details", is_flag=True,
               help="Expand Tasks with nested targets and lifecycle jobs. Use gwf explain --details for diagnostics.")
 @pass_context
-def managed_status(ctx, targets, endpoints, output_format, statuses, group, details, plain, no_truncate):
-    """Show managed Task condition, including reusable cleaned work."""
+def managed_status(ctx, targets, endpoints, output_format, statuses, group, instances, details, plain, no_truncate):
+    """Show grouped managed Task condition, including reusable cleaned work."""
     workflow = GwfWorkflow.from_context(ctx)
     if not isinstance(workflow, Workflow):
         return _plain_status(workflow, ctx, targets, endpoints, output_format, statuses, group)
@@ -73,7 +74,10 @@ def managed_status(ctx, targets, endpoints, output_format, statuses, group, deta
         if plan.blocked:
             report.notice(blockage_line(plan))
         rows = selected_rows(workflow, plan, targets=targets, endpoints=endpoints, statuses=statuses, group=group)
-        report.status(rows, len(plan.tasks), expand=details or bool(targets or group))
+        if details or instances or targets:
+            report.status(rows, len(plan.tasks), expand=details or (bool(targets) and not instances))
+        else:
+            report.overview(task_groups(workflow, plan), rows, len(plan.tasks))
 
 
 gwf_status.params = managed_status.params
