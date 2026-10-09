@@ -97,8 +97,12 @@ class TaskPresentationTests(LocalBackendTestCase):
             for options in ((), ("--plain",)):
                 with self.subTest(command=command, options=options):
                     shortened = self.terminal_cli("--no-color", *command, *options, width=80).stdout
-                    self.assertIn("…", shortened)
-                    self.assertNotIn("_tail", shortened)
+                    if command[0] == "status":
+                        self.assertIn(name, shortened)
+                        self.assertNotIn("…", shortened)
+                    else:
+                        self.assertIn("…", shortened)
+                        self.assertNotIn("_tail", shortened)
                     complete = self.terminal_cli("--no-color", *command, *options, "--no-truncate", width=80).stdout
                     self.assertIn("_tail", re.sub(r"\s+", "", complete))
                     self.assertEqual(complete.count("Z"), 120)
@@ -145,9 +149,10 @@ class TaskPresentationTests(LocalBackendTestCase):
         for options, width in ((("--plain",), 32), ((), 20)):
             with self.subTest(options=options, width=width):
                 output = self.terminal_cli("--no-color", "status", "--details", *options, width=width).stdout
-                self.assertRegex(output, r"\[preparation\]\s+(?:○ )?pending")
-                self.assertRegex(output, r"job_[^\n]*(?:\n\s+)?(?:○ )?pending")
-                self.assertRegex(output, r"\[completion\]\s+(?:○ )?pending")
+                self.assertRegex(output, r"\[preparation\]\s+State: pending")
+                self.assertIn("sample__job_" + "x" * 80, output)
+                self.assertRegex(output, r"job_[^\n]*\n\s+State: pending")
+                self.assertRegex(output, r"\[completion\]\s+State: pending")
 
     def test_job_and_group_selection_expand_all_jobs_in_both_inspectors(self):
         workflow = self.work / "workflow.py"

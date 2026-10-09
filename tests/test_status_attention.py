@@ -151,6 +151,16 @@ class StatusAttentionTests(LocalBackendTestCase):
         command = self.commands(output)["failed"]
         expanded = self.cli(*command[1:], env=environment)
         self.assertEqual(self.names(expanded), [f"duplex_mapping__sample_{index:02}" for index in range(7, 13)])
+        for color, options in (("--no-color", ()), ("--use-color", ()), ("--no-color", ("--plain",))):
+            terminal = self.terminal_cli(color, "-b", "recovery_fixture", "status", *options,
+                                         width=80, env=environment).stdout
+            terminal = re.sub(r"\x1b\[[0-9;]*m", "", terminal)
+            self.assertIn("45 of 45 Tasks selected\n33 reusable, 4 active, 6 failed, 2 queued", terminal)
+            self.assertIn("Jobs: 7 failed, 3 running, 1 queued", terminal)
+            self.assertIn("6 Tasks (5 shown, 1 omitted)", terminal)
+            self.assertEqual(len(re.findall(r"(?m)^  duplex_mapping__sample_", terminal)), 5)
+            self.assertTrue(all(len(line) <= 80 for line in terminal.splitlines()), terminal)
+            self.assertIn("failed", self.commands(terminal))
 
     def test_inspect_commands_preserve_workflow_context_and_filter_intersection(self):
         self.declarations([(alias, str(index), 0,

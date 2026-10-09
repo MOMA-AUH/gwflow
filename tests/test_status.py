@@ -22,11 +22,11 @@ class ManagedStatusTests(LocalBackendTestCase):
         self.assertIn("3 of 3 Tasks selected\n3 pending", output)
         sections = re.split(r"^Task [abc]\s+pending\s+0/3\s*$", output, flags=re.MULTILINE)
         self.assertEqual(len(sections), 4)
-        for section in sections[1:]:
-            jobs = re.findall(r"^\s+([|`]-) (\S+)\s+(\S+)\s*$", section, re.MULTILINE)
-            self.assertEqual(jobs, [("|-", "[preparation]", "pending"),
-                                    ("|-", "compute", "pending"),
-                                    ("`-", "[completion]", "pending")])
+        for owner, section in zip("abc", sections[1:]):
+            jobs = re.findall(r"^\s+([|`]-) (.+?)\s+(pending)\s*$", section, re.MULTILINE)
+            self.assertEqual(jobs, [("|-", f"{owner}__gwflow_prepare [preparation]", "pending"),
+                                    ("|-", f"{owner}__compute", "pending"),
+                                    ("`-", f"{owner}__gwflow_complete [completion]", "pending")])
         for label in ("Details for Task", "Next action:", "Reason:", "Attempt:",
                       "Workspace:", "Results:", "Backend job:", "Log stderr:"):
             self.assertNotIn(label, output)
@@ -41,8 +41,12 @@ class ManagedStatusTests(LocalBackendTestCase):
                 with self.subTest(width=width, color=color, options=options):
                     output = self.terminal_cli(color, "status", "--details", *options, width=width).stdout
                     text = re.sub(r"\x1b\[[0-9;]*m", "", output)
-                    self.assertRegex(text, r"Task\s+Target\s+State\s+Jobs completed")
-                    self.assertRegex(text, re.escape(branch) + r" left\s+(?:○ )?pending")
+                    if width >= 110:
+                        self.assertRegex(text, r"Task\s+Target\s+State\s+Jobs completed")
+                    else:
+                        self.assertIn("State: pending", text)
+                        self.assertIn("Jobs completed: 0/5", text)
+                    self.assertRegex(text, re.escape(branch) + r" sample__left\s+(?:State: )?pending")
                     self.assertLess(text.index("sample"), text.index("[preparation]"))
                     self.assertIn("[completion]", text)
                     self.assertNotIn("Attempt:", text)
@@ -51,16 +55,16 @@ class ManagedStatusTests(LocalBackendTestCase):
                     else:
                         self.assertIn("\x1b[", output)
 
-    def test_expanded_long_target_names_wrap_only_when_requested(self):
+    def test_expanded_long_public_names_are_always_intact(self):
         name = "left_" + "X" * 100 + "_tail"
         workflow = self.work / "workflow.py"
         workflow.write_text(workflow.read_text().replace("'left'", repr(name)))
         for options in ((), ("--plain",)):
             with self.subTest(options=options):
-                truncated = self.terminal_cli("--no-color", "status", "--details", *options, width=100).stdout
-                self.assertIn("…", truncated)
-                self.assertNotIn("_tail", truncated)
-                self.assertIn("pending", truncated)
+                complete = self.terminal_cli("--no-color", "status", "--details", *options, width=100).stdout
+                self.assertNotIn("…", complete)
+                self.assertIn("sample__" + name, complete)
+                self.assertIn("pending", complete)
                 wrapped = self.terminal_cli("--no-color", "status", "--details", *options,
                                             "--no-truncate", width=100).stdout
                 self.assertIn("_tail", wrapped)
@@ -69,7 +73,7 @@ class ManagedStatusTests(LocalBackendTestCase):
         self.assertIn(name, redirected)
         self.assertNotIn("…", redirected)
 
-    def test_instances_are_compact_and_task_selection_expands_local_names(self):
+    def test_instances_are_compact_and_task_selection_expands_public_names(self):
         output = self.cli("status", "--instances")
         self.assertIn("Jobs completed", output)
         self.assertRegex(output, r"Task sample\s+pending\s+0/5")
@@ -126,23 +130,22 @@ class ManagedStatusTests(LocalBackendTestCase):
             release.touch()
         self.finish()
 
-    def test_terminal_layout_plain_redirection_and_no_color_are_distinct(self):
+    def test_terminal_color_and_plain_output_keep_the_same_status_information(self):
         decorated = self.terminal_cli("--use-color", "status", "--instances").stdout
         self.assertIn("\x1b[", decorated)
-        self.assertIn("╭", decorated)
-        self.assertIn("○", decorated)
-        self.assertIn("━", decorated)
+        self.assertNotRegex(decorated, "[╭○━]")
         self.assertIn("0/5", decorated)
         monochrome = self.terminal_cli("--no-color", "status", "--instances").stdout
         self.assertNotIn("\x1b[", monochrome)
-        self.assertIn("╭", monochrome)
-        self.assertIn("○", monochrome)
+        self.assertNotRegex(monochrome, "[╭○━]")
         plain = self.terminal_cli("--use-color", "status", "--instances", "--plain").stdout
         redirected = self.cli_result("--use-color", "status", "--instances").stdout
         for output in (plain, redirected):
             self.assertNotIn("\x1b[", output)
             self.assertNotRegex(output, "[╭○━]")
             self.assertRegex(output, r"Task sample\s+pending\s+0/5")
+        self.assertEqual(re.sub(r"\x1b\[[0-9;]*m", "", decorated), monochrome)
+        self.assertEqual(plain, monochrome)
 
     def test_formats_group_patterns_and_empty_selections(self):
         workflow = self.work / "workflow.py"

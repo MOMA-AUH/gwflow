@@ -6,13 +6,13 @@ from fnmatch import fnmatchcase
 import os
 import shlex
 import sys
+import textwrap
 
 import click
 from gwf.backends import BackendStatus
 from rich import box
 from rich.console import Console
 from rich.panel import Panel
-from rich.progress_bar import ProgressBar
 from rich.table import Table
 from rich.text import Text
 
@@ -327,35 +327,63 @@ class Report:
         else:
             self.console.print(Panel(self.text(message, complete=True), border_style="yellow", title="Notice"))
 
+    def status_line(self, value, *, style=""):
+        """Wrap prose at whitespace; leave identifiers intact for the terminal."""
+        if not self.terminal:
+            click.echo(value, color=False)
+            return
+        for paragraph in value.split("\n"):
+            indent = paragraph[:len(paragraph) - len(paragraph.lstrip())]
+            lines = textwrap.wrap(paragraph, width=self.console.width, subsequent_indent=indent,
+                                  break_long_words=False, break_on_hyphens=False) or [""]
+            rendered = "\n".join(lines)
+            if not self.unicode:
+                rendered = rendered.encode(self.console.encoding, errors="backslashreplace").decode(self.console.encoding)
+            self.console.print(Text(rendered, style=style if not self.plain else ""), soft_wrap=True)
+
     def state(self, name):
         symbol, style = _VISUALS[name]
         return Text(f"{symbol} {name}", style=style, no_wrap=True)
 
     def overview(self, groups, rows, total):
-        self.line(f"{len(rows)} of {total} Tasks selected", complete=True)
+        self.status_line(f"{len(rows)} of {total} Tasks selected")
         counts = overview_counts(rows)
-        self.line(", ".join(f"{count} {state}" for state, count in counts.items()), complete=True)
+        self.status_line(", ".join(f"{count} {state}" for state, count in counts.items()))
         selected = {row.task.name: row for row in rows}
         visible = [(group, [selected[name] for name in group.members if name in selected]) for group in groups]
         visible = [(group, members) for group, members in visible if members]
         if not visible:
-            self.line("No Tasks selected.", complete=True)
+            self.status_line("No Tasks selected.")
             return
-        width = max(5, *(len(group.label) for group, _ in visible))
-        self.line("")
-        self.line(f"{'Group':<{width}}  Reusable  Other states", complete=True)
+        width = max(5, *(Text(group.label).cell_len for group, _ in visible))
+        self.status_line("")
+        heading = f"{'Group':<{width}}  Reusable  Other states"
+        entries = []
         for group, members in visible:
             counts = overview_counts(members)
             fraction = f"{counts['reusable']}/{len(members)}"
             other = ", ".join(f"{count} {state}" for state, count in counts.items() if state != "reusable")
-            self.line(f"{group.label:<{width}}  {fraction:>8}  {other}".rstrip(), complete=True)
+            label = group.label + " " * (width - Text(group.label).cell_len)
+            entries.append((group.label, fraction, other, f"{label}  {fraction:>8}  {other}".rstrip()))
+        if not self.terminal or max(Text(line).cell_len for line in [heading, *(entry[3] for entry in entries)]) <= self.console.width:
+            self.status_line(heading, style="bold")
+            for _, _, _, line in entries:
+                self.status_line(line)
+        else:
+            for index, (label, fraction, other, _) in enumerate(entries):
+                if index:
+                    self.status_line("")
+                self.status_line(label, style="bold")
+                self.status_line("  Reusable: " + fraction)
+                if other:
+                    self.status_line("  Other states: " + other)
 
     def attention(self, rows, command):
         categories = [(state, [row for row in rows if row.state == state])
                       for state in ATTENTION]
         if not any(members for _, members in categories):
             return
-        self.line("\nNeeds attention", complete=True, style="bold yellow")
+        self.status_line("\nNeeds attention", style="bold yellow")
         for state, members in categories:
             if not members:
                 continue
@@ -368,12 +396,12 @@ class Report:
             heading = f"{state.title()}: {count} Task{'s' if count != 1 else ''}"
             if count > 5:
                 heading += f" (5 shown, {count - 5} omitted)"
-            self.line(heading, complete=True)
+            self.status_line(heading)
             if counts:
-                self.line("  Jobs: " + ", ".join(f"{counts[label]} {label}" for label in DIAGNOSTIC_JOBS if counts[label]), complete=True)
+                self.status_line("  Jobs: " + ", ".join(f"{counts[label]} {label}" for label in DIAGNOSTIC_JOBS if counts[label]))
             if incomplete:
-                self.line(f"  Observations incomplete for {incomplete} Task{'s' if incomplete != 1 else ''}; "
-                          "job totals include only available observations.", complete=True)
+                self.status_line(f"  Observations incomplete for {incomplete} Task{'s' if incomplete != 1 else ''}; "
+                          "job totals include only available observations.")
             for row, jobs, unavailable in observations[:5]:
                 detail = []
                 if state == "blocked":
@@ -383,12 +411,18 @@ class Report:
                     detail.append("observations incomplete")
                 if row.completed is None:
                     detail.append("progress unavailable")
-                self.line(f"  {row.task.name}  " + "; ".join(detail), complete=True)
-            self.line(f"\nAll {state} Tasks:", complete=True)
+                description = "; ".join(detail)
+                line = f"  {row.task.name}  {description}"
+                if self.terminal and Text(line).cell_len > self.console.width:
+                    self.status_line("  " + row.task.name)
+                    self.status_line("    " + description)
+                else:
+                    self.status_line(line)
+            self.status_line(f"\nAll {state} Tasks:")
             # Let the terminal wrap visually without inserting breaks into a
             # command that users can copy and execute.
             click.echo("  " + shlex.join([*command, "--status", state, "--instances"]), color=False)
-            self.line("", complete=True)
+            self.status_line("")
 
     def workflow_notices(self, tasks, rows):
         tasks = list(tasks)
@@ -401,96 +435,71 @@ class Report:
         def label(task):
             return task.name + (" (outside selection)" if task.name not in selected else "")
 
-        self.line("", complete=True)
-        self.line("Workflow notices", complete=True, style="bold yellow")
+        self.status_line("")
+        self.status_line("Workflow notices", style="bold yellow")
         if blocked:
-            self.line("  Workflow blocked — no new jobs will be submitted. Blocked Tasks:", complete=True)
+            self.status_line("  Workflow blocked — no new jobs will be submitted. Blocked Tasks:")
             for task in blocked:
-                self.line("    " + label(task), complete=True)
-            self.line("  Already active jobs may still be running.", complete=True)
+                line = "    " + label(task)
+                if self.terminal and task.name not in selected and Text(line).cell_len > self.console.width:
+                    self.status_line("    " + task.name)
+                    self.status_line("      (outside selection)")
+                else:
+                    self.status_line(line)
+            self.status_line("  Already active jobs may still be running.")
         for task, reminder in followups:
-            self.line(f"  Task {label(task)}: {reminder}", complete=True)
+            line = f"  Task {label(task)}: {reminder}"
+            if self.terminal and Text(line).cell_len > self.console.width:
+                self.status_line("  Task " + task.name + (":" if task.name in selected else ""))
+                if task.name not in selected:
+                    self.status_line("    (outside selection):")
+                self.status_line("    " + reminder)
+            else:
+                self.status_line(line)
 
     def status(self, rows, total, *, expand=False):
-        heading = summary(rows, total)
-        if self.plain:
-            self.line(heading, complete=True)
-        else:
-            self.console.print(Panel(Text(heading, style="bold cyan"), border_style="cyan", title="Task status"))
+        self.status_line(summary(rows, total), style="bold cyan")
         if not rows:
-            self.line("No Tasks selected.", complete=True)
+            self.status_line("No Tasks selected.")
             return
-        if not self.terminal:
-            task_width = max([33, *(len(row.task.name) + 5 for row in rows)]) if expand else 33
-            target_width = max([18, *(len(name.plain) for row in rows for name, _ in self._target_rows(row))]) if expand else 0
-
-            def line(task, target, state, progress, detail):
-                target_cell = f"{target:<{target_width}} " if expand else ""
-                self.line(f"{task:<{task_width}} {target_cell}{state:<14} {progress:<16} {detail}".rstrip())
-
-            line("Task", "Target", "State", "Jobs completed", "Detail")
-            for row in rows:
-                line("Task " + row.task.name, "", row.state, row.progress, row.detail)
-                if expand:
-                    for name, state in self._target_rows(row):
-                        line("", name.plain, state, "", "")
-        elif self.console.width < (80 if expand else 64) or (self.plain and not expand):
-            columns = "Task / " + ("Target / " if expand else "") + "State / Jobs completed / Detail"
-            self.line(columns if expand or self.plain else "Jobs completed (steps)", complete=True)
-            for row in rows:
-                self._compact_row(row)
-                if expand:
-                    for name, state in self._target_rows(row):
-                        self.line("  " + name.plain, style=name.style)
-                        if self.plain:
-                            self.line("     " + state, complete=True)
-                        else:
-                            self.console.print(Text("     ") + self.state(state), no_wrap=False, overflow="fold")
-        else:
-            table = Table(box=None if self.plain else box.SIMPLE_HEAD, expand=True, padding=(0, 1),
-                          header_style="" if self.plain else "bold")
-            table.add_column("Task", ratio=2, min_width=12)
+        headers = ["Task", *(["Target"] if expand else []), "State", "Jobs completed", "Detail"]
+        entries = []
+        for row in rows:
+            cells = ["Task " + row.task.name, *([""] if expand else []), row.state, row.progress, row.detail]
+            entries.append((cells, row.state))
             if expand:
-                table.add_column("Target", ratio=3, min_width=16)
-            table.add_column("State", width=12, no_wrap=True)
-            table.add_column("Jobs completed", width=14, justify="right", no_wrap=True)
-            bars = not self.plain and self.console.width >= (114 if expand else 90)
-            if bars:
-                table.add_column("", width=min(14, (self.console.width - (104 if expand else 80)) // 2))
-            table.add_column("Detail", ratio=2 if expand else 3)
-            for row in rows:
-                cells = [self.text(row.task.name)] + ([Text("")] if expand else [])
-                cells.extend((Text(row.state) if self.plain else self.state(row.state), Text(row.progress)))
-                if bars:
-                    cells.append(ProgressBar(total=row.total, completed=row.completed,
-                                             complete_style=_VISUALS[row.state][1], finished_style="green")
-                                 if row.completed is not None else Text(""))
-                cells.append(self.text(row.detail, complete=row.task.action == "deferred"))
-                table.add_row(*cells, style="on grey11" if not self.plain and row.state in ("blocked", "failed") else None)
-                if expand:
-                    for name, state in self._target_rows(row):
-                        cells = [Text(""), name, Text(state) if self.plain else self.state(state), Text("")]
-                        table.add_row(*cells, *([Text("")] if bars else []), Text(""))
-            self.console.print(table)
+                for name, state in self._status_jobs(row):
+                    entries.append((["", name, state, "", ""], state))
+        widths = [max(Text(cells[index]).cell_len for cells in [headers, *(cells for cells, _ in entries)])
+                  for index in range(len(headers))]
+        if not self.terminal or sum(widths) + 2 * (len(widths) - 1) <= self.console.width:
+            def line(cells):
+                return "  ".join(value + " " * (width - Text(value).cell_len)
+                                 for value, width in zip(cells, widths)).rstrip()
+            self.status_line(line(headers), style="bold")
+            for cells, state in entries:
+                self.status_line(line(cells), style=_VISUALS[state][1])
+            return
+        for index, row in enumerate(rows):
+            if index:
+                self.status_line("")
+            self.status_line("Task " + row.task.name, style="bold")
+            self.status_line("  State: " + row.state, style=_VISUALS[row.state][1])
+            self.status_line("  Jobs completed: " + row.progress)
+            if row.detail:
+                self.status_line("  " + row.detail)
+            if expand:
+                for name, state in self._status_jobs(row):
+                    self.status_line("  " + name)
+                    self.status_line("    State: " + state, style=_VISUALS[state][1])
 
-    def _target_rows(self, row):
+    def _status_jobs(self, row):
         names = lifecycle_jobs(ordered_targets(row.task.structure))
         for index, local in enumerate(names):
             last = index == len(names) - 1
             branch = ("`- " if last else "|- ") if self.plain else ("└─ " if last else "├─ ")
-            style = "dim" if local in _LIFECYCLE_NAMES and not self.plain else ""
-            yield self.text(branch + _LIFECYCLE_NAMES.get(local, local), style=style), row.jobs[local]
-
-    def _compact_row(self, row):
-        self.line("Task " + row.task.name)
-        if self.plain:
-            self.line(f"  {row.state}  {row.progress}", complete=True)
-        else:
-            text = self.state(row.state)
-            text.append("  " + row.progress)
-            self.console.print(text, no_wrap=False, overflow="fold")
-        if row.detail:
-            self.line("  " + row.detail, complete=row.task.action == "deferred")
+            label = f" {_LIFECYCLE_NAMES[local]}" if local in _LIFECYCLE_NAMES else ""
+            yield branch + f"{row.task.name}__{local}" + label, row.jobs[local]
 
     def plan(self, plan, rows, *, expand=False, preview=True):
         self.line("Managed whole-workflow plan", complete=True)
