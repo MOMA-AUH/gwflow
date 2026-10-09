@@ -24,6 +24,8 @@ from .workflow import lifecycle_jobs
 STATES = ("pending", "queued", "preparing", "running", "finishing", "reusable",
           "repairable", "deferred", "failed", "canceled", "blocked")
 ACTIVE = ("preparing", "running", "finishing")
+ATTENTION = ("blocked", "failed", "canceled")
+DIAGNOSTIC_JOBS = ("failed", "canceled", "running", "queued")
 NEXT_ACTIONS = {
     "fresh": "Run", "initialize": "Run", "continue": "Continue",
     "retry": "Retry", "prepare": "Retry", "transfer": "Finish", "repair": "Repair",
@@ -135,7 +137,7 @@ def task_row(task):
         completed = None
     detail = []
     if task.action == "blocked":
-        detail.append(blocking_reason(task.reason) or "validation prevents proceeding; see gwf explain --details")
+        detail.append(blocking_detail(task.reason))
     elif task.action == "reuse":
         detail.append("work present" if task.work_present else "work cleaned")
     elif task.action == "repair":
@@ -148,11 +150,7 @@ def task_row(task):
         detail.append("fresh attempt required")
     if task.action in ("retry", "prepare"):
         detail.append("retry available")
-    for label in ("failed", "canceled", "running", "queued"):
-        count = counts[label]
-        if count:
-            description = "still running" if label == "running" and state in ("blocked", "failed", "canceled") else label
-            detail.append(f"{count} job{'s' if count != 1 else ''} {description}")
+    detail.extend(job_diagnostics(counts, state))
     if completed is None:
         detail.append("progress unavailable")
     return TaskRow(task, state, completed, len(jobs), "; ".join(detail), jobs)
@@ -172,6 +170,18 @@ def blocking_reason(reason):
         if reason.lower().startswith(fragment.lower()):
             return concise
     return None
+
+
+def blocking_detail(reason):
+    return blocking_reason(reason) or "validation prevents proceeding; see gwf explain --details"
+
+
+def job_diagnostics(counts, state):
+    for label in DIAGNOSTIC_JOBS:
+        count = counts[label]
+        if count:
+            description = "still running" if label == "running" and state in ATTENTION else label
+            yield f"{count} job{'s' if count != 1 else ''} {description}"
 
 
 def needs_later_finish(task):
@@ -342,7 +352,7 @@ class Report:
 
     def attention(self, rows, command):
         categories = [(state, [row for row in rows if row.state == state])
-                      for state in ("blocked", "failed", "canceled")]
+                      for state in ATTENTION]
         if not any(members for _, members in categories):
             return
         self.line("\nNeeds attention", complete=True, style="bold yellow")
@@ -359,20 +369,16 @@ class Report:
             if count > 5:
                 heading += f" (5 shown, {count - 5} omitted)"
             self.line(heading, complete=True)
-            labels = ("failed", "canceled", "running", "queued")
             if counts:
-                self.line("  Jobs: " + ", ".join(f"{counts[label]} {label}" for label in labels if counts[label]), complete=True)
+                self.line("  Jobs: " + ", ".join(f"{counts[label]} {label}" for label in DIAGNOSTIC_JOBS if counts[label]), complete=True)
             if incomplete:
                 self.line(f"  Observations incomplete for {incomplete} Task{'s' if incomplete != 1 else ''}; "
                           "job totals include only available observations.", complete=True)
             for row, jobs, unavailable in observations[:5]:
                 detail = []
                 if state == "blocked":
-                    detail.append(blocking_reason(row.task.reason) or "validation prevents proceeding; see gwf explain --details")
-                for label in labels:
-                    if jobs[label]:
-                        description = "still running" if label == "running" else label
-                        detail.append(f"{jobs[label]} job{'s' if jobs[label] != 1 else ''} {description}")
+                    detail.append(blocking_detail(row.task.reason))
+                detail.extend(job_diagnostics(jobs, state))
                 if unavailable:
                     detail.append("observations incomplete")
                 if row.completed is None:
