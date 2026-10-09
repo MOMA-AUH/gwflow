@@ -13,6 +13,7 @@ from ._state import state_name
 from .inspection import blockage_line
 from .planning import plan_workflow
 from .presentation import STATES, Report, output_options, selected_rows, task_groups
+from .selection import status_selection
 from .workflow import Workflow
 
 
@@ -70,14 +71,21 @@ def managed_status(ctx, targets, endpoints, output_format, statuses, group, inst
         raise click.UsageError("Managed status filters use Task states: " + ", ".join(STATES))
     with _submission_guard(ctx.working_dir, waiting_message="Waiting for frontend submission bookkeeping..."):
         plan = plan_workflow(workflow, ctx)
+        groups = task_groups(workflow, plan)
+        names, view = status_selection(plan, groups, targets)
+        if details:
+            view = "details"
+        elif instances:
+            view = "instances"
         report = Report(plan.store, plain=plain, no_truncate=no_truncate)
         if plan.blocked:
             report.notice(blockage_line(plan))
-        rows = selected_rows(workflow, plan, targets=targets, endpoints=endpoints, statuses=statuses, group=group)
-        if details or instances or targets:
-            report.status(rows, len(plan.tasks), expand=details or (bool(targets) and not instances))
+        rows = [row for row in selected_rows(workflow, plan, endpoints=endpoints, statuses=statuses, group=group)
+                if row.task.name in names]
+        if view == "overview":
+            report.overview(groups, rows, len(plan.tasks))
         else:
-            report.overview(task_groups(workflow, plan), rows, len(plan.tasks))
+            report.status(rows, len(plan.tasks), expand=view == "details")
 
 
 gwf_status.params = managed_status.params

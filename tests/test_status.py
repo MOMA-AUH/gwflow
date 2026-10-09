@@ -77,7 +77,7 @@ class ManagedStatusTests(LocalBackendTestCase):
         self.assertIn("1 pending", output)
         self.assertNotIn("left", output)
         self.assertNotIn("next:", output)
-        selected = self.cli("status", "sample")
+        selected = self.cli("status", "task:sample")
         for name in ("[preparation]", "left", "right", "join", "[completion]"):
             self.assertRegex(selected, re.escape(name) + r"\s+pending")
         self.assertLess(selected.index("[preparation]"), selected.index("left"))
@@ -165,7 +165,7 @@ class ManagedStatusTests(LocalBackendTestCase):
         output = self.cli("status", "--instances")
         self.assertRegex(output, r"Task sample\s+reusable\s+5/5\s+work cleaned")
         self.assertNotIn("left", output)
-        expanded = self.cli("status", "sample")
+        expanded = self.cli("status", "task:sample")
         self.assertRegex(expanded, r"left\s+completed")
         self.assertNotIn("failed", expanded)
         self.assertIn("1 reusable", output)
@@ -181,7 +181,7 @@ class ManagedStatusTests(LocalBackendTestCase):
         self.run_complete()
         workflow = self.work / "workflow.py"
         workflow.write_text(workflow.read_text().replace("printf a", "printf changed"))
-        output = self.cli("status", "a")
+        output = self.cli("status", "task:a")
         self.assertRegex(output, r"Task a\s+pending\s+0/3\s+fresh attempt required")
         self.assertRegex(output, r"compute\s+pending")
         self.assertNotIn("reusable", output)
