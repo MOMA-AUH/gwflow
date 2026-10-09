@@ -6,11 +6,12 @@ gwflow adds managed Tasks to [gwf](https://gwf.app/): computation runs in dispos
 work storage, while named retained files are copied into stable results storage.
 Checked completion evidence lets a Task remain reusable after its work is removed.
 
-The v0.5.2 release makes `gwf status --details` a compact nested view: a Target
-column shows preparation, computation targets, and completion beneath each Task.
-Selecting a Task, job, or group uses the same expansion. Full reasons, attempts,
-paths, and backend information remain available through `gwf explain --details`.
-Task states, progress, filters, and execution and recovery semantics are unchanged.
+Managed status groups Task instances by their decorated factory and name prefix.
+It shows reusable counts, state totals, bounded attention previews, and required
+workflow notices. Select a group or use `--instances` for Task rows; select a
+Task or public job, or use `--details`, to include its jobs. All views preserve
+full identifiers and adapt to terminal width. Full reasons, attempts, paths,
+and backend information remain available through `gwf explain --details`.
 
 The v0.5.1 release reduces repeated planning reads for Task jobs, producer
 completion evidence, shared inputs, and container images. Scoped directory
@@ -234,28 +235,30 @@ precedence over failure, then cancellation, then ongoing work. Aggregate details
 still show jobs running within a failed, canceled, or blocked Task. Historical
 backend failures do not override valid Completion and Reuse.
 
-Expanded and instance views in supported terminals use a static Rich presentation with a colored summary frame,
-Unicode state symbols, and slim progress bars. The bars are snapshots of completed
-steps; presentation adds no scheduler polling or live refresh. Narrow terminals
-omit bars before losing textual states and numeric progress.
+Status uses compact columns when the content fits and stacked names and fields
+otherwise. States and numeric progress remain explicit, without decorative
+frames or progress bars. The default group overview omits routine work-directory
+details. Presentation is a static snapshot and adds no scheduler polling or live
+refresh.
 
 `gwf status --details` adds a Target column and nests each Task's jobs directly
 below its summary row. The Task row keeps its state, progress, and brief Detail;
-child rows show local target names and job states. For example:
+child rows show full public job names and job states. For example, in a terminal
+wide enough for columns:
 
 ```text
-Task       Target             State       Jobs completed   Detail
-sample                        running     2/5              1 job running; 2 jobs queued
-           ├─ [preparation]   completed
-           ├─ left            completed
-           ├─ right           running
-           ├─ join            queued
-           └─ [completion]    queued
+Task         Target                                  State      Jobs completed  Detail
+Task sample                                          running    2/5             1 job running; 2 jobs queued
+             ├─ sample__gwflow_prepare [preparation]  completed
+             ├─ sample__left                         completed
+             ├─ sample__right                        running
+             ├─ sample__join                         queued
+             └─ sample__gwflow_complete [completion]  queued
 ```
 
-Each expansion shows `[preparation]`, every computation target in dependency
-order, and `[completion]`. Only the bracketed lifecycle names are dimmed; their
-states remain prominent. Plain and redirected output use ASCII tree branches.
+Each expansion shows preparation, every computation target in dependency order,
+and completion. Bracketed annotations identify the lifecycle jobs alongside their
+public names. Plain and redirected output use ASCII tree branches.
 Narrow terminals stack names and states while keeping jobs beneath their Task.
 
 Use `gwf explain --details` for full diagnostics: the current condition, planned
@@ -319,14 +322,49 @@ submits no new jobs, but already active jobs may still be running. Routine work
 directory details do not create workflow notices. Notices use the same planning
 observations as the rows and add no backend queries.
 
-Long names and diagnostics truncate with an ellipsis in a terminal. Use
-`--no-truncate` to wrap their full text. `--plain` removes colors, symbols, borders,
-and graphical bars, while keeping terminal truncation independent. Redirected
-stdout automatically uses plain, untruncated reports, even with forced color.
-`gwf --no-color status` preserves supported layout decorations without color;
-unsupported terminals fall back to plain output. Required notices always wrap
-completely. These presentation controls apply consistently to expanded details
-in all four command routes.
+For example, `gwf status 'task:duplex_mapping__sample_[AB]' --instances` at
+40 columns keeps both selected Tasks and required notices visible:
+
+```text
+2 of 45 Tasks selected
+1 blocked, 1 failed
+Task duplex_mapping__sample_A
+  State: blocked
+  Jobs completed: ?/5
+  image unavailable; progress unavailable
+
+Task duplex_mapping__sample_B
+  State: failed
+  Jobs completed: 2/5
+  1 job failed
+
+Workflow notices
+  Workflow blocked — no new jobs will be
+  submitted. Blocked Tasks:
+    duplex_mapping__sample_A
+    mutect2_calling__sample_C
+      (outside selection)
+  Already active jobs may still be
+  running.
+  Task mutect2_calling__sample_D
+    (outside selection):
+    run again after upstream result
+    recovery
+```
+
+Status always preserves complete group, Task, and public job names, diagnostics,
+and notices, with or without `--no-truncate`. Explanations wrap at whitespace;
+identifiers and shell-quoted inspection commands stay intact in the output
+stream, even when longer than the terminal width. A terminal may visually wrap
+these long tokens. `--plain`, `gwf --no-color status`, colored terminal output,
+and redirected output carry the same information. Redirected output is plain
+even with forced color; unsupported terminals also fall back to plain output.
+
+For `explain`, `run`, and dry-run, long names and optional diagnostics still
+truncate by default in a terminal; use `--no-truncate` to wrap their full text.
+Their `--plain` option removes colors, symbols, borders, and graphical bars
+independently of truncation. Required notices always appear in full, and
+redirected output is plain and untruncated.
 
 Managed workflows use this Task presentation; `--format` modes are reserved for
 ordinary gwf workflows, which retain their original formats and selection rules.

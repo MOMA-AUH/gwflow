@@ -53,6 +53,10 @@ def replace(source, destination, **kwargs):
         job = json.loads((parent / destination).read_text())["job"]
         if "__gwflow_prepare__" not in job and "__gwflow_complete__" not in job:
             os._exit(109)
+    if selected and destination == "ack.json" and phase.startswith("after_job_ack:"):
+        job = json.loads((parent / destination).read_text())["job"]
+        if f"__{phase.split(':', 1)[1]}__" in job:
+            os._exit(111)
     if selected and destination == "cleanup.json" and phase == "cleanup_before_remove":
         os._exit(102)
     if selected and destination == "cleanup.json" and phase == "gate_cleanup":

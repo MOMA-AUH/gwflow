@@ -77,10 +77,16 @@ def _plain_status(workflow, ctx, targets, endpoints, output_format, statuses, gr
 @click.option("-g", "--group", multiple=True)
 @click.option("--instances", is_flag=True, help="Show every selected Task with its exact state and completed-job progress.")
 @click.option("--details", is_flag=True,
-              help="Expand Tasks with nested targets and lifecycle jobs. Use gwf explain --details for diagnostics.")
+              help="Expand Tasks with full public job names. Takes precedence over --instances.")
+@click.option("--no-truncate", is_flag=True,
+              help="Keep full names and information (always enabled for managed status).")
 @pass_context
 def managed_status(ctx, targets, endpoints, output_format, statuses, group, instances, details, plain, no_truncate):
-    """Show grouped managed Task condition, including reusable cleaned work."""
+    """Show grouped Task condition, attention previews, and workflow notices.
+
+    Select visible groups, Tasks, or public jobs. Use task: and job: to resolve
+    overlapping names. Quote globs; they stay grouped unless a view flag is set.
+    """
     workflow = GwfWorkflow.from_context(ctx)
     if not isinstance(workflow, Workflow):
         return _plain_status(workflow, ctx, targets, endpoints, output_format, statuses, group)
