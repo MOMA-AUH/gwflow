@@ -231,16 +231,50 @@ producer attempts, active consumers, public job names, available backend IDs,
 and log paths. `gwf run --details` and `gwf run --dry-run --details` also include
 these diagnostics.
 
-Task names and public names such as `sample_b__sort` accept glob patterns in
-status and explain. Selecting a Task or job expands the complete owning Task:
-nested status rows in status, and diagnostics in explain.
-`--group` selects whole Tasks with any matching computation-target group; use
-`--details` to expand them. `--instances` keeps selected Tasks flat even when
-positional names are supplied. `--status` on managed status matches only the primary Task state: a blocked
+Status selects the visible group, Task, or public job names. A bare exact name
+resolves as a group first, then a Task, then a public job. Use `task:NAME` or
+`job:NAME` to select a particular namespace when names overlap. Groups select
+their members; public jobs select their whole owning Task, including its full
+job progress. Selecting `mapping` does not include a differently named
+`remapping` alias just because both use the same factory.
+
+An ambiguous short group name fails with its qualified choices, even if a Task
+or job has that name or later filters would select just one group. Each group's
+current `prefix@module.qualified_factory` spelling is accepted exactly, including
+when its displayed label is short. There are no historical name mappings.
+
+Case-sensitive globs combine matches against displayed group labels, Task names,
+and public job names. `task:PATTERN` and `job:PATTERN` restrict the namespace.
+Hidden qualified group spellings are not wildcard candidates. Multiple selectors
+form a union, with each Task included once. Quote patterns to prevent shell
+expansion, for example `gwf status 'task:mapping__[AB]'`. Any unknown exact
+selector fails the entire request, even beside valid selectors; unmatched globs
+and valid selections emptied by filters succeed with `No Tasks selected.`.
+
+The first matching rule determines the status view:
+
+| Request | View |
+| --- | --- |
+| `--details`, including with `--instances` | All selected Tasks expanded with jobs |
+| `--instances` | All selected Task rows |
+| Any positional wildcard, including mixed exact/wildcard requests | Group overview |
+| Exact selection containing a group | Flat Task rows for the entire selection |
+| Exact Task/public-job-only selection | Owning Tasks expanded with jobs |
+| No positional selectors, including filter-only requests | Group overview |
+
+View flags never change name resolution. Resolve names against the full workflow,
+then intersect endpoint, computation-group, and state filters before calculating
+counts. `--group` retains its computation-target meaning: it selects whole Tasks
+with any matching computation-target group. It is not a status-group selector;
+there is no `group:` namespace. `--status` on managed status matches only the primary Task state: a blocked
 Task with failed jobs matches blocked, not failed. `--endpoints` shows Tasks whose
 retained outputs have no declared consumers. All counts describe complete selected
 Tasks. Inspection filters preserve whole-workflow validation; managed run remains
 a whole-workflow operation.
+
+`gwf explain` retains Task/public-job glob selection and expands diagnostics for
+the selected owning Tasks. The status namespaces and automatic view rules apply
+only to managed status; ordinary gwf workflow status is unchanged.
 
 Long names and diagnostics truncate with an ellipsis in a terminal. Use
 `--no-truncate` to wrap their full text. `--plain` removes colors, symbols, borders,
