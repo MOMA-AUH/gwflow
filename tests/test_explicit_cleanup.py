@@ -130,7 +130,7 @@ class ExplicitCleanupTests(LocalBackendTestCase):
 
     def test_cleaned_failed_attempt_uses_new_inputs_instead_of_discarded_baseline(self):
         workflow = self.work / "workflow.py"
-        workflow.write_text(workflow.read_text().replace("Task(inputs=[])", "Task(inputs=['input.txt'])", 1)
+        workflow.write_text(workflow.read_text().replace("empty_task(inputs=[])", "empty_task(inputs=['input.txt'])", 1)
                             .replace("printf a", "exit 8; printf a"))
         self.cli("run")
         self.settle()

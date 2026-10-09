@@ -12,7 +12,7 @@ from unittest.mock import patch
 from gwf.exceptions import WorkflowError
 from gwflow import Task
 
-from support import FIXTURES, GWF, LocalBackendTestCase
+from support import TASK_FACTORY, FIXTURES, GWF, LocalBackendTestCase
 import test_containers
 import test_managed
 import test_managed_recovery
@@ -67,19 +67,19 @@ class RegistryTestCase(LocalBackendTestCase):
             self.addCleanup(environment.stop)
         reference = self.reference if reference is None else reference
         declaration = (
-            "from gwflow import Task, Workflow\ngwf = Workflow()\ntask = Task(inputs=[])\n"
+            TASK_FACTORY + "from gwflow import Task, Workflow\ngwf = Workflow()\ntask = empty_task(inputs=[])\n"
             f"target = task.target('compute', inputs=[], outputs=['out.txt'], image={reference!r})\n"
             "target << 'test -z \"$(ls -A .)\"; cat \"$APPTAINER_CONTAINER\" > out.txt'\n"
             "task.retain('result', source=target.output('out.txt'), path='out.txt')\n"
-            "gwf.task_from_template('sample', task)\n"
+            "gwf.task(task, alias='sample')\n"
         )
         if other:
             declaration += (
-                "task = Task(inputs=[])\n"
+                "task = empty_task(inputs=[])\n"
                 "target = task.target('compute', inputs=[], outputs=['out.txt'])\n"
                 "target << 'printf independent > out.txt'\n"
                 "task.retain('result', source=target.output('out.txt'), path='out.txt')\n"
-                "gwf.task_from_template('independent', task)\n"
+                "gwf.task(task, alias='independent')\n"
             )
         (self.work / "workflow.py").write_text(declaration)
 

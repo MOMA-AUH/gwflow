@@ -121,13 +121,13 @@ class TransferRecoveryTests(LocalBackendTestCase):
 
     def add_consumer(self):
         workflow = self.work / "workflow.py"
-        workflow.write_text(workflow.read_text().replace("gwf.task_from_template('a'", "a = gwf.task_from_template('a'") +
+        workflow.write_text(workflow.read_text().replace("gwf.task(task, alias='a'", "a = gwf.task(task, alias='a'") +
                             "from gwflow import shell\n"
-                            "consumer = Task(inputs=[a.outputs['one'], a.outputs['two']])\n"
+                            "consumer = empty_task(inputs=[a.outputs['one'], a.outputs['two']])\n"
                             "target = consumer.target('join', inputs=consumer.inputs, outputs=['joined.txt'])\n"
                             f"target << shell({'cat {first} {second} > {out}; echo consumer >> ' + shlex.quote(str(self.work / 'trace'))!r}, first=a.outputs['one'], second=a.outputs['two'], out=target.output('joined.txt'))\n"
                             "consumer.retain('joined', source=target.output('joined.txt'), path='joined.txt')\n"
-                            "gwf.task_from_template('c', consumer)\n")
+                            "gwf.task(consumer, alias='c')\n")
 
     def test_queued_consumer_protects_installed_set_even_when_declaration_removed(self):
         self.add_consumer()

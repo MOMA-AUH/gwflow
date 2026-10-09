@@ -9,9 +9,9 @@ import unittest
 
 from gwf.backends.local import Client, LocalStatus
 from gwf.exceptions import WorkflowError
-from gwflow import Task, Workflow
+from gwflow import Task, Workflow, task_template
 
-from support import LocalBackendTestCase
+from support import TASK_FACTORY, LocalBackendTestCase
 
 
 class ManagedAuthoringTests(unittest.TestCase):
@@ -54,12 +54,16 @@ class ManagedAuthoringTests(unittest.TestCase):
             shell("echo literal", unused=target.output("out.txt"))
 
     def test_factory_exposes_named_retained_outputs_after_registration(self):
-        task = Task(inputs=[])
-        target = task.target("write", inputs=[], outputs=["nested/result.txt"])
-        target << "mkdir -p nested; printf hello > nested/result.txt"
-        task.retain("report", source=target.output("nested/result.txt"), path="report.txt")
+        @task_template
+        def sample():
+            task = Task(inputs=[])
+            target = task.target("write", inputs=[], outputs=["nested/result.txt"])
+            target << "mkdir -p nested; printf hello > nested/result.txt"
+            task.retain("report", source=target.output("nested/result.txt"), path="report.txt")
+            return task
+
         workflow = Workflow(working_dir=".")
-        handle = workflow.task_from_template("sample", task)
+        handle = workflow.task(sample())
         self.assertEqual(set(handle.outputs), {"report"})
         with self.assertRaises(KeyError):
             handle.outputs["internal"]
@@ -68,24 +72,24 @@ class ManagedAuthoringTests(unittest.TestCase):
 class ManagedCliTests(LocalBackendTestCase):
     def configure_workflow(self, **options):
         (self.work / "workflow.py").write_text(
-            "from gwflow import Task, Workflow\n"
+            TASK_FACTORY + "from gwflow import Task, Workflow\n"
             "gwf = Workflow()\n"
-            "task = Task(inputs=[])\n"
+            "task = empty_task(inputs=[])\n"
             "target = task.target('write', inputs=[], outputs=['nested/result.txt', 'scratch.txt'])\n"
             "target << 'mkdir -p nested; printf hello > nested/result.txt; printf private > scratch.txt'\n"
             "task.retain('report', source=target.output('nested/result.txt'), path='report.txt')\n"
-            "gwf.task_from_template('sample', task)\n"
+            "gwf.task(task, alias='sample')\n"
         )
 
     def write_task(self, command, *, outputs=("out.txt",), retained=True, settings="", name="sample"):
         (self.work / "workflow.py").write_text(
-            "from gwflow import Task, Workflow, shell\n"
+            TASK_FACTORY + "from gwflow import Task, Workflow, shell\n"
             f"gwf = Workflow({settings})\n"
-            "task = Task(inputs=[])\n"
+            "task = empty_task(inputs=[])\n"
             f"target = task.target('write', inputs=[], outputs={list(outputs)!r})\n"
             f"target << {command!r}\n"
             + (f"task.retain('result', source=target.output({outputs[0]!r}), path='result.txt')\n" if retained else "")
-            + f"gwf.task_from_template({name!r}, task)\n"
+            + f"gwf.task(task, alias={name!r})\n"
         )
 
     def settle(self):
@@ -241,7 +245,7 @@ class ManagedCliTests(LocalBackendTestCase):
         self.write_task("unused")
         workflow = self.work / "workflow.py"
         original = workflow.read_text()
-        workflow.write_text(original.replace("target << 'unused'", "other = Task(inputs=[]).target('other', inputs=[], outputs=['out.txt'])\ntarget << shell('cat {outside}', outside=other.output('out.txt'))"))
+        workflow.write_text(original.replace("target << 'unused'", "other = empty_task(inputs=[]).target('other', inputs=[], outputs=['out.txt'])\ntarget << shell('cat {outside}', outside=other.output('out.txt'))"))
         self.assertIn("not a declared input or output", self.cli("run", success=False))
         self.assertFalse((self.work / "work").exists())
         workflow.write_text(original.replace("target('write', inputs=[]", "target('write', inputs=['input.txt']"))
@@ -287,7 +291,7 @@ class ManagedCliTests(LocalBackendTestCase):
     def test_registered_factories_are_independent_snapshots(self):
         self.write_task("printf first > out.txt")
         with (self.work / "workflow.py").open("a") as stream:
-            stream.write("gwf.task_from_template('second', task)\n"
+            stream.write("gwf.task(task, alias='second')\n"
                          "target.spec = 'false'\n"
                          "target.outputs.append('missing.txt')\n")
         self.run_complete()

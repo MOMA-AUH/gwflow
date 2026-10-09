@@ -24,8 +24,9 @@ class RepresentativePlanningTests(RegistryTestCase):
     def configure_workflow(self):
         RegistryTestCase.configure_workflow(self)
         (self.work / "workflow.py").write_text(
-            "from gwflow import Task, Workflow, shell\n"
+            "from gwflow import Task, Workflow, shell, task_template\n"
             "gwf = Workflow()\n"
+            "@task_template\n"
             "def chain(inputs, count):\n"
             "    task = Task(inputs=inputs)\n"
             "    incoming = inputs\n"
@@ -38,9 +39,9 @@ class RepresentativePlanningTests(RegistryTestCase):
             "    for index in range(2):\n"
             "        task.retain(f'value{index}', source=incoming[0], path=f'value{index}.txt')\n"
             "    return task\n"
-            "reference = gwf.task_from_template('reference', chain(['input.txt'], 8))\n"
+            "reference = gwf.task(chain(['input.txt'], 8), alias='reference')\n"
             "for index in range(24):\n"
-            "    gwf.task_from_template(f'sample{index:02}', chain(list(reference.outputs.values()), 15))\n"
+            "    gwf.task(chain(list(reference.outputs.values()), 15), alias=f'sample{index:02}')\n"
         )
 
     def wait_for(self, predicate):

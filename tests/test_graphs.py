@@ -6,7 +6,7 @@ import json
 import shlex
 import shutil
 
-from support import FIXTURES, LocalBackendTestCase
+from support import TASK_FACTORY, FIXTURES, LocalBackendTestCase
 import test_managed
 import test_managed_recovery
 
@@ -24,9 +24,9 @@ class TaskGraphTests(LocalBackendTestCase):
             right_command = 'echo right >> ' + trace + '; printf right > same.txt'
         join_command = 'echo join >> ' + trace + '; cat {left} {right} > {out}'
         (self.work / "workflow.py").write_text(
-            "from gwflow import Task, Workflow, shell\n"
+            TASK_FACTORY + "from gwflow import Task, Workflow, shell\n"
             "gwf = Workflow()\n"
-            "task = Task(inputs=[])\n"
+            "task = empty_task(inputs=[])\n"
             "left = task.target('left', inputs=[], outputs=['same.txt'])\n"
             f"left << {left_command!r}\n"
             f"right = task.target('right', inputs=[], outputs={list(right_outputs)!r})\n"
@@ -34,7 +34,7 @@ class TaskGraphTests(LocalBackendTestCase):
             "join = task.target('join', inputs=[left.output('same.txt'), right.output('same.txt')], outputs=['joined.txt'])\n"
             f"join << shell({join_command!r}, left=left.output('same.txt'), right=right.output('same.txt'), out=join.output('joined.txt'))\n"
             "task.retain('joined', source=join.output('joined.txt'), path='result.txt')\n"
-            "gwf.task_from_template('sample', task)\n"
+            "gwf.task(task, alias='sample')\n"
         )
 
     def test_target_references_read_distinct_committed_output_sets(self):
@@ -89,7 +89,7 @@ class TaskGraphTests(LocalBackendTestCase):
             "done = task.target('done', inputs=[], outputs=['done.txt'])\n" +
             f"done << {'echo done >> ' + trace + '; printf done > done.txt'!r}\n" +
             "task.retain('right', source=right.output('same.txt'), path='result.txt')\n" +
-            "gwf.task_from_template('sample', task)\n")
+            "gwf.task(task, alias='sample')\n")
         self.cli("run")
         self.wait_for(held.exists)
         def right_failed():
@@ -166,8 +166,8 @@ class TaskGraphTests(LocalBackendTestCase):
         workflow = self.work / "workflow.py"
         original = workflow.read_text()
         variants = [
-            original.replace("gwf.task_from_template", "left.inputs.append(join.output('joined.txt'))\ngwf.task_from_template"),
-            original.replace("right = task.target", "foreign = Task(inputs=[]).target('foreign', inputs=[], outputs=['data'])\nleft.inputs.append(foreign.output('data'))\nright = task.target"),
+            original.replace("gwf.task", "left.inputs.append(join.output('joined.txt'))\ngwf.task"),
+            original.replace("right = task.target", "foreign = empty_task(inputs=[]).target('foreign', inputs=[], outputs=['data'])\nleft.inputs.append(foreign.output('data'))\nright = task.target"),
             original.replace("inputs=[left.output('same.txt'), right.output('same.txt')]", "inputs=[right.output('same.txt')]"),
         ]
         for declaration in variants:
@@ -265,7 +265,7 @@ class TaskGraphTests(LocalBackendTestCase):
         consumer = (f"echo consumer >> {trace}; printf '%s' {{source}} > {shlex.quote(str(self.work / 'source-path'))}; touch {shlex.quote(str(held))}; "
                     f"while [ ! -e {shlex.quote(str(release))} ]; do sleep 0.025; done; cat {{source}} > {{out}}")
         (self.work / "workflow.py").write_text(
-            "from gwflow import Task, Workflow, shell\ngwf = Workflow()\ntask = Task(inputs=[])\n"
+            TASK_FACTORY + "from gwflow import Task, Workflow, shell\ngwf = Workflow()\ntask = empty_task(inputs=[])\n"
             "left = task.target('left', inputs=[], outputs=['left.txt'])\n"
             f"left << {('echo left >> ' + trace + '; printf left > left.txt')!r}\n"
             "right = task.target('right', inputs=[], outputs=['right.txt'])\n"
@@ -273,7 +273,7 @@ class TaskGraphTests(LocalBackendTestCase):
             "consumer = task.target('consumer', inputs=[left.output('left.txt')], outputs=['out.txt'])\n"
             f"consumer << shell({consumer!r}, source=left.output('left.txt'), out=consumer.output('out.txt'))\n"
             "task.retain('result', source=consumer.output('out.txt'), path='result.txt')\n"
-            "gwf.task_from_template('sample', task)\n"
+            "gwf.task(task, alias='sample')\n"
         )
         self.cli("run")
         self.wait_for(held.exists)

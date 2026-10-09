@@ -24,6 +24,14 @@ from gwf.backends.local import Client, LocalStatus
 GWF = str(Path(sys.executable).with_name("gwf"))
 FIXTURES = Path(__file__).parent / "fixtures"
 
+# Storage and lifecycle fixtures fill in targets after creating a decorated
+# definition so individual tests can vary declarations before registration.
+TASK_FACTORY = """from gwflow import Task, task_template
+@task_template
+def empty_task(inputs, **options):
+    return Task(inputs, **options)
+"""
+
 
 class LocalBackendTestCase(unittest.TestCase):
     workers = 2

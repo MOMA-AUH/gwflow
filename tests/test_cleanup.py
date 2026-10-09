@@ -18,7 +18,7 @@ class CompletedWorkCleanupTests(LocalBackendTestCase):
         test_fresh.FreshAttemptTests.configure_workflow(self)
         workflow = self.work / "workflow.py"
         self.with_consumer = workflow.read_text()
-        workflow.write_text(self.with_consumer.split("task = Task(inputs=[a.outputs")[0])
+        workflow.write_text(self.with_consumer.split("task = empty_task(inputs=[a.outputs")[0])
 
     def test_preview_then_delete_preserves_results_and_only_new_consumer_computes(self):
         self.run_complete()

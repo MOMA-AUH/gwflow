@@ -125,8 +125,8 @@ class LifecycleInspectionTests(LocalBackendTestCase):
         self.run_complete()
         workflow = self.work / "workflow.py"
         original = workflow.read_text()
-        workflow.write_text(original.replace("a = gwf.task_from_template",
-                                             "task.retain('extra', source=target.output('private.txt'), path='extra.txt')\na = gwf.task_from_template"))
+        workflow.write_text(original.replace("a = gwf.task",
+                                             "task.retain('extra', source=target.output('private.txt'), path='extra.txt')\na = gwf.task"))
         self.assertIn("changed declared structure: retained mappings", self.preview())
         workflow.write_text(original.replace("printf a", "printf UPDATED_A"))
         preview = self.preview()
@@ -138,7 +138,7 @@ class LifecycleInspectionTests(LocalBackendTestCase):
 
     def test_changed_input_metadata_reports_the_path_and_changed_fields(self):
         workflow = self.work / "workflow.py"
-        workflow.write_text(workflow.read_text().replace("Task(inputs=[])", "Task(inputs=['input.txt'])", 1))
+        workflow.write_text(workflow.read_text().replace("empty_task(inputs=[])", "empty_task(inputs=['input.txt'])", 1))
         self.run_complete()
         source = self.work / "input.txt"
         before = source.stat()
@@ -212,8 +212,8 @@ class LifecycleInspectionTests(LocalBackendTestCase):
         self.assertNotRegex(filtered, r"Task a\s+Run\s+")
         self.assertEqual(self.snapshot(), before)
         workflow = self.work / "workflow.py"
-        workflow.write_text(workflow.read_text().replace("b = gwf.task_from_template",
-                                                        "target.outputs.append('../escape')\nb = gwf.task_from_template"))
+        workflow.write_text(workflow.read_text().replace("b = gwf.task",
+                                                        "target.outputs.append('../escape')\nb = gwf.task"))
         for command in (("explain", "a"), ("status", "a"), ("run", "--dry-run")):
             with self.subTest(command=command):
                 self.assertIn("Invalid managed relative path", self.cli(*command, success=False))
@@ -221,7 +221,7 @@ class LifecycleInspectionTests(LocalBackendTestCase):
 
     def test_changed_inputs_after_cleanup_are_still_explained(self):
         workflow = self.work / "workflow.py"
-        workflow.write_text(workflow.read_text().replace("Task(inputs=[])", "Task(inputs=['input.txt'])", 1))
+        workflow.write_text(workflow.read_text().replace("empty_task(inputs=[])", "empty_task(inputs=['input.txt'])", 1))
         self.run_complete()
         self.cli("clean-work", "--delete", "--task", "a")
         (self.work / "input.txt").write_text("changed after cleanup\n")

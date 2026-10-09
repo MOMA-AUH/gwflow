@@ -4,7 +4,7 @@ import json
 import os
 import shutil
 
-from support import FIXTURES, LocalBackendTestCase
+from support import TASK_FACTORY, FIXTURES, LocalBackendTestCase
 import test_managed
 import test_managed_recovery
 
@@ -19,14 +19,14 @@ class ExternalInputTests(LocalBackendTestCase):
         if command is None:
             command = "printf '%s\\n' {source} > alias.txt; cat {source} > {out}"
         (self.work / "workflow.py").write_text(
-            "from gwflow import Task, Workflow, shell\n"
+            TASK_FACTORY + "from gwflow import Task, Workflow, shell\n"
             f"gwf = Workflow({settings})\n"
-            f"task = Task(inputs={boundary!r})\n"
+            f"task = empty_task(inputs={boundary!r})\n"
             f"target = task.target('read', inputs={[source]!r}, outputs=['out.txt', 'alias.txt'])\n"
             f"target << shell({command!r}, source={source!r}, out=target.output('out.txt'))\n"
             "task.retain('result', source=target.output('out.txt'), path='result.txt')\n"
             "task.retain('alias', source=target.output('alias.txt'), path='alias.txt')\n"
-            "gwf.task_from_template('sample', task)\n"
+            "gwf.task(task, alias='sample')\n"
         )
 
     def test_external_alias_is_absolute_read_in_place_and_reusable(self):

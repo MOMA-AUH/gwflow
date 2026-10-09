@@ -85,19 +85,49 @@ python -m pip install .
 Create `workflow.py`:
 
 ```python
-from gwflow import Task, Workflow, shell
+from gwflow import Task, Workflow, shell, task_template
 
 gwf = Workflow()
-task = Task(inputs=[])
-write = task.target("write", inputs=[], outputs=["message.txt", "scratch.txt"])
-write << shell(
-    "printf 'hello\\n' > {message}; printf temporary > scratch.txt",
-    message=write.output("message.txt"),
-)
-task.retain("message", source=write.output("message.txt"), path="message.txt")
-hello = gwf.task_from_template("hello", task)
+@task_template
+def hello_task():
+    task = Task(inputs=[])
+    write = task.target("write", inputs=[], outputs=["message.txt", "scratch.txt"])
+    write << shell(
+        "printf 'hello\\n' > {message}; printf temporary > scratch.txt",
+        message=write.output("message.txt"),
+    )
+    task.retain("message", source=write.output("message.txt"), path="message.txt")
+    return task
+
+hello = gwf.task(hello_task(), alias="hello")
 # hello.outputs["message"] is the named retained-output reference.
 ```
+
+Every registered Task comes from a factory decorated with `@task_template`,
+including one-off work. Register it with
+`workflow.task(definition, *, key=None, alias=None, result_dir=None)`.
+The prefix defaults to the factory's function name; `alias` supplies a different
+prefix. An omitted key uses the prefix alone; a supplied key produces
+`prefix__key`. For example, a factory named `duplex_mapping` and key `sample_A`
+produce `duplex_mapping__sample_A`. Reordering registrations never changes names.
+The examples below use aliases to keep their short inspection names.
+
+Prefixes start with an ASCII letter or underscore and contain only ASCII
+letters, digits, underscores, and dots. Keys allow the same characters, including
+a leading digit or dot. Supplied aliases and keys must be nonempty strings;
+whitespace, trailing newlines, and other characters are rejected without
+normalization. Double underscores are allowed. Duplicate Task names and duplicate
+public job names (`Task_name__local_target`) are authoring errors identifying both
+declarations; qualification never repairs collisions. A Task name may equal a
+public job name. Local target and lifecycle job names remain unchanged.
+
+Each factory call produces an independent definition, and registration snapshots
+it. Later edits cannot change registered work. Nested decorated factories use the
+outer factory's identity. Current declarations retain the module-qualified factory
+identity and naming components separately from persisted work and Reuse checks.
+Moving a factory between modules alone preserves Reuse, including after work
+cleanup. Changing its generated Task name changes identity and never adopts the
+old Task's results. The previous registration method has been removed.
 
 Run and inspect through gwf:
 
@@ -259,11 +289,15 @@ outputs can be declared without being bound into the command.
 Targets can select a deployment-provided local Apptainer SIF explicitly:
 
 ```python
-task = Task(inputs=[])
-run = task.target("compute", inputs=[], outputs=["out.txt"], image="images/tool.sif")
-run << "image-tool > out.txt"
-task.retain("result", source=run.output("out.txt"), path="out.txt")
-gwf.task_from_template("container_example", task)
+@task_template
+def container_example_task():
+    task = Task(inputs=[])
+    run = task.target("compute", inputs=[], outputs=["out.txt"], image="images/tool.sif")
+    run << "image-tool > out.txt"
+    task.retain("result", source=run.output("out.txt"), path="out.txt")
+    return task
+
+gwf.task(container_example_task(), alias="container_example")
 ```
 
 The image must provide `/bin/bash` and every authored-command dependency; it
@@ -434,14 +468,18 @@ For example, two `summary.csv` inputs can be assigned `sales/summary.csv` and
 
 ```python
 reference, index = "data/reference.fasta", "indexes/reference.index"
-task = Task(inputs=[reference, index])
-read = task.target("read", inputs=task.inputs, outputs=["out.txt"],
-                   image="images/tool.sif",
-                   stage_as={"ref/genome.fa": reference, "ref/genome.fa.fai": index})
-read << shell("cat {reference} {reference}.fai > {out}",
-              reference=reference, out=read.output("out.txt"))
-task.retain("result", source=read.output("out.txt"), path="out.txt")
-gwf.task_from_template("companions", task)
+@task_template
+def companions_task():
+    task = Task(inputs=[reference, index])
+    read = task.target("read", inputs=task.inputs, outputs=["out.txt"],
+                       image="images/tool.sif",
+                       stage_as={"ref/genome.fa": reference, "ref/genome.fa.fai": index})
+    read << shell("cat {reference} {reference}.fai > {out}",
+                  reference=reference, out=read.output("out.txt"))
+    task.retain("result", source=read.output("out.txt"), path="out.txt")
+    return task
+
+gwf.task(companions_task(), alias="companions")
 ```
 
 Bindings still name the original input; the command receives its staged path,
@@ -462,22 +500,26 @@ references. For example, with two deployment-provided images containing Bash
 and the commands shown:
 
 ```python
-task = Task(inputs=[])
-seed = task.target("seed", inputs=[], outputs=["seed.txt"])
-seed << "printf 'hello\\n' > seed.txt"
-upper = task.target("upper", inputs=[seed.output("seed.txt")],
-                    outputs=["upper.txt"], image="images/text.sif")
-upper << shell("tr '[:lower:]' '[:upper:]' < {source} > {out}",
-               source=seed.output("seed.txt"), out=upper.output("upper.txt"))
-count = task.target("count", inputs=[upper.output("upper.txt")],
-                    outputs=["count.txt"], image="images/count.sif")
-count << shell("wc -c < {source} > {out}",
-               source=upper.output("upper.txt"), out=count.output("count.txt"))
-report = task.target("report", inputs=[count.output("count.txt")], outputs=["report.txt"])
-report << shell("cat {source} > {out}",
-                source=count.output("count.txt"), out=report.output("report.txt"))
-task.retain("report", source=report.output("report.txt"), path="report.txt")
-producer = gwf.task_from_template("mixed", task)
+@task_template
+def mixed_task():
+    task = Task(inputs=[])
+    seed = task.target("seed", inputs=[], outputs=["seed.txt"])
+    seed << "printf 'hello\\n' > seed.txt"
+    upper = task.target("upper", inputs=[seed.output("seed.txt")],
+                        outputs=["upper.txt"], image="images/text.sif")
+    upper << shell("tr '[:lower:]' '[:upper:]' < {source} > {out}",
+                   source=seed.output("seed.txt"), out=upper.output("upper.txt"))
+    count = task.target("count", inputs=[upper.output("upper.txt")],
+                        outputs=["count.txt"], image="images/count.sif")
+    count << shell("wc -c < {source} > {out}",
+                   source=upper.output("upper.txt"), out=count.output("count.txt"))
+    report = task.target("report", inputs=[count.output("count.txt")], outputs=["report.txt"])
+    report << shell("cat {source} > {out}",
+                    source=count.output("count.txt"), out=report.output("report.txt"))
+    task.retain("report", source=report.output("report.txt"), path="report.txt")
+    return task
+
+producer = gwf.task(mixed_task(), alias="mixed")
 ```
 
 Another Task can declare `producer.outputs["report"]` in its boundary and target
@@ -510,11 +552,15 @@ Deployment owners are responsible for conflicting mount settings.
 Declare external files in both the Task boundary and each target that reads them:
 
 ```python
-task = Task(inputs=["input.txt"])
-read = task.target("read", inputs=["input.txt"], outputs=["copy.txt"])
-read << shell("cat {source} > {copy}", source="input.txt", copy=read.output("copy.txt"))
-task.retain("copy", source=read.output("copy.txt"), path="copy.txt")
-gwf.task_from_template("copy", task)
+@task_template
+def copy_task():
+    task = Task(inputs=["input.txt"])
+    read = task.target("read", inputs=["input.txt"], outputs=["copy.txt"])
+    read << shell("cat {source} > {copy}", source="input.txt", copy=read.output("copy.txt"))
+    task.retain("copy", source=read.output("copy.txt"), path="copy.txt")
+    return task
+
+gwf.task(copy_task(), alias="copy")
 ```
 
 Relative input paths are Workflow-relative. Commands receive absolute declared
@@ -526,11 +572,15 @@ even when a command binds a file.
 Connect Tasks through the retained names returned by registration:
 
 ```python
-consumer = Task(inputs=[hello.outputs["message"]])
-read_message = consumer.target("read", inputs=consumer.inputs, outputs=["copy.txt"])
-read_message << shell("cat {source} > {out}", source=hello.outputs["message"], out=read_message.output("copy.txt"))
-consumer.retain("copy", source=read_message.output("copy.txt"), path="copy.txt")
-gwf.task_from_template("consumer", consumer)
+@task_template
+def consumer_task():
+    consumer = Task(inputs=[hello.outputs["message"]])
+    read_message = consumer.target("read", inputs=consumer.inputs, outputs=["copy.txt"])
+    read_message << shell("cat {source} > {out}", source=hello.outputs["message"], out=read_message.output("copy.txt"))
+    consumer.retain("copy", source=read_message.output("copy.txt"), path="copy.txt")
+    return consumer
+
+gwf.task(consumer_task(), alias="consumer")
 ```
 
 The consumer does not need the producer's filename or results root. Handles
@@ -804,7 +854,7 @@ gwf = Workflow(
     results_root="/durable/project/results",
     results_staging_root="/durable/project/staging",
 )
-handle = gwf.task_from_template("sample_a", task, result_dir="samples/a/report")
+handle = gwf.task(hello_task(), alias="sample_a", result_dir="samples/a/report")
 ```
 
 Roots default to `work/` and `results/` beneath the workflow directory. A Task's

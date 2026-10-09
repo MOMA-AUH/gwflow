@@ -9,7 +9,7 @@ import shlex
 import shutil
 import unittest
 
-from support import FIXTURES, LocalBackendTestCase
+from support import TASK_FACTORY, FIXTURES, LocalBackendTestCase
 import test_containers
 import test_container_graphs
 import test_managed
@@ -33,7 +33,7 @@ class ContainerRecoveryTests(LocalBackendTestCase):
                  'test ! -e abandoned; test ! -e "$TMPDIR/abandoned"; printf partial > right.txt; '
                  f'if [ -e {failure} ]; then touch abandoned "$TMPDIR/abandoned"; exit 7; fi; printf right > right.txt')
         (self.work / "workflow.py").write_text(
-            "from gwflow import Task, Workflow, shell\ngwf = Workflow()\ntask = Task(inputs=[])\n"
+            TASK_FACTORY + "from gwflow import Task, Workflow, shell\ngwf = Workflow()\ntask = empty_task(inputs=[])\n"
             f"left = task.target('left', inputs=[], outputs=['left.txt'], image={str(self.image)!r})\n"
             f"left << {'echo left >> ' + trace + '; printf left > left.txt'!r}\n"
             f"right = task.target('right', inputs=[], outputs=['right.txt'], image={str(self.image)!r})\n"
@@ -41,7 +41,7 @@ class ContainerRecoveryTests(LocalBackendTestCase):
             f"join = task.target('join', inputs=[left.output('left.txt'), right.output('right.txt')], outputs=['joined.txt'], image={str(self.image)!r})\n"
             f"join << shell({'echo join >> ' + trace + '; cat {left} {right} > {out}'!r}, left=left.output('left.txt'), right=right.output('right.txt'), out=join.output('joined.txt'))\n"
             "task.retain('value', source=join.output('joined.txt'), path='result.txt')\n"
-            "producer = gwf.task_from_template('sample', task)\n"
+            "producer = gwf.task(task, alias='sample')\n"
         )
 
     def counts(self):
@@ -71,11 +71,11 @@ class ContainerRecoveryTests(LocalBackendTestCase):
         workflow = self.work / "workflow.py"
         command = f"echo consumer >> {shlex.quote(str(self.work / 'trace'))}; cat {{source}} > copy.txt"
         workflow.write_text(workflow.read_text() +
-            "task = Task(inputs=[producer.outputs['value']])\n"
+            "task = empty_task(inputs=[producer.outputs['value']])\n"
             f"read = task.target('read', inputs=task.inputs, outputs=['copy.txt'], image={str(self.image)!r})\n"
             f"read << shell({command!r}, source=producer.outputs['value'])\n"
             "task.retain('copy', source=read.output('copy.txt'), path='result.txt')\n"
-            "gwf.task_from_template('consumer', task)\n")
+            "gwf.task(task, alias='consumer')\n")
 
     def test_ordinary_retry_preserves_successful_branch_and_uses_fresh_private_storage(self):
         self.cli("run")

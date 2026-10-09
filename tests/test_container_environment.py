@@ -7,19 +7,19 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from support import LocalBackendTestCase
+from support import TASK_FACTORY, LocalBackendTestCase
 
 
 def write_workflow(work, commands, *, managed=True, work_root="work"):
-    declaration = f"from gwflow import Task, Workflow\ngwf = Workflow(managed_tmpdir={managed!r}, work_root={work_root!r})\n"
+    declaration = TASK_FACTORY + f"from gwflow import Task, Workflow\ngwf = Workflow(managed_tmpdir={managed!r}, work_root={work_root!r})\n"
     for name, command, container in commands:
         image = os.environ["GWFLOW_TEST_SIF"] if container else None
         declaration += (
-            "task = Task(inputs=[])\n"
+            "task = empty_task(inputs=[])\n"
             f"target = task.target('compute', inputs=[], outputs=['out.txt'], image={image!r})\n"
             f"target << {command!r}\n"
             "task.retain('value', source=target.output('out.txt'), path='result.txt')\n"
-            f"gwf.task_from_template({name!r}, task)\n"
+            f"gwf.task(task, alias={name!r})\n"
         )
     (work / "workflow.py").write_text(declaration)
 

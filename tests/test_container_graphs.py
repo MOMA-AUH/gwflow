@@ -8,7 +8,7 @@ import shlex
 import shutil
 import unittest
 
-from support import FIXTURES, LocalBackendTestCase
+from support import TASK_FACTORY, FIXTURES, LocalBackendTestCase
 import test_managed
 import test_managed_recovery
 
@@ -28,7 +28,7 @@ class ContainerGraphTests(LocalBackendTestCase):
     def write_workflow(self, *, consumer=True, second_image="second image.sif", second_container=True):
         trace = shlex.quote(str(self.work / "trace"))
         source_check = 'test -L {source}; test "$(dirname {source})" = "$PWD"; if echo damaged > {source}; then exit 1; fi; '
-        declaration = "from gwflow import Task, Workflow, shell\ngwf = Workflow()\ntask = Task(inputs=[])\n"
+        declaration = TASK_FACTORY + "from gwflow import Task, Workflow, shell\ngwf = Workflow()\ntask = empty_task(inputs=[])\n"
         declaration += (
             "host = task.target('host', inputs=[], outputs=['seed.txt'])\n"
             f"host << {'echo host >> ' + trace + '; printf start > seed.txt'!r}\n"
@@ -39,20 +39,20 @@ class ContainerGraphTests(LocalBackendTestCase):
             "last = task.target('last', inputs=[second.output('second.txt')], outputs=['final.txt'])\n"
             f"last << shell({'echo last >> ' + trace + '; test ! -L {source}; cat {source} > {out}; touch -m -d @946684800 {out}'!r}, source=second.output('second.txt'), out=last.output('final.txt'))\n"
             "task.retain('value', source=last.output('final.txt'), path='result.txt')\n"
-            "producer = gwf.task_from_template('producer', task)\n"
-            "task = Task(inputs=[])\n"
+            "producer = gwf.task(task, alias='producer')\n"
+            "task = empty_task(inputs=[])\n"
             "alone = task.target('compute', inputs=[], outputs=['isolated.txt'])\n"
             f"alone << {'echo independent >> ' + trace + '; printf independent > isolated.txt'!r}\n"
             "task.retain('value', source=alone.output('isolated.txt'), path='result.txt')\n"
-            "gwf.task_from_template('independent', task)\n"
+            "gwf.task(task, alias='independent')\n"
         )
         if consumer:
             declaration += (
-                "task = Task(inputs=[producer.outputs['value']])\n"
+                "task = empty_task(inputs=[producer.outputs['value']])\n"
                 "read = task.target('read', inputs=task.inputs, outputs=['copy.txt'], image='first image.sif')\n"
                 f"read << shell({source_check + 'echo consumer >> ' + trace + '; cat {source} > {out}'!r}, source=producer.outputs['value'], out=read.output('copy.txt'))\n"
                 "task.retain('value', source=read.output('copy.txt'), path='result.txt')\n"
-                "gwf.task_from_template('consumer', task)\n"
+                "gwf.task(task, alias='consumer')\n"
             )
         (self.work / "workflow.py").write_text(declaration)
 
@@ -219,12 +219,12 @@ class ContainerGraphTests(LocalBackendTestCase):
         original = workflow.read_text()
         variants = {
             "undeclared target input": original.replace("inputs=[host.output('seed.txt')]", "inputs=[]"),
-            "foreign target": original.replace("host = task.target", "host = Task(inputs=[]).target"),
-            "target cycle": original.replace("producer = gwf.task_from_template", "host.inputs = [second.output('second.txt')]\nproducer = gwf.task_from_template"),
+            "foreign target": original.replace("host = task.target", "host = empty_task(inputs=[]).target"),
+            "target cycle": original.replace("producer = gwf.task", "host.inputs = [second.output('second.txt')]\nproducer = gwf.task"),
             "internal cross-Task output": original.replace("producer.outputs['value']", "last.output('final.txt')"),
-            "undeclared boundary": original.replace("Task(inputs=[producer.outputs['value']])", "Task(inputs=[])"),
-            "foreign Workflow": original.replace("producer = gwf.task_from_template", "producer = Workflow().task_from_template"),
-            "Task cycle": original.replace("task = Task(inputs=[producer.outputs['value']])", "cycle = type(producer.outputs['value'])(gwf, 'consumer', 'value')\ntask = Task(inputs=[cycle])").replace("source=producer.outputs['value']", "source=cycle"),
+            "undeclared boundary": original.replace("empty_task(inputs=[producer.outputs['value']])", "empty_task(inputs=[])"),
+            "foreign Workflow": original.replace("producer = gwf.task", "producer = Workflow().task"),
+            "Task cycle": original.replace("task = empty_task(inputs=[producer.outputs['value']])", "cycle = type(producer.outputs['value'])(gwf, 'consumer', 'value')\ntask = empty_task(inputs=[cycle])").replace("source=producer.outputs['value']", "source=cycle"),
         }
         for label, declaration in variants.items():
             with self.subTest(label=label):
