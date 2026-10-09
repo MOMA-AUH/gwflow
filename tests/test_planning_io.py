@@ -173,8 +173,8 @@ class ProducerEvidenceTests(LocalBackendTestCase):
     def check_shared_evidence(self, consumers, references):
         self.configure_workflow(consumers, references)
         self.run_complete()
-        output, report = self.probe("status")
-        self.assertEqual(output, self.cli_result("status").stdout)
+        output, report = self.probe("status", "--instances")
+        self.assertEqual(output, self.cli_result("status", "--instances").stdout)
         self.assertEqual(output.count("reusable"), consumers + 2)
         producer_reads = {path: count for path, count in report["paths"]["planning"].items()
                           if path.startswith("read:") and "/tasks/reference/" in path}
