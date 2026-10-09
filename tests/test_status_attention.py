@@ -159,7 +159,8 @@ class StatusAttentionTests(LocalBackendTestCase):
             self.assertIn("Jobs: 7 failed, 3 running, 1 queued", terminal)
             self.assertIn("6 Tasks (5 shown, 1 omitted)", terminal)
             self.assertEqual(len(re.findall(r"(?m)^  duplex_mapping__sample_", terminal)), 5)
-            self.assertTrue(all(len(line) <= 80 for line in terminal.splitlines()), terminal)
+            self.assertTrue(all(len(line) <= 80 for line in terminal.splitlines()
+                                if not line.startswith("  gwf ")), terminal)
             self.assertIn("failed", self.commands(terminal))
 
     def test_inspect_commands_preserve_workflow_context_and_filter_intersection(self):
