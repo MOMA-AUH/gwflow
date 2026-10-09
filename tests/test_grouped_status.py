@@ -110,6 +110,50 @@ class GroupedStatusTests(LocalBackendTestCase):
         self.assertNotIn("active", output)
         self.cli("status", "--status", "active", success=False)
 
+    def test_overview_decorates_counts_and_preserves_plain_output(self):
+        self.run_complete()
+        environment = self.inject(running_prefix="mapping__A__compute",
+                                  queued_prefix="remapping__B__compute", record_status=True)
+        environment.update(TERM="xterm-256color", PYTHONIOENCODING="utf-8")
+        before = self.snapshot()
+        record = self.work / "backend-observations.jsonl"
+        record.unlink(missing_ok=True)
+        redirected = self.cli("--use-color", "-b", "recovery_fixture", "status", env=environment)
+        observations = record.read_text().splitlines()
+        for width in (40, 100):
+            for color in ("--use-color", "--no-color"):
+                with self.subTest(width=width, color=color):
+                    record.unlink()
+                    raw = self.terminal_cli(color, "-b", "recovery_fixture", "status",
+                                            width=width, env=environment).stdout
+                    output = re.sub(r"\x1b\[[0-9;]*m", "", raw)
+                    words = " ".join(output.split())
+                    for label in ("▶ 1 active", "◷ 1 queued", "✓ 2 reusable", "✓ 2/3"):
+                        self.assertIn(label, words)
+                    self.assertIn("mapping", output)
+                    self.assertIn("remapping", output)
+                    self.assertTrue(all(len(line) <= width for line in output.splitlines()), output)
+                    if color == "--use-color":
+                        for style in ("32", "34", "36"):
+                            self.assertIn(f"\x1b[{style}m", raw)
+                    else:
+                        self.assertNotIn("\x1b[", raw)
+                    self.assertEqual(record.read_text().splitlines(), observations)
+                    self.assertEqual(self.snapshot(), before)
+        plain = self.terminal_cli("--use-color", "-b", "recovery_fixture", "status", "--plain",
+                                  env=environment).stdout
+        ascii_output = self.terminal_cli("--use-color", "-b", "recovery_fixture", "status",
+                                         env={**environment, "PYTHONIOENCODING": "ascii"}).stdout
+        dumb = self.terminal_cli("--use-color", "-b", "recovery_fixture", "status",
+                                 env={**environment, "TERM": "dumb"}).stdout
+        for output in (redirected, plain, ascii_output, dumb):
+            self.assertNotRegex(output, "[✓▶◷]|\x1b\\[")
+            self.assertIn("1 active", output)
+            self.assertIn("1 queued", output)
+            self.assertIn("2 reusable", output)
+            self.assertRegex(output, r"(?m)^mapping\s+2/3\s+1 active$")
+            self.assertRegex(output, r"(?m)^remapping\s+0/1\s+1 queued$")
+
     def test_repair_and_deferred_groups_keep_required_reminder(self):
         workflow = self.work / "workflow.py"
         workflow.write_text(workflow.read_text() +
