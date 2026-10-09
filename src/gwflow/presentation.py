@@ -4,6 +4,7 @@ from collections import Counter
 from dataclasses import dataclass
 from fnmatch import fnmatchcase
 import os
+import shlex
 import sys
 
 import click
@@ -23,6 +24,8 @@ from .workflow import lifecycle_jobs
 STATES = ("pending", "queued", "preparing", "running", "finishing", "reusable",
           "repairable", "deferred", "failed", "canceled", "blocked")
 ACTIVE = ("preparing", "running", "finishing")
+ATTENTION = ("blocked", "failed", "canceled")
+DIAGNOSTIC_JOBS = ("failed", "canceled", "running", "queued")
 NEXT_ACTIONS = {
     "fresh": "Run", "initialize": "Run", "continue": "Continue",
     "retry": "Retry", "prepare": "Retry", "transfer": "Finish", "repair": "Repair",
@@ -134,7 +137,7 @@ def task_row(task):
         completed = None
     detail = []
     if task.action == "blocked":
-        detail.append(blocking_reason(task.reason) or "validation prevents proceeding; see gwf explain --details")
+        detail.append(blocking_detail(task.reason))
     elif task.action == "reuse":
         detail.append("work present" if task.work_present else "work cleaned")
     elif task.action == "repair":
@@ -147,11 +150,7 @@ def task_row(task):
         detail.append("fresh attempt required")
     if task.action in ("retry", "prepare"):
         detail.append("retry available")
-    for label in ("failed", "canceled", "running", "queued"):
-        count = counts[label]
-        if count:
-            description = "still running" if label == "running" and state in ("blocked", "failed", "canceled") else label
-            detail.append(f"{count} job{'s' if count != 1 else ''} {description}")
+    detail.extend(job_diagnostics(counts, state))
     if completed is None:
         detail.append("progress unavailable")
     return TaskRow(task, state, completed, len(jobs), "; ".join(detail), jobs)
@@ -171,6 +170,18 @@ def blocking_reason(reason):
         if reason.lower().startswith(fragment.lower()):
             return concise
     return None
+
+
+def blocking_detail(reason):
+    return blocking_reason(reason) or "validation prevents proceeding; see gwf explain --details"
+
+
+def job_diagnostics(counts, state):
+    for label in DIAGNOSTIC_JOBS:
+        count = counts[label]
+        if count:
+            description = "still running" if label == "running" and state in ATTENTION else label
+            yield f"{count} job{'s' if count != 1 else ''} {description}"
 
 
 def needs_later_finish(task):
@@ -220,6 +231,19 @@ def summary(rows, total):
 
 def overview_counts(rows):
     return Counter("active" if row.state in ACTIVE else row.state for row in rows)
+
+
+def observed_jobs(task):
+    """Count observations, including removed jobs, independently of progress."""
+    counts = Counter()
+    for item in task.submissions.values():
+        if item.state == "active":
+            counts["queued" if item.backend_state == BackendStatus.SUBMITTED else "running"] += 1
+        elif item.state in ("failed", "cancelled"):
+            counts["canceled" if item.state == "cancelled" else "failed"] += 1
+    incomplete = not task.observations_available or any(
+        item.state == "uncertain" for item in task.submissions.values())
+    return counts, incomplete
 
 
 def matches(name, patterns):
@@ -325,6 +349,46 @@ class Report:
             fraction = f"{counts['reusable']}/{len(members)}"
             other = ", ".join(f"{count} {state}" for state, count in counts.items() if state != "reusable")
             self.line(f"{group.label:<{width}}  {fraction:>8}  {other}".rstrip(), complete=True)
+
+    def attention(self, rows, command):
+        categories = [(state, [row for row in rows if row.state == state])
+                      for state in ATTENTION]
+        if not any(members for _, members in categories):
+            return
+        self.line("\nNeeds attention", complete=True, style="bold yellow")
+        for state, members in categories:
+            if not members:
+                continue
+            observations = [(row, *observed_jobs(row.task)) for row in members]
+            counts = Counter()
+            for _, jobs, _ in observations:
+                counts.update(jobs)
+            incomplete = sum(unavailable for _, _, unavailable in observations)
+            count = len(members)
+            heading = f"{state.title()}: {count} Task{'s' if count != 1 else ''}"
+            if count > 5:
+                heading += f" (5 shown, {count - 5} omitted)"
+            self.line(heading, complete=True)
+            if counts:
+                self.line("  Jobs: " + ", ".join(f"{counts[label]} {label}" for label in DIAGNOSTIC_JOBS if counts[label]), complete=True)
+            if incomplete:
+                self.line(f"  Observations incomplete for {incomplete} Task{'s' if incomplete != 1 else ''}; "
+                          "job totals include only available observations.", complete=True)
+            for row, jobs, unavailable in observations[:5]:
+                detail = []
+                if state == "blocked":
+                    detail.append(blocking_detail(row.task.reason))
+                detail.extend(job_diagnostics(jobs, state))
+                if unavailable:
+                    detail.append("observations incomplete")
+                if row.completed is None:
+                    detail.append("progress unavailable")
+                self.line(f"  {row.task.name}  " + "; ".join(detail), complete=True)
+            self.line(f"\nAll {state} Tasks:", complete=True)
+            # Let the terminal wrap visually without inserting breaks into a
+            # command that users can copy and execute.
+            click.echo("  " + shlex.join([*command, "--status", state, "--instances"]), color=False)
+            self.line("", complete=True)
 
     def workflow_notices(self, tasks, rows):
         tasks = list(tasks)

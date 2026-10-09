@@ -21,6 +21,27 @@ class _StatusChoice(click.Choice):
         return super().convert("canceled" if value == "cancelled" else value, param, ctx)
 
 
+def inspection_command(targets, endpoints, group, plain, no_truncate):
+    """Retain invocation context and selection; attention supplies one state."""
+    root = click.get_current_context().find_root()
+    command = ["gwf"]
+    for name, option in (("file", "--file"), ("backend", "--backend"), ("verbose", "--verbose")):
+        if root.get_parameter_source(name) == click.core.ParameterSource.COMMANDLINE:
+            command.extend((option, str(root.params[name])))
+    if root.get_parameter_source("no_color") == click.core.ParameterSource.COMMANDLINE:
+        command.append("--no-color" if root.params["no_color"] else "--use-color")
+    command.extend(("status", *targets))
+    if endpoints:
+        command.append("--endpoints")
+    for pattern in group:
+        command.extend(("--group", pattern))
+    if plain:
+        command.append("--plain")
+    if no_truncate:
+        command.append("--no-truncate")
+    return command
+
+
 def _plain_status(workflow, ctx, targets, endpoints, output_format, statuses, group):
     if set(statuses) - {state_name(state) for state in Status}:
         raise click.UsageError("Ordinary gwf status filters use target states: "
@@ -81,6 +102,7 @@ def managed_status(ctx, targets, endpoints, output_format, statuses, group, inst
                 if row.task.name in names]
         if view == "overview":
             report.overview(groups, rows, len(plan.tasks))
+            report.attention(rows, inspection_command(targets, endpoints, group, plain, no_truncate))
         else:
             report.status(rows, len(plan.tasks), expand=view == "details")
         report.workflow_notices(task_order(workflow, plan), rows)
