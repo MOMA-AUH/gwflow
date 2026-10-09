@@ -210,6 +210,10 @@ def summary(rows, total):
         "\n" + ", ".join(f"{value} {state}" for state, value in counts.items()) if counts else "")
 
 
+def overview_counts(rows):
+    return Counter("active" if row.state in ACTIVE else row.state for row in rows)
+
+
 def matches(name, patterns):
     return any(fnmatchcase(name, pattern) for pattern in patterns)
 
@@ -297,7 +301,7 @@ class Report:
 
     def overview(self, groups, rows, total):
         self.line(f"{len(rows)} of {total} Tasks selected", complete=True)
-        counts = Counter("active" if row.state in ACTIVE else row.state for row in rows)
+        counts = overview_counts(rows)
         self.line(", ".join(f"{count} {state}" for state, count in counts.items()), complete=True)
         selected = {row.task.name: row for row in rows}
         visible = [(group, [selected[name] for name in group.members if name in selected]) for group in groups]
@@ -309,7 +313,7 @@ class Report:
         self.line("")
         self.line(f"{'Group':<{width}}  Reusable  Other states", complete=True)
         for group, members in visible:
-            counts = Counter("active" if row.state in ACTIVE else row.state for row in members)
+            counts = overview_counts(members)
             fraction = f"{counts['reusable']}/{len(members)}"
             other = ", ".join(f"{count} {state}" for state, count in counts.items() if state != "reusable")
             self.line(f"{group.label:<{width}}  {fraction:>8}  {other}".rstrip(), complete=True)
