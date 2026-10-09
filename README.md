@@ -165,7 +165,40 @@ Group              Reusable  Other states
 prepare_reference       1/1
 duplex_mapping        14/24  4 active, 6 failed
 mutect2_calling        18/20  2 queued
+
+Needs attention
+Failed: 6 Tasks (5 shown, 1 omitted)
+  Jobs: 7 failed, 3 running, 1 queued
+  duplex_mapping__sample_07  1 job failed; 1 job still running
+  duplex_mapping__sample_08  1 job failed
+  duplex_mapping__sample_09  1 job failed; 1 job queued
+  duplex_mapping__sample_10  1 job failed
+  duplex_mapping__sample_11  1 job failed
+
+All failed Tasks:
+  gwf status --status failed --instances
 ```
+
+`Needs attention` independently previews up to five blocked, five failed, and
+five canceled Tasks in dependency order. Each category shows its complete
+selected Task count and, when capped, its shown and omitted counts. Repairable
+and deferred Tasks remain in the state totals and required workflow notices.
+Instance and detailed views show all selected Tasks without repeating a preview.
+
+Category `Jobs` totals count observed failed, canceled, running, and queued jobs
+across every selected category member, including omitted Tasks. These are job
+counts, distinct from the primary Task-state counts and Reuse fraction. In the
+example the omitted sixth failed Task contributes two failures and two running
+jobs. Observed active jobs removed from a declaration still count in diagnostics
+but stay outside the current declared progress denominator. Incomplete
+observations are marked explicitly; unavailable evidence never implies zero
+activity or known completion.
+
+Each category prints a shell-quoted command to inspect all its selected Tasks.
+The command retains workflow/backend options, positional selectors, endpoints,
+and computation-group filters, and restricts any existing state selection to
+that category with `--instances`. For example, selecting
+`'task:duplex_mapping__sample_[AB]'` keeps that exact argument in the command.
 
 Filters apply before counting, empty groups are omitted, and an empty selection
 succeeds with `No Tasks selected.`. Filter-only requests keep the group overview.

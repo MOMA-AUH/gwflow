@@ -71,7 +71,8 @@ class RecoveryBackend(TrackingBackend):
         if target.name == self.options.get("hold_submission") or (self.options.get("hold_submission_prefix") and target.name.startswith(self.options["hold_submission_prefix"] + "__")):
             (self.work / "submission-held").touch()
             wait_for(lambda: (self.work / "submission-release").exists())
-        if self.options.get("job_fault") and target.name.startswith(self.options["job_fault"] + "__"):
+        faults = [*self.options.get("job_fault_prefixes", []), self.options.get("job_fault")]
+        if any(prefix and target.name.startswith(prefix + "__") for prefix in faults):
             original = shlex.split(target.spec)
             target.spec = shlex.join([sys.executable, str(self.work / "job_fault.py"), str(self.work), *original[1:]])
         super().submit(target, dependencies)

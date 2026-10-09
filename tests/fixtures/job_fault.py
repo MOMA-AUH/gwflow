@@ -17,6 +17,13 @@ from types import SimpleNamespace
 
 work = Path(sys.argv[1])
 options = json.loads((work / "job-fault.json").read_text())
+if "jobs" in options:
+    # Select faults by the public job name, before running the real worker.
+    task, operation = sys.argv[5], sys.argv[7]
+    local = sys.argv[9] if operation == "execute" else "gwflow_prepare" if operation == "prepare" else "gwflow_complete"
+    options = options["jobs"].get(f"{task}__{local}", {})
+if options.get("crash_before_execution"):
+    os._exit(109)
 
 
 def gate(name):
