@@ -6,6 +6,11 @@ gwflow adds managed Tasks to [gwf](https://gwf.app/): computation runs in dispos
 work storage, while named retained files are copied into stable results storage.
 Checked completion evidence lets a Task remain reusable after its work is removed.
 
+The v0.5.3 release introduces decorated Task factories and stable names through
+`@task_template` and `workflow.task(...)`, replacing the previous registration
+method. Registrations can supply aliases and instance keys; module moves alone do not
+invalidate Reuse. Packaged examples now require gwflow `>=0.5.3,<0.6`.
+
 Managed status groups Task instances by their decorated factory and name prefix.
 It shows reusable counts, state totals, bounded attention previews, and required
 workflow notices. Select a group or use `--instances` for Task rows; select a

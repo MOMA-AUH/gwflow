@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "gwflow"
-version = "0.5.2"
+version = "0.5.3"
 description = "Composable tasks, container execution, and managed storage for gwf workflows"
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
