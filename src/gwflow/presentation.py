@@ -142,7 +142,7 @@ def task_row(task):
     elif task.action == "transfer":
         detail.append("results transfer needs recovery")
     if task.action == "deferred":
-        detail.append("run again after upstream result recovery")
+        detail.append(required_followup(task))
     if task.restart_required and task.attempt:
         detail.append("fresh attempt required")
     if task.action in ("retry", "prepare"):
@@ -178,6 +178,14 @@ def needs_later_finish(task):
     return task.action == "retry" and finishing is not None and finishing.state == "active"
 
 
+def required_followup(task):
+    if task.action == "deferred":
+        return "run again after upstream result recovery"
+    if needs_later_finish(task):
+        return "run again after the queued completion job settles"
+    return None
+
+
 def plan_reason(task):
     """Keep the treatment legible; full planner diagnostics remain in details."""
     if task.action == "blocked":
@@ -192,14 +200,14 @@ def plan_reason(task):
     if task.action == "retry":
         reason = "repeat failed, canceled, or invalid jobs; retain valid completed work"
         if needs_later_finish(task):
-            reason += "; run again after the queued completion job settles"
+            reason += "; " + required_followup(task)
         return reason
     return {
         "initialize": "resume selected initialization before computation",
         "continue": "submit remaining jobs without repeating admitted work",
         "prepare": "preparation interrupted; restart in the same attempt",
         "repair": "retained results missing or changed; restore from valid work",
-        "deferred": "run again after upstream result recovery",
+        "deferred": required_followup(task),
         "active": "jobs queued or running; no new submission needed now",
     }.get(task.action, task.reason)
 
@@ -317,9 +325,27 @@ class Report:
             fraction = f"{counts['reusable']}/{len(members)}"
             other = ", ".join(f"{count} {state}" for state, count in counts.items() if state != "reusable")
             self.line(f"{group.label:<{width}}  {fraction:>8}  {other}".rstrip(), complete=True)
-        for row in rows:
-            if row.task.action == "deferred" or needs_later_finish(row.task):
-                self.line(f"Task {row.task.name}: {plan_reason(row.task)}", complete=True)
+
+    def workflow_notices(self, tasks, rows):
+        tasks = list(tasks)
+        blocked = [task for task in tasks if task.action == "blocked"]
+        followups = [(task, reminder) for task in tasks if (reminder := required_followup(task))]
+        if not blocked and not followups:
+            return
+        selected = {row.task.name for row in rows}
+
+        def label(task):
+            return task.name + (" (outside selection)" if task.name not in selected else "")
+
+        self.line("", complete=True)
+        self.line("Workflow notices", complete=True, style="bold yellow")
+        if blocked:
+            self.line("  Workflow blocked — no new jobs will be submitted. Blocked Tasks:", complete=True)
+            for task in blocked:
+                self.line("    " + label(task), complete=True)
+            self.line("  Already active jobs may still be running.", complete=True)
+        for task, reminder in followups:
+            self.line(f"  Task {label(task)}: {reminder}", complete=True)
 
     def status(self, rows, total, *, expand=False):
         heading = summary(rows, total)
