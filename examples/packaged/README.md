@@ -27,7 +27,7 @@ cd examples/packaged
 gwf config set use_spec_hashes true
 ```
 
-The example packages are version 0.4.0 and require gwflow 0.5.x. Use `-e` for
+The example packages are version 0.4.0 and require gwflow `>=0.5.3,<0.6`. Use `-e` for
 editable package development if desired. Package version or implementation
 changes have no independent invalidation; changed generated commands are tracked
 when hashes are enabled. Use explicit force for otherwise untracked changes.
