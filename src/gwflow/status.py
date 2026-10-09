@@ -10,9 +10,8 @@ from gwf.scheduling import get_status_map
 
 from ._frontend import _submission_guard
 from ._state import state_name
-from .inspection import blockage_line
 from .planning import plan_workflow
-from .presentation import STATES, Report, output_options, selected_rows, task_groups
+from .presentation import STATES, Report, output_options, selected_rows, task_groups, task_order
 from .selection import status_selection
 from .workflow import Workflow
 
@@ -78,14 +77,13 @@ def managed_status(ctx, targets, endpoints, output_format, statuses, group, inst
         elif instances:
             view = "instances"
         report = Report(plan.store, plain=plain, no_truncate=no_truncate)
-        if plan.blocked:
-            report.notice(blockage_line(plan))
         rows = [row for row in selected_rows(workflow, plan, endpoints=endpoints, statuses=statuses, group=group)
                 if row.task.name in names]
         if view == "overview":
             report.overview(groups, rows, len(plan.tasks))
         else:
             report.status(rows, len(plan.tasks), expand=view == "details")
+        report.workflow_notices(task_order(workflow, plan), rows)
 
 
 gwf_status.params = managed_status.params

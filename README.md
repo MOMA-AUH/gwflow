@@ -276,6 +276,16 @@ a whole-workflow operation.
 the selected owning Tasks. The status namespaces and automatic view rules apply
 only to managed status; ordinary gwf workflow status is unchanged.
 
+Required actions appear in a `Workflow notices` section in every status view,
+including successful empty selections. It lists every blocked Task and every
+required reminder to run again after upstream result recovery or after an active
+completion job settles during retry. Affected Tasks excluded by your selection
+carry an `(outside selection)` marker. These notices are uncapped; displayed
+Task counts still describe only your selection. A globally blocked workflow
+submits no new jobs, but already active jobs may still be running. Routine work
+directory details do not create workflow notices. Notices use the same planning
+observations as the rows and add no backend queries.
+
 Long names and diagnostics truncate with an ellipsis in a terminal. Use
 `--no-truncate` to wrap their full text. `--plain` removes colors, symbols, borders,
 and graphical bars, while keeping terminal truncation independent. Redirected
