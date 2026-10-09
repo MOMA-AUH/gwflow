@@ -272,6 +272,7 @@ def selected_rows(workflow, plan, *, targets=(), endpoints=False, statuses=(), g
 _VISUALS = {
     "pending": ("○", "magenta"), "queued": ("◷", "cyan"),
     "preparing": ("↻", "blue"), "running": ("▶", "blue"), "finishing": ("↗", "blue"),
+    "active": ("▶", "blue"),
     "reusable": ("✓", "green"), "completed": ("✓", "green"),
     "repairable": ("◇", "yellow"), "deferred": ("…", "yellow"),
     "failed": ("✗", "bold red"), "canceled": ("⊘", "red"),
@@ -345,10 +346,27 @@ class Report:
         symbol, style = _VISUALS[name]
         return Text(f"{symbol} {name}", style=style, no_wrap=True)
 
+    def _state_counts(self, counts):
+        labels = []
+        for state, count in counts.items():
+            label = f"{count} {state}"
+            if self.plain:
+                labels.append(Text(label))
+            else:
+                symbol, style = _VISUALS[state]
+                labels.append(Text(f"{symbol} {label}", style=style))
+        return Text(", ").join(labels)
+
     def overview(self, groups, rows, total):
-        self.status_line(f"{len(rows)} of {total} Tasks selected")
+        def render(text):
+            if self.plain:
+                self.status_line(text.plain)
+            else:
+                self.console.print(text)
+
+        self.status_line(f"{len(rows)} of {total} Tasks selected", style="bold cyan")
         counts = overview_counts(rows)
-        self.status_line(", ".join(f"{count} {state}" for state, count in counts.items()))
+        render(self._state_counts(counts))
         selected = {row.task.name: row for row in rows}
         visible = [(group, [selected[name] for name in group.members if name in selected]) for group in groups]
         visible = [(group, members) for group, members in visible if members]
@@ -357,26 +375,36 @@ class Report:
             return
         width = max(5, *(Text(group.label).cell_len for group, _ in visible))
         self.status_line("")
-        heading = f"{'Group':<{width}}  Reusable  Other states"
         entries = []
         for group, members in visible:
             counts = overview_counts(members)
-            fraction = f"{counts['reusable']}/{len(members)}"
-            other = ", ".join(f"{count} {state}" for state, count in counts.items() if state != "reusable")
-            label = group.label + " " * (width - Text(group.label).cell_len)
-            entries.append((group.label, fraction, other, f"{label}  {fraction:>8}  {other}".rstrip()))
-        if not self.terminal or max(Text(line).cell_len for line in [heading, *(entry[3] for entry in entries)]) <= self.console.width:
+            fraction = Text(f"{counts['reusable']}/{len(members)}")
+            if not self.plain:
+                symbol, style = _VISUALS["reusable"]
+                fraction = Text(f"{symbol} {fraction.plain}", style=style if counts["reusable"] else "dim")
+            other = self._state_counts({state: count for state, count in counts.items() if state != "reusable"})
+            entries.append((group.label, fraction, other))
+        fraction_width = max(8, *(fraction.cell_len for _, fraction, _ in entries))
+        heading = f"{'Group':<{width}}  {'Reusable':>{fraction_width}}  Other states"
+        lines = []
+        for label, fraction, other in entries:
+            line = Text(label + " " * (width - Text(label).cell_len + 2 + fraction_width - fraction.cell_len))
+            line += fraction
+            if other.plain:
+                line += Text("  ") + other
+            lines.append(line)
+        if not self.terminal or max(Text(heading).cell_len, *(line.cell_len for line in lines)) <= self.console.width:
             self.status_line(heading, style="bold")
-            for _, _, _, line in entries:
-                self.status_line(line)
+            for line in lines:
+                render(line)
         else:
-            for index, (label, fraction, other, _) in enumerate(entries):
+            for index, (label, fraction, other) in enumerate(entries):
                 if index:
                     self.status_line("")
                 self.status_line(label, style="bold")
-                self.status_line("  Reusable: " + fraction)
-                if other:
-                    self.status_line("  Other states: " + other)
+                render(Text("  Reusable: ") + fraction)
+                if other.plain:
+                    render(Text("  Other states: ") + other)
 
     def attention(self, rows, command):
         categories = [(state, [row for row in rows if row.state == state])

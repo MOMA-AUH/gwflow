@@ -153,9 +153,12 @@ class StatusAttentionTests(LocalBackendTestCase):
         self.assertEqual(self.names(expanded), [f"duplex_mapping__sample_{index:02}" for index in range(7, 13)])
         for color, options in (("--no-color", ()), ("--use-color", ()), ("--no-color", ("--plain",))):
             terminal = self.terminal_cli(color, "-b", "recovery_fixture", "status", *options,
-                                         width=80, env=environment).stdout
+                                         width=80, env={**environment, "TERM": "xterm-256color",
+                                                        "PYTHONIOENCODING": "utf-8"}).stdout
             terminal = re.sub(r"\x1b\[[0-9;]*m", "", terminal)
-            self.assertIn("45 of 45 Tasks selected\n33 reusable, 4 active, 6 failed, 2 queued", terminal)
+            summary = ("33 reusable, 4 active, 6 failed, 2 queued" if "--plain" in options else
+                       "✓ 33 reusable, ▶ 4 active, ✗ 6 failed, ◷ 2 queued")
+            self.assertIn("45 of 45 Tasks selected\n" + summary, terminal)
             self.assertIn("Jobs: 7 failed, 3 running, 1 queued", terminal)
             self.assertIn("6 Tasks (5 shown, 1 omitted)", terminal)
             self.assertEqual(len(re.findall(r"(?m)^  duplex_mapping__sample_", terminal)), 5)

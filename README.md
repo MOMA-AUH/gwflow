@@ -180,6 +180,15 @@ All failed Tasks:
   gwf status --status failed --instances
 ```
 
+In Unicode-capable terminals, the overview colors and marks each state count:
+green `✓` for reusable work, blue `▶` for active work, cyan `◷` for queued work,
+red `✗` for failures, and yellow `!` for blockage.
+Reusable fractions carry a green `✓` when nonzero and a dim `✓` at zero; the
+fraction always counts Tasks, not completed jobs. Narrow terminals stack group
+names and counts. `--no-color` keeps the symbols without color; `--plain`,
+redirected output, and terminals without Unicode support use undecorated text
+as in the example above.
+
 `Needs attention` independently previews up to five blocked, five failed, and
 five canceled Tasks in dependency order. Each category shows its complete
 selected Task count and, when capped, its shown and omitted counts. Repairable
