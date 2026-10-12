@@ -165,6 +165,19 @@ class SelectedRunTests(LocalBackendTestCase):
             self.assertNotIn("Submitted target", output)
             self.assertEqual(self.task_evidence("a", "b", "d"), before)
 
+    def test_reusable_upstream_does_not_require_unselected_consumer_observations(self):
+        self.configure_workflow(tasks=(("a", ()), ("b", ("a",)), ("d", ("a",))))
+        self.run_complete()
+        before = self.task_evidence("a", "b")
+        env = self.inject(fail_status_prefix="b")
+        preview = self.cli("-b", "recovery_fixture", "run", "d", "--force", "--dry-run", env=env)
+        self.assertEqual(self.actions(preview), {"a": "Reuse", "d": "Run"})
+        actual = self.cli("-b", "recovery_fixture", "run", "d", "--force", env=env)
+        self.assertEqual(self.actions(actual), self.actions(preview))
+        self.finish()
+        self.assertEqual(self.task_evidence("a", "b"), before)
+        self.assertEqual(self.trace(), Counter({"a": 1, "b": 1, "d": 2}))
+
 
 class SelectedImageTests(RegistryTestCase):
     actions = SelectedRunTests.actions

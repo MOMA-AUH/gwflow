@@ -294,7 +294,9 @@ def plan_workflow(workflow, ctx, *, selectors=(), force=False):
                 fresh_observation(store, observation, "no completed managed attempt")
             tasks.append(observation)
             observations_by_name[name] = observation
-        consumers = admission.consumer_activity(store, backend, ctx.backend, producers=scope)
+        changing_results = {task.name for task in tasks if task.attempt is not None
+                            and task.action in ("fresh", "initialize", "transfer", "repair")}
+        consumers = admission.consumer_activity(store, backend, ctx.backend, producers=changing_results)
         for observation in tasks:
             if observation.attempt is not None:
                 observation.consumers = consumers.get((observation.name, observation.attempt["attempt"]), {})
