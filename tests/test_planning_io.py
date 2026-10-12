@@ -64,7 +64,9 @@ class PlanningObservationTests(LocalBackendTestCase):
     def test_changed_admission_during_inspection_protects_its_producer(self):
         self.run_complete()
         _, _, writes, ack = self.new_admission()
-        result, = self.scenario([["run", "--dry-run", "--force", "a"]],
+        # Full scope observes the consumer during planning, then again while
+        # checking replacement: the later observation must see new evidence.
+        result, = self.scenario([["run", "--dry-run", "--force"]],
                                [{"pass": 0, "after": ack, "write": writes}])
         self.assertNotEqual(result["exit_code"], 0)
         self.assertRegex(result["output"], r"Task a\s+Blocked\s+")
@@ -94,7 +96,7 @@ class PlanningObservationTests(LocalBackendTestCase):
                 writes = {str(attempt_path): attempt,
                           str(attempt_path.parent / "submissions" / generation / selected.name): intent,
                           str(attempt_path.parent / "admissions" / token / "intent.json"): intent}
-                result, = self.scenario([["run", "--dry-run", "--force", "a"]],
+                result, = self.scenario([["run", "--dry-run", "--force"]],
                                        [{"pass": 0, "after": str(ack), "write": writes}])
                 self.assertNotEqual(result["exit_code"], 0)
                 self.assertRegex(result["output"], r"Task a\s+Blocked\s+")
