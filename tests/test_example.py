@@ -36,7 +36,11 @@ class PackagedExampleTests(LocalBackendTestCase):
 
     def test_installed_producers_clean_then_new_consumer_computes_only_once(self):
         producers_only = {**os.environ, "GWFLOW_EXAMPLE_REPORT": "0"}
-        first = self.cli("run", env=producers_only)
+        preview = self.cli("run", "A", "B", "--dry-run", env=producers_only)
+        self.assertRegex(preview, r"Task A\s+Run\s+")
+        self.assertRegex(preview, r"Task B\s+Run\s+")
+        self.assertNotIn("Task C", preview)
+        first = self.cli("run", "A", "B", env=producers_only)
         self.finish()
         self.assertIn("Submitted target A__clean", first)
         self.assertIn("Submitted target B__clean", first)
@@ -44,11 +48,16 @@ class PackagedExampleTests(LocalBackendTestCase):
         before = {path: (path.read_bytes(), path.stat().st_mtime_ns)
                   for root in (self.work / ".gwf/gwflow", self.work / "work", self.work / "results")
                   for path in root.rglob("*") if path.is_file()}
-        preview = self.cli("clean", env=producers_only)
+        preview = self.cli("clean", "A", "B", env=producers_only)
         self.assertIn("eligible", preview)
         self.assertEqual({path: (path.read_bytes(), path.stat().st_mtime_ns) for path in before}, before)
-        self.cli("clean", "--delete", env=producers_only)
-        second = self.run_complete()
+        self.cli("clean", "A", "B", "--delete", env=producers_only)
+        preview = self.cli("run", "C", "--dry-run")
+        self.assertRegex(preview, r"Task A\s+Reuse\s+")
+        self.assertRegex(preview, r"Task B\s+Reuse\s+")
+        self.assertRegex(preview, r"Task C\s+Run\s+")
+        second = self.cli("run", "C")
+        self.finish()
         self.assertIn("Submitted target C__join", second)
         self.assertNotIn("Submitted target A__", second)
         self.assertNotIn("Submitted target B__", second)

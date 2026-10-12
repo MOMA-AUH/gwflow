@@ -1,73 +1,70 @@
 # Packaged workflow
 
 This example assembles three managed Tasks from two independently installable
-Python packages. A and B use `summary_task.templates.summarize(source)` to clean and total
-sales and returns. C uses `report_task.templates.net_report(sales, returns)` with the
-**named retained references** returned by registering A and B. Factories declare
-local outputs and retained mappings; the pipeline chooses each `result_dir`.
+Python packages. A and B use `summary_task.templates.summarize(source)` to clean
+and total sales and returns. C uses `report_task.templates.net_report(sales,
+returns)` with A and B's named retained references. Factories define work and
+retained files; the pipeline chooses each `result_dir`.
 
 | Task | Input | Private intermediate | Retained file |
 | --- | --- | --- | --- |
 | A | `data/sales.csv` | `cleaned.csv` | `results/sales/summary.csv` |
 | B | `data/returns.csv` | `cleaned.csv` | `results/returns/summary.csv` |
-| C | A/B `outputs["summary"]` references | `joined.csv` | `results/net/net.csv` |
+| C | A/B `outputs["summary"]` | `joined.csv` | `results/net/net.csv` |
 
-Each Task contains two computation targets. A and B are independent. C's
-preparation waits for checked Completion of both producers, including all their
-branches and retained-set installation. Results contain just these three CSVs;
-execution identities and bookkeeping live outside results.
+Each Task has two computation targets. A and B are independent. C's preparation
+waits for checked Completion of both producers, including their full retained
+sets. Results contain only the three CSVs; bookkeeping stays outside results.
 
-From the repository root, install into a Python 3.12 environment containing
-pinned gwf 2.1.1:
+## Host execution
+
+From this repository checkout, install into a Python 3.12 environment:
 
 ```sh
 python -m pip install .
 python -m pip install ./examples/packaged/packages/summary-task ./examples/packaged/packages/report-task
 cd examples/packaged
-gwf config set use_spec_hashes true
+gwflow config set use_spec_hashes true
 ```
 
-The example packages are version 0.4.0 and require gwflow `>=0.5.3,<0.6`. Use `-e` for
-editable package development if desired. Package version or implementation
-changes have no independent invalidation; changed generated commands are tracked
-when hashes are enabled. Use explicit force for otherwise untracked changes.
+The factory packages accept gwflow `>=0.5.3,<0.7`; the commands below use the
+current checkout's dedicated `gwflow` CLI. Editable installs with `-e` are also
+supported. Package implementation or version changes do not independently
+invalidate Reuse; use force for changes not reflected in tracked commands,
+structure, inputs, or images.
 
-Start local workers in a second terminal, in this directory and environment:
+Start workers in a second terminal with the same environment and directory:
 
 ```sh
-gwf -b local workers -n 2
+gwflow -b local workers -n 2
 ```
 
-Back in the first terminal, complete only A and B. The example's environment
-switch omits C's declaration so it can be added later:
+In the first terminal, select only A and B:
 
 ```sh
-GWFLOW_EXAMPLE_REPORT=0 gwf -b local run
-GWFLOW_EXAMPLE_REPORT=0 gwf -b local status
+gwflow -b local run A B --dry-run
+gwflow -b local run A B
+gwflow -b local status A B
 ```
 
-Submission returns immediately. Wait until status reports both Tasks as
-`reusable` with `work-present`, then preview and delete their eligible work:
+Submission is asynchronous. Repeat status until both Tasks are `reusable`, then
+preview and delete their eligible work:
 
 ```sh
-GWFLOW_EXAMPLE_REPORT=0 gwf -b local clean-work
-GWFLOW_EXAMPLE_REPORT=0 gwf -b local clean-work --delete
+gwflow -b local clean A B
+gwflow -b local clean A B --delete
 ```
 
-Unset `GWFLOW_EXAMPLE_REPORT` if it was exported in your shell. Now add C and
-inspect status until it also becomes reusable:
+Now select C. Its preview includes reusable A/B dependencies, while its status
+shows C alone:
 
 ```sh
-gwf -b local run
-gwf -b local status
-cat results/net/net.csv
+gwflow -b local run C --dry-run
+gwflow -b local run C
+gwflow -b local status C
 ```
 
-Use `gwf -b local status --details` when debugging to include lifecycle reasons,
-attempts, paths, execution submissions, and log locations.
-
-Only C computes, using the producers' retained files while A/B work remains
-absent. The exact report is:
+Wait for C to become reusable, then run `cat results/net/net.csv`:
 
 ```csv
 product,sales,returns,net
@@ -75,36 +72,29 @@ apples,17,2,15
 pears,8,1,7
 ```
 
-A subsequent unchanged `gwf -b local run` submits no jobs. Starting with C enabled
-also works: all Tasks are submitted together with producer dependencies. Keep
-results and `.gwf/` for reuse. Cleanup gives up intermediate retry/repair sources;
-if retained results later become damaged, cleaned producers must compute afresh.
+Only C computes, using retained files while A/B work remains absent. An unchanged
+`gwflow -b local run` submits no new jobs. An initial run without selectors also
+works, submitting all three Tasks with producer dependencies.
 
-For Slurm, use the configured backend and shared storage visible to compute nodes.
-Site resources belong in Workflow defaults; gwf 2.1.1 calls the partition option
-`queue`. See the [managed lifecycle documentation](../../README.md) for storage
-placement, force, repair, uncertainty and operational assumptions, and the
-[validation record](../../docs/validation/containers/acceptance.md) for tested infrastructure.
+Use `gwflow -b local status C --details` for job states,
+`gwflow -b local run C --dry-run --details` for reasons, attempts and paths, and
+`gwflow -b local logs C__join --stderr --no-pager` for an individual job log.
+Keep results and `.gwf/` together. Cleanup gives up retry/repair sources; damaged
+results require fresh computation once the corresponding work has been cleaned.
+Stop local workers with Ctrl-C when finished.
+
+To try adding a consumer declaration later, run the producer commands with
+`GWFLOW_EXAMPLE_REPORT=0`, then unset that variable before selecting C.
+The [release smoke check](../../tests/release_smoke.py) exercises this extension
+through the installed package and the same Task selectors.
 
 ## Prepared container images
 
-`container-workflow.py` selects images through ordinary factory arguments:
-
-```python
-sales = gwf.task(summarize("data/sales.csv", image="images/summary.sif"), alias="A", result_dir="sales",
-)
-returns = gwf.task(summarize("data/returns.csv", image="images/summary.sif"), alias="B", result_dir="returns",
-)
-gwf.task(net_report(sales.outputs["summary"], returns.outputs["summary"],
-                    image="images/report.sif"), alias="C", result_dir="net",
-)
-```
-
-The factories pass the image to each computation target. The report factory's
-join target uses `stage_as={"sales/summary.csv": sales,
-"returns/summary.csv": returns}` so the identically named retained inputs remain
-distinct. Shell bindings still use the original retained references. Relative
-image paths resolve from the workflow directory.
+[`container-workflow.py`](container-workflow.py) supplies `image="images/summary.sif"`
+to the summary factories and `image="images/report.sif"` to the report factory.
+The join target uses `stage_as={"sales/summary.csv": sales,
+"returns/summary.csv": returns}` to distinguish inputs with the same basename.
+Shell bindings still use the original retained references.
 
 On Linux with deployment-provided Apptainer 1.5.4, prepare images from the
 repository root after installing the host packages above:
@@ -116,38 +106,39 @@ cp -r examples/packaged/data build/packaged-container-demo/
 apptainer build build/packaged-container-demo/images/summary.sif examples/packaged/images/summary.def
 apptainer build build/packaged-container-demo/images/report.sif examples/packaged/images/report.def
 cd build/packaged-container-demo
-gwf config set use_spec_hashes true
+gwflow config set use_spec_hashes true
 ```
 
-Use a fresh demonstration directory for v0.5 state; existing older managed
-records are not migrated. Building these images is fixture/deployment setup,
-requiring network access to the Python base image and package build requirements.
-gwflow itself accepts already prepared local SIF paths and does not acquire them.
-Each image provides Bash, Python 3.12, and its independently installed command
-package. Image build tests verify that the command module loads without gwflow
-installed. Factories need gwflow on the host; their container commands run
-`python -m summary_task` or `python -m report_task` using the image interpreter.
-Keep the images stable and available throughout the demonstration.
+Use a fresh demonstration directory. Image builds need network access for their
+base image and build dependencies; gwflow uses the prepared local SIF paths.
+Each image provides Bash, Python 3.12, and its command package. Image build tests
+check that the command module loads without gwflow in the image. Factories use
+gwflow on the host; commands run `python -m summary_task` or
+`python -m report_task` with the image's interpreter. Keep images available and
+unchanged throughout execution.
 
-Run the same local-worker sequence above in this fresh directory: complete A/B
-with `GWFLOW_EXAMPLE_REPORT=0`, preview `clean-work`, delete eligible work, then
-run with C enabled. The preview preserves work, results and records. Deletion
-retains checked Completion and normal `gwf logs A__clean --stderr --no-pager`
-access. Only C computes, producing the exact CSV shown above; A/B work stays
-absent, and a subsequent unchanged run submits no jobs.
+Start workers in this directory and follow the same A/B → cleanup → C sequence.
+Cleanup preserves results, checked Completion, and logs such as
+`gwflow -b local logs A__clean --stderr --no-pager`. The output CSV and subsequent
+Reuse are the same as for host execution.
 
-For Slurm, put the whole demonstration directory on shared storage visible at
-the same paths on compute nodes. Apptainer must be on the job PATH, and the host
-Python environment with gwf, gwflow and both factory packages must also be
-available there. Set suitable site resources in the copied workflow, for example:
+## Slurm and further guidance
+
+For Slurm, keep the workflow, installed Python environment, managed storage, and
+images visible at the same absolute paths on frontend and compute nodes.
+Apptainer must be on the job PATH for container commands. Choose site resources
+in Workflow defaults; gwf 2.1.1 calls the partition option `queue`, for example:
 
 ```python
 gwf = Workflow(defaults={"queue": "short", "cores": 1,
                          "memory": "256m", "walltime": "00:02:00"})
 ```
 
-Replace `-b local` with `-b slurm` for run, status and cleanup; do not start local
-workers. Wait for the same reusable states before deleting work or adding C.
-The queue and resource values are deployment choices, not portable defaults.
-Ordinary Apptainer site mounts remain enabled. Final cross-backend observations
-are recorded in the linked v0.4 validation record.
+Replace `-b local` with `-b slurm` for run, status, logs, and cleanup, and do not
+start local workers. Queue and resource values are site choices. Wait for the
+same reusable states before cleanup. Ordinary Apptainer site mounts remain
+enabled.
+
+See the [reference guide](../../docs/reference.md) for storage, force, Repair,
+uncertainty, and container details, and the [validation guide](../../docs/validation/README.md)
+for current checks and version-specific historical evidence.
