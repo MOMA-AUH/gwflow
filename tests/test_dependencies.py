@@ -49,7 +49,7 @@ class TaskDependencyTests(LocalBackendTestCase):
         self.assertEqual(Counter((self.work / "trace").read_text().splitlines()), {"producer": 2, "consumer": 1})
         for name in ("a", "b"):
             self.assertFalse((self.work / "work" / name).exists())
-        self.assertEqual(self.cli("explain").count("Reuse"), 3)
+        self.assertEqual(self.cli("run", "--dry-run").count("Reuse"), 3)
         self.cli("run")
         self.assertEqual(Counter((self.work / "trace").read_text().splitlines()), {"producer": 2, "consumer": 1})
 
@@ -71,7 +71,7 @@ class TaskDependencyTests(LocalBackendTestCase):
             self.assertIn("--dependency=afterok:" + ":".join(producer_ids), submitted("c__gwflow_prepare")["args"])
             self.assertNotIn("consumer", (self.work / "trace").read_text().splitlines())
             self.assertFalse((self.work / "retained data/first producer").exists())
-            explanation = self.cli("-b", "slurm", "explain", "--details", "a", env=env)
+            explanation = self.cli("-b", "slurm", "run", "--dry-run", "--details", env=env)
             self.assertIn("Active consumer c:", explanation)
             self.assertIn("c__gwflow_prepare", explanation)
         finally:
@@ -104,16 +104,15 @@ class TaskDependencyTests(LocalBackendTestCase):
         self.cli("run")
         self.wait_for(held.exists)
         try:
-            expected = self.cli("explain", "--details", "c")
+            expected = self.cli("run", "--dry-run", "--details")
             self.assertIn("Expected producer a:", expected)
             self.assertIn("Expected producer b:", expected)
             self.configure_workflow(consumer=False)
-            self.assertIn("Active consumer c:", self.cli("explain", "--details", "a"))
-            self.assertIn("Active consumer c:", self.cli("explain", "--details", "b"))
+            self.assertIn("Active consumer c:", self.cli("run", "--dry-run", "--details"))
         finally:
             release.touch()
         self.finish()
-        self.assertNotIn("Active consumer c:", self.cli("explain", "--details", "a"))
+        self.assertNotIn("Active consumer c:", self.cli("run", "--dry-run", "--details"))
 
     def wrong_generation_before(self, job):
         shutil.copy(FIXTURES / "job_fault.py", self.work)
@@ -150,10 +149,10 @@ class TaskDependencyTests(LocalBackendTestCase):
         try:
             self.assertIn("consumer", (self.work / "trace").read_text().splitlines())
             self.assertFalse((self.work / "retained data/c").exists())
-            explanation = self.cli("explain", "--details", "a")
+            explanation = self.cli("run", "--dry-run", "--details")
             self.assertIn("Active consumer c:", explanation)
             self.assertIn("c__gwflow_complete", explanation)
         finally:
             (self.work / "manifest-release").touch()
         self.finish()
-        self.assertNotIn("Active consumer c:", self.cli("explain", "--details", "a"))
+        self.assertNotIn("Active consumer c:", self.cli("run", "--dry-run", "--details"))

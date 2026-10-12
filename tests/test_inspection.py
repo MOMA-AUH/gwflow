@@ -29,13 +29,9 @@ class LifecycleInspectionTests(LocalBackendTestCase):
 
     def preview(self, *options, success=True, env=None, backend=()):
         before = self.snapshot()
-        explanation = self.cli(*backend, "explain", "--details", *options, env=env)
         dry_run = self.cli(*backend, "run", "--dry-run", "--details", *options, success=success, env=env)
         self.assertEqual(self.snapshot(), before)
-        for line in re.findall(r"Task [^\n]+", explanation):
-            self.assertIn(line, dry_run)
-        self.assertEqual(re.findall(r"Would submit (\S+)", dry_run), re.findall(r"Would submit (\S+)", explanation))
-        return explanation
+        return dry_run
 
     def run_previewed(self, preview, *options, success=True, env=None, backend=()):
         actual = self.cli(*backend, "run", "--details", *options, success=success, env=env)
@@ -75,13 +71,13 @@ class LifecycleInspectionTests(LocalBackendTestCase):
         failing = self.work / "fail-right"
         failing.touch()
         test_graphs.TaskGraphTests.configure_workflow(self, right_command=(
-            f"echo right >> {shlex.quote(str(self.work / 'trace'))}; echo LOCATION=$PWD; "
+            f"echo right >> {shlex.quote(str(self.work / 'trace'))}; echo LOCATION=$PWD; echo job-error >&2; "
             f"if [ -e {shlex.quote(str(failing))} ]; then exit 8; fi; printf right > same.txt"
         ))
         self.cli("run")
         self.settle()
         before = self.snapshot()
-        details = self.cli("explain", "--details")
+        details = self.cli("run", "--dry-run", "--details")
         first = re.search(r"sample__right: (\S+)", details).group(1)
         self.assertIn("(failed)", details)
         self.assertIn("Backend job:", details)
@@ -89,6 +85,8 @@ class LifecycleInspectionTests(LocalBackendTestCase):
         self.assertIn("Staging:", details)
         self.assertEqual(self.snapshot(), before)
         original_log = self.cli("logs", first, "--no-pager")
+        self.assertIn("job-error", self.cli("logs", first, "--stderr", "--no-pager"))
+        self.assertNotIn("job-error", original_log)
         failing.unlink()
         preview = self.preview()
         self.assertRegex(preview, r"Task sample\s+Retry\s+")
@@ -96,26 +94,29 @@ class LifecycleInspectionTests(LocalBackendTestCase):
         self.settle()
         self.cli("run", "--force")
         self.settle()
-        details = self.cli("explain", "--details")
+        details = self.cli("run", "--dry-run", "--details")
         latest = re.search(r"sample__right: (\S+)", details).group(1)
         self.assertNotEqual(first, latest)
         latest_log = self.cli("logs", latest, "--no-pager")
         self.assertEqual(self.cli("logs", "sample__right", "--no-pager"), latest_log)
-        self.cli("clean-work", "--delete")
+        self.cli("clean", "--delete")
         self.assertEqual(self.cli("logs", first, "--no-pager"), original_log)
+        self.assertIn("job-error", self.cli("logs", first, "--stderr", "--no-pager"))
+        for invalid in ("sample", "sample__*"):
+            self.cli("logs", invalid, "--no-pager", success=False)
         self.assertEqual(self.cli("logs", "sample__right", "--no-pager"), latest_log)
 
     def test_compact_status_distinguishes_condition_from_next_action_and_cleaned_work(self):
         self.assertRegex(self.cli("status", "--instances"), r"Task a\s+pending\s+0/3")
-        self.assertIn("Next action: Run", self.cli("explain", "a", "--details"))
+        self.assertIn("Next action: Run", self.cli("run", "--dry-run", "--details"))
         self.run_complete()
         self.assertRegex(self.cli("status", "--instances"), r"Task a\s+reusable\s+3/3\s+work present")
         (self.work / "results/a/result.txt").unlink()
         self.assertRegex(self.cli("status", "--instances"), r"Task a\s+repairable\s+2/3\s+retained results need repair")
-        self.assertIn("Next action: Repair", self.cli("explain", "a", "--details"))
+        self.assertIn("Next action: Repair", self.cli("run", "--dry-run", "--details"))
         self.cli("run")
         self.finish()
-        self.cli("clean-work", "--delete", "--task", "a")
+        self.cli("clean", "--delete", "--task", "a")
         before = self.snapshot()
         self.assertRegex(self.cli("status", "--instances"), r"Task a\s+reusable\s+3/3\s+work cleaned")
         self.assertEqual(self.snapshot(), before)
@@ -191,7 +192,7 @@ class LifecycleInspectionTests(LocalBackendTestCase):
         self.cli("run")
         self.wait_for(held.exists)
         try:
-            self.wait_for(lambda: re.search(r"Task b\s+Reuse\s+", self.cli("explain", "b")))
+            self.wait_for(lambda: re.search(r"Task b\s+Reuse\s+", self.cli("run", "--dry-run")))
             preview = self.preview()
             self.assertRegex(preview, r"Task a\s+Wait\s+")
             self.run_previewed(preview)
@@ -203,18 +204,18 @@ class LifecycleInspectionTests(LocalBackendTestCase):
             release.touch()
         self.finish()
 
-    def test_display_filters_preserve_whole_workflow_validation_and_force_planning(self):
+    def test_preview_preserves_whole_workflow_validation_and_force_planning(self):
         self.run_complete()
         before = self.snapshot()
-        filtered = self.cli("explain", "--force-task", "a", "c")
+        filtered = self.cli("run", "--dry-run", "--force-task", "a")
         self.assertRegex(filtered, r"Task c\s+Run\s+")
         self.assertIn("producer a will start a fresh attempt", filtered)
-        self.assertNotRegex(filtered, r"Task a\s+Run\s+")
+        self.assertRegex(filtered, r"Task a\s+Run\s+")
         self.assertEqual(self.snapshot(), before)
         workflow = self.work / "workflow.py"
         workflow.write_text(workflow.read_text().replace("b = gwf.task",
                                                         "target.outputs.append('../escape')\nb = gwf.task"))
-        for command in (("explain", "a"), ("status", "a"), ("run", "--dry-run")):
+        for command in (("run", "--dry-run"), ("status", "a"), ("run", "--dry-run")):
             with self.subTest(command=command):
                 self.assertIn("Invalid managed relative path", self.cli(*command, success=False))
                 self.assertEqual(self.snapshot(), before)
@@ -223,7 +224,7 @@ class LifecycleInspectionTests(LocalBackendTestCase):
         workflow = self.work / "workflow.py"
         workflow.write_text(workflow.read_text().replace("empty_task(inputs=[])", "empty_task(inputs=['input.txt'])", 1))
         self.run_complete()
-        self.cli("clean-work", "--delete", "--task", "a")
+        self.cli("clean", "--delete", "--task", "a")
         (self.work / "input.txt").write_text("changed after cleanup\n")
         preview = self.preview()
         self.assertIn("input metadata changed", preview)
@@ -239,7 +240,7 @@ class LifecycleInspectionTests(LocalBackendTestCase):
             self.wait_for((self.work / "tracking-held").exists)
             self.finish()
             before = self.snapshot()
-            for index, command in enumerate((("status",), ("explain",), ("run", "--dry-run"), ("clean-work",))):
+            for index, command in enumerate((("status",), ("run", "--dry-run"), ("clean",))):
                 process, output = self.launch(*command, filename=f"inspection-{index}")
                 inspectors.append((process, output))
                 self.wait_for(lambda: "Waiting for frontend" in output.read_text() or process.poll() is not None)
@@ -284,7 +285,7 @@ class FinishingInspectionTests(LocalBackendTestCase):
         expected = result.read_bytes()
         result.unlink()
         before = self.snapshot()
-        for command in (("status",), ("explain",), ("run", "--dry-run")):
+        for command in (("status",), ("run", "--dry-run")):
             output = self.cli_result(*command, "--details").stdout
             if command[0] == "status":
                 self.assertRegex(output, r"Task a\s+repairable\s+2/3")
@@ -303,7 +304,7 @@ class FinishingInspectionTests(LocalBackendTestCase):
                 ("finishing", (), None),
             ):
                 before = self.snapshot()
-                for command in (("status",), ("explain",), ("run", "--dry-run"), ("run",)):
+                for command in (("status",), ("run", "--dry-run"), ("run",)):
                     with self.subTest(state=state, command=command):
                         output = self.cli_result(*backend, *command, "--details", env=environment).stdout
                         if command[0] == "status":
@@ -317,7 +318,7 @@ class FinishingInspectionTests(LocalBackendTestCase):
         finally:
             (self.work / "manifest-release").touch()
         self.finish()
-        for command in (("status",), ("explain",), ("run", "--dry-run"), ("run",)):
+        for command in (("status",), ("run", "--dry-run"), ("run",)):
             output = self.cli_result(*command, "--details").stdout
             if command[0] == "status":
                 self.assertRegex(output, r"Task a\s+reusable\s+3/3")
@@ -342,7 +343,7 @@ class FinishingInspectionTests(LocalBackendTestCase):
         self.assertIn("mtime", preview)
         self.run_previewed(preview)
         self.finish()
-        self.cli("clean-work", "--delete")
+        self.cli("clean", "--delete")
         missing.unlink()
         preview = self.preview()
         self.assertRegex(preview, r"Task a\s+Run\s+")
@@ -357,7 +358,7 @@ class FinishingInspectionTests(LocalBackendTestCase):
         preview = self.preview()
         self.assertRegex(preview, r"Task a\s+Finish\s+")
         self.assertRegex(self.cli("status", "--instances"), r"Task a\s+failed\s+2/3\s+results transfer needs recovery")
-        self.assertIn("Next action: Finish", self.cli("explain", "--details"))
+        self.assertIn("Next action: Finish", self.cli("run", "--dry-run", "--details"))
         self.run_previewed(preview)
         self.settle()
         self.assertEqual((self.work / "trace").read_text().splitlines(), ["compute"])
@@ -396,7 +397,7 @@ class PreparationInspectionTests(LocalBackendTestCase):
             self.assertEqual(submitter.returncode, 110, submitter.stdout + submitter.stderr)
             self.wait_for((self.work / "preparation-held").exists)
             before = self.snapshot()
-            for command in (("status",), ("explain",), ("run", "--dry-run")):
+            for command in (("status",), ("run", "--dry-run")):
                 output = self.cli_result("-b", "recovery_fixture", *command, "--details", env=environment).stdout
                 if command[0] == "status":
                     self.assertRegex(output, r"Task sample\s+preparing\s+0/3")

@@ -49,7 +49,7 @@ class ContainerScratchTests(LocalBackendTestCase):
         self.run_complete()
         self.assertEqual((self.work / "results/sample/result.txt").read_text(), str(self.external) + "\n")
         self.assertEqual((self.external / "fixed-name").read_text(), "external\n")
-        self.cli("clean-work", "--delete")
+        self.cli("clean", "--delete")
         self.assertEqual((self.external / "fixed-name").read_text(), "external\n")
         self.assertNotIn("Submitted target", self.cli("run"))
 
@@ -77,9 +77,9 @@ class ContainerScratchTests(LocalBackendTestCase):
         for name in ("left", "right"):
             self.assertEqual((self.work / "results" / name / "result.txt").read_text(), name)
         self.assertTrue(all((path / "fixed-name").is_file() for path in scratch))
-        self.cli("clean-work")
+        self.cli("clean")
         self.assertTrue(all(path.exists() for path in scratch))
-        self.cli("clean-work", "--delete")
+        self.cli("clean", "--delete")
         self.assertTrue(all(not path.exists() for path in scratch))
         self.assertNotIn("Submitted target", self.cli("run"))
 
@@ -118,7 +118,7 @@ class ContainerDefaultScratchTests(LocalBackendTestCase):
         write_workflow(self.work, [("sample", command, True)], managed=False)
         self.run_complete()
         self.assertEqual((self.work / "results/sample/result.txt").read_text(), "unset\n/tmp\n")
-        self.cli("clean-work", "--delete")
+        self.cli("clean", "--delete")
         self.assertEqual((self.system / "fixed-name").read_text(), "defaults\n")
         self.assertNotIn("Submitted target", self.cli("run"))
 
@@ -131,7 +131,7 @@ class ContainerDefaultScratchTests(LocalBackendTestCase):
         self.assertTrue(scratch.is_relative_to(self.work / "work"))
         self.assertEqual((scratch / "fixed-name").read_text(), "managed\n")
         self.assertEqual((self.system / "fixed-name").read_text(), "system\n")
-        self.cli("clean-work", "--delete")
+        self.cli("clean", "--delete")
         self.assertFalse(scratch.exists())
         self.assertEqual((self.system / "fixed-name").read_text(), "system\n")
         self.assertNotIn("Submitted target", self.cli("run"))

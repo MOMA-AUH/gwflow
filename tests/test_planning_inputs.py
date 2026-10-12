@@ -63,7 +63,7 @@ class SharedInputObservationTests(RegistryTestCase):
         self.run_complete()
         (self.work / "results/sample0/out0.txt").unlink()
         first, second = self.scenario(
-            [["run"], ["explain", "--details"]],
+            [["run"], ["run", "--dry-run", "--details"]],
             [{"pass": 0, "after": "planned", "write": {str(self.work / "input.txt"): "changed after planning"}}],
         )
         self.assertNotEqual(first["exit_code"], 0, first["output"])
@@ -86,7 +86,7 @@ class SharedInputObservationTests(RegistryTestCase):
         )
         self.assertNotIn("blocked", first["output"].lower())
         self.assertRegex(second["output"], r"Task sample0\s+blocked")
-        self.assertIn("External input points into managed storage", self.cli("explain", "--details"))
+        self.assertIn("External input points into managed storage", self.cli("run", "--dry-run", "--details", success=False))
 
     def test_missing_local_image_does_not_poison_later_acquisition_in_same_pass(self):
         self.cli("status")
@@ -104,7 +104,7 @@ class SharedInputObservationTests(RegistryTestCase):
     def test_completed_shared_images_preserve_all_planning_commands(self):
         self.run_complete()
         image, = self.cached_images()
-        for command in (("status", "--details"), ("explain",), ("run", "--dry-run"), ("run",)):
+        for command in (("status", "--details"), ("run", "--dry-run"), ("run",)):
             with self.subTest(command=command):
                 output, report = self.probe(*command)
                 self.assertEqual(output, self.cli_result(*command).stdout)
@@ -123,7 +123,7 @@ class SharedInputObservationTests(RegistryTestCase):
         self.run_complete()
         self.options(content="changed image acquired during planning\n")
         first, second = self.scenario(
-            [["explain", "--details"], ["explain", "--details"]],
+            [["run", "--dry-run", "--details"], ["run", "--dry-run", "--details"]],
             [{"pass": 0, "after": "image:" + str(image), "remove": [str(image)]}],
         )
         sample = first["output"].split("Details for Task sample1:")[1]

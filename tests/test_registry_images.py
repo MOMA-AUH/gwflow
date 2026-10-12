@@ -12,7 +12,7 @@ from unittest.mock import patch
 from gwf.exceptions import WorkflowError
 from gwflow import Task
 
-from support import TASK_FACTORY, FIXTURES, GWF, LocalBackendTestCase
+from support import TASK_FACTORY, FIXTURES, GWFLOW, LocalBackendTestCase
 import test_containers
 import test_managed
 import test_managed_recovery
@@ -102,7 +102,7 @@ class RegistryImageTests(RegistryTestCase):
         self.options(gate="progress")
         progress = self.work / "pull-progress.log"
         with progress.open("w") as stream, subprocess.Popen(
-            [GWF, "status"], cwd=self.work, stdout=subprocess.PIPE, stderr=stream, text=True,
+            [GWFLOW, "status"], cwd=self.work, stdout=subprocess.PIPE, stderr=stream, text=True,
         ) as process:
             try:
                 self.wait_for(lambda: (self.controller / "progress-held").exists())
@@ -135,7 +135,7 @@ class RegistryImageTests(RegistryTestCase):
         self.assertFalse((self.work / "results").exists())
 
     def test_each_planning_command_acquires_a_cold_reference(self):
-        for index, arguments in enumerate((("status", "--details"), ("explain",), ("run", "--dry-run"), ("run",))):
+        for index, arguments in enumerate((("status", "--details"), ("run", "--dry-run"), ("run",))):
             with self.subTest(arguments=arguments):
                 # Distinct source sizes invalidate Python's timestamp/size
                 # bytecode cache even when CI rewrites within one clock tick.
@@ -165,7 +165,7 @@ class RegistryImageTests(RegistryTestCase):
         executable.rename(self.bin / "hidden-apptainer")
         # No fallback to a deployment Apptainer installation during inspection.
         environment = {**os.environ, "PATH": str(self.bin)}
-        for arguments in (("explain",), ("status", "--details"), ("run", "--dry-run"), ("run",)):
+        for arguments in (("run", "--dry-run",), ("status", "--details"), ("run", "--dry-run"), ("run",)):
             output = self.cli(*arguments, env=environment)
             self.assertNotIn("blocked", output)
             self.assertNotIn("Submitted target", output)
@@ -179,9 +179,9 @@ class RegistryImageTests(RegistryTestCase):
     def test_pull_failure_blocks_every_submission_and_can_retry(self):
         self.configure_workflow(other=True)
         self.options(fail=True)
-        for arguments, success in ((("status", "--details"), True), (("explain", "--details"), True),
+        for arguments, success in ((("status", "--details"), True), (("run", "--dry-run", "--details"), False),
                                    (("run", "--dry-run"), False), (("run",), False)):
-            result = subprocess.run([GWF, *arguments], cwd=self.work,
+            result = subprocess.run([GWFLOW, *arguments], cwd=self.work,
                                     capture_output=True, text=True, timeout=30)
             output = result.stdout + result.stderr
             self.assertEqual(result.returncode == 0, success, output)
@@ -211,8 +211,8 @@ class RegistryImageTests(RegistryTestCase):
 
     def test_display_filter_still_acquires_hidden_task_image(self):
         self.configure_workflow(other=True)
-        for index, command in enumerate(("status", "explain"), start=1):
-            self.cli(command, "independent")
+        for index, command in enumerate((("status", "independent"), ("run", "--dry-run")), start=1):
+            self.cli(*command)
             self.assertEqual(len(self.calls("pull")), index)
             self.cached_images()[0].unlink()
         self.assertFalse((self.work / ".gwf/gwflow").exists())
@@ -222,7 +222,7 @@ class RegistryImageTests(RegistryTestCase):
                       "docker://example.org/tools/demo@sha256:" + "a" * 64)
         for reference in references:
             self.configure_workflow(reference)
-            self.cli("explain")
+            self.cli("run", "--dry-run")
         self.assertEqual(len(self.cached_images()), 3)
         self.assertEqual([call["reference"] for call in self.calls("pull")], list(references))
         for reference in references:
@@ -237,7 +237,7 @@ class RegistryImageTests(RegistryTestCase):
         other.mkdir()
         (other / "workflow.py").write_text((self.work / "workflow.py").read_text().replace("'sample'", "'other'"))
         shutil.copyfile(self.work / ".gwfconf.json", other / ".gwfconf.json")
-        result = subprocess.run([GWF, "run"], cwd=other, capture_output=True, text=True, timeout=30)
+        result = subprocess.run([GWFLOW, "run"], cwd=other, capture_output=True, text=True, timeout=30)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.finish()
         self.assertEqual((other / "results/other/out.txt").read_text(), "fixture image\n")
@@ -249,12 +249,12 @@ class RegistryImageTests(RegistryTestCase):
         home = self.work / "user home"
         environment = dict(os.environ, HOME=str(home))
         environment.pop("GWFLOW_IMAGE_CACHE")
-        self.cli("explain", env=environment)
+        self.cli("run", "--dry-run", env=environment)
         self.cache = home / ".cache/gwflow/images"
         self.assertEqual(len(self.cached_images()), 1)
         self.assertTrue(Path(self.calls("pull")[-1]["destination"]).is_relative_to(self.cache))
         environment["GWFLOW_IMAGE_CACHE"] = "relative cache"
-        self.cli("explain", env=environment)
+        self.cli("run", "--dry-run", env=environment)
         self.cache = self.work / "relative cache"
         self.assertEqual(len(self.cached_images()), 1)
         self.assertTrue(Path(self.calls("pull")[-1]["destination"]).is_relative_to(self.cache))
@@ -273,7 +273,7 @@ class RegistryImageTests(RegistryTestCase):
                 self.assertFalse((self.work / "results").exists())
 
     def test_present_unusable_entries_are_not_replaced(self):
-        self.cli("explain")
+        self.cli("run", "--dry-run")
         image = self.cached_images()[0]
         for unusable in ("directory", "broken symlink", "unreadable"):
             with self.subTest(unusable=unusable):
@@ -300,7 +300,7 @@ class RegistryImageTests(RegistryTestCase):
         self.run_complete()
         image = self.cached_images()[0]
         info = image.stat()
-        self.cli("clean-work", "--delete")
+        self.cli("clean", "--delete")
         self.assertEqual(image.stat(), info)
         self.assertNotIn("Submitted target", self.cli("run"))
         self.cli("run", "--force")
@@ -311,12 +311,12 @@ class RegistryImageTests(RegistryTestCase):
 
     def test_reacquisition_for_cleaned_reuse_preserves_lifecycle_evidence(self):
         self.run_complete()
-        self.cli("clean-work", "--delete")
+        self.cli("clean", "--delete")
         image = self.cached_images()[0]
         before = self.snapshot()
         image.unlink()
-        self.cli("explain")
+        self.cli("run", "--dry-run")
         self.assertEqual(len(self.calls("pull")), 2)
         self.assertEqual(self.snapshot(), before)
-        self.assertIn("fresh attempt", self.cli("explain"))
+        self.assertIn("fresh attempt", self.cli("run", "--dry-run"))
         self.assertEqual((self.work / "results/sample/out.txt").read_text(), "fixture image\n")

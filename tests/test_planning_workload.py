@@ -14,7 +14,7 @@ import subprocess
 import sys
 import time
 
-from support import FIXTURES, GWF
+from support import FIXTURES, GWFLOW
 from test_registry_images import RegistryTestCase
 
 
@@ -56,7 +56,7 @@ class RepresentativePlanningTests(RegistryTestCase):
 
     def command(self, arguments, environment, *, probe=None):
         executable = ([sys.executable, str(FIXTURES / "planning_probe.py"), str(probe)]
-                      if probe else [GWF])
+                      if probe else [GWFLOW])
         started = time.perf_counter()
         result = subprocess.run([*executable, "-b", "recovery_fixture", *arguments], cwd=self.work,
                                 env=environment, text=True, capture_output=True, timeout=300)
@@ -84,7 +84,7 @@ class RepresentativePlanningTests(RegistryTestCase):
         print("All 418 jobs completed; freezing observations", flush=True)
         self.assertEqual(len((self.work / "backend-acceptances.jsonl").read_text().splitlines()), 418)
         self.assertEqual(len(self.calls("pull")), 1)
-        self.cli("clean-work", "--delete", "--task", "reference")
+        self.cli("clean", "--delete", "--task", "reference")
         self.assertFalse(list((self.work / "work/reference").glob("*/step*")))
         states = {}
         for index in range(20, 24):
@@ -98,7 +98,7 @@ class RepresentativePlanningTests(RegistryTestCase):
         evidence = {"jobs": 418, "tasks": 25, "frozen_state": frozen, "versions": {},
                     "filesystem": {"device": self.work.stat().st_dev, "inode": self.work.stat().st_ino}}
         commands = (("status",), ("status", "--details"), ("status", "sample00"),
-                    ("status", "--status", "running"), ("explain",), ("run", "--dry-run"), ("run",))
+                    ("status", "--status", "running"), ("run", "--dry-run"), ("run",))
         outputs, environments = {}, {}
         for label, source in versions.items():
             print(f"Measuring {label}", flush=True)

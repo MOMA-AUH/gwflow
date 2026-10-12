@@ -28,7 +28,8 @@ if options.get("crash_before_execution"):
 
 def gate(name):
     (work / (name + "-held")).touch()
-    deadline = time.monotonic() + 20
+    # A held job can be inspected by several installed CLI processes before release.
+    deadline = time.monotonic() + 60
     while not (work / (name + "-release")).exists():
         if time.monotonic() > deadline:
             raise RuntimeError("timed out waiting for filesystem fixture gate")

@@ -58,7 +58,7 @@ class StatusLayoutTests(LocalBackendTestCase):
                         if not view:
                             for module in ("library", "second"):
                                 self.assertIn(f"{prefix}@{module}.mapping", output)
-                            command = re.search(r"(?m)^  (gwf [^\n]+)$", output).group(1)
+                            command = re.search(r"(?m)^  (gwflow [^\n]+)$", output).group(1)
                             self.assertIn(selector, shlex.split(command))
                         else:
                             for key in ("A", "B"):
@@ -149,7 +149,7 @@ class StatusLayoutTests(LocalBackendTestCase):
             self.assertIn("run again after upstream result recovery", " ".join(notices.split()))
             self.assertEqual(self.snapshot(), before)
         grouped = self.terminal_cli("--no-color", "status", selector, width=40).stdout
-        commands = re.findall(r"(?m)^  (gwf [^\n]+)$", grouped)
+        commands = re.findall(r"(?m)^  (gwflow [^\n]+)$", grouped)
         failed = next(shlex.split(command) for command in commands if "--status failed" in command)
         self.assertIn(selector, failed)
         expanded = self.cli(*failed[1:])

@@ -122,7 +122,7 @@ if __name__ == "__main__":
     probe = Probe()
     try:
         with probe:
-            from gwf.cli import main
+            from gwflow.cli import main
             main(arguments, standalone_mode=False)
     finally:
         Path(output).write_text(json.dumps(probe.report(), indent=2) + "\n")

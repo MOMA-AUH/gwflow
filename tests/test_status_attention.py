@@ -60,7 +60,7 @@ class StatusAttentionTests(LocalBackendTestCase):
 
     def commands(self, output):
         return {state: shlex.split(command) for state, command in re.findall(
-            r"All (blocked|failed|canceled) Tasks:\n  (gwf [^\n]+)", output)}
+            r"All (blocked|failed|canceled) Tasks:\n  (gwflow [^\n]+)", output)}
 
     def names(self, output):
         return re.findall(r"(?m)^Task (\S+)\s+", output)
@@ -163,7 +163,7 @@ class StatusAttentionTests(LocalBackendTestCase):
             self.assertIn("6 Tasks (5 shown, 1 omitted)", terminal)
             self.assertEqual(len(re.findall(r"(?m)^  duplex_mapping__sample_", terminal)), 5)
             self.assertTrue(all(len(line) <= 80 for line in terminal.splitlines()
-                                if not line.startswith("  gwf ")), terminal)
+                                if not line.startswith("  gwflow ")), terminal)
             self.assertIn("failed", self.commands(terminal))
 
     def test_inspect_commands_preserve_workflow_context_and_filter_intersection(self):
@@ -217,7 +217,7 @@ class StatusAttentionTests(LocalBackendTestCase):
         self.assertIn("progress unavailable", blocked)
         self.assertNotRegex(blocked, r"\d+ (?:running|queued|failed|canceled)")
         command = self.commands(output)["blocked"]
-        self.assertEqual(command, ["gwf", "status", "task:mapping__[AB]", "--status", "blocked", "--instances"])
+        self.assertEqual(command, ["gwflow", "status", "task:mapping__[AB]", "--status", "blocked", "--instances"])
         expanded = self.cli(*command[1:])
         self.assertRegex(expanded, r"Task mapping__A\s+blocked\s+\?/6")
         for options in ((), ("--plain",)):

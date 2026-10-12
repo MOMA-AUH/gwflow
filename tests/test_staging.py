@@ -143,7 +143,7 @@ class ContainerStagingTests(LocalBackendTestCase):
         (self.work / "companion.txt").write_text("companion changed\n")
         self.run_complete()
         self.assertEqual(result.read_text(), "hello\ncompanion changed\nneighbor changed\n")
-        self.cli("clean-work", "--delete")
+        self.cli("clean", "--delete")
         self.assertNotIn("Submitted target", self.cli("run"))
 
     def test_custom_paths_disambiguate_basenames_and_place_declared_companions_together(self):
@@ -180,7 +180,7 @@ class ContainerStagingTests(LocalBackendTestCase):
         self.configure(use_spec_hashes=False)
         write_workflow(self.work, sources, command=command, stage_as={"new dir/input.txt": "input.txt"})
         before = self.snapshot()
-        for arguments in (("explain", "--details"), ("status", "--details"), ("run", "--dry-run", "--details")):
+        for arguments in (("run", "--dry-run", "--details"), ("status", "--details"), ("run", "--dry-run", "--details")):
             reason = ("fresh attempt required" if arguments[0] == "status" else
                       "changed declared structure: target membership or file declarations")
             self.assertIn(reason, self.cli(*arguments))
@@ -206,7 +206,7 @@ class ContainerStagingTests(LocalBackendTestCase):
                     manifest.write_text("{truncated")
                     backend, env, reason = (), None, "ownership"
                 before = self.snapshot()
-                for arguments, success in ((("explain", "--details"), True), (("status", "--details"), True),
+                for arguments, success in ((("run", "--dry-run", "--details"), False), (("status", "--details"), True),
                                            (("run", "--dry-run"), False), (("run",), False)):
                     output = self.cli(*backend, *arguments, env=env, success=success)
                     self.assertIn("blocked" if arguments[0] == "status" else reason, output)

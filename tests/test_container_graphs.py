@@ -60,8 +60,9 @@ class ContainerGraphTests(LocalBackendTestCase):
         return Counter((self.work / "trace").read_text().splitlines())
 
     def detail(self, task, field):
-        return next(line.strip().removeprefix(field + ": ")
-                    for line in self.cli("explain", task, "--details").splitlines()
+        output = self.cli("run", "--dry-run", "--details")
+        section = output.split(f"Details for Task {task}:\n", 1)[1].split("Details for Task ", 1)[0]
+        return next(line.strip().removeprefix(field + ": ") for line in section.splitlines()
                     if line.strip().startswith(field + ": "))
 
     def attempts(self):
@@ -78,7 +79,7 @@ class ContainerGraphTests(LocalBackendTestCase):
 
     def assert_blocked_without_changes(self, reason, *, backend=(), env=None):
         before = self.snapshot()
-        for arguments, success in ((("explain", "--details"), True), (("status", "--details"), True),
+        for arguments, success in ((("run", "--dry-run", "--details"), False), (("status", "--details"), True),
                                    (("run", "--dry-run"), False), (("run",), False)):
             output = self.cli(*backend, *arguments, env=env, success=success)
             self.assertIn("blocked" if arguments[0] == "status" else reason, output)
@@ -95,7 +96,7 @@ class ContainerGraphTests(LocalBackendTestCase):
     def test_new_container_consumer_uses_retained_results_after_producer_cleanup(self):
         self.run_complete()
         workspace = Path(self.detail("producer", "Workspace"))
-        self.cli("clean-work", "--task", "producer", "--delete")
+        self.cli("clean", "--task", "producer", "--delete")
         self.assertFalse(workspace.exists())
         self.write_workflow()
         output = self.run_complete()
@@ -113,7 +114,7 @@ class ContainerGraphTests(LocalBackendTestCase):
         result = self.work / "results/producer/result.txt"
         info = result.stat()
         self.change_image()
-        for arguments in (("explain", "--details"), ("status", "--details"), ("run", "--dry-run", "--details")):
+        for arguments in (("run", "--dry-run", "--details"), ("status", "--details"), ("run", "--dry-run", "--details")):
             preview = self.cli(*arguments)
             if arguments[0] == "status":
                 self.assertRegex(preview, r"Task producer\s+pending\s+0/6\s+fresh attempt required")
@@ -142,7 +143,7 @@ class ContainerGraphTests(LocalBackendTestCase):
         before = self.attempts()
         (self.work / "alias.sif").symlink_to(self.second_image.name)
         self.write_workflow(second_image="alias.sif")
-        self.assertIn("changed declared structure", self.cli("explain"))
+        self.assertIn("changed declared structure", self.cli("run", "--dry-run"))
         self.run_complete()
         after = self.attempts()
         self.assertNotEqual(after["producer"], before["producer"])
@@ -153,7 +154,7 @@ class ContainerGraphTests(LocalBackendTestCase):
         for container in (False, True):
             with self.subTest(container=container):
                 self.write_workflow(second_container=container)
-                self.assertIn("changed declared structure", self.cli("explain"))
+                self.assertIn("changed declared structure", self.cli("run", "--dry-run"))
                 self.run_complete()
                 after = self.attempts()
                 self.assertNotEqual(after["producer"], before["producer"])

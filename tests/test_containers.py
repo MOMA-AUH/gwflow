@@ -36,7 +36,7 @@ class ContainerPlanningTests(LocalBackendTestCase):
         )
 
     def test_unavailable_image_blocks_all_frontend_decisions_without_storage(self):
-        for arguments, success in ((('explain', '--details'), True), (('status', '--details'), True),
+        for arguments, success in ((('status', '--details'), True),
                                    (('run', '--dry-run'), False), (('run',), False)):
             with self.subTest(arguments=arguments):
                 output = self.cli(*arguments, success=success)
@@ -110,12 +110,12 @@ class ContainerRuntimeTests(LocalBackendTestCase):
         self.assertEqual(len(scratch), 1)
         self.assertEqual(scratch[0].read_text(), "scratch\n")
         self.assertNotIn("Submitted target", self.cli("run"))
-        self.cli("clean-work", "--delete")
+        self.cli("clean", "--delete")
         self.assertFalse(scratch[0].exists())
         self.assertNotIn("Submitted target", self.cli("run"))
 
-    def attempt(self):
-        return re.search(r"Attempt: (\w+)", self.cli("explain", "--details")).group(1)
+    def attempt(self, *, success=True):
+        return self.task_attempts(success=success)["sample"]
 
     def snapshot(self):
         return {str(path): (path.read_bytes(), path.stat().st_mtime_ns)
@@ -141,7 +141,7 @@ class ContainerRuntimeTests(LocalBackendTestCase):
                     self.image.unlink()
                     self.image.symlink_to(replacement)
                 before = self.snapshot()
-                preview = self.cli("explain", "--details")
+                preview = self.cli("run", "--dry-run", "--details")
                 self.assertIn("input metadata changed", preview)
                 self.assertIn(str(self.image), preview)
                 self.assertIn("remove previous retained results", preview)
@@ -160,14 +160,14 @@ class ContainerRuntimeTests(LocalBackendTestCase):
         alias.symlink_to(self.image.name)
         workflow = self.work / "workflow.py"
         workflow.write_text(workflow.read_text().replace(self.image.name, alias.name))
-        self.assertIn("changed declared structure", self.cli("explain"))
+        self.assertIn("changed declared structure", self.cli("run", "--dry-run"))
         self.run_complete()
         self.assertNotEqual(self.attempt(), previous)
         previous = self.attempt()
         saved = self.work / "saved.sif"
         self.image.rename(saved)
         before = self.snapshot()
-        for arguments, success in ((('explain', '--details'), True), (('status', '--details'), True),
+        for arguments, success in ((('status', '--details'), True),
                                    (('run', '--dry-run'), False), (('run',), False)):
             output = self.cli(*arguments, success=success)
             self.assertIn("image unavailable", output)
@@ -197,7 +197,7 @@ class ContainerRuntimeTests(LocalBackendTestCase):
             (self.work / "preparation-release").touch()
         self.finish()
         self.assertEqual((self.work / "results/sample/out.txt").read_text(), "from-image\n")
-        self.assertIn("Reuse", self.cli("explain"))
+        self.assertIn("Reuse", self.cli("run", "--dry-run"))
         self.assertIn(str(replacement), self.cli("logs", "sample__compute", "--stderr", "--no-pager"))
 
     def test_image_retarget_after_baseline_prevents_computation(self):
@@ -217,7 +217,7 @@ class ContainerRuntimeTests(LocalBackendTestCase):
         self.assertFalse(list((self.work / "work").rglob("out.txt")))
         self.assertFalse((self.work / "results/sample").exists())
         self.assertIn("inputs changed", self.cli("logs", "sample__compute", "--stderr", "--no-pager"))
-        self.assertIn("fresh attempt", self.cli("explain"))
+        self.assertIn("fresh attempt", self.cli("run", "--dry-run"))
         self.cli("run")
         self.settle()
         self.assertEqual((self.work / "results/sample/out.txt").read_text(), "result")
@@ -279,22 +279,22 @@ class ContainerRuntimeTests(LocalBackendTestCase):
         attempt = self.attempt()
         info = self.image.stat()
         os.utime(self.image, ns=(info.st_atime_ns, info.st_mtime_ns - 1_000_000_000))
-        self.assertIn("preparation interrupted", self.cli("explain"))
+        self.assertIn("preparation interrupted", self.cli("run", "--dry-run"))
         self.cli("run")
         self.settle()
         self.assertEqual(self.attempt(), attempt)
         self.assertEqual((self.work / "results/sample/out.txt").read_text(), "from-image\n")
-        self.assertIn("Reuse", self.cli("explain"))
+        self.assertIn("Reuse", self.cli("run", "--dry-run"))
 
     def test_image_changes_after_cleanup_still_require_fresh_attempt(self):
         self.configure(use_spec_hashes=False)
         self.run_complete()
         attempt = self.attempt()
-        self.cli("clean-work", "--delete")
+        self.cli("clean", "--delete")
         info = self.image.stat()
         os.utime(self.image, ns=(info.st_atime_ns, info.st_mtime_ns - 1_000_000_000))
         before = self.snapshot()
-        self.assertIn("fresh attempt", self.cli("explain"))
+        self.assertIn("fresh attempt", self.cli("run", "--dry-run"))
         self.assertEqual(self.snapshot(), before)
         self.run_complete()
         self.assertNotEqual(self.attempt(), attempt)
@@ -313,7 +313,7 @@ class ContainerRuntimeTests(LocalBackendTestCase):
                 self.cli("run", "--force")
                 self.settle()
                 self.assertFalse((self.work / "results/sample/out.txt").exists())
-                self.assertIn("Retry", self.cli("explain"))
+                self.assertIn("Retry", self.cli("run", "--dry-run"))
                 log = self.cli("logs", "sample__compute", "--stderr", "--no-pager")
                 self.assertIn(str(self.image), log)
                 self.assertIn("target compute", log)

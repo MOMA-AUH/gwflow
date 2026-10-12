@@ -30,7 +30,7 @@ class ManagedStatusTests(LocalBackendTestCase):
         for label in ("Details for Task", "Next action:", "Reason:", "Attempt:",
                       "Workspace:", "Results:", "Backend job:", "Log stderr:"):
             self.assertNotIn(label, output)
-        explanation = self.cli_result("explain", "--details").stdout
+        explanation = self.cli_result("run", "--dry-run", "--details").stdout
         self.assertIn("Next action: Run", explanation)
         self.assertIn("Attempt:", explanation)
 
@@ -102,7 +102,7 @@ class ManagedStatusTests(LocalBackendTestCase):
         details = self.cli("status", "--details")
         self.assertRegex(details, r"right\s+failed")
         self.assertNotIn("Backend job:", details)
-        explanation = self.cli("explain", "--details")
+        explanation = self.cli("run", "--dry-run", "--details")
         self.assertIn("Next action: Retry", explanation)
         for label in ("Reason:", "Attempt:", "Workspace:", "Backend job:", "Log stderr:"):
             self.assertIn(label, explanation)
@@ -164,7 +164,7 @@ class ManagedStatusTests(LocalBackendTestCase):
 
     def test_reuse_after_cleanup_does_not_display_failed_or_pending_targets(self):
         self.run_complete()
-        self.cli("clean-work", "--delete")
+        self.cli("clean", "--delete")
         output = self.cli("status", "--instances")
         self.assertRegex(output, r"Task sample\s+reusable\s+5/5\s+work cleaned")
         self.assertNotIn("left", output)
@@ -331,7 +331,7 @@ class ManagedStatusTests(LocalBackendTestCase):
             "    task.retain('value', source=target.output('out.txt'), path='out.txt')\n"
             "    gwf.task(task, alias=name)\n"
         )
-        for command in (("status", "--instances",), ("explain",), ("run", "--dry-run"), ("run",)):
+        for command in (("status", "--instances",), ("run", "--dry-run"), ("run",)):
             with self.subTest(command=command):
                 output = self.cli_result(*command).stdout
                 names = re.findall(r"^Task (\S+)", output, re.MULTILINE)

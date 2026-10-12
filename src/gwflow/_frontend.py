@@ -5,6 +5,24 @@ import fcntl
 from pathlib import Path
 
 import click
+from gwf import Workflow as GwfWorkflow
+from gwf.core import Context
+from gwf.exceptions import WorkflowError
+
+
+class ManagedContext(Context):
+    """Identify the managed executable without changing gwf command objects."""
+
+
+def load_workflow(ctx):
+    from .workflow import Workflow
+
+    if not ctx.workflow_file.is_file():
+        raise WorkflowError(f"Could not find workflow file {ctx.workflow_file}; use --file PATH[:OBJECT] to select one.")
+    workflow = GwfWorkflow.from_context(ctx)
+    if not isinstance(workflow, Workflow):
+        raise WorkflowError("Managed commands require a gwflow.Workflow; use gwf for ordinary workflows.")
+    return workflow
 
 
 @contextmanager

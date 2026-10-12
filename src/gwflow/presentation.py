@@ -173,7 +173,7 @@ def blocking_reason(reason):
 
 
 def blocking_detail(reason):
-    return blocking_reason(reason) or "validation prevents proceeding; see gwf explain --details"
+    return blocking_reason(reason) or "validation prevents proceeding; see gwflow run --dry-run --details"
 
 
 def job_diagnostics(counts, state):

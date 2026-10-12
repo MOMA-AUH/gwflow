@@ -24,7 +24,7 @@ class UppercaseExampleTests(LocalBackendTestCase):
         for name in ("alpha", "beta"):
             self.assertEqual((self.work / "results" / name / "text.txt").read_text(),
                              "HELLO FROM GWFLOW\n")
-        self.cli("clean-work", "--delete")
+        self.cli("clean", "--delete")
         self.assertNotIn("Submitted target", self.cli("run"))
 
 
@@ -44,10 +44,10 @@ class PackagedExampleTests(LocalBackendTestCase):
         before = {path: (path.read_bytes(), path.stat().st_mtime_ns)
                   for root in (self.work / ".gwf/gwflow", self.work / "work", self.work / "results")
                   for path in root.rglob("*") if path.is_file()}
-        preview = self.cli("clean-work", env=producers_only)
+        preview = self.cli("clean", env=producers_only)
         self.assertIn("eligible", preview)
         self.assertEqual({path: (path.read_bytes(), path.stat().st_mtime_ns) for path in before}, before)
-        self.cli("clean-work", "--delete", env=producers_only)
+        self.cli("clean", "--delete", env=producers_only)
         second = self.run_complete()
         self.assertIn("Submitted target C__join", second)
         self.assertNotIn("Submitted target A__", second)
@@ -89,8 +89,10 @@ class PackagedContainerExampleTests(LocalBackendTestCase):
         PackagedExampleTests.test_installed_producers_clean_then_new_consumer_computes_only_once(self)
         for target in ("A__clean", "B__aggregate", "C__join"):
             self.assertIn(" image ", self.cli("logs", target, "--stderr", "--no-pager"))
+        details = self.cli("run", "--dry-run", "--details")
+        consumer = details.split("Details for Task C:\n", 1)[1].split("Details for Task ", 1)[0]
         workspace = Path(next(line.split("Workspace: ", 1)[1]
-                              for line in self.cli("explain", "C", "--details").splitlines() if "Workspace: " in line))
+                              for line in consumer.splitlines() if "Workspace: " in line))
         for name in ("sales", "returns"):
             staged = list(workspace.rglob(f"{name}/summary.csv"))
             self.assertEqual(len(staged), 1)

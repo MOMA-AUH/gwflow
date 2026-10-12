@@ -17,7 +17,7 @@ class TaskPresentationTests(LocalBackendTestCase):
         workflow = self.work / "workflow.py"
         workflow.write_text(workflow.read_text().replace(
             "outputs=['same.txt'])", "outputs=['same.txt'], image='missing.sif')", 1))
-        for command in (("status", "--instances",), ("explain",), ("run", "--dry-run"), ("run",)):
+        for command in (("status", "--instances",), ("run", "--dry-run"), ("run",)):
             with self.subTest(command=command):
                 success = command[0] != "run"
                 result = self.cli_result(*command, success=success)
@@ -48,11 +48,11 @@ class TaskPresentationTests(LocalBackendTestCase):
         damaged.unlink()
         damaged.mkdir()
         before = self.snapshot()
-        for command in (("status", "--instances",), ("explain",), ("run", "--dry-run"), ("run",)):
+        for command in (("status", "--instances",), ("run", "--dry-run"), ("run",)):
             with self.subTest(command=command):
                 success = command[0] != "run"
                 compact = self.cli_result(*command, success=success).stdout
-                hint = "gwf explain --details" if command[0] == "status" else "--details"
+                hint = "gwflow run --dry-run --details" if command[0] == "status" else "--details"
                 self.assertIn("validation prevents proceeding; see " + hint, compact)
                 self.assertNotIn(str(self.work), compact)
                 self.assertNotIn("completion.json", compact)
@@ -69,7 +69,7 @@ class TaskPresentationTests(LocalBackendTestCase):
     def test_details_on_each_managed_command_show_the_complete_lifecycle(self):
         self.run_complete()
         before = self.snapshot()
-        for command in (("status",), ("explain",), ("run", "--dry-run"), ("run",)):
+        for command in (("status",), ("run", "--dry-run"), ("run",)):
             with self.subTest(command=command):
                 result = self.cli_result(*command, "--details")
                 output = result.stdout
@@ -93,7 +93,7 @@ class TaskPresentationTests(LocalBackendTestCase):
         workflow = self.work / "workflow.py"
         workflow.write_text(workflow.read_text().replace("'sample'", repr(name)))
         self.run_complete()
-        for command in (("status", "--instances",), ("explain",), ("run", "--dry-run"), ("run",)):
+        for command in (("status", "--instances",), ("run", "--dry-run"), ("run",)):
             for options in ((), ("--plain",)):
                 with self.subTest(command=command, options=options):
                     shortened = self.terminal_cli("--no-color", *command, *options, width=80).stdout
@@ -112,7 +112,7 @@ class TaskPresentationTests(LocalBackendTestCase):
 
     def test_narrow_and_unsupported_terminals_keep_states_and_counts(self):
         self.run_complete()
-        for command in (("status",), ("explain",), ("run", "--dry-run"), ("run",)):
+        for command in (("status",), ("run", "--dry-run"), ("run",)):
             narrow = self.terminal_cli("--no-color", *command, "--details", width=32).stdout
             self.assertIn("reusable", narrow)
             self.assertIn("5/5", narrow)
@@ -126,7 +126,7 @@ class TaskPresentationTests(LocalBackendTestCase):
 
     def test_plan_color_and_plain_controls_preserve_actions_and_summary(self):
         self.run_complete()
-        for command in (("explain",), ("run", "--dry-run"), ("run",)):
+        for command in (("run", "--dry-run"), ("run",)):
             with self.subTest(command=command):
                 decorated = self.terminal_cli("--use-color", *command).stdout
                 monochrome = self.terminal_cli("--no-color", *command).stdout
@@ -154,30 +154,25 @@ class TaskPresentationTests(LocalBackendTestCase):
                 self.assertRegex(output, r"job_[^\n]*\n\s+State: pending")
                 self.assertRegex(output, r"\[completion\]\s+State: pending")
 
-    def test_job_and_group_selection_expand_all_jobs_in_both_inspectors(self):
-        workflow = self.work / "workflow.py"
-        workflow.write_text(workflow.read_text().replace("gwf.task", "left.group = 'mapping'\ngwf.task"))
-        for command in ("status", "explain"):
-            for selection in (("sample__left",), ("--group", "map*"), ("sample*",)):
-                with self.subTest(command=command, selection=selection):
-                    output = self.cli_result(command, "--details", *selection).stdout
-                    if command == "status":
-                        self.assertRegex(output, r"Task sample\s+pending\s+0/5")
-                        self.assertNotIn("Attempt:", output)
-                    else:
-                        self.assertIn("State: pending; Jobs completed: 0/5", output)
-                    for name in ("[preparation]", "left", "right", "join", "[completion]"):
-                        self.assertRegex(output, re.escape(name) + r"\s+pending")
+    def test_details_expand_all_jobs_in_status_and_run_preview(self):
+        for command in (("status",), ("run", "--dry-run")):
+            output = self.cli_result(*command, "--details").stdout
+            if command[0] == "status":
+                self.assertRegex(output, r"Task sample\s+pending\s+0/5")
+                self.assertNotIn("Attempt:", output)
+            else:
+                self.assertIn("State: pending; Jobs completed: 0/5", output)
+            for name in ("[preparation]", "left", "right", "join", "[completion]"):
+                self.assertRegex(output, re.escape(name) + r"\s+pending")
 
     def test_multiple_expanded_tasks_keep_their_jobs_under_their_owner(self):
         test_fresh.FreshAttemptTests.configure_workflow(self)
-        for command in ("status", "explain"):
-            output = self.cli_result(command, "--details", "--endpoints").stdout
-            prefix = "Task " if command == "status" else "Details for Task "
-            self.assertNotIn(prefix + "a", output)
-            first = output.index(prefix + "b")
-            second = output.index(prefix + "c")
-            for section in (output[first:second], output[second:]):
+        for command in (("status",), ("run", "--dry-run")):
+            output = self.cli_result(*command, "--details").stdout
+            prefix = "Task " if command[0] == "status" else "Details for Task "
+            positions = [output.index(prefix + name) for name in ("a", "b", "c")]
+            for first, last in zip(positions, [*positions[1:], len(output)]):
+                section = output[first:last]
                 self.assertLess(section.index("[preparation]"), section.index("compute"))
                 self.assertLess(section.index("compute"), section.index("[completion]"))
 
@@ -206,7 +201,7 @@ class TaskPresentationTests(LocalBackendTestCase):
         environment = self.inject(record_status=True)
         record = self.work / "backend-observations.jsonl"
         before = self.snapshot()
-        for command in (("status",), ("explain",), ("run", "--dry-run"), ("run",)):
+        for command in (("status",), ("run", "--dry-run"), ("run",)):
             record.unlink(missing_ok=True)
             self.cli("-b", "recovery_fixture", *command, env=environment)
             baseline = record.read_text().splitlines()

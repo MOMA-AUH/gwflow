@@ -133,5 +133,5 @@ class StatusNoticeTests(LocalBackendTestCase):
         environment = self.inject(queued_prefix="b__gwflow_complete")
         output = self.cli("-b", "recovery_fixture", "status", "absent*", env=environment)
         self.assertNotIn("Workflow notices", output)
-        self.cli("clean-work", "--delete")
+        self.cli("clean", "--delete")
         self.assertNotIn("Workflow notices", self.cli("status"))

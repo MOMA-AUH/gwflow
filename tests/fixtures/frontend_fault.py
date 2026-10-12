@@ -6,11 +6,11 @@ from pathlib import Path
 import sys
 import time
 
-from gwf.cli import main
+from gwflow.cli import main
 
 
 work, phase, task = Path(sys.argv[1]), sys.argv[2], sys.argv[3]
-sys.argv = ["gwf", *sys.argv[4:]]
+sys.argv = ["gwflow", *sys.argv[4:]]
 original_replace, original_unlink, original_rename, original_rmdir = os.replace, os.unlink, os.rename, os.rmdir
 
 

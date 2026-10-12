@@ -1,4 +1,4 @@
-"""Completion and reuse through the installed API and ordinary gwf CLI."""
+"""Completion and reuse through the installed API and managed CLI."""
 
 from collections import Counter
 import errno
@@ -22,6 +22,7 @@ from gwf.backends.local import Client, LocalStatus
 
 
 GWF = str(Path(sys.executable).with_name("gwf"))
+GWFLOW = str(Path(sys.executable).with_name("gwflow"))
 FIXTURES = Path(__file__).parent / "fixtures"
 
 # Storage and lifecycle fixtures fill in targets after creating a decorated
@@ -34,6 +35,7 @@ def empty_task(inputs, **options):
 
 
 class LocalBackendTestCase(unittest.TestCase):
+    executable = GWFLOW
     workers = 2
 
     def setUp(self):
@@ -49,7 +51,7 @@ class LocalBackendTestCase(unittest.TestCase):
         self.config = {"backend": "local", "backend.local.port": self.port}
         self.configure()
         worker = subprocess.Popen(
-            [GWF, "workers", "--host", "127.0.0.1", "-n", str(self.workers), "-p", str(self.port)], cwd=self.work,
+            [self.executable, "workers", "--host", "127.0.0.1", "-n", str(self.workers), "-p", str(self.port)], cwd=self.work,
             stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True,
         )
         self.addCleanup(self.stop_worker, worker)
@@ -57,7 +59,7 @@ class LocalBackendTestCase(unittest.TestCase):
 
     def worker_ready(self, worker):
         if worker.poll() is not None:
-            self.fail(f"gwf workers exited: {worker.stderr.read()}")
+            self.fail(f"workers exited: {worker.stderr.read()}")
         try:
             with socket.create_connection(("127.0.0.1", self.port), timeout=0.2):
                 return True
@@ -97,7 +99,7 @@ class LocalBackendTestCase(unittest.TestCase):
 
     def cli_result(self, *args, success=True, env=None):
         result = subprocess.run(
-            [GWF, *args], cwd=self.work, capture_output=True, text=True,
+            [self.executable, *args], cwd=self.work, capture_output=True, text=True,
             timeout=30, env=env,
         )
         output = result.stdout + result.stderr
@@ -111,6 +113,15 @@ class LocalBackendTestCase(unittest.TestCase):
         result = self.cli_result(*args, success=success, env=env)
         return result.stdout + result.stderr
 
+    def task_attempts(self, *, success=True):
+        output = self.cli("run", "--dry-run", "--details", success=success)
+        attempts = {}
+        for section in output.split("Details for Task ")[1:]:
+            name, details = section.split(":\n", 1)
+            attempts[name] = next(line.removeprefix("  Attempt: ")
+                                  for line in details.splitlines() if line.startswith("  Attempt: "))
+        return attempts
+
     def terminal_cli(self, *args, width=100, env=None, success=True):
         master, slave = pty.openpty()
         fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 24, width, 0, 0))
@@ -118,7 +129,7 @@ class LocalBackendTestCase(unittest.TestCase):
                        "PYTHONIOENCODING": "utf-8", **(env or {})}
         output = bytearray()
         with tempfile.TemporaryFile() as errors:
-            process = subprocess.Popen([GWF, *args], cwd=self.work, stdout=slave,
+            process = subprocess.Popen([self.executable, *args], cwd=self.work, stdout=slave,
                                        stderr=errors, env=environment)
             os.close(slave)
             deadline = time.monotonic() + 30

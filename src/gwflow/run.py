@@ -1,57 +1,28 @@
-"""The controlled persistence and submission boundary for gwflow workflows."""
+"""The controlled persistence and submission boundary for managed workflows."""
 
 import click
-from gwf import Workflow as GwfWorkflow
-from gwf.backends import create_backend
-from gwf.core import CachedFilesystem, Graph, get_spec_hashes, pass_context
+from gwf.core import pass_context
 from gwf.exceptions import WorkflowError
-from gwf.filtering import GroupFilter, NameFilter, filter_generic
-from gwf.plugins.run import clean_logs, run as gwf_run
-from gwf.scheduling import submit_workflow
-from .submission import submit_plan
 
-from ._frontend import _submission_guard
+from ._frontend import _submission_guard, load_workflow
 from .admission import SubmissionOutcome
 from .planning import plan_workflow
 from .presentation import Report, output_options, selected_rows
-from .workflow import Workflow
+from .submission import submit_plan
 
 
-def _submit_graph(graph, ctx, fs, *, dry_run, force,
-                  targets=(), group=(), no_deps=False):
-    """Submit through gwf's scheduler and persist its tracking on context exit."""
-    if ctx.config.get("clean_logs") and not dry_run:
-        clean_logs(ctx.working_dir, graph)
-    with create_backend(ctx.backend, working_dir=ctx.working_dir, config=ctx.config) as backend:
-        with get_spec_hashes(working_dir=ctx.working_dir, config=ctx.config) as hashes:
-            filters = []
-            if targets:
-                filters.append(NameFilter(patterns=targets))
-            if group:
-                filters.append(GroupFilter(patterns=group))
-            endpoints = set(filter_generic(targets=graph, filters=filters))
-            # Retain gwf's scheduling and its reobservation of active jobs.
-            # A job may settle after planning, while no other gwflow frontend
-            # can submit until both tracking contexts have closed.
-            submit_workflow(endpoints, graph, fs, hashes, backend,
-                            dry_run=dry_run, force=force, no_deps=no_deps)
-
-
+@output_options
+@click.command()
+@click.argument("targets", nargs=-1)
+@click.option("-d", "--dry-run", is_flag=True, help="Preview the execution plan without submitting jobs.")
+@click.option("-f", "--force", is_flag=True, help="Start fresh attempts for the whole workflow.")
+@click.option("--force-task", multiple=True, help="Start a fresh attempt for a named whole Task.")
 @pass_context
-def _run(ctx, targets, dry_run, force, no_deps, group, force_task=(), details=False, plain=False, no_truncate=False):
-    workflow = GwfWorkflow.from_context(ctx)
-    if not isinstance(workflow, Workflow):
-        if force_task:
-            raise WorkflowError("--force-task requires a gwflow.Workflow")
-        fs = CachedFilesystem()
-        graph = Graph.from_targets(workflow.targets, fs)
-        return _submit_graph(graph, ctx, fs, targets=targets, dry_run=dry_run,
-                             force=force, no_deps=no_deps, group=group)
-    if targets or group or no_deps:
-        raise WorkflowError(
-            "gwflow supports whole-workflow run only; "
-            "selectors and --no-deps are unsupported"
-        )
+def run(ctx, targets, dry_run, force, force_task, details, plain, no_truncate):
+    """Run the managed workflow, or preview it with --dry-run."""
+    workflow = load_workflow(ctx)
+    if targets:
+        raise WorkflowError("gwflow supports whole-workflow run only; selectors are unsupported")
     with _submission_guard(ctx.working_dir):
         plan = plan_workflow(workflow, ctx, force=force, force_tasks=force_task)
         report = Report(plan.store, plain=plain, no_truncate=no_truncate)
@@ -66,11 +37,3 @@ def _run(ctx, targets, dry_run, force, no_deps, group, force_task=(), details=Fa
             raise
         if not dry_run:
             report.submissions(outcomes.values(), details=details)
-
-
-# Patch the command object too, regardless of plugin discovery order.
-if not any(parameter.name == "force_task" for parameter in gwf_run.params):
-    gwf_run.params.append(click.Option(["--force-task"], multiple=True, help="Start a fresh attempt for a named whole Task."))
-gwf_run.callback = _run
-output_options(gwf_run)
-run = gwf_run

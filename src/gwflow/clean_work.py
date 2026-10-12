@@ -1,15 +1,13 @@
 """Preview or delete owned work under the shared frontend guard."""
 
 import click
-from gwf import Workflow as GwfWorkflow
 from gwf.backends import create_backend
 from gwf.core import pass_context
 from gwf.exceptions import WorkflowError
 
 from . import cleanup
-from ._frontend import _submission_guard
+from ._frontend import _submission_guard, load_workflow
 from .lifecycle import Store, declarations
-from .workflow import Workflow
 
 
 def display(store, observation):
@@ -25,7 +23,7 @@ def display(store, observation):
             click.echo(f"  Staging: {path}")
 
 
-@click.command("clean-work")
+@click.command("clean")
 @click.option("--delete", is_flag=True, help="Delete eligible owned work without an interactive prompt.")
 @click.option("--task", multiple=True, help="Limit completed-work cleanup to exact Task names.")
 @click.option("--attempt", "attempt_ids", multiple=True, help="Select exact recorded inactive attempts, giving up retry progress and repair sources.")
@@ -34,9 +32,7 @@ def clean_work(ctx, delete, task, attempt_ids):
     """Preview completed work or explicitly selected inactive attempts."""
     if task and attempt_ids:
         raise WorkflowError("Cannot combine --task and --attempt")
-    workflow = GwfWorkflow.from_context(ctx)
-    if not isinstance(workflow, Workflow):
-        raise WorkflowError("gwf clean-work requires a gwflow.Workflow")
+    workflow = load_workflow(ctx)
     with _submission_guard(ctx.working_dir):
         store = Store.for_workflow(workflow)
         for name, declaration in workflow._task_declarations.items():
