@@ -19,13 +19,13 @@ class _StatusChoice(click.Choice):
 @click.argument("selectors", nargs=-1)
 @click.option("-s", "--status", "statuses", multiple=True, type=_StatusChoice(STATES))
 @pass_context
-def status(ctx, selectors, statuses, details, plain, no_truncate):
+def status(ctx, selectors, statuses, details, plain):
     """Show a grouped overview or selected Task names and quoted globs."""
     workflow = load_workflow(ctx)
     with _submission_guard(ctx.working_dir, waiting_message="Waiting for frontend submission bookkeeping..."):
         names = task_selection(workflow._task_declarations, selectors)
         plan = plan_workflow(workflow, ctx, selectors=names)
-        report = Report(plan.store, plain=plain, no_truncate=no_truncate)
+        report = Report(plan.store, plain=plain)
         rows = selected_rows(workflow, plan, names=names, statuses=statuses)
         total = len(workflow._task_declarations)
         if not selectors and not details:

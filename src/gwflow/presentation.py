@@ -191,9 +191,8 @@ def inspection_command(*arguments):
     if root.get_parameter_source("no_color") == click.core.ParameterSource.COMMANDLINE:
         command.append("--no-color" if root.params["no_color"] else "--use-color")
     command.extend(arguments)
-    for name in ("plain", "no_truncate"):
-        if context.params.get(name):
-            command.append("--" + name.replace("_", "-"))
+    if context.params.get("plain"):
+        command.append("--plain")
     return command
 
 
@@ -293,7 +292,7 @@ _LIFECYCLE_NAMES = {"gwflow_prepare": "[preparation]", "gwflow_complete": "[comp
 class Report:
     """Print a static snapshot; terminal controls never change observations."""
 
-    def __init__(self, store, *, plain=False, no_truncate=False):
+    def __init__(self, store, *, plain=False):
         self.store = store
         stream = sys.stdout
         self.terminal = stream.isatty()
@@ -303,7 +302,6 @@ class Report:
         except UnicodeEncodeError:
             self.unicode = False
         self.plain = plain or not self.terminal or not self.unicode or os.environ.get("TERM", "").lower() in ("dumb", "unknown")
-        self.truncate = self.terminal and not no_truncate
         root = click.get_current_context().find_root()
         no_color = root.params.get("no_color")
         if no_color is None:
@@ -314,28 +312,22 @@ class Report:
                                color_system=None if self.plain or no_color else "auto",
                                no_color=self.plain or no_color, markup=False, highlight=False)
 
-    def text(self, value, *, style="", complete=False):
-        return Text(value, style=style, no_wrap=self.truncate and not complete,
-                    overflow="ellipsis" if self.truncate and not complete else "fold")
+    def text(self, value, *, style=""):
+        return Text(value, style=style, no_wrap=False, overflow="fold")
 
-    def line(self, value, *, complete=False, style=""):
+    def line(self, value, *, style=""):
         if not self.terminal:
             click.echo(value, color=False)
         else:
-            truncate = self.truncate and not complete
-            text = self.text(value, complete=complete, style=style if not self.plain else "")
             if not self.unicode:
-                text = Text(value.encode(self.console.encoding, errors="backslashreplace").decode(self.console.encoding))
-                if truncate and text.cell_len > self.console.width:
-                    text.truncate(max(1, self.console.width - 3), overflow="crop")
-                    text.append("...")
-            self.console.print(text, no_wrap=truncate, overflow="ellipsis" if truncate and self.unicode else "fold")
+                value = value.encode(self.console.encoding, errors="backslashreplace").decode(self.console.encoding)
+            self.console.print(self.text(value, style=style if not self.plain else ""))
 
     def notice(self, message):
         if self.plain:
-            self.line(message, complete=True)
+            self.line(message)
         else:
-            self.console.print(Panel(self.text(message, complete=True), border_style="yellow", title="Notice"))
+            self.console.print(Panel(self.text(message), border_style="yellow", title="Notice"))
 
     def status_line(self, value, *, style=""):
         """Wrap prose at whitespace; leave identifiers intact for the terminal."""
@@ -541,7 +533,7 @@ class Report:
             yield branch + f"{row.task.name}__{local}" + label, row.jobs[local]
 
     def plan(self, plan, rows, *, expand=False, preview=True):
-        self.line("Managed execution plan", complete=True)
+        self.line("Managed execution plan")
         if plan.blocked:
             self.notice(blockage_line(plan))
         removal = [task.name for task in plan.tasks if task.removal is not None]
@@ -557,21 +549,20 @@ class Report:
         table.add_column("Why", ratio=3)
         if self.plain or self.console.width < 64:
             self.line("Task / Next action / Why" if self.terminal else
-                      f"{'Task':<33} {'Next action':<14} Why", complete=True)
+                      f"{'Task':<33} {'Next action':<14} Why")
         for row in rows:
             task = row.task
             action = NEXT_ACTIONS[task.action]
             reason = plan_reason(task)
-            complete = task.action == "deferred" or needs_later_finish(task)
             if self.terminal and (self.plain or self.console.width < 64):
                 self.line("Task " + task.name)
-                self.line("  " + action, complete=True, style="bold cyan")
-                self.line("  " + reason, complete=complete)
+                self.line("  " + action, style="bold cyan")
+                self.line("  " + reason)
             elif self.plain:
                 self.line(f"{'Task ' + task.name:<33} {action:<14} {reason}")
             else:
                 table.add_row(self.text(task.name), Text(action, style="bold cyan"),
-                              self.text(reason, complete=complete))
+                              self.text(reason))
         if not self.plain and self.console.width >= 64:
             self.console.print(table)
         if expand:
@@ -594,11 +585,11 @@ class Report:
                         "Already submitted jobs may continue; submission was not rolled back.")
         elif confirmed:
             self.line(f"Submitted {jobs} job{'s' if jobs != 1 else ''} across {tasks} Task{'s' if tasks != 1 else ''}.",
-                      complete=True, style="bold green")
+                      style="bold green")
         else:
-            self.line("No new jobs were submitted.", complete=True)
+            self.line("No new jobs were submitted.")
         if details and outcomes:
-            self.line("Submission outcomes:", complete=True)
+            self.line("Submission outcomes:")
             for outcome in outcomes:
                 state = ("confirmed submitted" if outcome.confirmed else
                          "outcome unknown" if outcome.entered else "not attempted")
@@ -611,7 +602,7 @@ class Report:
     def details(self, row):
         task = row.task
         self.line(f"Details for Task {task.name}:")
-        self.line(f"  State: {row.state}; Jobs completed: {row.progress}", complete=True)
+        self.line(f"  State: {row.state}; Jobs completed: {row.progress}")
         names = lifecycle_jobs(ordered_targets(task.structure))
         table = Table(box=None, show_header=False, padding=(0, 1))
         table.add_column(ratio=2, min_width=12)
@@ -623,18 +614,12 @@ class Report:
             if self.terminal and self.console.width < 48:
                 self.line("  " + name, style=style)
                 if self.plain:
-                    self.line("    " + state, complete=True)
+                    self.line("    " + state)
                 else:
                     self.console.print(Text("    ") + self.state(state), no_wrap=False, overflow="fold")
             elif self.plain:
                 width = max(1, self.console.width - 16) if self.terminal else 28
-                label = Text(name)
-                if self.truncate and label.cell_len > width:
-                    label.truncate(width if self.unicode else width - 3,
-                                   overflow="ellipsis" if self.unicode else "crop")
-                    if not self.unicode:
-                        label.append("...")
-                self.line(f"  {label.plain:<{width}}  {state}", complete=True)
+                self.line(f"  {name:<{width}}  {state}")
             else:
                 table.add_row(self.text(name, style=style), self.state(state))
         if not self.plain and self.console.width >= 48:
@@ -648,7 +633,6 @@ def output_options(command):
     for name, help_text in (
         ("details", "Expand whole Tasks with lifecycle jobs and diagnostics."),
         ("plain", "Use undecorated output."),
-        ("no_truncate", "Show full names and reasons, wrapping in terminals."),
     ):
         if not isinstance(command, click.Command) or not any(parameter.name == name for parameter in command.params):
             command = click.option("--" + name.replace("_", "-"), is_flag=True, help=help_text)(command)

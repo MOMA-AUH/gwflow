@@ -88,24 +88,19 @@ class TaskPresentationTests(LocalBackendTestCase):
                 self.assertNotIn("Details for Task", result.stderr)
                 self.assertEqual(self.snapshot(), before)
 
-    def test_terminal_truncation_is_independent_of_plain_and_redirection(self):
+    def test_complete_names_are_default_across_widths_plain_output_and_redirection(self):
         name = "sample_" + "Z" * 120 + "_tail"
         workflow = self.work / "workflow.py"
         workflow.write_text(workflow.read_text().replace("'sample'", repr(name)))
         self.run_complete()
         for command in (("status", "*",), ("run", "--dry-run"), ("run",)):
-            for options in ((), ("--plain",)):
-                with self.subTest(command=command, options=options):
-                    shortened = self.terminal_cli("--no-color", *command, *options, width=80).stdout
-                    if command[0] == "status":
-                        self.assertIn(name, shortened)
-                        self.assertNotIn("…", shortened)
-                    else:
-                        self.assertIn("…", shortened)
-                        self.assertNotIn("_tail", shortened)
-                    complete = self.terminal_cli("--no-color", *command, *options, "--no-truncate", width=80).stdout
-                    self.assertIn("_tail", re.sub(r"\s+", "", complete))
-                    self.assertEqual(complete.count("Z"), 120)
+            for width in (32, 80, 140):
+                for options in ((), ("--plain",)):
+                    with self.subTest(command=command, width=width, options=options):
+                        output = self.terminal_cli("--no-color", *command, *options, width=width).stdout
+                        self.assertNotIn("…", output)
+                        self.assertIn("_tail", re.sub(r"\s+", "", output))
+                        self.assertEqual(output.count("Z"), 120)
             redirected = self.cli_result("--use-color", *command).stdout
             self.assertIn(name, redirected)
             self.assertNotIn("\x1b[", redirected)
@@ -123,6 +118,52 @@ class TaskPresentationTests(LocalBackendTestCase):
                     self.assertIn("reusable", output)
                     self.assertIn("5/5", output)
                     self.assertNotRegex(output, "[╭○━\\x1b]")
+
+    def test_removed_truncation_option_is_rejected_and_absent_from_help(self):
+        for command in ("run", "status"):
+            with self.subTest(command=command):
+                self.assertNotIn("--no-truncate", self.cli(command, "--help"))
+                output = self.cli(command, "--no-truncate", success=False)
+                self.assertIn("No such option", output)
+                self.assertIn("--no-truncate", output)
+
+    def test_detailed_job_names_and_diagnostics_are_complete_in_all_output_modes(self):
+        local = "job_" + "X" * 90 + "_tail"
+        image = "diagnostic_" + "Q" * 110 + "_image_tail.sif"
+        workflow = self.work / "workflow.py"
+        workflow.write_text(workflow.read_text().replace("'left'", repr(local)).replace(
+            "outputs=['same.txt'])", f"outputs=['same.txt'], image={image!r})", 1))
+        controls = (("--use-color", (), {}), ("--no-color", (), {}),
+                    ("--use-color", ("--plain",), {}),
+                    ("--use-color", (), {"PYTHONIOENCODING": "ascii"}))
+        for command in (("status",), ("run", "--dry-run"), ("run",)):
+            success = command[0] == "status"
+            redirected = self.cli_result("--use-color", *command, "--details", success=success).stdout
+            self.assertNotIn("\x1b[", redirected)
+            for width in (32, 100):
+                for color, options, environment in controls:
+                    with self.subTest(command=command, width=width, color=color, options=options, env=environment):
+                        raw = self.terminal_cli(color, *command, "--details", *options,
+                                                width=width, env=environment, success=success).stdout
+                        output = re.sub(r"\x1b\[[0-9;]*m", "", raw)
+                        compact = re.sub(r"\s+", "", output)
+                        self.assertNotIn("…", output)
+                        self.assertIn("sample__" + local, compact)
+                        self.assertEqual(output.count("X"), redirected.count("X"))
+                        self.assertEqual(output.count("Q"), redirected.count("Q"))
+                        self.assertIn("?/5", compact)
+                        self.assertIn("blocked", output)
+                        if success:
+                            self.assertNotIn(image, compact)
+                            self.assertNotIn("Attempt:", output)
+                        else:
+                            self.assertIn(image, compact)
+                            self.assertIn("Nextaction:Blocked", compact)
+                            self.assertIn("Reason:Target" + local, compact)
+                        if color == "--no-color" or options or environment:
+                            self.assertNotIn("\x1b[", raw)
+                        if options or environment:
+                            self.assertNotRegex(output, "[╭╮╰╯│─━]")
 
     def test_plan_color_and_plain_controls_preserve_actions_and_summary(self):
         self.run_complete()
@@ -207,7 +248,7 @@ class TaskPresentationTests(LocalBackendTestCase):
             baseline = record.read_text().splitlines()
             self.assertTrue(baseline)
             selections = (("sample",), ("*",)) if command[0] != "run" else ()
-            for options in (("--details",), ("--plain",), ("--no-truncate",), *selections):
+            for options in (("--details",), ("--plain",), *selections):
                 with self.subTest(command=command, options=options):
                     record.unlink()
                     self.terminal_cli("-b", "recovery_fixture", *command, *options, env=environment)

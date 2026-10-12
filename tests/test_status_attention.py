@@ -197,7 +197,7 @@ class StatusAttentionTests(LocalBackendTestCase):
             self.assertIn("--plain", command)
             self.assertIn("warning", command)
             self.assertIn("*", command)
-            for retired in ("--instances", "--endpoints", "--group", "--format"):
+            for retired in ("--instances", "--endpoints", "--group", "--format", "--no-truncate"):
                 self.assertNotIn(retired, command)
             self.assertEqual(command.count("--status"), 1)
             self.assertEqual(command[command.index("--status") + 1], state)

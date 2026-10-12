@@ -1,6 +1,7 @@
 """Invocation submission outcomes through the installed CLI and backend seam."""
 
 import json
+import re
 import subprocess
 import sys
 
@@ -100,6 +101,31 @@ class SubmissionReportTests(LocalBackendTestCase):
         self.assertIn("Aborted", result.stderr)
         self.assertNotIn("Submission interrupted", result.stderr)
         self.assertEqual(len(self.acceptances()), 2)
+        self.settle()
+        self.assertEqual((self.work / "trace").read_text().splitlines(), ["a"])
+
+    def test_narrow_partial_submission_preserves_long_ids_and_distinct_outcomes(self):
+        name = "a_producer_" + "P" * 80 + "_tail"
+        workflow = self.work / "workflow.py"
+        workflow.write_text(workflow.read_text().replace("alias='a'", f"alias={name!r}"))
+        environment = self.inject(record_acceptances=True, lose_ack=name + "__compute")
+        result = self.terminal_cli("--no-color", "-b", "recovery_fixture", "run", "--details",
+                                   env=environment, width=32, success=False)
+        output = re.sub(r"[\s│]", "", result.stdout)
+        self.assertNotIn("…", output)
+        self.assertIn("Nextaction:Run", output)
+        self.assertIn("1jobconfirmedsubmittedacross1Task", output)
+        self.assertIn("1submissionoutcomeunknown;7plannedjobsnotattempted", output)
+        outcomes = output.split("Submissionoutcomes:", 1)[1]
+        self.assertIn(name + "__gwflow_prepare:confirmedsubmitted", outcomes)
+        self.assertIn(name + "__compute:outcomeunknown", outcomes)
+        self.assertIn(name + "__gwflow_complete:notattempted", outcomes)
+        self.assertIn("b__compute:notattempted", outcomes)
+        accepted = self.acceptances()
+        self.assertEqual(len(accepted), 2)
+        self.assertIn(accepted[0]["name"], outcomes)
+        self.assertIn("Backendjob:" + str(accepted[0]["id"]), outcomes)
+        self.assertNotIn("Submission interrupted", result.stderr)
         self.settle()
         self.assertEqual((self.work / "trace").read_text().splitlines(), ["a"])
 
