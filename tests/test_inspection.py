@@ -116,7 +116,7 @@ class LifecycleInspectionTests(LocalBackendTestCase):
         self.assertIn("Next action: Repair", self.cli("run", "--dry-run", "--details"))
         self.cli("run")
         self.finish()
-        self.cli("clean", "--delete", "--task", "a")
+        self.cli("clean", "--delete", "a")
         before = self.snapshot()
         self.assertRegex(self.cli("status", "--instances"), r"Task a\s+reusable\s+3/3\s+work cleaned")
         self.assertEqual(self.snapshot(), before)
@@ -224,7 +224,7 @@ class LifecycleInspectionTests(LocalBackendTestCase):
         workflow = self.work / "workflow.py"
         workflow.write_text(workflow.read_text().replace("empty_task(inputs=[])", "empty_task(inputs=['input.txt'])", 1))
         self.run_complete()
-        self.cli("clean", "--delete", "--task", "a")
+        self.cli("clean", "--delete", "a")
         (self.work / "input.txt").write_text("changed after cleanup\n")
         preview = self.preview()
         self.assertIn("input metadata changed", preview)

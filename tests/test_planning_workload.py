@@ -84,7 +84,7 @@ class RepresentativePlanningTests(RegistryTestCase):
         print("All 418 jobs completed; freezing observations", flush=True)
         self.assertEqual(len((self.work / "backend-acceptances.jsonl").read_text().splitlines()), 418)
         self.assertEqual(len(self.calls("pull")), 1)
-        self.cli("clean", "--delete", "--task", "reference")
+        self.cli("clean", "--delete", "reference")
         self.assertFalse(list((self.work / "work/reference").glob("*/step*")))
         states = {}
         for index in range(20, 24):

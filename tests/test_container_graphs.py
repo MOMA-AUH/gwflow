@@ -96,7 +96,7 @@ class ContainerGraphTests(LocalBackendTestCase):
     def test_new_container_consumer_uses_retained_results_after_producer_cleanup(self):
         self.run_complete()
         workspace = Path(self.detail("producer", "Workspace"))
-        self.cli("clean", "--task", "producer", "--delete")
+        self.cli("clean", "producer", "--delete")
         self.assertFalse(workspace.exists())
         self.write_workflow()
         output = self.run_complete()
