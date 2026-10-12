@@ -31,13 +31,13 @@ class PlanningObservationTests(LocalBackendTestCase):
     def test_consumer_and_replacement_checks_share_job_evidence(self):
         self.run_complete()
         for command in (("status",), ("status", "--details", "c"), ("run", "--dry-run",),
-                        ("run", "--dry-run"), ("run",), ("run", "--dry-run", "--force-task", "a")):
+                        ("run", "--dry-run"), ("run",), ("run", "--dry-run", "--force", "a")):
             with self.subTest(command=command):
                 output, report = self.probe(*command)
                 self.assertEqual(output, self.cli_result(*command).stdout)
                 ack_reads = {path: count for path, count in report["paths"]["planning"].items()
                              if path.startswith("read:") and path.endswith("/ack.json")}
-                self.assertEqual(len(ack_reads), 9)
+                self.assertEqual(len(ack_reads), 6 if command[-2:] == ("--force", "a") else 9)
                 self.assertEqual(set(ack_reads.values()), {1}, ack_reads)
                 self.assertEqual(report["counts"]["backend"]["scheduler_requests"], 1)
 
@@ -64,7 +64,7 @@ class PlanningObservationTests(LocalBackendTestCase):
     def test_changed_admission_during_inspection_protects_its_producer(self):
         self.run_complete()
         _, _, writes, ack = self.new_admission()
-        result, = self.scenario([["run", "--dry-run", "--force-task", "a"]],
+        result, = self.scenario([["run", "--dry-run", "--force", "a"]],
                                [{"pass": 0, "after": ack, "write": writes}])
         self.assertNotEqual(result["exit_code"], 0)
         self.assertRegex(result["output"], r"Task a\s+Blocked\s+")
@@ -94,7 +94,7 @@ class PlanningObservationTests(LocalBackendTestCase):
                 writes = {str(attempt_path): attempt,
                           str(attempt_path.parent / "submissions" / generation / selected.name): intent,
                           str(attempt_path.parent / "admissions" / token / "intent.json"): intent}
-                result, = self.scenario([["run", "--dry-run", "--force-task", "a"]],
+                result, = self.scenario([["run", "--dry-run", "--force", "a"]],
                                        [{"pass": 0, "after": str(ack), "write": writes}])
                 self.assertNotEqual(result["exit_code"], 0)
                 self.assertRegex(result["output"], r"Task a\s+Blocked\s+")
@@ -104,7 +104,7 @@ class PlanningObservationTests(LocalBackendTestCase):
     def test_submission_rechecks_observations_after_planning_on_the_same_store(self):
         self.run_complete()
         _, _, writes, _ = self.new_admission()
-        result, = self.scenario([["run", "--force-task", "a"]],
+        result, = self.scenario([["run", "--force", "a"]],
                                [{"pass": 0, "after": "planned", "write": writes}])
         self.assertNotEqual(result["exit_code"], 0)
         self.assertIn("Active consumers block replacement", result["output"])
@@ -116,7 +116,7 @@ class PlanningObservationTests(LocalBackendTestCase):
         _, _, _, ack = self.new_admission()
         changed = json.loads(Path(ack).read_text())
         changed["job_id"] = "different-scheduler-job"
-        run, status = self.scenario([["run", "--force-task", "a"], ["status", "c"]],
+        run, status = self.scenario([["run", "--force", "a"], ["status", "c"]],
                                    [{"pass": 0, "after": "planned", "write": {ack: changed}}])
         self.assertNotEqual(run["exit_code"], 0)
         self.assertIn("Active consumers block replacement", run["output"])

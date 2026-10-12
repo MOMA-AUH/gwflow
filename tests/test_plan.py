@@ -34,7 +34,7 @@ class TaskPlanTests(LocalBackendTestCase):
                   for path in root.rglob("*") if path.is_file()}
         for command in (("run", "--dry-run"), ("run",)):
             with self.subTest(command=command):
-                result = self.cli_result(*command, "--force-task", "a", success=False)
+                result = self.cli_result(*command, "--force", success=False)
                 self.assertIn("Workflow blocked — no new jobs will be submitted", result.stdout)
                 self.assertRegex(result.stdout, r"Task a\s+Run\s+")
                 self.assertRegex(result.stdout, r"Task b\s+Blocked\s+")
@@ -43,7 +43,7 @@ class TaskPlanTests(LocalBackendTestCase):
                 self.assertNotIn(str(self.work), result.stdout)
                 self.assertNotIn("Would remove", result.stderr)
         for options in ((), ("--plain",)):
-            output = self.terminal_cli("--no-color", "run", "--dry-run", "--force-task", "a", *options, width=32, success=False).stdout
+            output = self.terminal_cli("--no-color", "run", "--dry-run", "--force", *options, width=32, success=False).stdout
             compact = re.sub(r"[\s│]", "", output)
             self.assertIn("Workflowblocked—nonewjobswillbesubmitted", compact)
             self.assertIn("WouldremovepreviousretainedresultsforTasks:a,c", compact)

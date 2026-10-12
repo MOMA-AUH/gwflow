@@ -7,6 +7,7 @@ from gwf.exceptions import WorkflowError
 
 from . import _files, _observations, admission, images, inputs, transfer
 from .lifecycle import Store, TaskObservation, declarations, ordered_tasks, ordered_targets, producer_names, target_dependencies
+from .selection import task_selection
 from .workflow import lifecycle_jobs
 
 
@@ -190,22 +191,27 @@ def awaiting_producer_metadata(store, observation):
 
 
 @_observations.planning_pass()
-def plan_workflow(workflow, ctx, *, force=False, force_tasks=()):
-    if force and force_tasks:
-        raise WorkflowError("Cannot combine --force and --force-task")
-    unknown = set(force_tasks) - workflow._task_declarations.keys()
-    if unknown:
-        raise WorkflowError("Unknown Task names for --force-task: " + ", ".join(sorted(unknown)))
+def plan_workflow(workflow, ctx, *, selectors=(), force=False):
+    selected_names = task_selection(workflow._task_declarations, selectors)
     expected = {f"{name}__{local}" for name, task in workflow._task_declarations.items()
                 for local in lifecycle_jobs(task.targets)}
     if set(workflow.targets) != expected:
         raise WorkflowError("Every computation target in gwflow.Workflow must belong to a registered Task")
     store = Store.for_workflow(workflow)
     declared = {name: declarations(task, store, workflow) for name, task in workflow._task_declarations.items()}
+    order = ordered_tasks(declared)
+    scope = set(selected_names)
+    # Validate the entire graph first, then include upstream dependencies by
+    # walking backward through its dependency order.
+    for name in reversed(order):
+        if name in scope:
+            scope.update(producer_names(declared[name][0]))
     tasks = []
     selected = {}
     with create_backend(ctx.backend, working_dir=ctx.working_dir, config=ctx.config) as backend:
-        for name in ordered_tasks(declared):
+        for name in order:
+            if name not in scope:
+                continue
             structure, commands = declared[name]
             attempt = store.current(name, workflow._result_dirs[name])
             observation = TaskObservation(name, "fresh", "no completed managed attempt", structure, commands, attempt)
@@ -235,7 +241,7 @@ def plan_workflow(workflow, ctx, *, force=False, force_tasks=()):
                     if uncertain:
                         observation.action, observation.reason = "blocked", "unresolved submission: " + ", ".join(uncertain)
                     elif change := definition_change(store, observation, selected,
-                                                      force_option="--force" if force else "--force-task" if name in force_tasks else None,
+                                                      force_option="--force" if force and name in selected_names else None,
                                                       tracking=ctx.config.get("use_spec_hashes"), initializing=initializing):
                         fresh_observation(store, observation, change)
                     elif initializing:

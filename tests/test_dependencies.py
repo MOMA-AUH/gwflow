@@ -89,11 +89,16 @@ class TaskDependencyTests(LocalBackendTestCase):
             "undeclared boundary": original.replace("empty_task(inputs=[a.outputs['value'], b.outputs['value']])", "empty_task(inputs=[b.outputs['value']])"),
             "undeclared target input": original.replace("inputs=consumer.inputs", "inputs=[b.outputs['value']]"),
             "Task cycle": original.replace("consumer = empty_task(", "cyclic = type(a.outputs['value'])(gwf, 'c', 'combined')\nconsumer = empty_task(").replace("a.outputs['value'], b.outputs['value']", "cyclic, b.outputs['value']").replace("a=a.outputs['value']", "a=cyclic"),
+            "Task name": original.replace("alias='c'", "alias='invalid-name'"),
+            "results layout": original.replace("alias='c'", "alias='c', result_dir='first producer/nested'"),
+            "target membership": original + "\nfrom gwf import Target\ngwf.targets['outside'] = Target('outside', [], ['out'], {})\n",
         }
         for label, declaration in variants.items():
             with self.subTest(label=label):
                 workflow.write_text(declaration)
-                self.cli("run", success=False)
+                for selectors in ((), ("a",)):
+                    self.cli("run", *selectors, success=False)
+                    self.cli("run", "--dry-run", *selectors, success=False)
                 self.assertFalse((self.work / ".gwf/gwflow").exists())
 
     def test_active_consumer_is_visible_after_its_declaration_is_removed(self):

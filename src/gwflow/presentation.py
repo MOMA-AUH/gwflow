@@ -77,8 +77,8 @@ def task_groups(workflow, plan):
 
 def task_order(workflow, plan):
     """Choose the earliest declared eligible Task at each dependency step."""
-    remaining = {name: next(task for task in plan.tasks if task.name == name)
-                 for name in workflow._task_declarations}
+    planned = {task.name: task for task in plan.tasks}
+    remaining = {name: planned[name] for name in workflow._task_declarations if name in planned}
     while remaining:
         name = next(name for name, task in remaining.items()
                     if not set(producer_names(task.structure)).intersection(remaining))
@@ -530,7 +530,7 @@ class Report:
             yield branch + f"{row.task.name}__{local}" + label, row.jobs[local]
 
     def plan(self, plan, rows, *, expand=False, preview=True):
-        self.line("Managed whole-workflow plan", complete=True)
+        self.line("Managed execution plan", complete=True)
         if plan.blocked:
             self.notice(blockage_line(plan))
         removal = [task.name for task in plan.tasks if task.removal is not None]

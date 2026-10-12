@@ -178,7 +178,7 @@ class ContainerGraphTests(LocalBackendTestCase):
     def test_image_change_cannot_replace_an_uncertain_attempt(self):
         self.write_workflow()
         self.run_complete()
-        self.cli("-b", "recovery_fixture", "run", "--force-task", "producer",
+        self.cli("-b", "recovery_fixture", "run", "--force", "producer",
                  env=self.inject(reject_prefix="producer__gwflow_prepare"), success=False)
         self.change_image()
         self.assert_blocked_without_changes("unresolved submission")
