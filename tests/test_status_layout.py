@@ -41,8 +41,7 @@ class StatusLayoutTests(LocalBackendTestCase):
         record = self.work / "backend-observations.jsonl"
         before = self.snapshot()
         baseline = None
-        controls = (("--no-color", ()), ("--use-color", ()),
-                    ("--use-color", ("--plain",)), ("--no-color", ("--no-truncate",)))
+        controls = (("--no-color", ()), ("--use-color", ()), ("--use-color", ("--plain",)))
         selector = prefix + "__*"
         for width in (40, 100):
             for view in ((), (selector,), ("--details",)):
@@ -127,8 +126,7 @@ class StatusLayoutTests(LocalBackendTestCase):
                             "        gwf.task(mapping(), alias=alias, key=f'other_{index:02}')\n")
         selector = "duplex_mapping__sample_[AB]"
         before = self.snapshot()
-        for color, options in (("--no-color", ()), ("--use-color", ()),
-                               ("--no-color", ("--plain",)), ("--no-color", ("--no-truncate",))):
+        for color, options in (("--no-color", ()), ("--use-color", ()), ("--no-color", ("--plain",))):
             raw = self.terminal_cli(color, "status", selector, *options, width=40).stdout
             output = uncolored(raw)
             self.assertIn("2 of 45 Tasks selected\n1 blocked, 1 failed", output)

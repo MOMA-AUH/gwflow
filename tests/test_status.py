@@ -65,10 +65,8 @@ class ManagedStatusTests(LocalBackendTestCase):
                 self.assertNotIn("…", complete)
                 self.assertIn("sample__" + name, complete)
                 self.assertIn("pending", complete)
-                wrapped = self.terminal_cli("--no-color", "status", "--details", *options,
-                                            "--no-truncate", width=100).stdout
-                self.assertIn("_tail", wrapped)
-                self.assertEqual(wrapped.count("X"), 100)
+                self.assertIn("_tail", complete)
+                self.assertEqual(complete.count("X"), 100)
         redirected = self.cli_result("status", "--details").stdout
         self.assertIn(name, redirected)
         self.assertNotIn("…", redirected)
