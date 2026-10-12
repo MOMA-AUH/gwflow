@@ -113,6 +113,15 @@ class LocalBackendTestCase(unittest.TestCase):
         result = self.cli_result(*args, success=success, env=env)
         return result.stdout + result.stderr
 
+    def task_attempts(self, *, success=True):
+        output = self.cli("run", "--dry-run", "--details", success=success)
+        attempts = {}
+        for section in output.split("Details for Task ")[1:]:
+            name, details = section.split(":\n", 1)
+            attempts[name] = next(line.removeprefix("  Attempt: ")
+                                  for line in details.splitlines() if line.startswith("  Attempt: "))
+        return attempts
+
     def terminal_cli(self, *args, width=100, env=None, success=True):
         master, slave = pty.openpty()
         fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 24, width, 0, 0))

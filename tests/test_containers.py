@@ -114,8 +114,8 @@ class ContainerRuntimeTests(LocalBackendTestCase):
         self.assertFalse(scratch[0].exists())
         self.assertNotIn("Submitted target", self.cli("run"))
 
-    def attempt(self):
-        return re.search(r"Attempt: (\w+)", self.cli("run", "--dry-run", "--details")).group(1)
+    def attempt(self, *, success=True):
+        return self.task_attempts(success=success)["sample"]
 
     def snapshot(self):
         return {str(path): (path.read_bytes(), path.stat().st_mtime_ns)

@@ -37,9 +37,8 @@ class FreshAttemptTests(LocalBackendTestCase):
         )
         (self.work / "workflow.py").write_text(declaration)
 
-    def attempts(self):
-        return {name: next(line for line in self.cli("run", "--dry-run", "--details", name).splitlines() if "Attempt:" in line)
-                for name in ("a", "b", "c")}
+    def attempts(self, *, success=True):
+        return self.task_attempts(success=success)
 
     def test_selected_force_refreshes_consumers_even_with_identical_metadata(self):
         self.check_selected_force()
@@ -316,9 +315,9 @@ class FreshAttemptTests(LocalBackendTestCase):
         self.cli("-b", "recovery_fixture", "run", "--force-task", "a", env=self.inject(lose_tracking="a__compute"), success=False)
         self.wait_for(held.exists)
         try:
-            pending = self.attempts()["a"]
+            pending = self.attempts(success=False)["a"]
             self.assertIn("unresolved submission", self.cli("run", "--force-task", "a", success=False))
-            self.assertEqual(self.attempts()["a"], pending)
+            self.assertEqual(self.attempts(success=False)["a"], pending)
         finally:
             release.touch()
         self.settle()

@@ -181,7 +181,7 @@ class RegistryRecoveryTests(test_registry_images.RegistryTestCase):
         env = self.inject(job_fault="sample__gwflow_prepare", lose_tracking="sample__gwflow_prepare")
         self.cli("-b", "recovery_fixture", "run", "--force", env=env, success=False)
         self.wait_for(lambda: (self.work / "preparation-held").exists())
-        blocked_attempt = self.attempt()
+        blocked_attempt = self.attempt(success=False)
         try:
             self.configure_workflow("docker://example.org/tools/demo:replacement-while-uncertain")
             self.assert_blocked_without_changes("unresolved submission")

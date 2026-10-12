@@ -18,9 +18,8 @@ class ExplicitCleanupTests(LocalBackendTestCase):
     settle = test_cleanup.CompletedWorkCleanupTests.settle
     inject = test_cleanup.CompletedWorkCleanupTests.inject
 
-    def attempt(self, name):
-        return next(line.split("Attempt: ")[1] for line in self.cli("run", "--dry-run", "--details", name).splitlines()
-                    if "Attempt:" in line)
+    def attempt(self, name, *, success=True):
+        return self.task_attempts(success=success)[name]
 
     def test_selected_older_attempt_preserves_current_results_and_reuse(self):
         self.run_complete()
@@ -112,7 +111,7 @@ class ExplicitCleanupTests(LocalBackendTestCase):
     def test_uncertain_attempt_refuses_explicit_deletion(self):
         self.cli("-b", "recovery_fixture", "run", env=self.inject(reject_prefix="a__compute"), success=False)
         self.settle()
-        attempt = self.attempt("a")
+        attempt = self.attempt("a", success=False)
         output = self.cli("clean", "--delete", "--attempt", attempt, success=False)
         self.assertIn("unresolved submission", output)
         self.assertTrue((self.work / "work/a" / attempt).exists())

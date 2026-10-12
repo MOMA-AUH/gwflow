@@ -9,7 +9,6 @@ from gwf.backends import guess_backend, list_backends
 from gwf.cli import configure_logging
 from gwf.conf import FileConfig
 from gwf.plugins.config import config
-from gwf.plugins.workers import workers
 from gwf.utils import find_workflow
 
 from ._frontend import ManagedContext
@@ -17,6 +16,7 @@ from .clean_work import clean_work
 from .logs import logs
 from .run import run
 from .status import status
+from .workers import workers
 
 
 @click.group()
