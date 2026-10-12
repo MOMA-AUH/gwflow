@@ -43,14 +43,13 @@ class StatusLayoutTests(LocalBackendTestCase):
         baseline = None
         controls = (("--no-color", ()), ("--use-color", ()),
                     ("--use-color", ("--plain",)), ("--no-color", ("--no-truncate",)))
-        selector = "task:" + prefix + "__*"
+        selector = prefix + "__*"
         for width in (40, 100):
-            for view in ((), ("--instances",), ("--details",)):
+            for view in ((), (selector,), ("--details",)):
                 for color, options in controls:
                     with self.subTest(width=width, view=view, color=color, options=options):
                         record.unlink(missing_ok=True)
-                        raw = self.terminal_cli(color, "-b", "recovery_fixture", "status", selector,
-                                                *view, *options, width=width, env=environment).stdout
+                        raw = self.terminal_cli(color, "-b", "recovery_fixture", "status", *view, *options, width=width, env=environment).stdout
                         output = uncolored(raw)
                         self.assertIn("2 of 2 Tasks selected", " ".join(output.split()))
                         self.assertNotIn("…", output)
@@ -59,7 +58,7 @@ class StatusLayoutTests(LocalBackendTestCase):
                             for module in ("library", "second"):
                                 self.assertIn(f"{prefix}@{module}.mapping", output)
                             command = re.search(r"(?m)^  (gwflow [^\n]+)$", output).group(1)
-                            self.assertIn(selector, shlex.split(command))
+                            self.assertIn("*", shlex.split(command))
                         else:
                             for key in ("A", "B"):
                                 self.assertIn(f"{prefix}__{key}", output)
@@ -76,8 +75,8 @@ class StatusLayoutTests(LocalBackendTestCase):
         redirected = self.cli("--use-color", "-b", "recovery_fixture", "status", "--details", env=environment)
         self.assertIn(f"{prefix}__A__{local}", redirected)
         self.assertNotIn("\x1b[", redirected)
-        for view in ((), ("--instances",), ("--details",)):
-            output = self.terminal_cli("--no-color", "status", "absent*", *view, width=40).stdout
+        for view in ((), (selector,), ("--details",)):
+            output = self.terminal_cli("--no-color", "status", "--status", "failed", *view, width=40).stdout
             self.assertIn("No Tasks selected", output)
             self.assertIn(f"{prefix}__A", output)
             self.assertIn("(outside selection)", output)
@@ -126,11 +125,11 @@ class StatusLayoutTests(LocalBackendTestCase):
                             "for alias in ('duplex_mapping', 'mutect2_calling'):\n"
                             "    for index in range(20):\n"
                             "        gwf.task(mapping(), alias=alias, key=f'other_{index:02}')\n")
-        selector = "task:duplex_mapping__sample_[AB]"
+        selector = "duplex_mapping__sample_[AB]"
         before = self.snapshot()
         for color, options in (("--no-color", ()), ("--use-color", ()),
                                ("--no-color", ("--plain",)), ("--no-color", ("--no-truncate",))):
-            raw = self.terminal_cli(color, "status", selector, "--instances", *options, width=40).stdout
+            raw = self.terminal_cli(color, "status", selector, *options, width=40).stdout
             output = uncolored(raw)
             self.assertIn("2 of 45 Tasks selected\n1 blocked, 1 failed", output)
             self.assertIn("State: blocked\n  Jobs completed: ?/5", output)
@@ -142,16 +141,16 @@ class StatusLayoutTests(LocalBackendTestCase):
             self.assertTrue(all(len(line) <= 40 for line in output.splitlines()), output)
             notices = output.split("Workflow notices", 1)[1]
             self.assertIn("duplex_mapping__sample_A", notices)
-            self.assertIn("mutect2_calling__sample_C", notices)
-            self.assertIn("mutect2_calling__sample_D", notices)
-            self.assertEqual(notices.count("(outside selection)"), 2)
+            self.assertNotIn("mutect2_calling__sample_C", notices)
+            self.assertNotIn("mutect2_calling__sample_D", notices)
+            self.assertNotIn("(outside selection)", notices)
             self.assertIn("no new jobs will be submitted", " ".join(notices.split()))
-            self.assertIn("run again after upstream result recovery", " ".join(notices.split()))
+            self.assertNotIn("run again after upstream result recovery", " ".join(notices.split()))
             self.assertEqual(self.snapshot(), before)
-        grouped = self.terminal_cli("--no-color", "status", selector, width=40).stdout
+        grouped = self.terminal_cli("--no-color", "status", "--status", "failed", width=40).stdout
         commands = re.findall(r"(?m)^  (gwflow [^\n]+)$", grouped)
         failed = next(shlex.split(command) for command in commands if "--status failed" in command)
-        self.assertIn(selector, failed)
+        self.assertIn("*", failed)
         expanded = self.cli(*failed[1:])
         self.assertIn("1 of 45 Tasks selected", expanded)
         self.assertRegex(expanded, r"Task duplex_mapping__sample_B\s+failed\s+2/5")

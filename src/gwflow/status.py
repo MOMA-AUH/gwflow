@@ -1,13 +1,12 @@
 """Compact managed Task status."""
 
 import click
-from gwf.core import Status, pass_context
+from gwf.core import pass_context
 
 from ._frontend import _submission_guard, load_workflow
-from ._state import state_name
 from .planning import plan_workflow
 from .presentation import STATES, Report, output_options, selected_rows, task_groups, task_order
-from .selection import status_selection
+from .selection import task_selection
 
 
 class _StatusChoice(click.Choice):
@@ -15,7 +14,7 @@ class _StatusChoice(click.Choice):
         return super().convert("canceled" if value == "cancelled" else value, param, ctx)
 
 
-def inspection_command(targets, endpoints, group, plain, no_truncate):
+def inspection_command(plain, no_truncate):
     """Retain invocation context and selection; attention supplies one state."""
     root = click.get_current_context().find_root()
     command = ["gwflow"]
@@ -24,11 +23,7 @@ def inspection_command(targets, endpoints, group, plain, no_truncate):
             command.extend((option, str(root.params[name])))
     if root.get_parameter_source("no_color") == click.core.ParameterSource.COMMANDLINE:
         command.append("--no-color" if root.params["no_color"] else "--use-color")
-    command.extend(("status", *targets))
-    if endpoints:
-        command.append("--endpoints")
-    for pattern in group:
-        command.extend(("--group", pattern))
+    command.extend(("status", "*"))
     if plain:
         command.append("--plain")
     if no_truncate:
@@ -38,45 +33,21 @@ def inspection_command(targets, endpoints, group, plain, no_truncate):
 
 @output_options
 @click.command(name="status")
-@click.argument("targets", nargs=-1)
-@click.option("--endpoints", is_flag=True, default=False,
-              help="Show endpoint Tasks.")
-@click.option("-f", "--format", "output_format", default="tree", type=click.Choice(("tree", "default", "summary", "grouped")),
-              help="Format for ordinary gwf workflows only.")
-@click.option("-s", "--status", "statuses", multiple=True, type=_StatusChoice(tuple(dict.fromkeys((*STATES, *(state_name(state) for state in Status))))))
-@click.option("-g", "--group", multiple=True)
-@click.option("--instances", is_flag=True, help="Show every selected Task with its exact state and completed-job progress.")
-@click.option("--details", is_flag=True,
-              help="Expand Tasks with full public job names. Takes precedence over --instances.")
-@click.option("--no-truncate", is_flag=True,
-              help="Keep full names and information (always enabled for managed status).")
+@click.argument("selectors", nargs=-1)
+@click.option("-s", "--status", "statuses", multiple=True, type=_StatusChoice(STATES))
 @pass_context
-def status(ctx, targets, endpoints, output_format, statuses, group, instances, details, plain, no_truncate):
-    """Show grouped Task condition, attention previews, and workflow notices.
-
-    Select visible groups, Tasks, or public jobs. Use task: and job: to resolve
-    overlapping names. Quote globs; they stay grouped unless a view flag is set.
-    """
+def status(ctx, selectors, statuses, details, plain, no_truncate):
+    """Show a grouped overview or selected Task names and quoted globs."""
     workflow = load_workflow(ctx)
-    if output_format != "tree":
-        raise click.UsageError("--format is only supported for ordinary gwf workflows; use --details for managed Tasks")
-    invalid = set(statuses) - set(STATES)
-    if invalid:
-        raise click.UsageError("Managed status filters use Task states: " + ", ".join(STATES))
     with _submission_guard(ctx.working_dir, waiting_message="Waiting for frontend submission bookkeeping..."):
-        plan = plan_workflow(workflow, ctx)
-        groups = task_groups(workflow, plan)
-        names, view = status_selection(plan, groups, targets)
-        if details:
-            view = "details"
-        elif instances:
-            view = "instances"
+        names = task_selection(workflow._task_declarations, selectors)
+        plan = plan_workflow(workflow, ctx, selectors=names)
         report = Report(plan.store, plain=plain, no_truncate=no_truncate)
-        rows = [row for row in selected_rows(workflow, plan, endpoints=endpoints, statuses=statuses, group=group)
-                if row.task.name in names]
-        if view == "overview":
-            report.overview(groups, rows, len(plan.tasks))
-            report.attention(rows, inspection_command(targets, endpoints, group, plain, no_truncate))
+        rows = selected_rows(workflow, plan, names=names, statuses=statuses)
+        total = len(workflow._task_declarations)
+        if not selectors and not details:
+            report.overview(task_groups(workflow, plan), rows, total)
+            report.attention(rows, inspection_command(plain, no_truncate))
         else:
-            report.status(rows, len(plan.tasks), expand=view == "details")
+            report.status(rows, total, expand=details)
         report.workflow_notices(task_order(workflow, plan), rows)

@@ -37,7 +37,7 @@ class PlanningObservationTests(LocalBackendTestCase):
                 self.assertEqual(output, self.cli_result(*command).stdout)
                 ack_reads = {path: count for path, count in report["paths"]["planning"].items()
                              if path.startswith("read:") and path.endswith("/ack.json")}
-                self.assertEqual(len(ack_reads), 6 if command[-2:] == ("--force", "a") else 9)
+                self.assertEqual(len(ack_reads), 6 if command[-2:] == ("--force", "a") or command[-1:] == ("c",) else 9)
                 self.assertEqual(set(ack_reads.values()), {1}, ack_reads)
                 self.assertEqual(report["counts"]["backend"]["scheduler_requests"], 1)
 
@@ -175,8 +175,8 @@ class ProducerEvidenceTests(LocalBackendTestCase):
     def check_shared_evidence(self, consumers, references):
         self.configure_workflow(consumers, references)
         self.run_complete()
-        output, report = self.probe("status", "--instances")
-        self.assertEqual(output, self.cli_result("status", "--instances").stdout)
+        output, report = self.probe("status", "*")
+        self.assertEqual(output, self.cli_result("status", "*").stdout)
         self.assertEqual(output.count("reusable"), consumers + 2)
         producer_reads = {path: count for path, count in report["paths"]["planning"].items()
                           if path.startswith("read:") and "/tasks/reference/" in path}
