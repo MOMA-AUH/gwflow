@@ -52,16 +52,17 @@ class FreshAttemptTests(LocalBackendTestCase):
         before = self.attempts()
         result = self.work / "results/a/result.txt"
         info = result.stat()
-        preview = self.cli("run", "--dry-run", "--force-task", "a")
+        preview = self.cli("run", "--dry-run", "--force", "a")
         self.assertRegex(preview, r"Task a\s+Run\s+")
-        self.assertRegex(preview, r"Task b\s+Reuse\s+")
-        self.assertRegex(preview, r"Task c\s+Run\s+")
+        self.assertNotRegex(preview, r"Task [bc]\s+")
         self.assertIn("remove previous retained results", preview)
-        self.cli("run", "--force-task", "a", "--dry-run")
+        self.cli("run", "--force", "a", "--dry-run")
         self.assertEqual(self.attempts(), before)
         self.assertEqual(result.read_text(), "a")
-        self.cli("run", "--force-task", "a")
+        self.cli("run", "--force", "a")
         self.finish()
+        self.assertEqual(self.attempts()["c"], before["c"])
+        self.run_complete()
         after = self.attempts()
         self.assertNotEqual(after["a"], before["a"])
         self.assertEqual(after["b"], before["b"])
@@ -95,14 +96,14 @@ class FreshAttemptTests(LocalBackendTestCase):
         environment.write_text("export TASK_MODE=new\n")
         self.assertNotIn("Submitted target", self.cli("run"))
         self.assertEqual(result.read_text(), "v1 first old\n")
-        self.cli("run", "--force-task", "runtime")
+        self.cli("run", "--force", "runtime")
         self.finish()
         self.assertEqual(result.read_text(), "version2 second new\n")
 
     def interrupted_initialization(self, phase):
         self.run_complete()
         old = self.attempts()
-        result = subprocess.run([sys.executable, str(FIXTURES / "frontend_fault.py"), str(self.work), phase, "a", "run", "--force-task", "a"],
+        result = subprocess.run([sys.executable, str(FIXTURES / "frontend_fault.py"), str(self.work), phase, "a", "run", "--force", "a"],
                                 cwd=self.work, capture_output=True, text=True, timeout=30)
         self.assertIn(result.returncode, (92, 93, 94), result.stdout + result.stderr)
         pending = self.attempts()
@@ -138,22 +139,24 @@ class FreshAttemptTests(LocalBackendTestCase):
 
     def test_rejected_admission_leaves_old_results_absent_and_resumes(self):
         self.run_complete()
-        self.cli("-b", "recovery_fixture", "run", "--force-task", "a", env=self.inject(reject_before_admission=True), success=False)
+        self.cli("-b", "recovery_fixture", "run", "--force", "a", env=self.inject(reject_before_admission=True), success=False)
         pending = self.attempts()
         self.assertFalse((self.work / "results/a").exists())
-        self.assertFalse((self.work / "results/c").exists())
+        self.assertEqual((self.work / "results/c/result.txt").read_text(), "a")
         self.assertEqual((self.work / "results/b/result.txt").read_text(), "b")
         self.cli("run")
         self.finish()
-        self.assertEqual(self.attempts(), pending)
+        self.assertEqual(self.attempts()["a"], pending["a"])
+        self.assertEqual(self.attempts()["b"], pending["b"])
+        self.assertNotEqual(self.attempts()["c"], pending["c"])
         self.assertEqual(Counter((self.work / "trace").read_text().splitlines()), {"a": 2, "b": 1, "c": 2})
 
     def test_invalid_force_selectors_preserve_previous_results(self):
         self.run_complete()
         before = self.attempts()
-        for arguments in (("run", "--force", "--force-task", "a"), ("run", "--dry-run", "--force", "--force-task", "a"),
-                          ("run", "--force-task", "missing"), ("run", "--force-task", "a__compute"),
-                          ("run", "a"), ("run", "--group", "anything"), ("run", "--no-deps")):
+        for arguments in (("run", "--force-task", "a"), ("run", "--dry-run", "--force-task", "a"),
+                          ("run", "--force", "missing"), ("run", "--force", "a__compute"),
+                          ("run", "a", "missing*"), ("run", "--group", "anything"), ("run", "--no-deps")):
             with self.subTest(arguments=arguments):
                 self.cli(*arguments, success=False)
                 self.assertEqual(self.attempts(), before)
@@ -166,14 +169,14 @@ class FreshAttemptTests(LocalBackendTestCase):
         original = workflow.read_text()
         wait = f"touch {shlex.quote(str(held))}; while [ ! -e {shlex.quote(str(release))} ]; do sleep 0.025; done; "
         workflow.write_text(original.replace("echo c", wait + "echo c"))
-        self.cli("run", "--force-task", "c")
+        self.cli("run", "--force", "c")
         self.wait_for(held.exists)
         try:
             pending = self.attempts()["c"]
-            self.assertIn("work blocks replacement", self.cli("run", "--force-task", "c", success=False))
+            self.assertIn("work blocks replacement", self.cli("run", "--force", "c", success=False))
             self.assertEqual(self.attempts()["c"], pending)
             workflow.write_text(original.split("task = empty_task(inputs=[a.outputs")[0])
-            self.assertIn("Active consumers block replacement: c", self.cli("run", "--force-task", "a", success=False))
+            self.assertIn("Active consumers block replacement: c", self.cli("run", "--force", "a", success=False))
             self.assertEqual((self.work / "results/a/result.txt").read_text(), "a")
             self.assertEqual(Counter((self.work / "trace").read_text().splitlines())["a"], 1)
         finally:
@@ -194,13 +197,14 @@ class FreshAttemptTests(LocalBackendTestCase):
     def test_crash_before_initialization_intent_preserves_old_results(self):
         self.run_complete()
         before = self.attempts()
-        result = subprocess.run([sys.executable, str(FIXTURES / "frontend_fault.py"), str(self.work), "before_initialization_intent", "a", "run", "--force-task", "a"],
+        result = subprocess.run([sys.executable, str(FIXTURES / "frontend_fault.py"), str(self.work), "before_initialization_intent", "a", "run", "--force", "a"],
                                 cwd=self.work, capture_output=True, text=True, timeout=30)
         self.assertEqual(result.returncode, 91, result.stdout + result.stderr)
         self.assertEqual(self.attempts(), before)
         self.assertEqual((self.work / "results/a/result.txt").read_text(), "a")
-        self.cli("run", "--force-task", "a")
+        self.cli("run", "--force", "a")
         self.finish()
+        self.run_complete()
         self.assertEqual(Counter((self.work / "trace").read_text().splitlines()), {"a": 2, "b": 1, "c": 2})
 
     def test_first_initialization_interrupted_before_intent_can_restart(self):
@@ -225,11 +229,12 @@ class FreshAttemptTests(LocalBackendTestCase):
         before = self.attempts()
         shutil.rmtree(self.work / "work")
         self.assertRegex(self.cli("run", "--dry-run"), r"Task a\s+Reuse\s+")
-        self.cli("run", "--force-task", "a", "--dry-run")
+        self.cli("run", "--force", "a", "--dry-run")
         self.assertFalse((self.work / "work").exists())
         self.assertEqual((self.work / "results/a/result.txt").read_text(), "a")
-        self.cli("run", "--force-task", "a")
+        self.cli("run", "--force", "a")
         self.finish()
+        self.run_complete()
         after = self.attempts()
         self.assertNotEqual(after["a"], before["a"])
         self.assertEqual(after["b"], before["b"])
@@ -242,19 +247,20 @@ class FreshAttemptTests(LocalBackendTestCase):
             with self.subTest(phase=phase):
                 before = self.attempts()
                 shutil.rmtree(self.work / "work")
-                result = subprocess.run([sys.executable, str(FIXTURES / "frontend_fault.py"), str(self.work), phase, "a", "run", "--force-task", "a"],
+                result = subprocess.run([sys.executable, str(FIXTURES / "frontend_fault.py"), str(self.work), phase, "a", "run", "--force", "a"],
                                         cwd=self.work, capture_output=True, text=True, timeout=30)
                 self.assertEqual(result.returncode, code, result.stdout + result.stderr)
                 self.assertEqual((self.work / "results/a/result.txt").read_text(), "a")
                 self.assertEqual(self.attempts(), before)
-                self.cli("run", "--force-task", "a")
+                self.cli("run", "--force", "a")
                 self.finish()
+                self.run_complete()
                 self.assertNotEqual(self.attempts()["a"], before["a"])
         self.assertEqual(Counter((self.work / "trace").read_text().splitlines()), {"a": 4, "b": 1, "c": 4})
 
     def test_changed_pending_structure_selects_another_fresh_attempt(self):
         self.run_complete()
-        result = subprocess.run([sys.executable, str(FIXTURES / "frontend_fault.py"), str(self.work), "before_removal", "a", "run", "--force-task", "a"],
+        result = subprocess.run([sys.executable, str(FIXTURES / "frontend_fault.py"), str(self.work), "before_removal", "a", "run", "--force", "a"],
                                 cwd=self.work, capture_output=True, text=True, timeout=30)
         self.assertEqual(result.returncode, 92, result.stdout + result.stderr)
         pending = self.attempts()["a"]
@@ -271,7 +277,7 @@ class FreshAttemptTests(LocalBackendTestCase):
         outside = self.work / "outside"
         outside.mkdir()
         (outside / "result.txt").write_text("untouched")
-        process = subprocess.Popen([sys.executable, str(FIXTURES / "frontend_fault.py"), str(self.work), "gate_before_removal", "a", "run", "--force-task", "a"],
+        process = subprocess.Popen([sys.executable, str(FIXTURES / "frontend_fault.py"), str(self.work), "gate_before_removal", "a", "run", "--force", "a"],
                                    cwd=self.work, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         try:
             self.wait_for(lambda: (self.work / "frontend-held").exists())
@@ -302,7 +308,7 @@ class FreshAttemptTests(LocalBackendTestCase):
         self.cli("run", "--force")
         self.finish()
         self.assertEqual(Counter((self.work / "trace").read_text().splitlines()), {"a": 2, "b": 2, "c": 2})
-        self.cli("run", "--force-task", "b", "--force-task", "b")
+        self.cli("run", "--force", "b", "b")
         self.finish()
         self.assertEqual(Counter((self.work / "trace").read_text().splitlines()), {"a": 2, "b": 3, "c": 2})
 
@@ -312,11 +318,11 @@ class FreshAttemptTests(LocalBackendTestCase):
         workflow = self.work / "workflow.py"
         wait = f"touch {shlex.quote(str(held))}; while [ ! -e {shlex.quote(str(release))} ]; do sleep 0.025; done; "
         workflow.write_text(workflow.read_text().replace("echo a", wait + "echo a"))
-        self.cli("-b", "recovery_fixture", "run", "--force-task", "a", env=self.inject(lose_tracking="a__compute"), success=False)
+        self.cli("-b", "recovery_fixture", "run", "--force", "a", env=self.inject(lose_tracking="a__compute"), success=False)
         self.wait_for(held.exists)
         try:
             pending = self.attempts(success=False)["a"]
-            self.assertIn("unresolved submission", self.cli("run", "--force-task", "a", success=False))
+            self.assertIn("unresolved submission", self.cli("run", "--force", "a", success=False))
             self.assertEqual(self.attempts(success=False)["a"], pending)
         finally:
             release.touch()
@@ -365,10 +371,10 @@ class FreshAttemptTests(LocalBackendTestCase):
         workflow = self.work / "workflow.py"
         original = workflow.read_text()
         workflow.write_text(original.replace("printf a >", "exit 17; printf a >"))
-        self.cli("run", "--force-task", "a")
+        self.cli("run", "--force", "a")
         self.settle()
         self.assertFalse((self.work / "results/a").exists())
-        self.assertFalse((self.work / "results/c").exists())
+        self.assertEqual((self.work / "results/c/result.txt").read_text(), "a")
         self.assertEqual((self.work / "results/b/result.txt").read_text(), "b")
         workflow.write_text(original)
         self.cli("run")
@@ -379,7 +385,7 @@ class FreshAttemptTests(LocalBackendTestCase):
     def test_force_after_lost_acknowledgement_does_not_copy_old_admissions(self):
         self.cli("-b", "recovery_fixture", "run", env=self.inject(lose_ack="a__compute"), success=False)
         self.settle()
-        self.cli("-b", "recovery_fixture", "run", "--force-task", "a", env=self.inject(reject_before_admission=True), success=False)
+        self.cli("-b", "recovery_fixture", "run", "--force", "a", env=self.inject(reject_before_admission=True), success=False)
         self.cli("run")
         self.finish()
         self.assertEqual((self.work / "results/c/result.txt").read_text(), "a")

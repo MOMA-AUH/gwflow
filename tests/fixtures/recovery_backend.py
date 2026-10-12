@@ -47,6 +47,8 @@ class RecoveryBackend(TrackingBackend):
         return super().target_defaults
 
     def status(self, target):
+        if self.options.get("fail_status_prefix") and target.name.startswith(self.options["fail_status_prefix"] + "__"):
+            raise RuntimeError("injected backend observation failure")
         if self.options.get("record_status"):
             with (self.work / "backend-observations.jsonl").open("a") as stream:
                 stream.write(json.dumps(target.name) + "\n")

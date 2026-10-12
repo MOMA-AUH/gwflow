@@ -203,6 +203,11 @@ class ResultsRepairTests(LocalBackendTestCase):
         before = self.attempt()
         result = self.work / "results/samples/a/report/renamed.txt"
         result.write_text("protected manual edit")
+        env = self.inject(queued_prefix="c__join")
+        for options in ((), ("--dry-run",), ("--force",), ("--force", "--dry-run")):
+            output = self.cli("-b", "recovery_fixture", "run", "a", *options, env=env, success=False)
+            self.assertIn("Active consumers block replacement: c", output)
+            self.assertEqual(result.read_text(), "protected manual edit")
         workflow = self.work / "workflow.py"
         workflow.write_text(workflow.read_text().split("from gwflow import shell")[0])
         for rejected in (False, True):
@@ -210,7 +215,7 @@ class ResultsRepairTests(LocalBackendTestCase):
                 if rejected:
                     self.cli("-b", "recovery_fixture", "run", env=self.inject(reject_before_admission=True), success=False)
                 env = self.inject(queued_prefix="c__join")
-                self.assertIn("Active consumers block replacement: c", self.cli("-b", "recovery_fixture", "run", env=env, success=False))
+                self.assertIn("Active consumers block replacement: c", self.cli("-b", "recovery_fixture", "run", "a", env=env, success=False))
                 self.assertEqual(result.read_text(), "protected manual edit")
                 self.assertEqual(self.attempt(), before)
         self.run_complete()
@@ -225,9 +230,12 @@ class ResultsRepairTests(LocalBackendTestCase):
         self.settle()
         result = self.work / "results/samples/a/report/renamed.txt"
         result.write_text("protected after lost acknowledgement")
+        for options in ((), ("--dry-run",), ("--force",), ("--force", "--dry-run")):
+            self.assertIn("Active consumers block replacement: c", self.cli("run", "a", *options, success=False))
+            self.assertEqual(result.read_text(), "protected after lost acknowledgement")
         workflow = self.work / "workflow.py"
         workflow.write_text(workflow.read_text().split("from gwflow import shell")[0])
-        self.assertIn("Active consumers block replacement: c", self.cli("run", success=False))
+        self.assertIn("Active consumers block replacement: c", self.cli("run", "a", success=False))
         self.assertEqual(result.read_text(), "protected after lost acknowledgement")
 
     def test_new_consumer_waits_for_repaired_complete_set(self):

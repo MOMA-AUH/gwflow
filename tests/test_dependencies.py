@@ -72,7 +72,8 @@ class TaskDependencyTests(LocalBackendTestCase):
             self.assertNotIn("consumer", (self.work / "trace").read_text().splitlines())
             self.assertFalse((self.work / "retained data/first producer").exists())
             explanation = self.cli("-b", "slurm", "run", "--dry-run", "--details", env=env)
-            self.assertIn("Active consumer c:", explanation)
+            self.assertIn("Expected producer a:", explanation)
+            self.assertIn("Expected producer b:", explanation)
             self.assertIn("c__gwflow_prepare", explanation)
         finally:
             release.touch()
@@ -89,14 +90,19 @@ class TaskDependencyTests(LocalBackendTestCase):
             "undeclared boundary": original.replace("empty_task(inputs=[a.outputs['value'], b.outputs['value']])", "empty_task(inputs=[b.outputs['value']])"),
             "undeclared target input": original.replace("inputs=consumer.inputs", "inputs=[b.outputs['value']]"),
             "Task cycle": original.replace("consumer = empty_task(", "cyclic = type(a.outputs['value'])(gwf, 'c', 'combined')\nconsumer = empty_task(").replace("a.outputs['value'], b.outputs['value']", "cyclic, b.outputs['value']").replace("a=a.outputs['value']", "a=cyclic"),
+            "Task name": original.replace("alias='c'", "alias='invalid-name'"),
+            "results layout": original.replace("alias='c'", "alias='c', result_dir='first producer/nested'"),
+            "target membership": original + "\nfrom gwf import Target\ngwf.targets['outside'] = Target('outside', [], ['out'], {})\n",
         }
         for label, declaration in variants.items():
             with self.subTest(label=label):
                 workflow.write_text(declaration)
-                self.cli("run", success=False)
+                for selectors in ((), ("a",)):
+                    self.cli("run", *selectors, success=False)
+                    self.cli("run", "--dry-run", *selectors, success=False)
                 self.assertFalse((self.work / ".gwf/gwflow").exists())
 
-    def test_active_consumer_is_visible_after_its_declaration_is_removed(self):
+    def test_removed_active_consumer_blocks_selected_producer_replacement(self):
         held, release = (self.work / name for name in ("consumer-held", "consumer-release"))
         workflow = self.work / "workflow.py"
         wait = f"touch {shlex.quote(str(held))}; while [ ! -e {shlex.quote(str(release))} ]; do sleep 0.025; done; "
@@ -108,11 +114,11 @@ class TaskDependencyTests(LocalBackendTestCase):
             self.assertIn("Expected producer a:", expected)
             self.assertIn("Expected producer b:", expected)
             self.configure_workflow(consumer=False)
-            self.assertIn("Active consumer c:", self.cli("run", "--dry-run", "--details"))
+            self.assertIn("Active consumer c:", self.cli("run", "a", "--force", "--dry-run", "--details", success=False))
         finally:
             release.touch()
         self.finish()
-        self.assertNotIn("Active consumer c:", self.cli("run", "--dry-run", "--details"))
+        self.assertNotIn("Active consumer c:", self.cli("run", "a", "--force", "--dry-run", "--details"))
 
     def wrong_generation_before(self, job):
         shutil.copy(FIXTURES / "job_fault.py", self.work)
@@ -149,10 +155,10 @@ class TaskDependencyTests(LocalBackendTestCase):
         try:
             self.assertIn("consumer", (self.work / "trace").read_text().splitlines())
             self.assertFalse((self.work / "retained data/c").exists())
-            explanation = self.cli("run", "--dry-run", "--details")
+            explanation = self.cli("run", "a", "--force", "--dry-run", "--details", success=False)
             self.assertIn("Active consumer c:", explanation)
             self.assertIn("c__gwflow_complete", explanation)
         finally:
             (self.work / "manifest-release").touch()
         self.finish()
-        self.assertNotIn("Active consumer c:", self.cli("run", "--dry-run", "--details"))
+        self.assertNotIn("Active consumer c:", self.cli("run", "a", "--force", "--dry-run", "--details"))

@@ -53,12 +53,16 @@ class LifecycleInspectionTests(LocalBackendTestCase):
         for name in ("a", "b", "c"):
             self.assertRegex(preview, rf"Task {name}\s+Reuse\s+")
         self.run_previewed(preview)
-        preview = self.preview("--force-task", "a")
+        preview = self.preview("--force", "a")
         self.assertRegex(preview, r"Task a\s+Run\s+")
-        self.assertRegex(preview, r"Task b\s+Reuse\s+")
-        self.assertRegex(preview, r"Task c\s+Run\s+")
+        self.assertNotRegex(preview, r"Task [bc]\s+")
         self.assertIn("remove previous results", preview)
-        self.run_previewed(preview, "--force-task", "a")
+        self.run_previewed(preview, "--force", "a")
+        self.finish()
+        self.assertEqual(Counter((self.work / "trace").read_text().splitlines()), {"a": 2, "b": 1, "c": 1})
+        preview = self.preview()
+        self.assertRegex(preview, r"Task c\s+Run\s+")
+        self.run_previewed(preview)
         self.finish()
         self.assertEqual(Counter((self.work / "trace").read_text().splitlines()), {"a": 2, "b": 1, "c": 2})
         preview = self.preview("--force")
@@ -196,26 +200,25 @@ class LifecycleInspectionTests(LocalBackendTestCase):
             preview = self.preview()
             self.assertRegex(preview, r"Task a\s+Wait\s+")
             self.run_previewed(preview)
-            preview = self.preview("--force-task", "a", success=False)
+            preview = self.preview("--force", "a", success=False)
             self.assertIn("active work blocks replacement", preview)
-            self.run_previewed(preview, "--force-task", "a", success=False)
+            self.run_previewed(preview, "--force", "a", success=False)
             self.assertRegex(self.cli("status", "--instances"), r"Task a\s+running")
         finally:
             release.touch()
         self.finish()
 
-    def test_preview_preserves_whole_workflow_validation_and_force_planning(self):
+    def test_selected_preview_preserves_global_authoring_validation(self):
         self.run_complete()
         before = self.snapshot()
-        filtered = self.cli("run", "--dry-run", "--force-task", "a")
-        self.assertRegex(filtered, r"Task c\s+Run\s+")
-        self.assertIn("producer a will start a fresh attempt", filtered)
+        filtered = self.cli("run", "--dry-run", "--force", "a")
+        self.assertNotRegex(filtered, r"Task [bc]\s+")
         self.assertRegex(filtered, r"Task a\s+Run\s+")
         self.assertEqual(self.snapshot(), before)
         workflow = self.work / "workflow.py"
         workflow.write_text(workflow.read_text().replace("b = gwf.task",
                                                         "target.outputs.append('../escape')\nb = gwf.task"))
-        for command in (("run", "--dry-run"), ("status", "a"), ("run", "--dry-run")):
+        for command in (("run", "a", "--dry-run"), ("status", "a"), ("run", "a")):
             with self.subTest(command=command):
                 self.assertIn("Invalid managed relative path", self.cli(*command, success=False))
                 self.assertEqual(self.snapshot(), before)
@@ -259,7 +262,7 @@ class LifecycleInspectionTests(LocalBackendTestCase):
         self.run_complete()
         result = subprocess.run([
             sys.executable, str(FIXTURES / "frontend_fault.py"), str(self.work), "before_removal", "a",
-            "run", "--force-task", "a",
+            "run", "--force", "a",
         ], cwd=self.work, capture_output=True, text=True, timeout=30)
         self.assertEqual(result.returncode, 92, result.stdout + result.stderr)
         preview = self.preview()

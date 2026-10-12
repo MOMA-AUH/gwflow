@@ -2,7 +2,6 @@
 
 import click
 from gwf.core import pass_context
-from gwf.exceptions import WorkflowError
 
 from ._frontend import _submission_guard, load_workflow
 from .admission import SubmissionOutcome
@@ -13,18 +12,15 @@ from .submission import submit_plan
 
 @output_options
 @click.command()
-@click.argument("targets", nargs=-1)
+@click.argument("selectors", nargs=-1)
 @click.option("-d", "--dry-run", is_flag=True, help="Preview the execution plan without submitting jobs.")
-@click.option("-f", "--force", is_flag=True, help="Start fresh attempts for the whole workflow.")
-@click.option("--force-task", multiple=True, help="Start a fresh attempt for a named whole Task.")
+@click.option("-f", "--force", is_flag=True, help="Start fresh attempts for directly selected Tasks.")
 @pass_context
-def run(ctx, targets, dry_run, force, force_task, details, plain, no_truncate):
-    """Run the managed workflow, or preview it with --dry-run."""
+def run(ctx, selectors, dry_run, force, details, plain, no_truncate):
+    """Run Task names or quoted globs with their required upstream Tasks."""
     workflow = load_workflow(ctx)
-    if targets:
-        raise WorkflowError("gwflow supports whole-workflow run only; selectors are unsupported")
     with _submission_guard(ctx.working_dir):
-        plan = plan_workflow(workflow, ctx, force=force, force_tasks=force_task)
+        plan = plan_workflow(workflow, ctx, selectors=selectors, force=force)
         report = Report(plan.store, plain=plain, no_truncate=no_truncate)
         report.plan(plan, selected_rows(workflow, plan), expand=details, preview=dry_run)
         outcomes = {(task.name, local): SubmissionOutcome(task.name, local)

@@ -61,7 +61,8 @@ def submit_plan(plan, workflow, ctx, *, dry_run, outcomes):
     recreate = sorted(key for key in needed_roots if plan.store.root_needs_recreation(key))
     if replacements or transfers or recreate:
         with create_backend(ctx.backend, working_dir=ctx.working_dir, config=ctx.config) as backend:
-            consumers = admission.consumer_activity(plan.store, backend, ctx.backend)
+            producers = None if recreate else {task.name for task in [*replacements, *transfers]}
+            consumers = admission.consumer_activity(plan.store, backend, ctx.backend, producers=producers)
             for task in [*replacements, *transfers]:
                 activity = admission.replacement_activity(plan.store, task.attempt, backend, ctx.backend, consumers)
                 if activity.reason:

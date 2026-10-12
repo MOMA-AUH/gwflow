@@ -7,6 +7,7 @@ from gwf.exceptions import WorkflowError
 
 from . import _files, _observations, admission, images, inputs, transfer
 from .lifecycle import Store, TaskObservation, declarations, ordered_tasks, ordered_targets, producer_names, target_dependencies
+from .selection import task_selection
 from .workflow import lifecycle_jobs
 
 
@@ -27,7 +28,7 @@ def tracked_commands_match(store, attempt, commands):
                and store.execution(attempt, local)["command"] == commands[local] for local in commands)
 
 
-def definition_change(store, observation, selected, *, force_option, tracking, initializing):
+def definition_change(store, observation, observations_by_name, *, force_option, tracking, initializing):
     attempt = observation.attempt
     if force_option:
         return f"requested {force_option}"
@@ -36,7 +37,7 @@ def definition_change(store, observation, selected, *, force_option, tracking, i
         changed = [label for key, label in labels.items() if observation.structure[key] != attempt["structure"][key]]
         return "changed declared structure: " + ", ".join(changed)
     for producer in producer_names(observation.structure):
-        upstream = selected[producer]
+        upstream = observations_by_name[producer]
         expected = attempt["producers"].get(producer)
         if upstream.action == "fresh":
             return f"producer {producer} will start a fresh attempt; expected producer attempt was {expected}"
@@ -190,22 +191,27 @@ def awaiting_producer_metadata(store, observation):
 
 
 @_observations.planning_pass()
-def plan_workflow(workflow, ctx, *, force=False, force_tasks=()):
-    if force and force_tasks:
-        raise WorkflowError("Cannot combine --force and --force-task")
-    unknown = set(force_tasks) - workflow._task_declarations.keys()
-    if unknown:
-        raise WorkflowError("Unknown Task names for --force-task: " + ", ".join(sorted(unknown)))
+def plan_workflow(workflow, ctx, *, selectors=(), force=False):
+    selected_names = task_selection(workflow._task_declarations, selectors)
     expected = {f"{name}__{local}" for name, task in workflow._task_declarations.items()
                 for local in lifecycle_jobs(task.targets)}
     if set(workflow.targets) != expected:
         raise WorkflowError("Every computation target in gwflow.Workflow must belong to a registered Task")
     store = Store.for_workflow(workflow)
     declared = {name: declarations(task, store, workflow) for name, task in workflow._task_declarations.items()}
+    order = ordered_tasks(declared)
+    scope = set(selected_names)
+    # Validate the entire graph first, then include upstream dependencies by
+    # walking backward through its dependency order.
+    for name in reversed(order):
+        if name in scope:
+            scope.update(producer_names(declared[name][0]))
     tasks = []
-    selected = {}
+    observations_by_name = {}
     with create_backend(ctx.backend, working_dir=ctx.working_dir, config=ctx.config) as backend:
-        for name in ordered_tasks(declared):
+        for name in order:
+            if name not in scope:
+                continue
             structure, commands = declared[name]
             attempt = store.current(name, workflow._result_dirs[name])
             observation = TaskObservation(name, "fresh", "no completed managed attempt", structure, commands, attempt)
@@ -214,7 +220,7 @@ def plan_workflow(workflow, ctx, *, force=False, force_tasks=()):
             except WorkflowError as error:
                 observation.action, observation.reason = "blocked", str(error)
                 tasks.append(observation)
-                selected[name] = observation
+                observations_by_name[name] = observation
                 continue
             if attempt is not None:
                 try:
@@ -234,8 +240,8 @@ def plan_workflow(workflow, ctx, *, force=False, force_tasks=()):
                     failed = [local for local, item in jobs.items() if item.state in ("failed", "cancelled") and local not in pending]
                     if uncertain:
                         observation.action, observation.reason = "blocked", "unresolved submission: " + ", ".join(uncertain)
-                    elif change := definition_change(store, observation, selected,
-                                                      force_option="--force" if force else "--force-task" if name in force_tasks else None,
+                    elif change := definition_change(store, observation, observations_by_name,
+                                                      force_option="--force" if force and name in selected_names else None,
                                                       tracking=ctx.config.get("use_spec_hashes"), initializing=initializing):
                         fresh_observation(store, observation, change)
                     elif initializing:
@@ -243,7 +249,7 @@ def plan_workflow(workflow, ctx, *, force=False, force_tasks=()):
                         observation.removal = store.result_removal(attempt)
                         observation.action, observation.reason = "initialize", "resume selected initialization; remove previous results before submission"
                         observation.pending = lifecycle_jobs(ordered_targets(structure))
-                    elif not active and any(awaiting_producer_metadata(store, selected[producer])
+                    elif not active and any(awaiting_producer_metadata(store, observations_by_name[producer])
                                             for producer in producer_names(structure)) and _files.exists(store.attempt_dir(attempt) / "inputs.json"):
                         observation.action, observation.reason = "deferred", "producer results need recovery; a later invocation must replan input validity after restored metadata is available"
                     elif not active and store.cleanup_record(attempt) is not None:
@@ -287,8 +293,10 @@ def plan_workflow(workflow, ctx, *, force=False, force_tasks=()):
             else:
                 fresh_observation(store, observation, "no completed managed attempt")
             tasks.append(observation)
-            selected[name] = observation
-        consumers = admission.consumer_activity(store, backend, ctx.backend)
+            observations_by_name[name] = observation
+        changing_results = {task.name for task in tasks if task.attempt is not None
+                            and task.action in ("fresh", "initialize", "transfer", "repair")}
+        consumers = admission.consumer_activity(store, backend, ctx.backend, producers=changing_results)
         for observation in tasks:
             if observation.attempt is not None:
                 observation.consumers = consumers.get((observation.name, observation.attempt["attempt"]), {})

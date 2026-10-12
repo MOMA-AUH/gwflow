@@ -24,7 +24,7 @@ class ExplicitCleanupTests(LocalBackendTestCase):
     def test_selected_older_attempt_preserves_current_results_and_reuse(self):
         self.run_complete()
         older = self.attempt("a")
-        self.cli("run", "--force-task", "a")
+        self.cli("run", "--force", "a")
         self.finish()
         current = self.attempt("a")
         roots = [self.work / ".gwf/gwflow", self.work / "work", self.work / "results"]
@@ -158,7 +158,7 @@ class ExplicitCleanupTests(LocalBackendTestCase):
         for index, phase in enumerate(("cleanup_before_remove", "cleanup_during_remove",
                                        "cleanup_after_workspace_remove", "cleanup_before_completion")):
             with self.subTest(phase=phase):
-                self.cli("run", *(("--force-task", "b") if index else ()))
+                self.cli("run", *(("--force", "b") if index else ()))
                 self.settle()
                 attempt = self.attempt("b")
                 outcome = subprocess.run([

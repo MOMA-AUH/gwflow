@@ -140,7 +140,7 @@ class CompletedWorkCleanupTests(LocalBackendTestCase):
     def test_superseded_attempt_is_reported_and_kept_by_default(self):
         self.run_complete()
         previous = next((self.work / "work/a").iterdir())
-        self.cli("run", "--force-task", "a")
+        self.cli("run", "--force", "a")
         self.finish()
         preview = self.cli("clean")
         self.assertIn(previous.name, preview)
@@ -230,7 +230,7 @@ class CompletedWorkCleanupTests(LocalBackendTestCase):
         runner = None
         try:
             self.wait_for((self.work / "cleanup-held").exists)
-            runner = subprocess.Popen([GWFLOW, "run", "--force-task", "a"], cwd=self.work,
+            runner = subprocess.Popen([GWFLOW, "run", "--force", "a"], cwd=self.work,
                                       stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
             with self.assertRaises(subprocess.TimeoutExpired):
                 runner.communicate(timeout=0.2)
@@ -295,7 +295,7 @@ class CompletedWorkCleanupTests(LocalBackendTestCase):
         for index, phase in enumerate(("cleanup_before_remove", "cleanup_during_remove", "cleanup_after_workspace_remove", "cleanup_before_completion")):
             with self.subTest(phase=phase):
                 if index:
-                    self.cli("run", "--force-task", "a")
+                    self.cli("run", "--force", "a")
                     self.finish()
                 workspace = next(path for path in (self.work / "work/a").iterdir())
                 outcome = subprocess.run([sys.executable, str(FIXTURES / "frontend_fault.py"), str(self.work), phase, "a", "clean", "--delete", "a"],
@@ -339,7 +339,7 @@ class TransferStagingCleanupTests(LocalBackendTestCase):
     def test_staging_directory_ownership_publication_interruptions_recover(self):
         for index, phase in enumerate(("crash_before_staging_ownership", "crash_after_staging_ownership", "crash_after_staging_directory_install")):
             with self.subTest(phase=phase):
-                force = ("--force-task", "a") if index else ()
+                force = ("--force", "a") if index else ()
                 self.cli("-b", "recovery_fixture", "run", *force, env=self.fault(**{phase: True}))
                 self.settle()
                 before = self.attempt()
