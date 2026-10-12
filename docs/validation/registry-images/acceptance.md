@@ -1,4 +1,10 @@
-# Registry image validation
+# Registry image acceptance
+
+Historical evidence recorded on 2026-10-04 for the registry-image feature released
+in v0.4.2. Validation used gwflow 0.4.1, production base `587a49d`, and acceptance
+implementation `86800de`. Commands, behavior, and limits below describe that
+validation. Use the [current validation guide](../README.md) for checks on
+today's checkout.
 
 This record covers [#122](https://github.com/MOMA-AUH/gwflow/issues/122) and the
 registry-image behavior specified by [#117](https://github.com/MOMA-AUH/gwflow/issues/117).
@@ -33,28 +39,28 @@ The parent specification's user stories map to these public-interface checks:
 
 | Stories / contract | Behavioral evidence |
 | --- | --- |
-| 1–8: references, per-target selection, implicit boundary, and data staging | [Registry declarations](../tests/test_registry_images.py), [local image baselines and explicit data inputs](../tests/test_containers.py), and [mixed graphs](../tests/test_container_graphs.py) |
-| 9–15: all planning commands, cleaned/filter-independent acquisition, useful blockage, and zero submissions | [Registry planning cases](../tests/test_registry_images.py) and [cleaned recovery snapshots](../tests/test_registry_recovery.py) |
-| 16–24: warm cache, tag stability, missing-only acquisition, sharing, coordination, placement, and cleanup | [Cache behavior](../tests/test_registry_images.py), [concurrent/failing/interrupted frontends](../tests/test_registry_concurrency.py), and the [real acceptance case](../tests/validate_containers.py) |
-| 25–30: preparation, immutable baselines, later metadata/alias/binding changes, and command-tracking independence | [Local image lifecycle gates](../tests/test_containers.py), [ordinary external inputs](../tests/test_inputs.py), and [registry recovery](../tests/test_registry_recovery.py) |
-| 31–36: producer propagation, independent reuse, result preservation, retry/repair, activity guards, and cleaned reuse | [Registry recovery and graphs](../tests/test_registry_recovery.py), [local image recovery](../tests/test_container_recovery.py), and [local image graphs](../tests/test_container_graphs.py) |
-| 37–38: one dependency model and documented limits | [Input-baseline implementation](../src/gwflow/inputs.py), [image decisions](adr/0005-treat-images-as-implicit-external-inputs.md), and [user-facing contracts](../README.md) |
-| Deployment acceptance | [Recorded local/Slurm results](#recorded-run) and [normalized runtime observations](validation-registry-runtime.json) |
+| 1–8: references, per-target selection, implicit boundary, and data staging | [Registry declarations](../../../tests/test_registry_images.py), [local image baselines and explicit data inputs](../../../tests/test_containers.py), and [mixed graphs](../../../tests/test_container_graphs.py) |
+| 9–15: all planning commands, cleaned/filter-independent acquisition, useful blockage, and zero submissions | [Registry planning cases](../../../tests/test_registry_images.py) and [cleaned recovery snapshots](../../../tests/test_registry_recovery.py) |
+| 16–24: warm cache, tag stability, missing-only acquisition, sharing, coordination, placement, and cleanup | [Cache behavior](../../../tests/test_registry_images.py), [concurrent/failing/interrupted frontends](../../../tests/test_registry_concurrency.py), and the [real acceptance case](../../../tests/validate_containers.py) |
+| 25–30: preparation, immutable baselines, later metadata/alias/binding changes, and command-tracking independence | [Local image lifecycle gates](../../../tests/test_containers.py), [ordinary external inputs](../../../tests/test_inputs.py), and [registry recovery](../../../tests/test_registry_recovery.py) |
+| 31–36: producer propagation, independent reuse, result preservation, retry/repair, activity guards, and cleaned reuse | [Registry recovery and graphs](../../../tests/test_registry_recovery.py), [local image recovery](../../../tests/test_container_recovery.py), and [local image graphs](../../../tests/test_container_graphs.py) |
+| 37–38: one dependency model and documented limits | [Input-baseline implementation](../../../src/gwflow/inputs.py), [image decisions](../../adr/0005-treat-images-as-implicit-external-inputs.md), and [user-facing contracts](../../../README.md) |
+| Deployment acceptance | [Recorded local/Slurm results](#recorded-run) and [normalized runtime observations](runtime.json) |
 
-The [domain glossary](../CONTEXT.md) and accepted decisions record
-[pre-1.0 simplicity](adr/0001-pre-1-0-development.md),
-[planning-time acquisition](adr/0002-acquire-image-dependencies-during-planning.md),
-[missing-only pulls](adr/0003-pull-registry-images-only-when-missing.md),
-[sharing across workflows](adr/0004-share-acquired-images-across-workflows.md),
-and [images as implicit External inputs](adr/0005-treat-images-as-implicit-external-inputs.md).
+The [domain glossary](../../../CONTEXT.md) and accepted decisions record
+[pre-1.0 simplicity](../../adr/0001-pre-1-0-development.md),
+[planning-time acquisition](../../adr/0002-acquire-image-dependencies-during-planning.md),
+[missing-only pulls](../../adr/0003-pull-registry-images-only-when-missing.md),
+[sharing across workflows](../../adr/0004-share-acquired-images-across-workflows.md),
+and [images as implicit External inputs](../../adr/0005-treat-images-as-implicit-external-inputs.md).
 These decisions explain the deliberate inspection side effect and shared lifecycle
 model. No release version or publication is selected by this acceptance.
 
-## Repeatable acceptance
+## Recorded acceptance procedure
 
 Install gwflow and the example task packages, and prepare the three existing
 container fixtures as described in the
-[container validation instructions](validation-v0.4.0.md#repeatable-local-checks).
+[container validation instructions](../containers/acceptance.md#recorded-local-check-procedure).
 Set `GWFLOW_TEST_SIF`, `GWFLOW_TEST_SUMMARY_SIF`, and `GWFLOW_TEST_REPORT_SIF`
 to those prepared files and put Apptainer 1.5.4 on `PATH`. These are prerequisites
 of the shared acceptance runner; the registry case acquires its own image through
@@ -76,7 +82,7 @@ jobs automatically. Missing prerequisites and skipped cases produce a failure,
 not a successful runtime-validation result. Without `--case`, the runner also
 executes the existing container acceptance cases.
 
-The [registry example](../examples/registry/workflow.py) selects the same immutable
+The [registry example](../../../examples/registry/workflow.py) selects the same immutable
 public source:
 
 ```text
@@ -127,7 +133,7 @@ frontend pull and three real container executions, including warm execution with
 pulls disabled and fresh recovery after the expected worker baseline refusal.
 The 13 pre-existing live acceptance cases were not rerun in these focused runs.
 
-The [runtime record](validation-registry-runtime.json) preserves the exact
+The [runtime record](runtime.json) preserves the exact
 commands, runner/probe source hashes, tool versions, retained outputs, probe
 observations, and final Slurm accounting. Production source is based on
 `587a49d`; acceptance implementation `86800de` matches the recorded source hashes.

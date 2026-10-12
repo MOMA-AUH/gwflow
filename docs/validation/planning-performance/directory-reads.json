@@ -1,4 +1,10 @@
 {
+  "record_context": {
+    "status": "historical",
+    "scope": "Planning directory reads, issue #149",
+    "associated_release": "v0.5.1",
+    "current_instructions": "docs/validation/README.md"
+  },
   "issue": "https://github.com/MOMA-AUH/gwflow/issues/149",
   "baseline_revision": "f07f929 (combined Task, producer and input/image observation reuse)",
   "implementation_revision": "Containing PR: scoped directory reads",

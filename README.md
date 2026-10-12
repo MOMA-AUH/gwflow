@@ -22,7 +22,7 @@ The v0.5.1 release reduces repeated planning reads for Task jobs, producer
 completion evidence, shared inputs, and container images. Scoped directory
 handles reduce repeated directory opens while preserving pathname validation.
 These observations last for one planning pass; submission and workers still
-perform fresh checks. The [planning validation record](docs/validation-planning-150.json)
+perform fresh checks. The [planning validation record](docs/validation/planning-performance/acceptance.json)
 documents reduced reads and opens, lifecycle regression coverage, and timing
 limits: measured command times remain broadly similar. Python and Conda packages
 now both require Rich `>=15.0.0,<16`.
@@ -42,8 +42,9 @@ are pulled into a shared cache with progress and failure reporting; cached
 images are reused without registry access. Local and acquired images use the
 ordinary Input baseline for execution, recovery, and Reuse. See the
 [registry example](examples/registry/workflow.py) and
-[registry acceptance record](docs/validation-registry.md) for usage and local/Slurm
-validation.
+[registry acceptance record](docs/validation/registry-images/acceptance.md) for
+recorded local/Slurm validation, and the
+[validation guide](docs/validation/README.md) for current checks.
 
 The v0.4.1 release removes the ignored `Task(working_dir=...)` option and requires
 the current inode-only storage identity records for managed operations. See the
@@ -57,9 +58,10 @@ repair, and work cleanup. The
 [packaged A/B/C example](examples/packaged/README.md) demonstrates completing two
 producers, cleaning their work, then computing a new consumer from retained
 results with host or container execution. The
-[v0.4.0 validation record](docs/validation-v0.4.0.md) maps that release's acceptance
-matrix to tests and infrastructure observations, including the BeeGFS storage
-correction; it is historical evidence, not a guarantee of current compatibility.
+[v0.4.0 validation record](docs/validation/containers/acceptance.md) maps that
+release's acceptance matrix to tests and infrastructure observations, including
+the BeeGFS storage correction; it is historical evidence, not a guarantee of
+current compatibility.
 
 Before v1.0, each release supports one authoring interface and one durable record
 format: the ones documented by that release. Factories must use the managed API.
@@ -572,10 +574,10 @@ guarantees.
 The frontend and computation nodes must see the image, inputs, and managed
 storage. The supported validation profile is Linux local workers and Slurm,
 Python 3.12, gwf 2.1.1, and Apptainer 1.5.4. See the
-[container validation instructions](docs/validation-v0.4.0.md) for the tested
-deployment and repeatable checks, and the
-[registry acceptance record](docs/validation-registry.md) for frontend acquisition,
-warm-cache execution, and worker baseline enforcement on both backends.
+[validation guide](docs/validation/README.md) for setup and repeatable checks,
+and the [registry acceptance record](docs/validation/registry-images/acceptance.md)
+for recorded frontend acquisition, warm-cache execution, and worker baseline
+enforcement on both backends.
 Configure the same shared storage paths on all
 hosts. Local device numbers may differ, including on BeeGFS clients; gwflow does
 not compare them across hosts. Directory inode numbers are used within those
@@ -1060,7 +1062,9 @@ recorded locations, malformed records, and symlink traversal are rejected.
 Records are atomically published with file and directory synchronization where
 supported; these guarantees are not universal power-loss certification.
 
-Run the installed-package tests with:
+See the [validation guide](docs/validation/README.md) for container setup, live
+backend checks, and the historical evidence index. Run the installed-package
+tests with:
 
 ```sh
 python -m pip install ./examples/packaged/packages/summary-task ./examples/packaged/packages/report-task

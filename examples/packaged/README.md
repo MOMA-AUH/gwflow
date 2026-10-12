@@ -84,7 +84,7 @@ For Slurm, use the configured backend and shared storage visible to compute node
 Site resources belong in Workflow defaults; gwf 2.1.1 calls the partition option
 `queue`. See the [managed lifecycle documentation](../../README.md) for storage
 placement, force, repair, uncertainty and operational assumptions, and the
-[validation record](../../docs/validation-v0.4.0.md) for tested infrastructure.
+[validation record](../../docs/validation/containers/acceptance.md) for tested infrastructure.
 
 ## Prepared container images
 

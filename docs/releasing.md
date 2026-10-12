@@ -7,9 +7,12 @@ in the [pre-1.0 development decision](adr/0001-pre-1-0-development.md).
 The supported release environment is Python 3.12 and gwf 2.1.1.
 `pyproject.toml` and `conda-recipe/meta.yaml` carry those same bounds.
 The v0.4.0 container profile is Linux local workers and Slurm with
-deployment-provided Apptainer 1.5.4. The [validation record](validation-v0.4.0.md)
-documents real execution on both backends, the BeeGFS storage correction, and
+deployment-provided Apptainer 1.5.4. The
+[validation record](validation/containers/acceptance.md) documents real execution
+on both backends, the BeeGFS storage correction, and
 deployment limits. Broader runtime and backend support has not been verified.
+Use the [validation guide](validation/README.md) for current setup and checks,
+and its evidence index to find the relevant historical records.
 
 Pull requests and pushes to `master` run the installed-package test suite and
 the Conda build and installed-artifact checks in CI. The `tests` and `conda`

@@ -1,4 +1,10 @@
 {
+  "record_context": {
+    "status": "historical",
+    "scope": "Planning Task-job observations, issue #146",
+    "associated_release": "v0.5.1",
+    "current_instructions": "docs/validation/README.md"
+  },
   "issue": "https://github.com/MOMA-AUH/gwflow/issues/146",
   "baseline_revision": "abd68ef932a5f0c8528b4e26f67064a3aa308ded",
   "implementation": "PR containing this record; Task job observation reuse only",

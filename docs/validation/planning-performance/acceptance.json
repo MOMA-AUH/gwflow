@@ -1,4 +1,10 @@
 {
+  "record_context": {
+    "status": "historical",
+    "scope": "Combined planning performance acceptance",
+    "associated_release": "v0.5.1",
+    "current_instructions": "docs/validation/README.md"
+  },
   "issues": [
     "https://github.com/MOMA-AUH/gwflow/issues/150",
     "https://github.com/MOMA-AUH/gwflow/issues/145"
@@ -80,8 +86,8 @@
         "tests/test_managed_recovery.py"
       ],
       "evidence": [
-        "docs/validation-planning-146.json",
-        "docs/validation-planning-147.json"
+        "docs/validation/planning-performance/task-job-observations.json",
+        "docs/validation/planning-performance/producer-evidence.json"
       ]
     },
     {
@@ -95,7 +101,7 @@
         "tests/test_registry_recovery.py"
       ],
       "evidence": [
-        "docs/validation-planning-148.json"
+        "docs/validation/planning-performance/shared-inputs-and-images.json"
       ]
     },
     {
@@ -106,7 +112,7 @@
         "tests/test_transfer.py"
       ],
       "evidence": [
-        "docs/validation-planning-149.json"
+        "docs/validation/planning-performance/directory-reads.json"
       ]
     },
     {
