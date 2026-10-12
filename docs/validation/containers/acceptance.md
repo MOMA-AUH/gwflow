@@ -1,4 +1,11 @@
-# v0.4 container validation
+# Container acceptance
+
+Historical evidence recorded on 2026-10-01 for gwflow v0.4.0. The live runtime
+record identifies source `ec06a4f`; later acceptance and BeeGFS correction evidence
+are identified below. Commands, behavior, and compatibility statements describe
+those implementations. Use the [current validation guide](../README.md) for
+checks on today's checkout and the [current README](../../../README.md) for
+supported behavior.
 
 This record follows the incremental implementation of
 [the v0.4 specification, #92](https://github.com/MOMA-AUH/gwflow/issues/92).
@@ -19,7 +26,7 @@ In the committed JSON records, `<REPO>` stands for the absolute checkout root.
 This removes machine-specific checkout paths while preserving comparisons between
 observed paths. Raw logs remain in the ignored `build/validation/` directory.
 When preparing additional records, follow the
-[validation evidence convention](../AGENTS.md#validation-evidence).
+[validation evidence convention](../../../AGENTS.md#validation-evidence).
 
 ## Final acceptance
 
@@ -49,7 +56,7 @@ Those skips are not container evidence; real Apptainer execution is covered by
 the pip job and the separately recorded live backend runs.
 
 All 13 live acceptance cases passed on each backend, with exact software, image,
-job and result observations in the [runtime record](validation-v0.4.0-runtime.json).
+job and result observations in the [runtime record](runtime.json).
 The [parent acceptance matrix](#parent-acceptance-matrix) maps every scenario to
 its behavioral evidence and identifies deterministic fixtures. The
 [deployment observations and limits](#deployment-observations-and-limits) remain
@@ -99,7 +106,7 @@ Slurm checks use `/usr/bin/sbatch` directly, without the old node wrapper.
 
 The initial marker-based implementation and its original-example recovery are
 preserved in the [earlier validation record](https://github.com/MOMA-AUH/gwflow/blob/f02bf8684458371ffa4412ce46aec56d472975eb/docs/validation-beegfs-identity.json).
-The current [correction evidence](validation-beegfs-identity.json) records the
+The current [correction evidence](beegfs-identity.json) records the
 simplified implementation's validation separately.
 
 All 252 installed-package tests passed without skips with real Apptainer images:
@@ -120,7 +127,7 @@ The original packaged example also reused all three Tasks without submitting
 jobs after its four obsolete empty markers were removed. Its existing records
 and retained results were preserved.
 
-## Repeatable local checks
+## Recorded local check procedure
 
 Use Python 3.12, gwf 2.1.1, and deployment-provided Apptainer 1.5.4 on Linux.
 Install the artifacts and prepare a test image from the repository root:
@@ -178,7 +185,7 @@ and devpts mounts, disabled `mount hostfs`, and retained `/etc/localtime` and
 `/etc/hosts` binds. No gwflow-specific site bind or container environment was
 needed. The tests deliberately set host `PYTHONPATH` pollution.
 
-Focused evidence in [test_containers.py](../tests/test_containers.py) covers:
+Focused evidence in [test_containers.py](../../../tests/test_containers.py) covers:
 
 - Image-only command execution without gwflow in the image; private writable
   scratch; checked retained output; zero-submission Reuse before and after work
@@ -208,7 +215,7 @@ skips. The Conda artifact suite passed with eight explicit container-test skips,
 and its packaged smoke passed. The separate local installed-package suite also
 passed all 215 tests.
 
-The #94 checks in [test_staging.py](../tests/test_staging.py) use the same real
+The #94 checks in [test_staging.py](../../../tests/test_staging.py) use the same real
 Apptainer runtime and fixture. All five focused tests passed on 2026-10-01:
 
 - A source parent containing execution work remains readable, rejects writes
@@ -236,7 +243,7 @@ passed all 220 tests against the pip-installed package with Apptainer and no
 skips. The Conda artifact suite passed with 12 explicit runtime skips, and its
 packaged smoke passed.
 
-The #95 checks in [test_container_graphs.py](../tests/test_container_graphs.py)
+The #95 checks in [test_container_graphs.py](../../../tests/test_container_graphs.py)
 use installed public workflows and real Apptainer commands to validate:
 
 - Host → container → container → host references, using two distinct SIF paths;
@@ -263,7 +270,7 @@ no skips. The Conda artifact suite passed with 21 explicit runtime skips, plus
 its packaged smoke. Local validation passed the nine new mixed-graph checks and
 24 existing staging/graph/dependency regressions.
 
-The #96 additions to [test_staging.py](../tests/test_staging.py) exercise
+The #96 additions to [test_staging.py](../../../tests/test_staging.py) exercise
 `stage_as` through public authoring and real container commands:
 
 - Equal input basenames use distinct directories; an explicitly declared data
@@ -284,7 +291,7 @@ passed all 235 tests against the pip-installed package with real Apptainer and
 no skips. The Conda artifact suite passed with 24 explicit runtime skips and
 its packaged smoke. The local complete staging test file passed all 11 tests.
 
-The #97 checks in [test_container_environment.py](../tests/test_container_environment.py)
+The #97 checks in [test_container_environment.py](../../../tests/test_container_environment.py)
 run no-input commands in real Apptainer to demonstrate the scratch variants:
 
 - Two commands held concurrently by file gates write the same basename in
@@ -310,7 +317,7 @@ no skips. The Conda artifact suite passed with 29 explicit runtime skips plus
 packaged smoke. The five new environment checks and existing host TMPDIR check
 also passed together locally.
 
-The #98 checks in [test_container_recovery.py](../tests/test_container_recovery.py)
+The #98 checks in [test_container_recovery.py](../../../tests/test_container_recovery.py)
 exercise the existing recovery lifecycle with actual container computation:
 
 - One branch succeeds while another writes a partial output and fails. The
@@ -346,7 +353,7 @@ no skips. The Conda artifact suite passed with 36 explicit runtime skips and
 its packaged smoke. The seven new recovery checks and two host recovery
 regressions also passed locally.
 
-The #99 demonstration in [test_example.py](../tests/test_example.py) uses separate
+The #99 demonstration in [test_example.py](../../../tests/test_example.py) uses separate
 prepared summary/report images and independently installed host factories.
 The image build tests check that gwflow is absent and the package command module
 loads. The workflow completes A/B, verifies a byte/mtime-preserving cleanup
@@ -355,7 +362,7 @@ its staged `sales/summary.csv` and `returns/summary.csv` symlinks resolve to the
 respective retained files. The exact report has rows `apples,17,2,15` and
 `pears,8,1,7`; A/B work remains absent, normal logs remain readable, and unchanged
 runs submit no jobs. The original installed host scenario remains covered.
-See the [public demonstration instructions](../examples/packaged/README.md) for
+See the [public demonstration instructions](../../../examples/packaged/README.md) for
 image preparation and local/Slurm usage. CI prepares all three images for the
 installed-package suite; the Conda artifact job explicitly skips runtime cases
 while checking the complete host suite and packaged smoke.
@@ -365,9 +372,9 @@ passed all 248 tests against the pip-installed package with real Apptainer and
 no skips. The Conda artifact suite passed with 37 explicit runtime skips and its
 packaged smoke. All four local example tests and the package typecheck passed.
 
-## Repeatable live backend acceptance
+## Recorded live backend procedure
 
-[validate_containers.py](../tests/validate_containers.py) reuses the existing
+[validate_containers.py](../../../tests/validate_containers.py) reuses the existing
 public CLI assertions against actual local workers or Slurm. It does not select
 a backend fixture. Prepare/install the three images and distributions as above,
 then run from the repository root:
@@ -472,7 +479,7 @@ runtime with unchanged arguments and propagates its exit status.
 ### Accepted results
 
 On 2026-10-01, all 13 cases passed on local workers and all 13 passed on real
-Slurm. The [runtime record](validation-v0.4.0-runtime.json) preserves exact
+Slurm. The [runtime record](runtime.json) preserves exact
 software and image observations, each accepted case's job identifiers and
 terminal states, both exact packaged reports, and the excluded diagnostics.
 The Slurm evidence combines the first nine passed cases, the corrected job-TMPDIR
@@ -522,11 +529,11 @@ It is a rejection test, not a migration or cross-version reuse matrix. Existing
 host graph, transfer, storage, inspection and ordinary-gwf tests remain in both
 installed-package suites.
 
-Documentation coverage is in the main [README](../README.md): explicit authoring
+Documentation coverage is in the main [README](../../../README.md): explicit authoring
 and executor rules; input naming and tracked companions; requested mounts and
 deployment conflicts; clean environment and scratch ownership; launch/output
 failure and shared recovery; deployment visibility and image stability; and
-frontend pathname/size/mtime limits. The [packaged guide](../examples/packaged/README.md)
+frontend pathname/size/mtime limits. The [packaged guide](../../../examples/packaged/README.md)
 provides repeatable authoring, image preparation, local and Slurm commands.
 
 ## Limits

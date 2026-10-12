@@ -1,4 +1,10 @@
 {
+  "record_context": {
+    "status": "historical",
+    "scope": "Registry image runtime acceptance",
+    "associated_release": "v0.4.2",
+    "current_instructions": "docs/validation/README.md"
+  },
   "date": "2026-10-04",
   "scope": "The registry case on real local workers and Slurm; the 13 pre-existing live cases are not rerun here.",
   "production_base_commit": "587a49dc143800a476ff3030dca3b875f99315a2",

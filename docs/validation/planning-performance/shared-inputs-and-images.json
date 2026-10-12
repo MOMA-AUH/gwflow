@@ -1,4 +1,10 @@
 {
+  "record_context": {
+    "status": "historical",
+    "scope": "Planning shared inputs and images, issue #148",
+    "associated_release": "v0.5.1",
+    "current_instructions": "docs/validation/README.md"
+  },
   "issue": "https://github.com/MOMA-AUH/gwflow/issues/148",
   "baseline_revision": "d4795d7213219b40bb46ada20276df605813faeb",
   "implementation_revision": "Containing PR: shared external-input and image observations",

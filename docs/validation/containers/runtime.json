@@ -1,4 +1,10 @@
 {
+  "record_context": {
+    "status": "historical",
+    "scope": "Container runtime acceptance",
+    "associated_release": "v0.4.0",
+    "current_instructions": "docs/validation/README.md"
+  },
   "path_normalization": "<REPO> replaces the absolute checkout root; other paths and recorded observations are unchanged.",
   "date": "2026-10-01",
   "slurm_version": "25.11.6",

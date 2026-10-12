@@ -2,8 +2,9 @@
 
 Use GWFLOW_IMAGE_CACHE for storage shared by matching-architecture frontend and
 compute nodes. This digest selects a reproducible registry source; existing
-cache entries are never refreshed automatically. See docs/validation-registry.md
-for local and Slurm commands, cache behavior, and Input baseline limits.
+cache entries are never refreshed automatically. See docs/validation/README.md
+for local and Slurm checks, and docs/validation/registry-images/acceptance.md
+for historical cache behavior and Input baseline evidence.
 """
 
 from gwflow import Task, Workflow, task_template

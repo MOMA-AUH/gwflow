@@ -1,4 +1,10 @@
 {
+  "record_context": {
+    "status": "historical",
+    "scope": "Planning producer evidence, issue #147",
+    "associated_release": "v0.5.1",
+    "current_instructions": "docs/validation/README.md"
+  },
   "issue": "https://github.com/MOMA-AUH/gwflow/issues/147",
   "baseline_revision": "d3d1c77b09601d168a758afc6386ec12eea9f0e5",
   "implementation_revision": "7c57b07 (implementation); this PR includes validation and any follow-up corrections",
