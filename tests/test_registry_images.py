@@ -209,9 +209,9 @@ class RegistryImageTests(RegistryTestCase):
         self.assertNotIn("Submitted target", output)
         self.assertFalse(self.cached_images())
 
-    def test_display_filter_still_acquires_hidden_task_image(self):
+    def test_state_filter_still_acquires_images_in_its_assessment_scope(self):
         self.configure_workflow(other=True)
-        for index, command in enumerate((("status", "independent"), ("run", "--dry-run")), start=1):
+        for index, command in enumerate((("status", "--status", "reusable"), ("run", "--dry-run")), start=1):
             self.cli(*command)
             self.assertEqual(len(self.calls("pull")), index)
             self.cached_images()[0].unlink()

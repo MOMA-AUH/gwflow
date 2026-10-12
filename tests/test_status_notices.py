@@ -1,4 +1,4 @@
-"""Required workflow actions remain visible through every status selection."""
+"""Required actions remain visible within the status assessment scope."""
 
 import re
 
@@ -48,15 +48,14 @@ class StatusNoticeTests(LocalBackendTestCase):
             )
         self.deferred = ["c", *(f"deferred__{index}" for index in range(6))]
 
-    def test_excluded_notices_are_uncapped_across_views_and_empty_selections(self):
+    def test_state_filtered_notices_are_uncapped_across_views_and_empty_results(self):
         self.notice_workflow()
         environment = self.inject(running_prefix="failure__left", record_status=True)
         record = self.work / "backend-observations.jsonl"
         before = self.snapshot()
         baseline = None
-        for selectors, count in ((("task:failure*",), 1), (("absent*",), 0),
-                                 (("task:failure", "--status", "reusable"), 0)):
-            for flags in ((), ("--instances",), ("--details",), ("--instances", "--details")):
+        for selectors, count in ((("--status", "failed"), 1), (("--status", "queued"), 0)):
+            for flags in ((), ("*",), ("--details",), ("*", "--details")):
                 with self.subTest(selectors=selectors, flags=flags):
                     record.unlink(missing_ok=True)
                     output = self.cli("-b", "recovery_fixture", "status", *selectors, *flags, env=environment)
@@ -78,17 +77,17 @@ class StatusNoticeTests(LocalBackendTestCase):
                         baseline = observed
                     self.assertEqual(observed, baseline)
                     self.assertEqual(self.snapshot(), before)
-        output = self.cli("status", "task:" + self.blockers[0], "--instances")
+        output = self.cli("status", self.blockers[0])
         notice = output.split("Workflow notices", 1)[1]
         self.assertIn(self.blockers[0] + "\n", notice)
         self.assertNotIn(self.blockers[0] + " (outside selection)", notice)
-        self.assertEqual(notice.count("(outside selection)"), 13)
+        self.assertEqual(notice.count("(outside selection)"), 0)
 
     def test_notices_preserve_all_content_in_narrow_and_plain_output(self):
         self.notice_workflow()
-        for flags in ((), ("--instances",), ("--details",)):
+        for flags in ((), ("*",), ("--details",)):
             for options in ((), ("--plain",)):
-                output = self.terminal_cli("--no-color", "status", "absent*", *flags, *options, width=40).stdout
+                output = self.terminal_cli("--no-color", "status", "--status", "queued", *flags, *options, width=40).stdout
                 compact = re.sub(r"[\s│]", "", output.split("Workflow notices", 1)[1])
                 for name in self.blockers:
                     self.assertIn(name + "(outsideselection)", compact)
@@ -106,22 +105,22 @@ class StatusNoticeTests(LocalBackendTestCase):
         record = self.work / "backend-observations.jsonl"
         before = self.snapshot()
         baseline = None
-        for selection in ("sample*", "absent*"):
-            for flags in ((), ("--instances",), ("--details",)):
+        for options in (("sample*",), ("sample*", "--status", "reusable")):
+            for flags in ((), ("*",), ("--details",)):
                 record.unlink(missing_ok=True)
-                output = self.cli("-b", "recovery_fixture", "status", selection, *flags, env=environment)
+                output = self.cli("-b", "recovery_fixture", "status", *options, *flags, env=environment)
                 notice = output.split("Workflow notices", 1)[1]
                 self.assertIn(reminder, notice)
-                self.assertEqual("sample (outside selection)" in notice, selection == "absent*")
+                self.assertEqual("sample (outside selection)" in notice, "--status" in options)
                 observed = record.read_text().splitlines()
                 if baseline is None:
                     baseline = observed
                 self.assertEqual(observed, baseline)
                 self.assertEqual(self.snapshot(), before)
-        output = self.terminal_cli("--no-color", "-b", "recovery_fixture", "status", "absent*",
+        output = self.terminal_cli("--no-color", "-b", "recovery_fixture", "status", "sample", "--status", "reusable",
                                    width=40, env=environment).stdout
         self.assertIn(reminder, " ".join(output.split()))
-        output = self.cli("-b", "recovery_fixture", "status", "absent*",
+        output = self.cli("-b", "recovery_fixture", "status", "sample", "--status", "reusable",
                           env=self.inject(running_prefix="sample__gwflow_complete"))
         self.assertIn("Workflow blocked", output)
         self.assertNotIn(reminder, output)
@@ -131,7 +130,7 @@ class StatusNoticeTests(LocalBackendTestCase):
         self.run_complete()
         self.assertNotIn("Workflow notices", self.cli("status"))
         environment = self.inject(queued_prefix="b__gwflow_complete")
-        output = self.cli("-b", "recovery_fixture", "status", "absent*", env=environment)
+        output = self.cli("-b", "recovery_fixture", "status", "b", "--status", "failed", env=environment)
         self.assertNotIn("Workflow notices", output)
         self.cli("clean", "--delete")
         self.assertNotIn("Workflow notices", self.cli("status"))

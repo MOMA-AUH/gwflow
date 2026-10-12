@@ -44,7 +44,7 @@ class GroupedStatusTests(LocalBackendTestCase):
         self.assertNotIn("Jobs completed", output)
 
     def test_explicit_views_preserve_whole_task_progress_and_details_win(self):
-        for options in (("--instances",), ("--details",), ("--instances", "--details")):
+        for options in (("*",), ("--details",), ("*", "--details")):
             with self.subTest(options=options):
                 output = self.cli("status", *options)
                 self.assertIn("4 of 4 Tasks selected", output)
@@ -52,7 +52,7 @@ class GroupedStatusTests(LocalBackendTestCase):
                     self.assertRegex(output, rf"(?m)^Task {name}\s+pending\s+0/3")
                 self.assertNotIn("Reusable", output)
                 self.assertEqual(output.count("[preparation]"), 4 if "--details" in options else 0)
-        output = self.cli("status", "mapping__A", "--instances")
+        output = self.cli("status", "mapping__A")
         self.assertNotIn("[preparation]", output)
         self.assertIn("1 of 4 Tasks selected", output)
 
@@ -91,10 +91,10 @@ class GroupedStatusTests(LocalBackendTestCase):
                 before = self.snapshot()
                 record = self.work / "backend-observations.jsonl"
                 baseline = None
-                for options in ((), ("--instances",), ("--details",), ("--status", state)):
+                for options in ((), ("*",), ("--details",), ("--status", state)):
                     record.unlink(missing_ok=True)
                     output = self.cli("-b", "recovery_fixture", "status", *options, env=environment)
-                    if "--instances" in options or "--details" in options:
+                    if "*" in options or "--details" in options:
                         self.assertRegex(output, rf"Task mapping__A\s+{state}\s+2/3")
                         self.assertNotIn("1 active", output)
                     else:
@@ -179,7 +179,7 @@ class GroupedStatusTests(LocalBackendTestCase):
         output = self.cli("status")
         self.assertRegex(output, r"(?m)^sample\s+0/1\s+1 blocked$")
         self.assertIn("Workflow blocked", output)
-        output = self.cli("status", "--instances")
+        output = self.cli("status", "*")
         self.assertRegex(output, r"Task sample\s+blocked\s+\?/5")
         # A separate rejected computation has no checked completion evidence.
         self.configure_workflow()
@@ -207,16 +207,17 @@ class GroupedStatusTests(LocalBackendTestCase):
         self.assertEqual(re.findall(r"(?m)^(\S+)\s+0/\d+\s+\d+ pending$", output),
                          ["prepare_reference", "duplex_mapping", "mutect2_calling"])
 
-    def test_endpoint_and_computation_group_filters_keep_the_overview(self):
+    def test_explicit_task_selection_uses_rows_even_for_grouped_implementations(self):
         workflow = self.work / "workflow.py"
         workflow.write_text(workflow.read_text() +
                             "definition = mapping([a.outputs['result']])\n"
                             "definition.targets['compute'].group = 'report'\n"
                             "gwf.task(definition, alias='consumer')\n")
-        output = self.cli("status", "--endpoints")
-        self.assertIn("4 of 5 Tasks selected", output)
-        self.assertRegex(output, r"(?m)^mapping\s+0/2\s+2 pending$")
-        output = self.cli("status", "--endpoints", "--group", "report", "--status", "pending")
+        output = self.cli("status", "mapping*", "--status", "pending")
+        self.assertIn("3 of 5 Tasks selected", output)
+        self.assertIn("Jobs completed", output)
+        self.assertNotIn("Reusable", output)
+        output = self.cli("status", "consumer", "--status", "pending")
         self.assertIn("1 of 5 Tasks selected", output)
-        self.assertRegex(output, r"(?m)^consumer\s+0/1\s+1 pending$")
-        self.assertNotIn("Jobs completed", output)
+        self.assertRegex(output, r"(?m)^Task consumer\s+pending\s+0/3")
+        self.assertNotIn("Task mapping__A", output)

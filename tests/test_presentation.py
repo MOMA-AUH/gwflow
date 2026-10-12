@@ -17,7 +17,7 @@ class TaskPresentationTests(LocalBackendTestCase):
         workflow = self.work / "workflow.py"
         workflow.write_text(workflow.read_text().replace(
             "outputs=['same.txt'])", "outputs=['same.txt'], image='missing.sif')", 1))
-        for command in (("status", "--instances",), ("run", "--dry-run"), ("run",)):
+        for command in (("status", "*",), ("run", "--dry-run"), ("run",)):
             with self.subTest(command=command):
                 success = command[0] != "run"
                 result = self.cli_result(*command, success=success)
@@ -48,7 +48,7 @@ class TaskPresentationTests(LocalBackendTestCase):
         damaged.unlink()
         damaged.mkdir()
         before = self.snapshot()
-        for command in (("status", "--instances",), ("run", "--dry-run"), ("run",)):
+        for command in (("status", "*",), ("run", "--dry-run"), ("run",)):
             with self.subTest(command=command):
                 success = command[0] != "run"
                 compact = self.cli_result(*command, success=success).stdout
@@ -93,7 +93,7 @@ class TaskPresentationTests(LocalBackendTestCase):
         workflow = self.work / "workflow.py"
         workflow.write_text(workflow.read_text().replace("'sample'", repr(name)))
         self.run_complete()
-        for command in (("status", "--instances",), ("run", "--dry-run"), ("run",)):
+        for command in (("status", "*",), ("run", "--dry-run"), ("run",)):
             for options in ((), ("--plain",)):
                 with self.subTest(command=command, options=options):
                     shortened = self.terminal_cli("--no-color", *command, *options, width=80).stdout
@@ -182,7 +182,7 @@ class TaskPresentationTests(LocalBackendTestCase):
         workflow.write_text(workflow.read_text().replace("'sample'", repr(name)).replace(
             "outputs=['same.txt'])", "outputs=['same.txt'], image='missing.sif')", 1))
         for options in ((), ("--plain",)):
-            output = self.terminal_cli("--no-color", "status", "--instances", *options, width=32).stdout
+            output = self.terminal_cli("--no-color", "status", "*", *options, width=32).stdout
             compact = re.sub(r"[\s│]", "", output)
             self.assertIn("Workflowblocked—nonewjobswillbesubmitted.BlockedTasks:" + name, compact)
             self.assertIn("?/5", output)
@@ -193,7 +193,7 @@ class TaskPresentationTests(LocalBackendTestCase):
         self.run_complete()
         (self.work / "results/a/result.txt").unlink()
         for width in (40, 110):
-            output = self.terminal_cli("--no-color", "status", "--instances", width=width).stdout
+            output = self.terminal_cli("--no-color", "status", "*", width=width).stdout
             self.assertIn("run again after upstream result recovery", " ".join(output.split()))
 
     def test_presentation_options_do_not_add_backend_observations(self):
@@ -206,7 +206,7 @@ class TaskPresentationTests(LocalBackendTestCase):
             self.cli("-b", "recovery_fixture", *command, env=environment)
             baseline = record.read_text().splitlines()
             self.assertTrue(baseline)
-            selections = (("sample__left",), ("--endpoints",)) if command[0] != "run" else ()
+            selections = (("sample",), ("*",)) if command[0] != "run" else ()
             for options in (("--details",), ("--plain",), ("--no-truncate",), *selections):
                 with self.subTest(command=command, options=options):
                     record.unlink()

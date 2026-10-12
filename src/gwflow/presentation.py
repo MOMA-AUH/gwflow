@@ -2,7 +2,6 @@
 
 from collections import Counter
 from dataclasses import dataclass
-from fnmatch import fnmatchcase
 import os
 import shlex
 import sys
@@ -173,7 +172,29 @@ def blocking_reason(reason):
 
 
 def blocking_detail(reason):
-    return blocking_reason(reason) or "validation prevents proceeding; see gwflow run --dry-run --details"
+    concise = blocking_reason(reason)
+    if concise:
+        return concise
+    selectors = click.get_current_context().params.get("selectors", ())
+    command = inspection_command("run", "--dry-run", "--details", *selectors)
+    return "validation prevents proceeding; see " + shlex.join(command)
+
+
+def inspection_command(*arguments):
+    """Build an executable inspection hint in the current CLI context."""
+    context = click.get_current_context()
+    root = context.find_root()
+    command = ["gwflow"]
+    for name, option in (("file", "--file"), ("backend", "--backend"), ("verbose", "--verbose")):
+        if root.get_parameter_source(name) == click.core.ParameterSource.COMMANDLINE:
+            command.extend((option, str(root.params[name])))
+    if root.get_parameter_source("no_color") == click.core.ParameterSource.COMMANDLINE:
+        command.append("--no-color" if root.params["no_color"] else "--use-color")
+    command.extend(arguments)
+    for name in ("plain", "no_truncate"):
+        if context.params.get(name):
+            command.append("--" + name.replace("_", "-"))
+    return command
 
 
 def job_diagnostics(counts, state):
@@ -246,22 +267,10 @@ def observed_jobs(task):
     return counts, incomplete
 
 
-def matches(name, patterns):
-    return any(fnmatchcase(name, pattern) for pattern in patterns)
-
-
-def selected_rows(workflow, plan, *, targets=(), endpoints=False, statuses=(), group=()):
-    producers = {name for task in plan.tasks for name in producer_names(task.structure)}
+def selected_rows(workflow, plan, *, names=None, statuses=()):
     rows = []
     for task in task_order(workflow, plan):
-        if endpoints and task.name in producers:
-            continue
-        names = lifecycle_jobs(task.structure["targets"])
-        if targets and not (matches(task.name, targets)
-                            or any(matches(f"{task.name}__{local}", targets) for local in names)):
-            continue
-        if group and not any(matches(workflow.targets[f"{task.name}__{local}"].group or "none", group)
-                             for local in task.structure["targets"]):
+        if names is not None and task.name not in names:
             continue
         row = task_row(task)
         if not statuses or row.state in statuses:
@@ -449,7 +458,7 @@ class Report:
             self.status_line(f"\nAll {state} Tasks:")
             # Let the terminal wrap visually without inserting breaks into a
             # command that users can copy and execute.
-            click.echo("  " + shlex.join([*command, "--status", state, "--instances"]), color=False)
+            click.echo("  " + shlex.join([*command, "--status", state]), color=False)
             self.status_line("")
 
     def workflow_notices(self, tasks, rows):
@@ -474,6 +483,8 @@ class Report:
                     self.status_line("      (outside selection)")
                 else:
                     self.status_line(line)
+                if task.name not in selected:
+                    self.status_line("      " + blocking_detail(task.reason))
             self.status_line("  Already active jobs may still be running.")
         for task, reminder in followups:
             line = f"  Task {label(task)}: {reminder}"

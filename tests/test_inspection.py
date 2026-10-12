@@ -111,18 +111,18 @@ class LifecycleInspectionTests(LocalBackendTestCase):
         self.assertEqual(self.cli("logs", "sample__right", "--no-pager"), latest_log)
 
     def test_compact_status_distinguishes_condition_from_next_action_and_cleaned_work(self):
-        self.assertRegex(self.cli("status", "--instances"), r"Task a\s+pending\s+0/3")
+        self.assertRegex(self.cli("status", "*"), r"Task a\s+pending\s+0/3")
         self.assertIn("Next action: Run", self.cli("run", "--dry-run", "--details"))
         self.run_complete()
-        self.assertRegex(self.cli("status", "--instances"), r"Task a\s+reusable\s+3/3\s+work present")
+        self.assertRegex(self.cli("status", "*"), r"Task a\s+reusable\s+3/3\s+work present")
         (self.work / "results/a/result.txt").unlink()
-        self.assertRegex(self.cli("status", "--instances"), r"Task a\s+repairable\s+2/3\s+retained results need repair")
+        self.assertRegex(self.cli("status", "*"), r"Task a\s+repairable\s+2/3\s+retained results need repair")
         self.assertIn("Next action: Repair", self.cli("run", "--dry-run", "--details"))
         self.cli("run")
         self.finish()
         self.cli("clean", "--delete", "a")
         before = self.snapshot()
-        self.assertRegex(self.cli("status", "--instances"), r"Task a\s+reusable\s+3/3\s+work cleaned")
+        self.assertRegex(self.cli("status", "*"), r"Task a\s+reusable\s+3/3\s+work cleaned")
         self.assertEqual(self.snapshot(), before)
 
     def test_changed_structure_and_commands_have_specific_reasons(self):
@@ -186,7 +186,7 @@ class LifecycleInspectionTests(LocalBackendTestCase):
         self.assertNotIn("Would submit", preview)
         self.run_previewed(preview, success=False)
         self.assertFalse((self.work / "trace").exists())
-        self.assertRegex(self.cli("status", "--instances"), r"Task a\s+blocked")
+        self.assertRegex(self.cli("status", "*"), r"Task a\s+blocked")
 
     def test_active_work_previews_no_duplicate_admission_and_force_reports_conflicts(self):
         held, release = self.work / "held", self.work / "release"
@@ -203,7 +203,7 @@ class LifecycleInspectionTests(LocalBackendTestCase):
             preview = self.preview("--force", "a", success=False)
             self.assertIn("active work blocks replacement", preview)
             self.run_previewed(preview, "--force", "a", success=False)
-            self.assertRegex(self.cli("status", "--instances"), r"Task a\s+running")
+            self.assertRegex(self.cli("status", "*"), r"Task a\s+running")
         finally:
             release.touch()
         self.finish()
@@ -360,7 +360,7 @@ class FinishingInspectionTests(LocalBackendTestCase):
         self.settle()
         preview = self.preview()
         self.assertRegex(preview, r"Task a\s+Finish\s+")
-        self.assertRegex(self.cli("status", "--instances"), r"Task a\s+failed\s+2/3\s+results transfer needs recovery")
+        self.assertRegex(self.cli("status", "*"), r"Task a\s+failed\s+2/3\s+results transfer needs recovery")
         self.assertIn("Next action: Finish", self.cli("run", "--dry-run", "--details"))
         self.run_previewed(preview)
         self.settle()
@@ -372,8 +372,8 @@ class FinishingInspectionTests(LocalBackendTestCase):
         try:
             preview = self.preview()
             self.assertRegex(preview, r"Task a\s+Wait\s+")
-            self.assertRegex(self.cli("status", "--instances"), r"Task a\s+finishing\s+2/3")
-            self.assertNotIn("reusable", self.cli("status", "--instances"))
+            self.assertRegex(self.cli("status", "*"), r"Task a\s+finishing\s+2/3")
+            self.assertNotIn("reusable", self.cli("status", "*"))
             self.run_previewed(preview)
         finally:
             (self.work / "manifest-release").touch()

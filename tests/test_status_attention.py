@@ -115,7 +115,7 @@ class StatusAttentionTests(LocalBackendTestCase):
             self.assertEqual(self.names(expanded), expected)
             self.assertNotIn("Needs attention", expanded)
             self.assertEqual(record.read_text().splitlines(), baseline)
-        for flag in ("--instances", "--details"):
+        for flag in ("*", "--details"):
             record.unlink()
             expanded = self.cli("-b", "recovery_fixture", "status", flag, env=environment)
             self.assertEqual(len(self.names(expanded)), 19)
@@ -184,44 +184,43 @@ class StatusAttentionTests(LocalBackendTestCase):
         states.update({f"canceled__{index}__three": "RUNNING" for index in range(6)})
         states.update({f"canceled__{index}__gwflow_complete": "SUBMITTED" for index in range(6)})
         environment = self.inject(job_states=states)
-        selectors = ("task:failed__[024]", "job:canceled__0__one")
         output = self.cli("--file", "selected workflow.py:pipeline", "--backend", "recovery_fixture",
-                          "--verbose", "warning", "--no-color", "status", *selectors,
-                          "--endpoints", "--group", "selected group", "--status", "failed",
+                          "--verbose", "warning", "--no-color", "status", "--plain", "--status", "failed",
                           "--status", "canceled", env=environment)
-        self.assertIn("3 of 13 Tasks selected", output)
+        self.assertIn("12 of 13 Tasks selected", output)
         commands = self.commands(output)
         self.assertEqual(set(commands), {"failed", "canceled"})
         for state, command in commands.items():
             self.assertIn("selected workflow.py:pipeline", command)
             self.assertIn("recovery_fixture", command)
             self.assertIn("--no-color", command)
-            self.assertIn("--endpoints", command)
-            self.assertIn("selected group", command)
-            self.assertIn(selectors[0], command)
-            self.assertIn(selectors[1], command)
+            self.assertIn("--plain", command)
+            self.assertIn("warning", command)
+            self.assertIn("*", command)
+            for retired in ("--instances", "--endpoints", "--group", "--format"):
+                self.assertNotIn(retired, command)
             self.assertEqual(command.count("--status"), 1)
             self.assertEqual(command[command.index("--status") + 1], state)
             expanded = self.cli(*command[1:], env=environment)
-            self.assertEqual(self.names(expanded), ["failed__2", "failed__4"] if state == "failed" else ["canceled__0"])
+            self.assertEqual(self.names(expanded), [f"{state}__{index}" for index in range(6)])
 
     def test_unavailable_observations_do_not_claim_zero_jobs_or_invent_activity(self):
         self.declarations([("mapping", "A", 0, None)])
         workflow = self.work / "workflow.py"
         workflow.write_text(workflow.read_text().replace(
             "    gwf.task", "    definition.targets['one'].image = 'missing.sif'\n    gwf.task"))
-        output = self.cli("status", "task:mapping__[AB]")
+        output = self.cli("status")
         blocked = self.category(output, "blocked")
         self.assertIn("1 Task", blocked)
         self.assertIn("observations incomplete", blocked.lower())
         self.assertIn("progress unavailable", blocked)
         self.assertNotRegex(blocked, r"\d+ (?:running|queued|failed|canceled)")
         command = self.commands(output)["blocked"]
-        self.assertEqual(command, ["gwflow", "status", "task:mapping__[AB]", "--status", "blocked", "--instances"])
+        self.assertEqual(command, ["gwflow", "status", "*", "--status", "blocked"])
         expanded = self.cli(*command[1:])
         self.assertRegex(expanded, r"Task mapping__A\s+blocked\s+\?/6")
         for options in ((), ("--plain",)):
-            output = self.terminal_cli("--no-color", "status", "task:mapping__[AB]", *options, width=40).stdout
+            output = self.terminal_cli("--no-color", "status", *options, width=40).stdout
             command = self.commands(output)["blocked"]
-            self.assertIn("task:mapping__[AB]", command)
+            self.assertIn("*", command)
             self.assertEqual(self.names(self.cli(*command[1:])), ["mapping__A"])
