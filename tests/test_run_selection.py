@@ -5,14 +5,17 @@ import re
 import shlex
 
 from support import TASK_FACTORY, LocalBackendTestCase
+from test_managed_recovery import ManagedCoordinationTests
 from test_registry_images import RegistryTestCase
 
 
 class SelectedRunTests(LocalBackendTestCase):
-    def configure_workflow(self):
+    inject = ManagedCoordinationTests.inject
+
+    def configure_workflow(self, tasks=(("a", ()), ("b", ("a",)), ("c", ("b", "a")), ("d", ()), ("e", ("c",)))):
         trace = shlex.quote(str(self.work / "trace.txt"))
         declaration = TASK_FACTORY + "from gwflow import Workflow, shell\ngwf = Workflow()\nhandles = {}\n"
-        for name, producers in (("a", ()), ("b", ("a",)), ("c", ("b", "a")), ("d", ()), ("e", ("c",))):
+        for name, producers in tasks:
             inputs = ", ".join(f"handles[{producer!r}].outputs['value']" for producer in producers)
             sources = " ".join("{source" + str(index) + "}" for index in range(len(producers)))
             bindings = ", ".join(f"source{index}=handles[{producer!r}].outputs['value']"
@@ -142,6 +145,25 @@ class SelectedRunTests(LocalBackendTestCase):
             self.assertEqual(sentinel.read_text(), "unowned")
             self.assertTrue((self.work / "work").is_symlink())
             self.assertTrue(list(saved.iterdir()))
+
+    def test_unrelated_consumer_observation_failure_does_not_block_selected_execution(self):
+        self.configure_workflow(tasks=(("a", ()), ("b", ("a",)), ("d", ())))
+        self.run_complete()
+        outside = self.task_evidence("a", "b")
+        env = self.inject(fail_status_prefix="b")
+        preview = self.cli("-b", "recovery_fixture", "run", "d", "--force", "--dry-run", env=env)
+        self.assertEqual(self.actions(preview), {"d": "Run"})
+        actual = self.cli("-b", "recovery_fixture", "run", "d", "--force", env=env)
+        self.assertEqual(self.actions(actual), self.actions(preview))
+        self.finish()
+        self.assertEqual(self.task_evidence("a", "b"), outside)
+        self.assertEqual(self.trace(), Counter({"a": 1, "b": 1, "d": 2}))
+        before = self.task_evidence("a", "b", "d")
+        for options in ((), ("--dry-run",)):
+            output = self.cli("-b", "recovery_fixture", "run", "a", "--force", *options, env=env, success=False)
+            self.assertIn("injected backend observation failure", output)
+            self.assertNotIn("Submitted target", output)
+            self.assertEqual(self.task_evidence("a", "b", "d"), before)
 
 
 class SelectedImageTests(RegistryTestCase):

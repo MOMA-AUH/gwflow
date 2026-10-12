@@ -12,15 +12,15 @@ from .submission import submit_plan
 
 @output_options
 @click.command()
-@click.argument("targets", nargs=-1)
+@click.argument("selectors", nargs=-1)
 @click.option("-d", "--dry-run", is_flag=True, help="Preview the execution plan without submitting jobs.")
 @click.option("-f", "--force", is_flag=True, help="Start fresh attempts for directly selected Tasks.")
 @pass_context
-def run(ctx, targets, dry_run, force, details, plain, no_truncate):
+def run(ctx, selectors, dry_run, force, details, plain, no_truncate):
     """Run Task names or quoted globs with their required upstream Tasks."""
     workflow = load_workflow(ctx)
     with _submission_guard(ctx.working_dir):
-        plan = plan_workflow(workflow, ctx, selectors=targets, force=force)
+        plan = plan_workflow(workflow, ctx, selectors=selectors, force=force)
         report = Report(plan.store, plain=plain, no_truncate=no_truncate)
         report.plan(plan, selected_rows(workflow, plan), expand=details, preview=dry_run)
         outcomes = {(task.name, local): SubmissionOutcome(task.name, local)

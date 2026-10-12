@@ -222,16 +222,18 @@ def acknowledge(store, attempt, intent, job_id):
                   **identity(intent), job_id=job_id)
 
 
-def consumer_activity(store, backend, name):
+def consumer_activity(store, backend, name, *, producers=None):
     """Recorded bindings protect producers even when a consumer is not loaded."""
     consumers = {}
     for attempt in store.recorded_tasks():
-        if not attempt["producers"]:
+        bindings = {producer: expected for producer, expected in attempt["producers"].items()
+                    if producers is None or producer in producers}
+        if not bindings:
             continue
         active = [item for item in observe(store, attempt, backend, name).values()
                   if item.state in ("active", "uncertain")]
         if active:
-            for producer, expected in attempt["producers"].items():
+            for producer, expected in bindings.items():
                 consumers.setdefault((producer, expected), {})[attempt["task"]] = active
     return consumers
 

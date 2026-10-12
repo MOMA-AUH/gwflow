@@ -28,7 +28,7 @@ def tracked_commands_match(store, attempt, commands):
                and store.execution(attempt, local)["command"] == commands[local] for local in commands)
 
 
-def definition_change(store, observation, selected, *, force_option, tracking, initializing):
+def definition_change(store, observation, observations_by_name, *, force_option, tracking, initializing):
     attempt = observation.attempt
     if force_option:
         return f"requested {force_option}"
@@ -37,7 +37,7 @@ def definition_change(store, observation, selected, *, force_option, tracking, i
         changed = [label for key, label in labels.items() if observation.structure[key] != attempt["structure"][key]]
         return "changed declared structure: " + ", ".join(changed)
     for producer in producer_names(observation.structure):
-        upstream = selected[producer]
+        upstream = observations_by_name[producer]
         expected = attempt["producers"].get(producer)
         if upstream.action == "fresh":
             return f"producer {producer} will start a fresh attempt; expected producer attempt was {expected}"
@@ -207,7 +207,7 @@ def plan_workflow(workflow, ctx, *, selectors=(), force=False):
         if name in scope:
             scope.update(producer_names(declared[name][0]))
     tasks = []
-    selected = {}
+    observations_by_name = {}
     with create_backend(ctx.backend, working_dir=ctx.working_dir, config=ctx.config) as backend:
         for name in order:
             if name not in scope:
@@ -220,7 +220,7 @@ def plan_workflow(workflow, ctx, *, selectors=(), force=False):
             except WorkflowError as error:
                 observation.action, observation.reason = "blocked", str(error)
                 tasks.append(observation)
-                selected[name] = observation
+                observations_by_name[name] = observation
                 continue
             if attempt is not None:
                 try:
@@ -240,7 +240,7 @@ def plan_workflow(workflow, ctx, *, selectors=(), force=False):
                     failed = [local for local, item in jobs.items() if item.state in ("failed", "cancelled") and local not in pending]
                     if uncertain:
                         observation.action, observation.reason = "blocked", "unresolved submission: " + ", ".join(uncertain)
-                    elif change := definition_change(store, observation, selected,
+                    elif change := definition_change(store, observation, observations_by_name,
                                                       force_option="--force" if force and name in selected_names else None,
                                                       tracking=ctx.config.get("use_spec_hashes"), initializing=initializing):
                         fresh_observation(store, observation, change)
@@ -249,7 +249,7 @@ def plan_workflow(workflow, ctx, *, selectors=(), force=False):
                         observation.removal = store.result_removal(attempt)
                         observation.action, observation.reason = "initialize", "resume selected initialization; remove previous results before submission"
                         observation.pending = lifecycle_jobs(ordered_targets(structure))
-                    elif not active and any(awaiting_producer_metadata(store, selected[producer])
+                    elif not active and any(awaiting_producer_metadata(store, observations_by_name[producer])
                                             for producer in producer_names(structure)) and _files.exists(store.attempt_dir(attempt) / "inputs.json"):
                         observation.action, observation.reason = "deferred", "producer results need recovery; a later invocation must replan input validity after restored metadata is available"
                     elif not active and store.cleanup_record(attempt) is not None:
@@ -293,8 +293,8 @@ def plan_workflow(workflow, ctx, *, selectors=(), force=False):
             else:
                 fresh_observation(store, observation, "no completed managed attempt")
             tasks.append(observation)
-            selected[name] = observation
-        consumers = admission.consumer_activity(store, backend, ctx.backend)
+            observations_by_name[name] = observation
+        consumers = admission.consumer_activity(store, backend, ctx.backend, producers=scope)
         for observation in tasks:
             if observation.attempt is not None:
                 observation.consumers = consumers.get((observation.name, observation.attempt["attempt"]), {})
