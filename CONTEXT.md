@@ -7,6 +7,18 @@ gwflow extends gwf with tasks that can be reused after their internal intermedia
 **Task**:
 A higher-level unit containing multiple ordinary gwf targets, with a defined boundary of external inputs and retained outputs.
 
+**Task attempt**:
+A distinct instance of a Task's lifecycle, encompassing preparation, computation, and Completion. Retries and Repair can preserve the same attempt identity.
+
+**Execution scope**:
+The set of whole Tasks considered for execution by a run, including selected Tasks and their required upstream dependencies.
+
+**Task selector**:
+A Task name or Task-name pattern used to choose whole Tasks for a command.
+
+**Selected Tasks**:
+The Tasks directly chosen for a command, before any required upstream dependencies are included.
+
 **Task name**:
 A stable name identifying one Task instance, unique within its workflow and independent of declaration order. It uses the Task alias when supplied, or otherwise the Task implementation's name, with an Instance key appended when supplied.
 
@@ -41,7 +53,7 @@ The count of completed computation targets and lifecycle jobs, relative to their
 The primary condition of a Task, summarizing its lifecycle, blockers, and job observations. Blockage, failure, and cancellation take precedence in that order over ongoing work.
 
 **Next action**:
-The decision about how a Task will be handled when the workflow is run, together with its reason. It describes what is planned rather than the Task's current state.
+The decision about how a Task will be handled within an Execution scope, together with its reason. It describes what is planned rather than the Task's current state.
 
 **External input**:
 A file supplied from outside a task, declared as data by its author or implied by a target's image selection. This includes another task's retained output.
@@ -50,7 +62,7 @@ A file supplied from outside a task, declared as data by its author or implied b
 The external-input state accepted at task preparation, against which later input observations are compared.
 
 **Image dependency**:
-An external input selected as a target's container image, required for meaningful workflow inspection as well as container execution, even when its owning task can otherwise be reused.
+An external input selected as a target's container image, required for meaningful inspection of its owning Task as well as container execution, even when that Task can otherwise be reused.
 
 **Image reference**:
 A declaration identifying an image dependency by a local SIF pathname or an OCI/Docker registry source.

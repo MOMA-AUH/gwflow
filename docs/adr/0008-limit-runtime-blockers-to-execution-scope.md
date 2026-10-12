@@ -1,0 +1,7 @@
+# Limit runtime blockers to the Execution scope
+
+Starting with v0.6.0, a Task-specific runtime blocker outside the Execution scope, such as an unavailable container image, does not prevent a selected run. Selection must still preserve shared-storage ownership checks and protection of active or uncertain consumers outside the scope, because those can constrain changes to selected Tasks' results. This makes selective execution useful when independent work is blocked and replaces the workflow-wide submission-blocking rule in [ADR 0002](0002-acquire-image-dependencies-during-planning.md).
+
+The complete workflow's declarations must be valid before applying execution selection, including references, dependency graphs, Task names, and results-directory layout. Authoring errors anywhere therefore prevent a selected run; Task runtime planning and execution are restricted to the Execution scope, subject to the cross-scope protections above. This preserves a trustworthy dependency graph and storage layout while allowing independent runtime problems outside the scope.
+
+Run, `run --dry-run`, and status acquire missing container images needed to assess Selected Tasks and their required upstream dependencies, including Tasks that could otherwise be reused. Images needed only by unrelated Tasks are not acquired. Inspection may populate the shared image cache while leaving Task records and results unchanged, preserving meaningful Reuse decisions and agreement between preview and execution without a separate image-preparation command.
