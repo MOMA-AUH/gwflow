@@ -20,6 +20,11 @@ class CompletedWorkCleanupTests(LocalBackendTestCase):
         self.with_consumer = workflow.read_text()
         workflow.write_text(self.with_consumer.split("task = empty_task(inputs=[a.outputs")[0])
 
+    def snapshot(self):
+        roots = [self.work / ".gwf/gwflow", self.work / "work", self.work / "results"]
+        return {path: (path.read_bytes(), path.stat().st_mtime_ns)
+                for root in roots for path in root.rglob("*") if path.is_file()}
+
     def test_preview_then_delete_preserves_results_and_only_new_consumer_computes(self):
         self.run_complete()
         roots = [self.work / ".gwf/gwflow", self.work / "work", self.work / "results"]
@@ -45,14 +50,92 @@ class CompletedWorkCleanupTests(LocalBackendTestCase):
         for name in ("a", "b"):
             self.assertEqual(list((self.work / "work" / name).iterdir()), [])
 
-    def test_exact_task_selection_and_unknown_selection_before_any_deletion(self):
+    def test_task_names_and_globs_deduplicate_and_reject_all_unmatched_before_deletion(self):
         self.run_complete()
-        self.assertIn("Unknown Task", self.cli("clean", "--delete", "--task", "a", "--task", "missing", success=False))
+        before = self.snapshot()
+        error = self.cli("clean", "--delete", "a", "missing", "absent*", success=False)
+        self.assertIn("Unmatched Task selectors", error)
+        self.assertIn("missing", error)
+        self.assertIn("absent*", error)
+        removed = self.cli("clean", "--task", "a", success=False)
+        self.assertIn("No such option", removed)
+        self.assertIn("--task", removed)
+        self.assertEqual(self.snapshot(), before)
         self.assertTrue(list((self.work / "work/a").iterdir()))
         self.assertTrue(list((self.work / "work/b").iterdir()))
-        self.cli("clean", "--delete", "--task", "a", "--task", "a")
+        preview = self.cli("clean", "[ab]", "a", "b")
+        self.assertEqual(preview.count("Task a attempt"), 1)
+        self.assertEqual(preview.count("Task b attempt"), 1)
+        self.assertEqual(self.snapshot(), before)
+        self.cli("clean", "--delete", "a", "[a]", "a")
         self.assertFalse(list((self.work / "work/a").iterdir()))
         self.assertTrue(list((self.work / "work/b").iterdir()))
+
+    def test_declared_and_recorded_union_reports_never_run_tasks_without_adopting_leftovers(self):
+        self.run_complete()
+        logs = self.cli("logs", "b__compute", "--no-pager")
+        (self.work / "workflow.py").write_text(self.with_consumer.replace("b = gwf.task(task, alias='b')\n", ""))
+        leftover = self.work / "work/stray" / ("f" * 32) / "keep.txt"
+        leftover.parent.mkdir(parents=True)
+        leftover.write_text("unowned")
+        before = self.snapshot()
+        self.assertIn("Task c: no recorded work", self.cli("clean", "c"))
+        for selectors in ((), ("*",), ("a", "b", "c", "[abc]")):
+            with self.subTest(selectors=selectors):
+                preview = self.cli("clean", *selectors)
+                self.assertEqual(preview.count("Task a attempt"), 1)
+                self.assertEqual(preview.count("Task b attempt"), 1)
+                self.assertEqual(preview.count("Task c: no recorded work"), 1)
+                self.assertNotIn("stray", preview)
+        error = self.cli("clean", "--delete", "b", "stray", success=False)
+        self.assertIn("Unmatched Task selectors", error)
+        self.assertEqual(self.snapshot(), before)
+        output = self.cli("clean", "--delete", "b", "c")
+        self.assertIn("Task c: no recorded work", output)
+        self.assertFalse(list((self.work / "work/b").iterdir()))
+        self.assertTrue(list((self.work / "work/a").iterdir()))
+        self.assertEqual((self.work / "results/b/result.txt").read_text(), "b")
+        self.assertEqual(self.cli("logs", "b__compute", "--no-pager"), logs)
+        self.assertEqual(leftover.read_text(), "unowned")
+        self.assertIn("Reuse", self.cli("run", "--dry-run"))
+
+    def test_selection_does_not_expand_to_producers_or_consumers(self):
+        (self.work / "workflow.py").write_text(self.with_consumer)
+        self.run_complete()
+        producer_logs = self.cli("logs", "a__compute", "--no-pager")
+        self.cli("clean", "--delete", "a")
+        self.assertFalse(list((self.work / "work/a").iterdir()))
+        self.assertTrue(list((self.work / "work/b").iterdir()))
+        self.assertTrue(list((self.work / "work/c").iterdir()))
+        preview = self.cli("clean", "[c]")
+        self.assertIn("Task c attempt", preview)
+        self.assertNotIn("Task a attempt", preview)
+        self.assertNotIn("Task b attempt", preview)
+        self.cli("clean", "--delete", "[c]")
+        self.assertFalse(list((self.work / "work/c").iterdir()))
+        self.assertTrue(list((self.work / "work/b").iterdir()))
+        for name, expected in (("a", "a"), ("b", "b"), ("c", "a")):
+            self.assertEqual((self.work / "results" / name / "result.txt").read_text(), expected)
+        self.assertEqual(self.cli("logs", "a__compute", "--no-pager"), producer_logs)
+        self.assertNotIn("Submitted target", self.cli("run"))
+
+    def test_groups_jobs_and_namespaces_do_not_expand_to_tasks(self):
+        workflow = self.work / "workflow.py"
+        declaration = workflow.read_text().replace("alias='a'", "alias='batch', key='one'")
+        declaration = declaration.replace("alias='b'", "alias='batch', key='two'")
+        workflow.write_text(declaration)
+        error = self.cli("clean", "batch", "batch__one__compute", "task:batch__one", "job:batch__one__compute",
+                         "batch__one", success=False)
+        self.assertIn("Unmatched Task selectors", error)
+        for selector in ("batch", "batch__one__compute", "task:batch__one", "job:batch__one__compute"):
+            self.assertIn(repr(selector), error)
+        self.assertFalse((self.work / "work").exists())
+        self.assertFalse((self.work / "results").exists())
+        workflow.write_text(declaration.replace("alias='batch', key='one'", "alias='batch'")
+                           .replace("alias='batch', key='two'", "alias='batch__one__compute'"))
+        output = self.cli("clean", "batch", "batch__one__compute")
+        self.assertIn("Task batch: no recorded work", output)
+        self.assertIn("Task batch__one__compute: no recorded work", output)
 
     def test_superseded_attempt_is_reported_and_kept_by_default(self):
         self.run_complete()
@@ -71,10 +154,10 @@ class CompletedWorkCleanupTests(LocalBackendTestCase):
         previous = next((self.work / "work/a").iterdir())
         result = self.work / "results/a/result.txt"
         result.unlink()
-        self.assertIn("keep work for retry or repair", self.cli("clean", "--delete", "--task", "a"))
+        self.assertIn("keep work for retry or repair", self.cli("clean", "--delete", "a"))
         self.assertTrue(previous.exists())
         self.run_complete()
-        self.cli("clean", "--delete", "--task", "a")
+        self.cli("clean", "--delete", "a")
         result.unlink()
         self.assertRegex(self.cli("run", "--dry-run"), r"Task a\s+Run\s+")
         self.run_complete()
@@ -90,12 +173,12 @@ class CompletedWorkCleanupTests(LocalBackendTestCase):
         moved = workspace.with_name("saved")
         workspace.rename(moved)
         workspace.symlink_to(external, target_is_directory=True)
-        self.assertIn("symlink", self.cli("clean", "--delete", "--task", "a", success=False))
+        self.assertIn("symlink", self.cli("clean", "--delete", "a", success=False))
         self.assertEqual((external / "keep.txt").read_text(), "keep")
         workspace.unlink()
         moved.rename(workspace)
         (workspace / "scratch-link").symlink_to(external, target_is_directory=True)
-        self.cli("clean", "--delete", "--task", "a")
+        self.cli("clean", "--delete", "a")
         self.assertFalse(workspace.exists())
         self.assertEqual((external / "keep.txt").read_text(), "keep")
 
@@ -116,7 +199,7 @@ class CompletedWorkCleanupTests(LocalBackendTestCase):
         self.cli("run")
         self.wait_for(held.exists)
         try:
-            self.cli("clean", "--delete", "--task", "a")
+            self.cli("clean", "--delete", "a")
             self.assertFalse(list((self.work / "work/a").iterdir()))
             self.assertEqual((self.work / "results/a/result.txt").read_text(), "a")
         finally:
@@ -133,8 +216,8 @@ class CompletedWorkCleanupTests(LocalBackendTestCase):
 
     def test_preview_does_not_authorize_deleting_work_reported_active_later(self):
         self.run_complete()
-        self.assertIn("eligible", self.cli("clean", "--task", "a"))
-        output = self.cli("-b", "recovery_fixture", "clean", "--delete", "--task", "a",
+        self.assertIn("eligible", self.cli("clean", "a"))
+        output = self.cli("-b", "recovery_fixture", "clean", "--delete", "a",
                           env=self.inject(queued_prefix="a__compute"))
         self.assertIn("active work", output)
         self.assertTrue(list((self.work / "work/a").iterdir()))
@@ -142,7 +225,7 @@ class CompletedWorkCleanupTests(LocalBackendTestCase):
     def test_cleanup_and_submission_serialize_through_removal(self):
         self.run_complete()
         previous = next((self.work / "work/a").iterdir())
-        cleaner = subprocess.Popen([sys.executable, str(FIXTURES / "frontend_fault.py"), str(self.work), "gate_cleanup", "a", "clean", "--delete", "--task", "a"],
+        cleaner = subprocess.Popen([sys.executable, str(FIXTURES / "frontend_fault.py"), str(self.work), "gate_cleanup", "a", "clean", "--delete", "a"],
                                    cwd=self.work, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         runner = None
         try:
@@ -170,7 +253,7 @@ class CompletedWorkCleanupTests(LocalBackendTestCase):
     def test_pending_cleanup_prevents_repair_using_not_yet_removed_work(self):
         self.run_complete()
         previous = next((self.work / "work/a").iterdir())
-        outcome = subprocess.run([sys.executable, str(FIXTURES / "frontend_fault.py"), str(self.work), "cleanup_before_remove", "a", "clean", "--delete", "--task", "a"],
+        outcome = subprocess.run([sys.executable, str(FIXTURES / "frontend_fault.py"), str(self.work), "cleanup_before_remove", "a", "clean", "--delete", "a"],
                                  cwd=self.work, capture_output=True, text=True, timeout=30)
         self.assertEqual(outcome.returncode, 102, outcome.stdout + outcome.stderr)
         self.assertTrue(previous.exists())
@@ -182,7 +265,7 @@ class CompletedWorkCleanupTests(LocalBackendTestCase):
     def test_results_changed_after_cleanup_intent_keep_the_remaining_work(self):
         self.run_complete()
         workspace = next((self.work / "work/a").iterdir())
-        cleaner = subprocess.Popen([sys.executable, str(FIXTURES / "frontend_fault.py"), str(self.work), "gate_cleanup", "a", "clean", "--delete", "--task", "a"],
+        cleaner = subprocess.Popen([sys.executable, str(FIXTURES / "frontend_fault.py"), str(self.work), "gate_cleanup", "a", "clean", "--delete", "a"],
                                    cwd=self.work, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         try:
             self.wait_for((self.work / "cleanup-held").exists)
@@ -204,7 +287,7 @@ class CompletedWorkCleanupTests(LocalBackendTestCase):
         unrelated = self.work / ".gwf/gwflow/staging" / attempt / ("f" * 32)
         unrelated.mkdir()
         (unrelated / "keep.txt").write_text("unowned")
-        self.cli("clean", "--delete", "--task", "a")
+        self.cli("clean", "--delete", "a")
         self.assertEqual((unrelated / "keep.txt").read_text(), "unowned")
 
     def test_cleanup_interruptions_resume_without_repeating_computation(self):
@@ -215,14 +298,14 @@ class CompletedWorkCleanupTests(LocalBackendTestCase):
                     self.cli("run", "--force-task", "a")
                     self.finish()
                 workspace = next(path for path in (self.work / "work/a").iterdir())
-                outcome = subprocess.run([sys.executable, str(FIXTURES / "frontend_fault.py"), str(self.work), phase, "a", "clean", "--delete", "--task", "a"],
+                outcome = subprocess.run([sys.executable, str(FIXTURES / "frontend_fault.py"), str(self.work), phase, "a", "clean", "--delete", "a"],
                                          cwd=self.work, capture_output=True, text=True, timeout=30)
                 self.assertIn(outcome.returncode, (102, 103, 104, 105), outcome.stdout + outcome.stderr)
                 self.assertEqual((self.work / "results/a/result.txt").read_text(), "a")
                 self.assertNotIn("Submitted target", self.cli("run"))
-                self.cli("clean", "--delete", "--task", "a")
+                self.cli("clean", "--delete", "a")
                 self.assertFalse(workspace.exists())
-                self.assertIn("already removed", self.cli("clean", "--task", "a"))
+                self.assertIn("already removed", self.cli("clean", "a"))
         self.assertEqual(Counter((self.work / "trace").read_text().splitlines()), {"a": 4, "b": 1})
 
 
@@ -266,5 +349,5 @@ class TransferStagingCleanupTests(LocalBackendTestCase):
                 self.assertEqual(self.attempt(), before)
                 self.assertRegex(self.cli("run", "--dry-run"), r"Task a\s+Reuse\s+")
                 self.assertEqual((self.work / "trace").read_text().splitlines(), ["compute"] * (index + 1))
-                self.cli("clean", "--delete", "--task", "a")
+                self.cli("clean", "--delete", "a")
                 self.assertNotIn("Submitted target", self.cli("run"))

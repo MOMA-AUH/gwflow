@@ -8,6 +8,7 @@ from gwf.exceptions import WorkflowError
 from . import cleanup
 from ._frontend import _submission_guard, load_workflow
 from .lifecycle import Store, declarations
+from .selection import task_selection
 
 
 def display(store, observation):
@@ -24,14 +25,14 @@ def display(store, observation):
 
 
 @click.command("clean")
+@click.argument("selectors", nargs=-1)
 @click.option("--delete", is_flag=True, help="Delete eligible owned work without an interactive prompt.")
-@click.option("--task", multiple=True, help="Limit completed-work cleanup to exact Task names.")
 @click.option("--attempt", "attempt_ids", multiple=True, help="Select exact recorded inactive attempts, giving up retry progress and repair sources.")
 @pass_context
-def clean_work(ctx, delete, task, attempt_ids):
-    """Preview completed work or explicitly selected inactive attempts."""
-    if task and attempt_ids:
-        raise WorkflowError("Cannot combine --task and --attempt")
+def clean_work(ctx, selectors, delete, attempt_ids):
+    """Preview work for Task names or quoted globs; omit selectors for all Tasks."""
+    if selectors and attempt_ids:
+        raise WorkflowError("Cannot combine Task selectors and --attempt")
     workflow = load_workflow(ctx)
     with _submission_guard(ctx.working_dir):
         store = Store.for_workflow(workflow)
@@ -40,17 +41,18 @@ def clean_work(ctx, delete, task, attempt_ids):
             store.current(name, workflow._result_dirs[name])
         attempts = store.recorded_attempts()
         known = set(workflow._task_declarations) | {attempt["task"] for attempt in attempts}
-        if set(task) - known:
-            raise WorkflowError("Unknown Task names for --task: " + ", ".join(sorted(set(task) - known)))
+        selected_names = task_selection(known, selectors) if not attempt_ids else set()
         unknown = set(attempt_ids) - {attempt["attempt"] for attempt in attempts}
         if unknown:
             raise WorkflowError("Unknown attempts for --attempt: " + ", ".join(sorted(unknown)))
         selected = [attempt for attempt in attempts if attempt["attempt"] in attempt_ids] if attempt_ids else [
-            attempt for attempt in attempts if not task or attempt["task"] in task]
+            attempt for attempt in attempts if attempt["task"] in selected_names]
         with create_backend(ctx.backend, working_dir=ctx.working_dir, config=ctx.config) as backend:
             observations = [cleanup.observe(store, attempt, backend, ctx.backend, explicit=bool(attempt_ids)) for attempt in selected]
         click.echo("Work cleanup" if delete else "Cleanup preview; use --delete to remove eligible work")
-        if not observations:
+        for name in sorted(selected_names - {attempt["task"] for attempt in selected}):
+            click.echo(f"Task {name}: no recorded work")
+        if not observations and not selected_names:
             click.echo("No recorded attempts selected")
         if delete and any(item.action == "blocked" for item in observations):
             for item in observations:

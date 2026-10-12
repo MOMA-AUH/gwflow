@@ -75,7 +75,7 @@ class ExplicitCleanupTests(LocalBackendTestCase):
         self.run_complete()
         a, b = self.attempt("a"), self.attempt("b")
         for flags in (("--attempt", a, "--attempt", "not-recorded"),
-                      ("--attempt", a, "--task", "b"), ("--attempt", "f" * 32)):
+                      ("--attempt", a, "b"), ("--attempt", "f" * 32)):
             with self.subTest(flags=flags):
                 self.cli("clean", "--delete", *flags, success=False)
                 self.assertTrue((self.work / "work/a" / a).exists())
