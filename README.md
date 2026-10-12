@@ -1,21 +1,21 @@
 # gwflow
 
+[![Conda Version](https://img.shields.io/conda/vn/MOMA-AUH/gwflow?style=for-the-badge&cacheSeconds=300)](https://anaconda.org/MOMA-AUH/gwflow) [![Conda Downloads](https://img.shields.io/conda/dn/MOMA-AUH/gwflow?style=for-the-badge&cacheSeconds=300)](https://anaconda.org/MOMA-AUH/gwflow)
+
 gwflow runs workflows as reusable **Tasks**: groups of jobs with named results.
 Computation uses disposable work directories; retained results stay available
 after that work is cleaned. It uses [gwf](https://gwf.app/) for scheduling.
 
 ## Install
 
-Use Linux, Python 3.12, and Bash. Installation includes gwf 2.1.1. Container
-execution additionally needs Apptainer; this quickstart runs on the host.
-These instructions describe the current checkout's `gwflow` CLI:
+Use Linux and Bash. Install the released package from the
+[MOMA-AUH conda channel](https://anaconda.org/MOMA-AUH/gwflow), with Python 3.12
+and gwf 2.1.1. Container execution additionally needs Apptainer; this quickstart
+runs on the host.
 
 ```sh
-git clone https://github.com/MOMA-AUH/gwflow.git
-cd gwflow
-python3.12 -m venv .venv
-. .venv/bin/activate
-python -m pip install .
+conda create -n gwflow --override-channels -c MOMA-AUH -c gwforg -c conda-forge python=3.12 gwflow
+conda activate gwflow
 gwflow --version
 mkdir demo
 cd demo
@@ -48,11 +48,11 @@ gwflow config set backend local
 gwflow config set use_spec_hashes true
 ```
 
-In a **second terminal**, start workers from the same repository checkout and
-leave them running:
+In a **second terminal**, activate the environment and start workers in the same
+`demo` directory. Leave them running:
 
 ```sh
-. .venv/bin/activate
+conda activate gwflow
 cd demo
 gwflow workers -n 2
 ```
