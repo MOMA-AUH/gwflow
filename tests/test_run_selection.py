@@ -5,12 +5,12 @@ import re
 import shlex
 
 from support import TASK_FACTORY, LocalBackendTestCase
-from test_managed_recovery import ManagedCoordinationTests
+import test_managed_recovery
 from test_registry_images import RegistryTestCase
 
 
 class SelectedRunTests(LocalBackendTestCase):
-    inject = ManagedCoordinationTests.inject
+    inject = test_managed_recovery.ManagedCoordinationTests.inject
 
     def configure_workflow(self, tasks=(("a", ()), ("b", ("a",)), ("c", ("b", "a")), ("d", ()), ("e", ("c",)))):
         trace = shlex.quote(str(self.work / "trace.txt"))
