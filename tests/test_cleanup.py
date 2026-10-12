@@ -20,6 +20,11 @@ class CompletedWorkCleanupTests(LocalBackendTestCase):
         self.with_consumer = workflow.read_text()
         workflow.write_text(self.with_consumer.split("task = empty_task(inputs=[a.outputs")[0])
 
+    def snapshot(self):
+        roots = [self.work / ".gwf/gwflow", self.work / "work", self.work / "results"]
+        return {path: (path.read_bytes(), path.stat().st_mtime_ns)
+                for root in roots for path in root.rglob("*") if path.is_file()}
+
     def test_preview_then_delete_preserves_results_and_only_new_consumer_computes(self):
         self.run_complete()
         roots = [self.work / ".gwf/gwflow", self.work / "work", self.work / "results"]
@@ -47,23 +52,21 @@ class CompletedWorkCleanupTests(LocalBackendTestCase):
 
     def test_task_names_and_globs_deduplicate_and_reject_all_unmatched_before_deletion(self):
         self.run_complete()
-        roots = [self.work / ".gwf/gwflow", self.work / "work", self.work / "results"]
-        before = {path: (path.read_bytes(), path.stat().st_mtime_ns)
-                  for root in roots for path in root.rglob("*") if path.is_file()}
+        before = self.snapshot()
         error = self.cli("clean", "--delete", "a", "missing", "absent*", success=False)
         self.assertIn("Unmatched Task selectors", error)
         self.assertIn("missing", error)
         self.assertIn("absent*", error)
-        self.assertIn("No such option: --task", self.cli("clean", "--task", "a", success=False))
-        self.assertEqual({path: (path.read_bytes(), path.stat().st_mtime_ns)
-                          for root in roots for path in root.rglob("*") if path.is_file()}, before)
+        removed = self.cli("clean", "--task", "a", success=False)
+        self.assertIn("No such option", removed)
+        self.assertIn("--task", removed)
+        self.assertEqual(self.snapshot(), before)
         self.assertTrue(list((self.work / "work/a").iterdir()))
         self.assertTrue(list((self.work / "work/b").iterdir()))
         preview = self.cli("clean", "[ab]", "a", "b")
         self.assertEqual(preview.count("Task a attempt"), 1)
         self.assertEqual(preview.count("Task b attempt"), 1)
-        self.assertEqual({path: (path.read_bytes(), path.stat().st_mtime_ns)
-                          for root in roots for path in root.rglob("*") if path.is_file()}, before)
+        self.assertEqual(self.snapshot(), before)
         self.cli("clean", "--delete", "a", "[a]", "a")
         self.assertFalse(list((self.work / "work/a").iterdir()))
         self.assertTrue(list((self.work / "work/b").iterdir()))
@@ -75,9 +78,7 @@ class CompletedWorkCleanupTests(LocalBackendTestCase):
         leftover = self.work / "work/stray" / ("f" * 32) / "keep.txt"
         leftover.parent.mkdir(parents=True)
         leftover.write_text("unowned")
-        roots = [self.work / ".gwf/gwflow", self.work / "work", self.work / "results"]
-        before = {path: (path.read_bytes(), path.stat().st_mtime_ns)
-                  for root in roots for path in root.rglob("*") if path.is_file()}
+        before = self.snapshot()
         self.assertIn("Task c: no recorded work", self.cli("clean", "c"))
         for selectors in ((), ("*",), ("a", "b", "c", "[abc]")):
             with self.subTest(selectors=selectors):
@@ -88,8 +89,7 @@ class CompletedWorkCleanupTests(LocalBackendTestCase):
                 self.assertNotIn("stray", preview)
         error = self.cli("clean", "--delete", "b", "stray", success=False)
         self.assertIn("Unmatched Task selectors", error)
-        self.assertEqual({path: (path.read_bytes(), path.stat().st_mtime_ns)
-                          for root in roots for path in root.rglob("*") if path.is_file()}, before)
+        self.assertEqual(self.snapshot(), before)
         output = self.cli("clean", "--delete", "b", "c")
         self.assertIn("Task c: no recorded work", output)
         self.assertFalse(list((self.work / "work/b").iterdir()))
