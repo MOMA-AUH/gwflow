@@ -89,8 +89,10 @@ class PackagedContainerExampleTests(LocalBackendTestCase):
         PackagedExampleTests.test_installed_producers_clean_then_new_consumer_computes_only_once(self)
         for target in ("A__clean", "B__aggregate", "C__join"):
             self.assertIn(" image ", self.cli("logs", target, "--stderr", "--no-pager"))
+        details = self.cli("run", "--dry-run", "--details")
+        consumer = details.split("Details for Task C:\n", 1)[1].split("Details for Task ", 1)[0]
         workspace = Path(next(line.split("Workspace: ", 1)[1]
-                              for line in self.cli("run", "--dry-run", "C", "--details").splitlines() if "Workspace: " in line))
+                              for line in consumer.splitlines() if "Workspace: " in line))
         for name in ("sales", "returns"):
             staged = list(workspace.rglob(f"{name}/summary.csv"))
             self.assertEqual(len(staged), 1)

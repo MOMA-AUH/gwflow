@@ -10,6 +10,8 @@ source:
 
 build:
   noarch: python
+  entry_points:
+    - gwflow = gwflow.cli:main
   script: {{ PYTHON }} -m pip install . --no-deps --no-build-isolation
 
 requirements:
