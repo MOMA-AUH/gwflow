@@ -172,7 +172,29 @@ def blocking_reason(reason):
 
 
 def blocking_detail(reason):
-    return blocking_reason(reason) or "validation prevents proceeding; see gwflow run --dry-run --details"
+    concise = blocking_reason(reason)
+    if concise:
+        return concise
+    selectors = click.get_current_context().params.get("selectors", ())
+    command = inspection_command("run", "--dry-run", "--details", *selectors)
+    return "validation prevents proceeding; see " + shlex.join(command)
+
+
+def inspection_command(*arguments):
+    """Build an executable inspection hint in the current CLI context."""
+    context = click.get_current_context()
+    root = context.find_root()
+    command = ["gwflow"]
+    for name, option in (("file", "--file"), ("backend", "--backend"), ("verbose", "--verbose")):
+        if root.get_parameter_source(name) == click.core.ParameterSource.COMMANDLINE:
+            command.extend((option, str(root.params[name])))
+    if root.get_parameter_source("no_color") == click.core.ParameterSource.COMMANDLINE:
+        command.append("--no-color" if root.params["no_color"] else "--use-color")
+    command.extend(arguments)
+    for name in ("plain", "no_truncate"):
+        if context.params.get(name):
+            command.append("--" + name.replace("_", "-"))
+    return command
 
 
 def job_diagnostics(counts, state):
