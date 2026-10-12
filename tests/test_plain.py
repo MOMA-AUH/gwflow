@@ -2,10 +2,12 @@
 
 import re
 
-from support import LocalBackendTestCase
+from support import GWF, LocalBackendTestCase
 
 
 class PlainWorkflowTests(LocalBackendTestCase):
+    executable = GWF
+
     def configure_workflow(self, **options):
         (self.work / "workflow.py").write_text(
             "from pathlib import Path\n"
@@ -27,7 +29,7 @@ class PlainWorkflowTests(LocalBackendTestCase):
         self.assertIn("log-message", self.cli("logs", "selected", "--no-pager"))
 
     def test_status_formats_load_once(self):
-        for output_format in ("tree", "default", "summary", "grouped"):
+        for output_format in ("default", "summary", "grouped"):
             with self.subTest(output_format=output_format):
                 (self.work / "loads.txt").unlink(missing_ok=True)
                 self.cli("status", "--format", output_format)
@@ -43,7 +45,7 @@ class PlainWorkflowTests(LocalBackendTestCase):
         self.cli("run", "selected")
         self.finish()
         default = self.cli_result("status", "--format", "default").stdout
-        self.assertEqual(default, self.cli_result("status", "--format", "tree").stdout)
+        self.assertEqual(default, self.cli_result("status").stdout)
         self.assertRegex(default, r"selected\s+completed \(id: (?:none|\d+)\)")
         self.assertRegex(default, r"consumer\s+shouldrun \(id: none\)")
         for options, expected in (

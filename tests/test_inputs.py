@@ -34,7 +34,7 @@ class ExternalInputTests(LocalBackendTestCase):
         alias.symlink_to("input.txt")
         self.configure_workflow(source=alias.name)
         before = (self.work / "input.txt").read_bytes()
-        for command in (("explain",), ("status", "--instances",), ("run", "--dry-run")):
+        for command in (("run", "--dry-run",), ("status", "--instances",), ("run", "--dry-run")):
             self.cli(*command)
         self.assertFalse((self.work / ".gwf/gwflow").exists())
         self.run_complete()
@@ -50,7 +50,7 @@ class ExternalInputTests(LocalBackendTestCase):
         source = self.work / "input.txt"
         source.chmod(0)
         try:
-            self.assertRegex(self.cli("explain"), r"Task sample\s+Reuse\s+")
+            self.assertRegex(self.cli("run", "--dry-run"), r"Task sample\s+Reuse\s+")
             self.assertNotIn("Submitted target", self.cli("run"))
         finally:
             source.chmod(0o600)
@@ -71,7 +71,7 @@ class ExternalInputTests(LocalBackendTestCase):
             (self.work / "preparation-release").touch()
         self.finish()
         self.assertEqual((self.work / "results/sample/result.txt").read_text(), "changed before preparation\n")
-        self.assertIn("Reuse", self.cli("explain"))
+        self.assertIn("Reuse", self.cli("run", "--dry-run"))
 
     def test_changed_input_immediately_before_installation_prevents_completion(self):
         env = self.fault(job="gwflow_complete", gate_after_manifest=True)
@@ -83,22 +83,22 @@ class ExternalInputTests(LocalBackendTestCase):
             (self.work / "manifest-release").touch()
         self.settle()
         self.assertFalse((self.work / "results/sample").exists())
-        self.assertIn("fresh attempt", self.cli("explain"))
+        self.assertIn("fresh attempt", self.cli("run", "--dry-run"))
         self.assertIn("changed after preparation", self.cli("logs", "sample__gwflow_complete", "--stderr", "--no-pager"))
 
     def test_interrupted_baseline_publication_can_restart_same_attempt(self):
         env = self.fault(crash_before_baseline=True)
         self.cli("-b", "recovery_fixture", "run", env=env)
         self.settle()
-        before = self.cli("explain", "--details")
+        before = self.cli("run", "--dry-run", "--details")
         attempt_line = next(line for line in before.splitlines() if "Attempt:" in line)
         (self.work / "input.txt").write_text("baseline was not committed\n")
         self.assertIn("preparation", self.cli("run", "--dry-run"))
         self.cli("run")
         self.settle()
         self.assertEqual((self.work / "results/sample/result.txt").read_text(), "baseline was not committed\n")
-        self.assertIn(attempt_line, self.cli("explain", "--details"))
-        self.assertIn("Reuse", self.cli("explain"))
+        self.assertIn(attempt_line, self.cli("run", "--dry-run", "--details"))
+        self.assertIn("Reuse", self.cli("run", "--dry-run"))
 
     def test_retry_never_replaces_a_committed_baseline(self):
         env = self.fault(crash_after_baseline=True)
@@ -115,7 +115,7 @@ class ExternalInputTests(LocalBackendTestCase):
         self.cli("run")
         self.settle()
         self.assertEqual((self.work / "results/sample/result.txt").read_bytes(), original)
-        self.assertIn("Reuse", self.cli("explain"))
+        self.assertIn("Reuse", self.cli("run", "--dry-run"))
         # Fault injection intentionally locates a record by kind; user behavior
         # above establishes its meaning, this check enforces immutability.
         baselines = [path for path, content in evidence.items() if json.loads(content).get("kind") == "gwflow.inputs"]
@@ -132,14 +132,14 @@ class ExternalInputTests(LocalBackendTestCase):
                 source.write_bytes(content)
                 os.utime(source, ns=(info.st_atime_ns, mtime))
                 self.assertRegex(self.cli("status", "--instances"), r"Task sample\s+pending\s+0/3\s+fresh attempt required")
-                for command in (("explain",), ("status", "--details")):
+                for command in (("run", "--dry-run",), ("status", "--details")):
                     self.assertIn("fresh attempt", self.cli(*command))
                 self.assertIn("fresh attempt", self.cli("run", "--dry-run"))
                 self.assertEqual({path: path.read_bytes() for path in evidence}, evidence)
         # Deliberately document the accepted metadata-only detection limit.
         source.write_bytes(b"other\n")
         os.utime(source, ns=(info.st_atime_ns, info.st_mtime_ns))
-        self.assertIn("Reuse", self.cli("explain"))
+        self.assertIn("Reuse", self.cli("run", "--dry-run"))
         self.assertEqual((self.work / "results/sample/result.txt").read_bytes(), original)
 
     def test_equal_metadata_symlink_retarget_after_preparation_blocks_computation(self):
@@ -160,7 +160,7 @@ class ExternalInputTests(LocalBackendTestCase):
         self.settle()
         self.assertFalse((self.work / "results/sample").exists())
         self.assertFalse(list((self.work / "work").rglob("out.txt")))
-        self.assertIn("fresh attempt", self.cli("explain"))
+        self.assertIn("fresh attempt", self.cli("run", "--dry-run"))
         self.cli("run")
         self.settle()
         self.assertEqual((self.work / "results/sample/result.txt").read_bytes(), b"other\n")
@@ -210,7 +210,7 @@ class ExternalInputTests(LocalBackendTestCase):
     def test_disappeared_input_requires_fresh_attempt_without_changing_completion(self):
         self.run_complete()
         (self.work / "input.txt").unlink()
-        self.assertIn("external input unavailable", self.cli("explain"))
+        self.assertIn("external input unavailable", self.cli("run", "--dry-run", success=False))
         self.assertIn("fresh attempt", self.cli("run", success=False))
         self.assertEqual((self.work / "results/sample/result.txt").read_text(), "hello\n")
 
@@ -233,7 +233,7 @@ class ExternalInputTests(LocalBackendTestCase):
         self.cli("-b", "recovery_fixture", "run", env=env, success=False)
         self.wait_for(lambda: (self.work / "preparation-held").exists())
         try:
-            self.assertIn("submission outcome unknown", self.cli("explain"))
+            self.assertIn("submission outcome unknown", self.cli("run", "--dry-run", success=False))
             self.assertIn("unresolved submission", self.cli("run", success=False))
         finally:
             (self.work / "preparation-release").touch()

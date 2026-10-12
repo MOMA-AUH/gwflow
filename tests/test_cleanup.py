@@ -5,7 +5,7 @@ import shlex
 import subprocess
 import sys
 
-from support import FIXTURES, GWF, LocalBackendTestCase
+from support import FIXTURES, GWFLOW, LocalBackendTestCase
 import test_fresh
 import test_transfer
 
@@ -24,14 +24,14 @@ class CompletedWorkCleanupTests(LocalBackendTestCase):
         self.run_complete()
         roots = [self.work / ".gwf/gwflow", self.work / "work", self.work / "results"]
         before = {str(path): path.read_bytes() for root in roots for path in root.rglob('*') if path.is_file()}
-        preview = self.cli("clean-work")
+        preview = self.cli("clean")
         for name in ("a", "b"):
             self.assertIn(f"Task {name}", preview)
             self.assertIn(str(self.work / "work" / name), preview)
         self.assertIn("eligible", preview)
         self.assertIn("--delete", preview)
         self.assertEqual({str(path): path.read_bytes() for root in roots for path in root.rglob('*') if path.is_file()}, before)
-        self.cli("clean-work", "--delete")
+        self.cli("clean", "--delete")
         for name in ("a", "b"):
             self.assertEqual(list((self.work / "work" / name).iterdir()), [])
             self.assertEqual((self.work / "results" / name / "result.txt").read_text(), name)
@@ -47,10 +47,10 @@ class CompletedWorkCleanupTests(LocalBackendTestCase):
 
     def test_exact_task_selection_and_unknown_selection_before_any_deletion(self):
         self.run_complete()
-        self.assertIn("Unknown Task", self.cli("clean-work", "--delete", "--task", "a", "--task", "missing", success=False))
+        self.assertIn("Unknown Task", self.cli("clean", "--delete", "--task", "a", "--task", "missing", success=False))
         self.assertTrue(list((self.work / "work/a").iterdir()))
         self.assertTrue(list((self.work / "work/b").iterdir()))
-        self.cli("clean-work", "--delete", "--task", "a", "--task", "a")
+        self.cli("clean", "--delete", "--task", "a", "--task", "a")
         self.assertFalse(list((self.work / "work/a").iterdir()))
         self.assertTrue(list((self.work / "work/b").iterdir()))
 
@@ -59,10 +59,10 @@ class CompletedWorkCleanupTests(LocalBackendTestCase):
         previous = next((self.work / "work/a").iterdir())
         self.cli("run", "--force-task", "a")
         self.finish()
-        preview = self.cli("clean-work")
+        preview = self.cli("clean")
         self.assertIn(previous.name, preview)
         self.assertIn("superseded", preview)
-        self.cli("clean-work", "--delete")
+        self.cli("clean", "--delete")
         self.assertEqual(list((self.work / "work/a").iterdir()), [previous])
         self.assertEqual((self.work / "results/a/result.txt").read_text(), "a")
 
@@ -71,12 +71,12 @@ class CompletedWorkCleanupTests(LocalBackendTestCase):
         previous = next((self.work / "work/a").iterdir())
         result = self.work / "results/a/result.txt"
         result.unlink()
-        self.assertIn("keep work for retry or repair", self.cli("clean-work", "--delete", "--task", "a"))
+        self.assertIn("keep work for retry or repair", self.cli("clean", "--delete", "--task", "a"))
         self.assertTrue(previous.exists())
         self.run_complete()
-        self.cli("clean-work", "--delete", "--task", "a")
+        self.cli("clean", "--delete", "--task", "a")
         result.unlink()
-        self.assertRegex(self.cli("explain"), r"Task a\s+Run\s+")
+        self.assertRegex(self.cli("run", "--dry-run"), r"Task a\s+Run\s+")
         self.run_complete()
         self.assertNotEqual(next((self.work / "work/a").iterdir()), previous)
         self.assertEqual(Counter((self.work / "trace").read_text().splitlines()), {"a": 2, "b": 1})
@@ -90,12 +90,12 @@ class CompletedWorkCleanupTests(LocalBackendTestCase):
         moved = workspace.with_name("saved")
         workspace.rename(moved)
         workspace.symlink_to(external, target_is_directory=True)
-        self.assertIn("symlink", self.cli("clean-work", "--delete", "--task", "a", success=False))
+        self.assertIn("symlink", self.cli("clean", "--delete", "--task", "a", success=False))
         self.assertEqual((external / "keep.txt").read_text(), "keep")
         workspace.unlink()
         moved.rename(workspace)
         (workspace / "scratch-link").symlink_to(external, target_is_directory=True)
-        self.cli("clean-work", "--delete", "--task", "a")
+        self.cli("clean", "--delete", "--task", "a")
         self.assertFalse(workspace.exists())
         self.assertEqual((external / "keep.txt").read_text(), "keep")
 
@@ -104,7 +104,7 @@ class CompletedWorkCleanupTests(LocalBackendTestCase):
         workflow.write_text(workflow.read_text().replace("printf b", "exit 1; printf b"))
         self.cli("run")
         self.settle()
-        output = self.cli("clean-work", "--delete")
+        output = self.cli("clean", "--delete")
         self.assertIn("keep work for retry or repair", output)
         self.assertFalse(list((self.work / "work/a").iterdir()))
         self.assertTrue(list((self.work / "work/b").iterdir()))
@@ -116,7 +116,7 @@ class CompletedWorkCleanupTests(LocalBackendTestCase):
         self.cli("run")
         self.wait_for(held.exists)
         try:
-            self.cli("clean-work", "--delete", "--task", "a")
+            self.cli("clean", "--delete", "--task", "a")
             self.assertFalse(list((self.work / "work/a").iterdir()))
             self.assertEqual((self.work / "results/a/result.txt").read_text(), "a")
         finally:
@@ -127,14 +127,14 @@ class CompletedWorkCleanupTests(LocalBackendTestCase):
     def test_uncertain_submission_refuses_deletion(self):
         self.cli("-b", "recovery_fixture", "run", env=self.inject(reject_prefix="a__compute"), success=False)
         self.settle()
-        self.assertIn("unresolved submission", self.cli("clean-work"))
-        self.assertIn("unresolved submission", self.cli("clean-work", "--delete", success=False))
+        self.assertIn("unresolved submission", self.cli("clean"))
+        self.assertIn("unresolved submission", self.cli("clean", "--delete", success=False))
         self.assertTrue(list((self.work / "work/a").iterdir()))
 
     def test_preview_does_not_authorize_deleting_work_reported_active_later(self):
         self.run_complete()
-        self.assertIn("eligible", self.cli("clean-work", "--task", "a"))
-        output = self.cli("-b", "recovery_fixture", "clean-work", "--delete", "--task", "a",
+        self.assertIn("eligible", self.cli("clean", "--task", "a"))
+        output = self.cli("-b", "recovery_fixture", "clean", "--delete", "--task", "a",
                           env=self.inject(queued_prefix="a__compute"))
         self.assertIn("active work", output)
         self.assertTrue(list((self.work / "work/a").iterdir()))
@@ -142,12 +142,12 @@ class CompletedWorkCleanupTests(LocalBackendTestCase):
     def test_cleanup_and_submission_serialize_through_removal(self):
         self.run_complete()
         previous = next((self.work / "work/a").iterdir())
-        cleaner = subprocess.Popen([sys.executable, str(FIXTURES / "frontend_fault.py"), str(self.work), "gate_cleanup", "a", "clean-work", "--delete", "--task", "a"],
+        cleaner = subprocess.Popen([sys.executable, str(FIXTURES / "frontend_fault.py"), str(self.work), "gate_cleanup", "a", "clean", "--delete", "--task", "a"],
                                    cwd=self.work, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         runner = None
         try:
             self.wait_for((self.work / "cleanup-held").exists)
-            runner = subprocess.Popen([GWF, "run", "--force-task", "a"], cwd=self.work,
+            runner = subprocess.Popen([GWFLOW, "run", "--force-task", "a"], cwd=self.work,
                                       stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
             with self.assertRaises(subprocess.TimeoutExpired):
                 runner.communicate(timeout=0.2)
@@ -170,19 +170,19 @@ class CompletedWorkCleanupTests(LocalBackendTestCase):
     def test_pending_cleanup_prevents_repair_using_not_yet_removed_work(self):
         self.run_complete()
         previous = next((self.work / "work/a").iterdir())
-        outcome = subprocess.run([sys.executable, str(FIXTURES / "frontend_fault.py"), str(self.work), "cleanup_before_remove", "a", "clean-work", "--delete", "--task", "a"],
+        outcome = subprocess.run([sys.executable, str(FIXTURES / "frontend_fault.py"), str(self.work), "cleanup_before_remove", "a", "clean", "--delete", "--task", "a"],
                                  cwd=self.work, capture_output=True, text=True, timeout=30)
         self.assertEqual(outcome.returncode, 102, outcome.stdout + outcome.stderr)
         self.assertTrue(previous.exists())
         (self.work / "results/a/result.txt").unlink()
-        self.assertRegex(self.cli("explain"), r"Task a\s+Run\s+")
+        self.assertRegex(self.cli("run", "--dry-run"), r"Task a\s+Run\s+")
         self.run_complete()
         self.assertEqual(Counter((self.work / "trace").read_text().splitlines()), {"a": 2, "b": 1})
 
     def test_results_changed_after_cleanup_intent_keep_the_remaining_work(self):
         self.run_complete()
         workspace = next((self.work / "work/a").iterdir())
-        cleaner = subprocess.Popen([sys.executable, str(FIXTURES / "frontend_fault.py"), str(self.work), "gate_cleanup", "a", "clean-work", "--delete", "--task", "a"],
+        cleaner = subprocess.Popen([sys.executable, str(FIXTURES / "frontend_fault.py"), str(self.work), "gate_cleanup", "a", "clean", "--delete", "--task", "a"],
                                    cwd=self.work, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         try:
             self.wait_for((self.work / "cleanup-held").exists)
@@ -204,7 +204,7 @@ class CompletedWorkCleanupTests(LocalBackendTestCase):
         unrelated = self.work / ".gwf/gwflow/staging" / attempt / ("f" * 32)
         unrelated.mkdir()
         (unrelated / "keep.txt").write_text("unowned")
-        self.cli("clean-work", "--delete", "--task", "a")
+        self.cli("clean", "--delete", "--task", "a")
         self.assertEqual((unrelated / "keep.txt").read_text(), "unowned")
 
     def test_cleanup_interruptions_resume_without_repeating_computation(self):
@@ -215,14 +215,14 @@ class CompletedWorkCleanupTests(LocalBackendTestCase):
                     self.cli("run", "--force-task", "a")
                     self.finish()
                 workspace = next(path for path in (self.work / "work/a").iterdir())
-                outcome = subprocess.run([sys.executable, str(FIXTURES / "frontend_fault.py"), str(self.work), phase, "a", "clean-work", "--delete", "--task", "a"],
+                outcome = subprocess.run([sys.executable, str(FIXTURES / "frontend_fault.py"), str(self.work), phase, "a", "clean", "--delete", "--task", "a"],
                                          cwd=self.work, capture_output=True, text=True, timeout=30)
                 self.assertIn(outcome.returncode, (102, 103, 104, 105), outcome.stdout + outcome.stderr)
                 self.assertEqual((self.work / "results/a/result.txt").read_text(), "a")
                 self.assertNotIn("Submitted target", self.cli("run"))
-                self.cli("clean-work", "--delete", "--task", "a")
+                self.cli("clean", "--delete", "--task", "a")
                 self.assertFalse(workspace.exists())
-                self.assertIn("already removed", self.cli("clean-work", "--task", "a"))
+                self.assertIn("already removed", self.cli("clean", "--task", "a"))
         self.assertEqual(Counter((self.work / "trace").read_text().splitlines()), {"a": 4, "b": 1})
 
 
@@ -244,11 +244,11 @@ class TransferStagingCleanupTests(LocalBackendTestCase):
         self.settle()
         result = remote / "results/samples/a/report"
         self.assert_results(result)
-        preview = self.cli("clean-work")
+        preview = self.cli("clean")
         self.assertIn("Staging: " + str(remote / "staging"), preview)
         leftover = [path for path in (remote / "staging").rglob('*') if path.is_dir() and len(path.relative_to(remote / 'staging').parts) >= 2]
         self.assertTrue(leftover)
-        self.cli("clean-work", "--delete")
+        self.cli("clean", "--delete")
         self.assertTrue(all(not path.exists() for path in leftover))
         self.assert_results(result)
         self.assertNotIn("Submitted target", self.cli("run"))
@@ -260,11 +260,11 @@ class TransferStagingCleanupTests(LocalBackendTestCase):
                 self.cli("-b", "recovery_fixture", "run", *force, env=self.fault(**{phase: True}))
                 self.settle()
                 before = self.attempt()
-                self.assertRegex(self.cli("explain"), r"Task a\s+Finish\s+")
+                self.assertRegex(self.cli("run", "--dry-run"), r"Task a\s+Finish\s+")
                 self.cli("run")
                 self.settle()
                 self.assertEqual(self.attempt(), before)
-                self.assertRegex(self.cli("explain"), r"Task a\s+Reuse\s+")
+                self.assertRegex(self.cli("run", "--dry-run"), r"Task a\s+Reuse\s+")
                 self.assertEqual((self.work / "trace").read_text().splitlines(), ["compute"] * (index + 1))
-                self.cli("clean-work", "--delete", "--task", "a")
+                self.cli("clean", "--delete", "--task", "a")
                 self.assertNotIn("Submitted target", self.cli("run"))

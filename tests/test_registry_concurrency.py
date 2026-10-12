@@ -7,7 +7,7 @@ import signal
 import subprocess
 import time
 
-from support import GWF
+from support import GWFLOW
 import test_registry_images
 
 
@@ -19,7 +19,7 @@ class RegistryConcurrencyTests(test_registry_images.RegistryTestCase):
         source = (self.work / "workflow.py").read_text().replace("'sample'", repr(name))
         (work / "workflow.py").write_text(source + f"from pathlib import Path\nPath({str(marker)!r}).touch()\n")
         shutil.copyfile(self.work / ".gwfconf.json", work / ".gwfconf.json")
-        process = subprocess.Popen([GWF, "run", "--dry-run"], cwd=work, start_new_session=True,
+        process = subprocess.Popen([GWFLOW, "run", "--dry-run"], cwd=work, start_new_session=True,
                                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
         self.addCleanup(self.stop_planner, process)
         self.wait_for(marker.exists)
@@ -91,7 +91,7 @@ class RegistryConcurrencyTests(test_registry_images.RegistryTestCase):
         self.assertEqual(len(self.calls("pull")), 2)
 
     def test_waiter_recovers_after_killed_owner_and_preserves_other_images(self):
-        self.cli("explain")
+        self.cli("run", "--dry-run")
         published = self.cached_images()[0]
         before = published.read_bytes(), published.stat().st_mtime_ns, published.stat().st_ino
         self.configure_workflow("docker://example.org/tools/interrupted:v1")

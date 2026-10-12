@@ -1,4 +1,4 @@
-"""Author independent tasks and register them in ordinary gwf workflows."""
+"""Author independent Tasks and register them in managed workflows."""
 
 from .workflow import Task, Workflow, task_template
 from .commands import shell

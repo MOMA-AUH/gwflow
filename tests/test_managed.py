@@ -5,13 +5,14 @@ import json
 import os
 import shlex
 import shutil
+import subprocess
 import unittest
 
 from gwf.backends.local import Client, LocalStatus
 from gwf.exceptions import WorkflowError
 from gwflow import Task, Workflow, task_template
 
-from support import TASK_FACTORY, LocalBackendTestCase
+from support import GWF, TASK_FACTORY, LocalBackendTestCase
 
 
 class ManagedAuthoringTests(unittest.TestCase):
@@ -115,7 +116,7 @@ class ManagedCliTests(LocalBackendTestCase):
                 self.cli("run")
                 self.settle()
                 self.assertFalse((self.work / "results" / name).exists())
-                self.assertIn("Retry", self.cli("explain"))
+                self.assertIn("Retry", self.cli("run", "--dry-run"))
                 self.cli("run")
                 self.settle()
                 self.assertFalse((self.work / "results" / name).exists())
@@ -161,12 +162,17 @@ class ManagedCliTests(LocalBackendTestCase):
                     for root in (self.work / ".gwf/gwflow", self.work / "results")
                     for p in root.rglob("*") if p.is_file()}
         before = evidence()
-        for command in (("explain", "--details"), ("status", "--details"), ("run", "--dry-run")):
+        for command in (("run", "--dry-run", "--details"), ("status", "--details"), ("run", "--dry-run")):
             self.cli(*command)
             self.assertEqual(evidence(), before)
-        for command in (("clean", "--all", "--force"), ("touch",)):
-            self.assertIn("clean-work", self.cli(*command, success=False))
+        for command in (("run",), ("status",), ("info",), ("touch",),
+                        ("clean", "--all", "--force"), ("cancel", "--force")):
+            result = subprocess.run([GWF, *command], cwd=self.work, capture_output=True,
+                                    text=True, timeout=30)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("use gwflow", result.stderr)
             self.assertEqual(evidence(), before)
+        self.assertNotIn("Submitted target", self.cli("run"))
 
     def test_unowned_results_and_changed_recorded_roots_are_not_adopted(self):
         result = self.work / "results/sample/report.txt"
@@ -190,7 +196,7 @@ class ManagedCliTests(LocalBackendTestCase):
         damaged = json.loads(original)
         del damaged["sources"]
         manifest.write_text(json.dumps(damaged))
-        self.assertIn("blocked", self.cli("explain"))
+        self.assertIn("blocked", self.cli("run", "--dry-run", success=False))
         self.cli("run", success=False)
         manifest.write_bytes(original)
         self.assertNotIn("Submitted target", self.cli("run"))
@@ -229,7 +235,7 @@ class ManagedCliTests(LocalBackendTestCase):
         self.settle()
         self.assertTrue(destination.is_symlink())
         self.assertEqual([p.name for p in outside.iterdir()], ["sentinel"])
-        self.assertIn("blocked", self.cli("explain"))
+        self.assertIn("blocked", self.cli("run", "--dry-run", success=False))
 
     def test_nested_output_symlinks_cannot_supply_checked_outputs(self):
         outside = self.work / "outside"
@@ -270,7 +276,7 @@ class ManagedCliTests(LocalBackendTestCase):
         workflow.write_text(workflow.read_text().replace("printf first", "printf second"))
         self.assertNotIn("Submitted target", self.cli("run"))
         self.configure(use_spec_hashes=True)
-        self.assertIn("commands", self.cli("explain"))
+        self.assertIn("commands", self.cli("run", "--dry-run"))
         self.run_complete()
         self.assertEqual((self.work / "results/sample/result.txt").read_text(), "second")
 
@@ -309,11 +315,11 @@ class ManagedCliTests(LocalBackendTestCase):
         self.write_task("exit 1", retained=False)
         self.cli("run")
         self.settle()
-        self.assertIn("Retry", self.cli("explain"))
+        self.assertIn("Retry", self.cli("run", "--dry-run"))
         self.assertFalse((self.work / "results/sample").exists())
 
     def test_retained_results_survive_work_removal_and_are_reused(self):
-        initial = self.cli("explain")
+        initial = self.cli("run", "--dry-run")
         self.assertRegex(initial, r"Task sample\s+Run\s+")
         self.assertIn("Would submit sample__write", self.cli("run", "--dry-run", "--details"))
         self.assertFalse((self.work / "work").exists())
@@ -331,4 +337,4 @@ class ManagedCliTests(LocalBackendTestCase):
         self.assertEqual(result.read_text(), "hello")
         self.assertFalse((self.work / "work").exists())
         self.assertRegex(self.cli("status", "--instances"), r"Task sample\s+reusable\s+3/3\s+work cleaned")
-        self.assertIn("Reuse", self.cli("explain"))
+        self.assertIn("Reuse", self.cli("run", "--dry-run"))

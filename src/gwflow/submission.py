@@ -37,7 +37,7 @@ def _job(store, attempt, local, workflow, intent):
 
 
 def _log_aliases(working_dir, public_name, job_name):
-    # gwf logs continues to accept the public Task/local-target name. Actual
+    # gwflow logs continues to accept the public Task/local-target name. Actual
     # execution logs stay under their generation names independently of work.
     with _files.directory(os.path.join(working_dir, ".gwf", "logs"), create=True) as logs:
         for suffix in ("stdout", "stderr"):

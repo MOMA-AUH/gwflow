@@ -75,7 +75,7 @@ class DirectoryObservationTests(LocalBackendTestCase):
         for failure in (None, "error", "interrupt"):
             with self.subTest(failure=failure):
                 actions = [] if failure is None else [{"pass": 0, "after": owner, failure: True}]
-                results = self.scenario([["status"], ["explain"], ["run", "--dry-run"], ["run"]], actions)
+                results = self.scenario([["status"], ["run", "--dry-run"], ["run", "--dry-run"], ["run"]], actions)
                 for index, result in enumerate(results):
                     self.assertEqual(result["directories_before"], result["directories_after"])
                     if index or failure is None:
@@ -91,7 +91,7 @@ class DirectoryObservationTests(LocalBackendTestCase):
         self.configure()
         self.configure_workflow()
         self.run_complete()
-        for command in (("status",), ("explain",), ("run", "--dry-run"), ("run",)):
+        for command in (("status",), ("run", "--dry-run"), ("run",)):
             with self.subTest(command=command):
                 output, report = self.probe(*command)
                 self.assertEqual(output, self.cli_result(*command).stdout)
@@ -111,13 +111,13 @@ class DirectoryRecoveryTests(LocalBackendTestCase):
         workflow.write_text(workflow.read_text().replace("path='nested/two.txt'", f"path={nested!r}"))
         self.cli("-b", "recovery_fixture", "run", env=self.fault(crash_after_results_install=True))
         self.settle()
-        for command in (("status",), ("explain",), ("run", "--dry-run")):
+        for command in (("status",), ("run", "--dry-run")):
             with self.subTest(command=command):
                 output, report = self.probe(*command)
                 self.assertEqual(output, self.cli_result(*command).stdout)
                 self.assertLessEqual(report["peak_opened_descriptors"], 67)
         self.cli("run")
         self.settle()
-        self.assertRegex(self.cli("explain"), r"Task a\s+Reuse")
+        self.assertRegex(self.cli("run", "--dry-run"), r"Task a\s+Reuse")
         self.assertEqual((self.work / "results/samples/a/report" / nested).read_text(), "second")
         self.assertEqual((self.work / "trace").read_text().splitlines(), ["compute"])

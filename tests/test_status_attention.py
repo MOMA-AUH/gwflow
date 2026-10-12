@@ -217,7 +217,7 @@ class StatusAttentionTests(LocalBackendTestCase):
         self.assertIn("progress unavailable", blocked)
         self.assertNotRegex(blocked, r"\d+ (?:running|queued|failed|canceled)")
         command = self.commands(output)["blocked"]
-        self.assertEqual(command, ["gwf", "status", "task:mapping__[AB]", "--status", "blocked", "--instances"])
+        self.assertEqual(command, ["gwflow", "status", "task:mapping__[AB]", "--status", "blocked", "--instances"])
         expanded = self.cli(*command[1:])
         self.assertRegex(expanded, r"Task mapping__A\s+blocked\s+\?/6")
         for options in ((), ("--plain",)):

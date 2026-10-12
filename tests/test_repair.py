@@ -20,7 +20,7 @@ class ResultsRepairTests(LocalBackendTestCase):
     separate_filesystem = test_transfer.TransferRecoveryTests.separate_filesystem
 
     def finishing_generation(self):
-        line = next(line for line in self.cli("explain", "--details", "a").splitlines() if "a__gwflow_complete:" in line)
+        line = next(line for line in self.cli("run", "--dry-run", "--details").splitlines() if "a__gwflow_complete:" in line)
         return line.split(": ")[1].split()[0].rsplit("__", 1)[0]
 
     def test_missing_result_repairs_same_attempt_and_preserves_consumer_reuse(self):
@@ -32,7 +32,7 @@ class ResultsRepairTests(LocalBackendTestCase):
         (result / "renamed.txt").unlink()
         root = self.work / ".gwf/gwflow"
         snapshot = {str(path.relative_to(root)): path.read_bytes() for path in root.rglob('*') if path.is_file()}
-        preview = self.cli("explain")
+        preview = self.cli("run", "--dry-run")
         self.assertRegex(preview, r"Task a\s+Repair\s+")
         self.assertRegex(preview, r"Task c\s+Defer\s+")
         self.assertIn("run again after upstream result recovery", preview)
@@ -44,8 +44,8 @@ class ResultsRepairTests(LocalBackendTestCase):
         self.assertEqual((self.work / "trace").read_text().splitlines(), ["compute", "consumer"])
         self.assertEqual((result / "renamed.txt").stat().st_mtime_ns, original.st_mtime_ns)
         self.assert_results(result)
-        self.assertRegex(self.cli("explain"), r"Task a\s+Reuse\s+")
-        self.assertRegex(self.cli("explain"), r"Task c\s+Reuse\s+")
+        self.assertRegex(self.cli("run", "--dry-run"), r"Task a\s+Reuse\s+")
+        self.assertRegex(self.cli("run", "--dry-run"), r"Task c\s+Reuse\s+")
         self.assertNotIn("Submitted target", self.cli("run"))
 
     def test_missing_result_directory_is_repaired_without_computation(self):
@@ -53,7 +53,7 @@ class ResultsRepairTests(LocalBackendTestCase):
         before = self.attempt()
         result = self.work / "results/samples/a/report"
         shutil.rmtree(result)
-        self.assertRegex(self.cli("explain"), r"Task a\s+Repair\s+")
+        self.assertRegex(self.cli("run", "--dry-run"), r"Task a\s+Repair\s+")
         self.run_complete()
         self.assertEqual(self.attempt(), before)
         self.assert_results(result)
@@ -72,7 +72,7 @@ class ResultsRepairTests(LocalBackendTestCase):
                     os.utime(path, ns=(original.st_atime_ns, original.st_mtime_ns))
                 else:
                     os.utime(path, ns=(original.st_atime_ns, original.st_mtime_ns + 1))
-                self.assertRegex(self.cli("explain"), r"Task a\s+Repair\s+")
+                self.assertRegex(self.cli("run", "--dry-run"), r"Task a\s+Repair\s+")
                 self.run_complete()
                 self.assertEqual(self.attempt(), before)
                 self.assert_results(result)
@@ -96,12 +96,12 @@ class ResultsRepairTests(LocalBackendTestCase):
                     success.write_text('{}')
                 else:
                     shutil.rmtree(self.work / "work")
-                preview = self.cli("explain")
+                preview = self.cli("run", "--dry-run")
                 self.assertRegex(preview, r"Task a\s+Run\s+")
                 self.assertRegex(preview, r"Task c\s+Run\s+")
                 self.run_complete()
                 self.assertNotEqual(self.attempt(), before)
-                self.assertRegex(self.cli("explain"), r"Task c\s+Reuse\s+")
+                self.assertRegex(self.cli("run", "--dry-run"), r"Task c\s+Reuse\s+")
         self.assertEqual((self.work / "trace").read_text().splitlines(), ["compute", "consumer"] * 5)
 
     def test_partial_repair_keeps_old_results_until_full_replacement_is_ready(self):
@@ -116,16 +116,16 @@ class ResultsRepairTests(LocalBackendTestCase):
         self.assertEqual((result / "renamed.txt").read_text(), "damaged retained set")
         self.assertEqual((result / "nested/two.txt").read_text(), "second")
         self.assertEqual(self.attempt(), before)
-        detail = self.cli("explain", "--details", "a")
+        detail = self.cli("run", "--dry-run", "--details")
         selected = self.finishing_generation()
         self.assertNotEqual(previous, selected)
         self.assertRegex(detail, r"Task a\s+Finish\s+")
-        self.assertRegex(self.cli("explain"), r"Task c\s+Defer\s+")
+        self.assertRegex(self.cli("run", "--dry-run"), r"Task c\s+Defer\s+")
         self.cli("run")
         self.settle()
         self.assert_results(result)
         self.assertEqual(self.finishing_generation(), selected)
-        self.assertRegex(self.cli("explain"), r"Task c\s+Reuse\s+")
+        self.assertRegex(self.cli("run", "--dry-run"), r"Task c\s+Reuse\s+")
         self.assertEqual((self.work / "trace").read_text().splitlines(), ["compute", "consumer"])
 
     def test_restored_timestamp_precision_defers_then_invalidates_consumer(self):
@@ -140,7 +140,7 @@ class ResultsRepairTests(LocalBackendTestCase):
         self.assertEqual(self.attempt(), before)
         self.assertEqual(result.stat().st_mtime_ns, original // 1_000_000_000 * 1_000_000_000)
         self.assertEqual((self.work / "trace").read_text().splitlines(), ["compute", "consumer"])
-        preview = self.cli("explain")
+        preview = self.cli("run", "--dry-run")
         self.assertRegex(preview, r"Task a\s+Reuse\s+")
         self.assertRegex(preview, r"Task c\s+Run\s+")
         self.run_complete()
@@ -150,10 +150,10 @@ class ResultsRepairTests(LocalBackendTestCase):
         self.run_complete()
         before = self.attempt()
         shutil.rmtree(self.work / "results")
-        self.assertRegex(self.cli("explain"), r"Task a\s+Repair\s+")
+        self.assertRegex(self.cli("run", "--dry-run"), r"Task a\s+Repair\s+")
         self.run_complete()
         self.assertEqual(self.attempt(), before)
-        self.assertRegex(self.cli("explain"), r"Task a\s+Reuse\s+")
+        self.assertRegex(self.cli("run", "--dry-run"), r"Task a\s+Reuse\s+")
         self.assert_results(self.work / "results/samples/a/report")
         self.assertEqual((self.work / "trace").read_text().splitlines(), ["compute"])
 
@@ -170,7 +170,7 @@ class ResultsRepairTests(LocalBackendTestCase):
                 self.assertEqual(result.read_text(), "damaged before repair")
                 self.assertEqual(self.attempt(), before)
                 self.run_complete()
-                self.assertRegex(self.cli("explain"), r"Task a\s+Reuse\s+")
+                self.assertRegex(self.cli("run", "--dry-run"), r"Task a\s+Reuse\s+")
                 self.assertEqual(result.read_text(), "first")
         self.assertEqual((self.work / "trace").read_text().splitlines(), ["compute"])
 
@@ -188,12 +188,12 @@ class ResultsRepairTests(LocalBackendTestCase):
                 if phase in ("crash_before_installation_intent", "crash_after_installation_intent"):
                     self.assertEqual((result / "renamed.txt").read_text(), "damaged before replacement")
                     self.assertEqual((result / "nested/two.txt").read_text(), "second")
-                self.assertRegex(self.cli("explain"), r"Task a\s+Finish\s+")
+                self.assertRegex(self.cli("run", "--dry-run"), r"Task a\s+Finish\s+")
                 self.cli("run")
                 self.settle()
                 self.assertEqual(self.finishing_generation(), selected)
                 self.assertEqual(self.attempt(), before)
-                self.assertRegex(self.cli("explain"), r"Task a\s+Reuse\s+")
+                self.assertRegex(self.cli("run", "--dry-run"), r"Task a\s+Reuse\s+")
                 self.assert_results(result)
         self.assertEqual((self.work / "trace").read_text().splitlines(), ["compute"])
 
@@ -235,7 +235,7 @@ class ResultsRepairTests(LocalBackendTestCase):
         (self.work / "results/samples/a/report/renamed.txt").unlink()
         self.add_consumer()
         self.run_complete()
-        self.assertRegex(self.cli("explain"), r"Task c\s+Reuse\s+")
+        self.assertRegex(self.cli("run", "--dry-run"), r"Task c\s+Reuse\s+")
         self.assertEqual((self.work / "results/c/joined.txt").read_text(), "firstsecond")
         self.assertEqual((self.work / "trace").read_text().splitlines(), ["compute", "consumer"])
 
@@ -247,9 +247,9 @@ class ResultsRepairTests(LocalBackendTestCase):
         original = workflow.read_text()
         workflow.write_text(original.replace("printf first", "printf FIRST_CHANGED"))
         (self.work / "results/samples/a/report/renamed.txt").unlink()
-        self.assertRegex(self.cli("explain"), r"Task a\s+Run\s+")
+        self.assertRegex(self.cli("run", "--dry-run"), r"Task a\s+Run\s+")
         self.configure(use_spec_hashes=False)
-        self.assertRegex(self.cli("explain"), r"Task a\s+Repair\s+")
+        self.assertRegex(self.cli("run", "--dry-run"), r"Task a\s+Repair\s+")
         self.run_complete()
         self.assertEqual(self.attempt(), before)
         self.assert_results(self.work / "results/samples/a/report")
@@ -267,11 +267,11 @@ class ResultsRepairTests(LocalBackendTestCase):
         self.cli("-b", "recovery_fixture", "run", env=self.fault(crash_after_results_install=True))
         self.settle()
         shutil.rmtree(self.work / "work")
-        self.assertIn("finish checked installed", self.cli("explain"))
+        self.assertIn("finish checked installed", self.cli("run", "--dry-run"))
         self.cli("run")
         self.settle()
         self.assertEqual(self.attempt(), before)
-        self.assertRegex(self.cli("explain"), r"Task a\s+Reuse\s+")
+        self.assertRegex(self.cli("run", "--dry-run"), r"Task a\s+Reuse\s+")
         self.assertFalse((self.work / "work").exists())
 
     def test_lost_sources_during_interrupted_repair_require_fresh_attempt(self):
@@ -281,11 +281,11 @@ class ResultsRepairTests(LocalBackendTestCase):
         self.cli("-b", "recovery_fixture", "run", env=self.fault(crash_during_copy=True))
         self.settle()
         next((self.work / "work").rglob("one.txt")).unlink()
-        self.assertRegex(self.cli("explain"), r"Task a\s+Run\s+")
+        self.assertRegex(self.cli("run", "--dry-run"), r"Task a\s+Run\s+")
         self.cli("run")
         self.settle()
         self.assertNotEqual(self.attempt(), before)
-        self.assertRegex(self.cli("explain"), r"Task a\s+Reuse\s+")
+        self.assertRegex(self.cli("run", "--dry-run"), r"Task a\s+Reuse\s+")
         self.assertEqual((self.work / "trace").read_text().splitlines(), ["compute", "compute"])
 
     def test_missing_selected_repair_intent_blocks_recovery(self):
@@ -299,7 +299,7 @@ class ResultsRepairTests(LocalBackendTestCase):
         self.assertFalse((self.work / "results/samples/a/report/renamed.txt").exists())
         intent.write_bytes(original)
         self.run_complete()
-        self.assertRegex(self.cli("explain"), r"Task a\s+Reuse\s+")
+        self.assertRegex(self.cli("run", "--dry-run"), r"Task a\s+Reuse\s+")
 
     def test_interrupted_rebuild_of_damaged_installed_repair_retains_ownership(self):
         self.run_complete()
@@ -313,12 +313,12 @@ class ResultsRepairTests(LocalBackendTestCase):
         self.cli("-b", "recovery_fixture", "run", env=self.fault(crash_during_copy=True))
         self.settle()
         self.assertEqual(result.read_text(), "damaged during interrupted repair")
-        self.assertRegex(self.cli("explain"), r"Task a\s+Finish\s+")
+        self.assertRegex(self.cli("run", "--dry-run"), r"Task a\s+Finish\s+")
         self.cli("run")
         self.settle()
         self.assertEqual(self.attempt(), before)
         self.assertEqual(self.finishing_generation(), selected)
-        self.assertRegex(self.cli("explain"), r"Task a\s+Reuse\s+")
+        self.assertRegex(self.cli("run", "--dry-run"), r"Task a\s+Reuse\s+")
         self.assertEqual(result.read_text(), "first")
 
     def test_repair_on_separate_filesystem_recreates_missing_staging_root(self):
@@ -332,7 +332,7 @@ class ResultsRepairTests(LocalBackendTestCase):
         self.run_complete()
         self.assertEqual(self.attempt(), before)
         self.assert_results(result)
-        self.assertRegex(self.cli("explain"), r"Task a\s+Reuse\s+")
+        self.assertRegex(self.cli("run", "--dry-run"), r"Task a\s+Reuse\s+")
         self.assertEqual((self.work / "trace").read_text().splitlines(), ["compute"])
 
     def test_selected_repair_does_not_remove_substituted_result_directory(self):
@@ -357,7 +357,7 @@ class ResultsRepairTests(LocalBackendTestCase):
         try:
             workflow = self.work / "workflow.py"
             workflow.write_text(workflow.read_text() + "gwf.task(task, alias='b')\n")
-            preview = self.cli("explain")
+            preview = self.cli("run", "--dry-run")
             self.assertRegex(preview, r"Task a\s+Wait\s+")
             self.assertRegex(preview, r"Task c\s+Defer\s+")
             self.assertIn("run again after upstream result recovery", preview)
@@ -369,5 +369,5 @@ class ResultsRepairTests(LocalBackendTestCase):
             (self.work / "manifest-release").touch()
         self.finish()
         self.assertEqual(self.attempt(), before)
-        self.assertRegex(self.cli("explain"), r"Task c\s+Reuse\s+")
+        self.assertRegex(self.cli("run", "--dry-run"), r"Task c\s+Reuse\s+")
         self.assertEqual((self.work / "trace").read_text().splitlines(), ["compute", "consumer", "compute"])

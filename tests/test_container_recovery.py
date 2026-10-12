@@ -48,7 +48,7 @@ class ContainerRecoveryTests(LocalBackendTestCase):
         return Counter((self.work / "trace").read_text().splitlines())
 
     def attempt(self):
-        return re.search(r"Attempt: (\w+)", self.cli("explain", "sample", "--details")).group(1)
+        return re.search(r"Attempt: (\w+)", self.cli("run", "--dry-run", "--details")).group(1)
 
     def location(self):
         return next(line.removeprefix("PLACE=").split("|")
@@ -56,7 +56,7 @@ class ContainerRecoveryTests(LocalBackendTestCase):
 
     def preview(self, reason):
         before = self.snapshot()
-        for arguments in (("explain", "--details"), ("status", "--details"), ("run", "--dry-run", "--details")):
+        for arguments in (("run", "--dry-run", "--details"), ("status", "--details"), ("run", "--dry-run", "--details")):
             output = self.cli(*arguments)
             expected = reason if reason in ("retry", "repair", "transfer") else "fresh attempt required"
             self.assertIn(expected if arguments[0] == "status" else reason, output)
@@ -203,7 +203,7 @@ class ContainerRecoveryTests(LocalBackendTestCase):
         result.write_text("protected damaged result")
         before = self.snapshot()
         env = self.inject(running_prefix="sample")
-        for arguments in (("explain", "--details"), ("status", "--details"), ("run", "--dry-run", "--details"), ("run", "--details")):
+        for arguments in (("run", "--dry-run", "--details"), ("status", "--details"), ("run", "--dry-run", "--details"), ("run", "--details")):
             output = self.cli("-b", "recovery_fixture", *arguments, env=env)
             self.assertIn("running" if arguments[0] == "status" else "queued/running work", output)
             self.assertNotIn("Submitted target", output)

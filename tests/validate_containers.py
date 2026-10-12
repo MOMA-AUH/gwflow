@@ -18,7 +18,7 @@ import unittest
 
 from gwf.backends.local import Client, LocalStatus
 
-from support import TASK_FACTORY, FIXTURES, GWF, LocalBackendTestCase
+from support import TASK_FACTORY, FIXTURES, GWFLOW, LocalBackendTestCase
 from test_containers import ContainerRuntimeTests
 from test_staging import ContainerStagingTests
 from test_container_graphs import ContainerGraphTests
@@ -135,10 +135,10 @@ class RegistryDeploymentTests(LocalBackendTestCase):
         self.finish()
         self.check_result()
         self.assertEqual(len(self.calls("exec")), 2)
-        self.cli("clean-work", "--delete")
+        self.cli("clean", "--delete")
         self.assertEqual(self.image_observation(), original)
         before = self.snapshot()
-        for arguments in (("status", "--details"), ("explain",), ("run", "--dry-run"), ("run",)):
+        for arguments in (("status", "--details"), ("run", "--dry-run"), ("run",)):
             output = self.cli(*arguments)
             self.assertNotIn("Submitted target", output)
             self.assertEqual(self.snapshot(), before)
@@ -160,11 +160,11 @@ class RegistryDeploymentTests(LocalBackendTestCase):
         self.cli("run")
         self.settle()
         self.check_result()
-        self.assertRegex(self.cli("explain"), r"Task sample\s+Reuse\s+")
+        self.assertRegex(self.cli("run", "--dry-run"), r"Task sample\s+Reuse\s+")
         self.assertEqual(len(self.calls("exec")), 3)
         self.assertEqual(len(self.calls("pull")), 1)
         final = self.image_observation()
-        self.cli("clean-work", "--delete")
+        self.cli("clean", "--delete")
         self.assertEqual(self.image_observation(), final)
         self.assertNotIn("Submitted target", self.cli("run"))
         self.record({"registry_reference": self.reference, "probe_calls": self.calls("pull") + self.calls("exec"),
@@ -224,7 +224,7 @@ class RuntimeBackendCase(LocalBackendTestCase):
         }})
         if self.backend == "local":
             worker = subprocess.Popen(
-                [GWF, "workers", "--host", "127.0.0.1", "-n", "2", "-p", str(self.port)],
+                [GWFLOW, "workers", "--host", "127.0.0.1", "-n", "2", "-p", str(self.port)],
                 cwd=self.work, env=self.job_environment, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True,
             )
             self.addCleanup(self.stop_worker, worker)
@@ -249,11 +249,11 @@ class RuntimeBackendCase(LocalBackendTestCase):
                 info = path.stat()
                 images[str(path)] = {"resolved": str(path.resolve()), "size": info.st_size,
                                      "mtime_ns": info.st_mtime_ns}
-        result = subprocess.run([GWF, *args], cwd=self.work, env=env or self.job_environment,
+        result = subprocess.run([GWFLOW, *args], cwd=self.work, env=env or self.job_environment,
                                 capture_output=True, text=True, timeout=self.timeout)
         output = result.stdout + result.stderr
         self.jobs.update(re.findall(r"Backend job: (\d+)", output))
-        self.record({"command": [GWF, *args], "exit": result.returncode,
+        self.record({"command": [GWFLOW, *args], "exit": result.returncode,
                      "output": output, "images": images})
         if success:
             self.assertEqual(result.returncode, 0, output)
@@ -325,7 +325,7 @@ class RuntimeBackendCase(LocalBackendTestCase):
         self.assertNotEqual(selected, "unset\n")
         self.assertFalse(Path(selected.strip()).is_relative_to(self.work / "work"))
         self.assertEqual(host_content.read_text(), "external\n")
-        self.cli("clean-work", "--delete")
+        self.cli("clean", "--delete")
         self.assertNotIn("Submitted target", self.cli("run"))
 
 

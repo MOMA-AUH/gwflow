@@ -38,7 +38,7 @@ class FreshAttemptTests(LocalBackendTestCase):
         (self.work / "workflow.py").write_text(declaration)
 
     def attempts(self):
-        return {name: next(line for line in self.cli("explain", "--details", name).splitlines() if "Attempt:" in line)
+        return {name: next(line for line in self.cli("run", "--dry-run", "--details", name).splitlines() if "Attempt:" in line)
                 for name in ("a", "b", "c")}
 
     def test_selected_force_refreshes_consumers_even_with_identical_metadata(self):
@@ -53,7 +53,7 @@ class FreshAttemptTests(LocalBackendTestCase):
         before = self.attempts()
         result = self.work / "results/a/result.txt"
         info = result.stat()
-        preview = self.cli("explain", "--force-task", "a")
+        preview = self.cli("run", "--dry-run", "--force-task", "a")
         self.assertRegex(preview, r"Task a\s+Run\s+")
         self.assertRegex(preview, r"Task b\s+Reuse\s+")
         self.assertRegex(preview, r"Task c\s+Run\s+")
@@ -131,7 +131,7 @@ class FreshAttemptTests(LocalBackendTestCase):
         info = source.stat()
         source.write_text("different size\n")
         os.utime(source, ns=(info.st_atime_ns, info.st_mtime_ns))
-        self.assertRegex(self.cli("explain"), r"Task a\s+Run\s+")
+        self.assertRegex(self.cli("run", "--dry-run"), r"Task a\s+Run\s+")
         self.cli("run")
         self.finish()
         self.assertNotEqual(self.attempts()["a"], before["a"])
@@ -152,7 +152,7 @@ class FreshAttemptTests(LocalBackendTestCase):
     def test_invalid_force_selectors_preserve_previous_results(self):
         self.run_complete()
         before = self.attempts()
-        for arguments in (("run", "--force", "--force-task", "a"), ("explain", "--force", "--force-task", "a"),
+        for arguments in (("run", "--force", "--force-task", "a"), ("run", "--dry-run", "--force", "--force-task", "a"),
                           ("run", "--force-task", "missing"), ("run", "--force-task", "a__compute"),
                           ("run", "a"), ("run", "--group", "anything"), ("run", "--no-deps")):
             with self.subTest(arguments=arguments):
@@ -185,10 +185,10 @@ class FreshAttemptTests(LocalBackendTestCase):
         self.run_complete()
         before = self.attempts()
         (self.work / "results/a/result.txt").unlink()
-        self.assertRegex(self.cli("explain"), r"Task c\s+Defer\s+")
+        self.assertRegex(self.cli("run", "--dry-run"), r"Task c\s+Defer\s+")
         self.run_complete()
         self.assertEqual(self.attempts(), before)
-        self.assertRegex(self.cli("explain"), r"Task c\s+Reuse\s+")
+        self.assertRegex(self.cli("run", "--dry-run"), r"Task c\s+Reuse\s+")
         self.assertTrue((self.work / "work/a").exists())
         self.assertEqual((self.work / "results/c/result.txt").read_text(), "a")
 
@@ -215,7 +215,7 @@ class FreshAttemptTests(LocalBackendTestCase):
                                 cwd=self.work, capture_output=True, text=True, timeout=30)
         self.assertEqual(result.returncode, code, result.stdout + result.stderr)
         self.assertFalse((self.work / "results/a").exists())
-        self.assertRegex(self.cli("explain"), r"Task a\s+Run\s+")
+        self.assertRegex(self.cli("run", "--dry-run"), r"Task a\s+Run\s+")
         self.cli("run")
         self.finish()
         self.assertEqual((self.work / "results/c/result.txt").read_text(), "a")
@@ -225,7 +225,7 @@ class FreshAttemptTests(LocalBackendTestCase):
         self.run_complete()
         before = self.attempts()
         shutil.rmtree(self.work / "work")
-        self.assertRegex(self.cli("explain"), r"Task a\s+Reuse\s+")
+        self.assertRegex(self.cli("run", "--dry-run"), r"Task a\s+Reuse\s+")
         self.cli("run", "--force-task", "a", "--dry-run")
         self.assertFalse((self.work / "work").exists())
         self.assertEqual((self.work / "results/a/result.txt").read_text(), "a")

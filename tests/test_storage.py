@@ -69,7 +69,7 @@ class StoragePlacementTests(LocalBackendTestCase):
         self.finish()
         self.assert_results(result)
         self.assertEqual((self.work / "trace").read_text().splitlines(), ["compute"])
-        self.cli("clean-work", "--delete")
+        self.cli("clean", "--delete")
         self.assertNotIn("Submitted target", self.cli("run"))
         shutil.rmtree(self.work / "work")
         self.cli("-b", "recovery_fixture", "run", "--force", env=env)
@@ -96,9 +96,9 @@ class StoragePlacementTests(LocalBackendTestCase):
             path.write_text(json.dumps(legacy(json.loads(path.read_text()))))
         attempt = next(root.glob("owners/*/tasks/a/attempts/*/attempt.json")).parent.name
         before = self.storage_snapshot()
-        for command in (("status", "--details"), ("explain",), ("run", "--dry-run"), ("run",),
-                        ("run", "--force"), ("clean-work", "--delete"),
-                        ("clean-work", "--delete", "--attempt", attempt)):
+        for command in (("status", "--details"), ("run", "--dry-run"), ("run",),
+                        ("run", "--force"), ("clean", "--delete"),
+                        ("clean", "--delete", "--attempt", attempt)):
             with self.subTest(command=command):
                 output = self.cli(*command, success=False)
                 self.assertIn("ownership", output)
@@ -115,7 +115,7 @@ class StoragePlacementTests(LocalBackendTestCase):
         record["workspace_identity"]["device"] = 987654
         ready.write_text(json.dumps(record))
         before = self.storage_snapshot()
-        for command in (("explain",), ("run", "--dry-run"), ("run",), ("run", "--force")):
+        for command in (("run", "--dry-run"), ("run",), ("run", "--force")):
             with self.subTest(command=command):
                 output = self.cli(*command, success=False)
                 self.assertIn("workspace ownership", output)
@@ -133,7 +133,7 @@ class StoragePlacementTests(LocalBackendTestCase):
             child.rename(root / child.name)
         self.assertNotEqual(root.stat().st_ino, saved.stat().st_ino)
         self.assertNotIn("Submitted target", self.cli("run"))
-        self.cli("clean-work", "--delete")
+        self.cli("clean", "--delete")
         self.cli("run", "--force")
         self.finish()
         self.assert_results(root / "samples/a/report")
@@ -150,7 +150,7 @@ class StoragePlacementTests(LocalBackendTestCase):
         self.assertEqual(source.stat().st_mtime_ns, (result / "renamed.txt").stat().st_mtime_ns)
         self.assertEqual(source.read_text(), "first")
         shutil.rmtree(remote / "scratch")
-        self.assertRegex(self.cli("explain"), r"Task a\s+Reuse\s+")
+        self.assertRegex(self.cli("run", "--dry-run"), r"Task a\s+Reuse\s+")
         self.assertNotIn("Submitted target", self.cli("run"))
         self.assert_results(result)
         self.assertEqual((self.work / "trace").read_text().splitlines(), ["compute"])
@@ -286,4 +286,4 @@ class StoragePlacementTests(LocalBackendTestCase):
             self.assertEqual((result / "renamed.txt").stat().st_mtime_ns, 946684800000000000)
         shutil.rmtree(self.work / "work")
         self.assertNotIn("Submitted target", self.cli("run"))
-        self.assertRegex(self.cli("explain"), r"Task a\s+Reuse\s+")
+        self.assertRegex(self.cli("run", "--dry-run"), r"Task a\s+Reuse\s+")

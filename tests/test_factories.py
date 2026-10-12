@@ -129,7 +129,7 @@ class FactoryReuseTests(LocalBackendTestCase):
 
     def test_module_move_reordering_and_cleanup_preserve_reuse_but_new_name_cannot_adopt(self):
         self.run_complete()
-        self.cli("clean-work", "--delete")
+        self.cli("clean", "--delete")
         before = {p: (p.read_bytes(), p.stat().st_mtime_ns)
                   for root in (self.work / ".gwf/gwflow", self.work / "results")
                   for p in root.rglob("*") if p.is_file()}
@@ -138,7 +138,7 @@ class FactoryReuseTests(LocalBackendTestCase):
         workflow.write_text(workflow.read_text().replace("from library", "from moved").replace(
             "gwf.task(definition, key='A')\ngwf.task(definition, key='B')",
             "gwf.task(definition, key='B')\ngwf.task(definition, key='A')"))
-        self.assertEqual(self.cli("explain").count("Reuse"), 2)
+        self.assertEqual(self.cli("run", "--dry-run").count("Reuse"), 2)
         self.assertNotIn("Submitted target", self.cli("run"))
         for path, evidence in before.items():
             self.assertEqual((path.read_bytes(), path.stat().st_mtime_ns), evidence)

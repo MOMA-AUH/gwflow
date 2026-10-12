@@ -18,7 +18,7 @@ class RegistryRecoveryTests(test_registry_images.RegistryTestCase):
 
     def preview(self, reason):
         before = self.snapshot()
-        for arguments in (("explain", "--details"), ("status", "--details"), ("run", "--dry-run", "--details")):
+        for arguments in (("run", "--dry-run", "--details"), ("status", "--details"), ("run", "--dry-run", "--details")):
             output = self.cli(*arguments)
             expected = reason if reason in ("retry", "repair", "transfer") else "fresh attempt required"
             self.assertIn(expected if arguments[0] == "status" else reason, output)
@@ -28,7 +28,7 @@ class RegistryRecoveryTests(test_registry_images.RegistryTestCase):
         self.configure_workflow(other=True)
         self.run_complete()
         attempt = self.attempt()
-        self.cli("clean-work", "--delete")
+        self.cli("clean", "--delete")
         image = self.cached_images()[0]
         saved = self.work / "saved image.sif"
         image.rename(saved)
@@ -38,7 +38,7 @@ class RegistryRecoveryTests(test_registry_images.RegistryTestCase):
         self.assertEqual(len(self.calls("exec")), 1)
         saved.rename(image)
         before = self.snapshot()
-        self.assertRegex(self.cli("explain"), r"Task sample\s+Reuse\s+")
+        self.assertRegex(self.cli("run", "--dry-run"), r"Task sample\s+Reuse\s+")
         self.assertNotIn("Submitted target", self.cli("run"))
         self.assertEqual(self.snapshot(), before)
         self.assertEqual(self.attempt(), attempt)
@@ -70,7 +70,7 @@ class RegistryRecoveryTests(test_registry_images.RegistryTestCase):
 
     def test_matching_reacquired_observations_allow_cleaned_reuse(self):
         self.run_complete()
-        self.cli("clean-work", "--delete")
+        self.cli("clean", "--delete")
         image = self.cached_images()[0]
         info = image.stat()
         before = self.snapshot()
@@ -78,7 +78,7 @@ class RegistryRecoveryTests(test_registry_images.RegistryTestCase):
         # Equal size/time at the same resolved path also documents the accepted
         # metadata-only limit: different bytes need not invalidate old work.
         self.options(content="changed image\n", mtime_ns=info.st_mtime_ns)
-        self.assertRegex(self.cli("explain"), r"Task sample\s+Reuse\s+")
+        self.assertRegex(self.cli("run", "--dry-run"), r"Task sample\s+Reuse\s+")
         self.assertEqual(self.snapshot(), before)
         self.assertNotIn("Submitted target", self.cli("run"))
         self.assertEqual(len(self.calls("pull")), 2)
@@ -137,7 +137,7 @@ class RegistryRecoveryTests(test_registry_images.RegistryTestCase):
                 self.assertEqual(len(self.calls("pull")), pulls + (mutation == "delete"))
                 self.assertEqual(len(self.calls("exec")), before_exec + executions_before_gate + 1)
                 self.assertEqual((self.work / "results/sample/out.txt").read_text(), "fixture image\n")
-                self.assertRegex(self.cli("explain"), r"Task sample\s+Reuse\s+")
+                self.assertRegex(self.cli("run", "--dry-run"), r"Task sample\s+Reuse\s+")
 
     def test_workers_recheck_images_after_baseline_without_acquisition(self):
         self.check_worker_gate("gwflow_prepare", "baseline", 0)
@@ -292,7 +292,7 @@ class RegistryGraphRecoveryTests(test_registry_images.RegistryTestCase):
         image_info = image.stat()
         os.utime(image, ns=(image_info.st_atime_ns, image_info.st_mtime_ns - 1_000_000_000))
         before = self.snapshot()
-        output = self.cli("explain")
+        output = self.cli("run", "--dry-run")
         self.assertRegex(output, r"Task sample\s+Run\s+")
         self.assertRegex(output, r"Task consumer\s+Run\s+")
         self.assertRegex(output, r"Task independent\s+Reuse\s+")
@@ -320,4 +320,4 @@ class RegistryGraphRecoveryTests(test_registry_images.RegistryTestCase):
         self.cli("run")
         self.settle()
         self.assertEqual(self.counts(), {"left": 2, "right": 2, "join": 2, "consumer": 1, "independent": 1})
-        self.assertRegex(self.cli("explain"), r"Task sample\s+Reuse\s+")
+        self.assertRegex(self.cli("run", "--dry-run"), r"Task sample\s+Reuse\s+")

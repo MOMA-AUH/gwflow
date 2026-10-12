@@ -27,6 +27,8 @@ test:
     - gwflow
   commands:
     - gwf --version
+    - gwflow --version
+    - gwflow --help
 
 about:
   summary: Task definitions for gwf workflows

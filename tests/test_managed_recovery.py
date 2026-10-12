@@ -8,7 +8,7 @@ import subprocess
 import sys
 import shlex
 
-from support import FIXTURES, GWF
+from support import FIXTURES, GWFLOW
 import test_managed
 
 
@@ -33,7 +33,7 @@ class ManagedCoordinationTests(LocalBackendTestCase):
     def launch(self, *command, env=None, filename="command-output"):
         output = self.work / filename
         with output.open("w") as stream:
-            process = subprocess.Popen([GWF, *command], cwd=self.work, env=env,
+            process = subprocess.Popen([GWFLOW, *command], cwd=self.work, env=env,
                                        stdout=stream, stderr=subprocess.STDOUT, text=True)
         self.addCleanup(self.stop_worker, process)
         return process, output
@@ -46,13 +46,13 @@ class ManagedCoordinationTests(LocalBackendTestCase):
         self.assertIn("lost acknowledgement", self.cli("-b", "recovery_fixture", "run", env=env, success=False))
         self.settle()
         before = {p: p.read_bytes() for p in (self.work / ".gwf/gwflow").rglob("*.json")}
-        self.assertIn("Continue", self.cli("explain"))
+        self.assertIn("Continue", self.cli("run", "--dry-run"))
         self.assertEqual({p: p.read_bytes() for p in before}, before)
         self.cli("run")
         self.finish()
         self.assertEqual(trace.read_text(), "executed\n")
         self.assertTrue((self.work / "results/sample/result.txt").exists())
-        self.assertIn("Reuse", self.cli("explain"))
+        self.assertIn("Reuse", self.cli("run", "--dry-run"))
 
     def test_status_waits_until_submission_tracking_is_saved(self):
         submitter, submitted = self.launch("-b", "recovery_fixture", "run",
@@ -75,7 +75,7 @@ class ManagedCoordinationTests(LocalBackendTestCase):
     def test_interrupted_inspection_releases_guard_without_changing_records(self):
         self.run_complete()
         evidence = {p: p.read_bytes() for p in (self.work / ".gwf/gwflow").rglob("*.json")}
-        inspector, output = self.launch("-b", "recovery_fixture", "explain", env=self.inject(hold_observation=True))
+        inspector, output = self.launch("-b", "recovery_fixture", "run", "--dry-run", env=self.inject(hold_observation=True))
         self.wait_for(lambda: (self.work / "observation-held").exists())
         inspector.send_signal(signal.SIGINT)
         inspector.wait(timeout=10)
@@ -97,7 +97,7 @@ class ManagedCoordinationTests(LocalBackendTestCase):
 
     def test_proven_pre_admission_rejection_can_continue(self):
         self.cli("-b", "recovery_fixture", "run", env=self.inject(reject_before_admission=True), success=False)
-        self.assertIn("Continue", self.cli("explain"))
+        self.assertIn("Continue", self.cli("run", "--dry-run"))
         self.run_complete()
         self.assertTrue((self.work / "results/sample/report.txt").exists())
 
@@ -110,13 +110,13 @@ class ManagedCoordinationTests(LocalBackendTestCase):
         submitter.kill()
         submitter.wait(timeout=10)
         try:
-            self.assertIn("Wait", self.cli("explain"))
+            self.assertIn("Wait", self.cli("run", "--dry-run"))
             self.assertNotIn("Submitted target", self.cli("run"))
             self.assertIn("active work", self.cli("run", "--force", success=False))
         finally:
             release.touch()
         self.finish()
-        self.assertIn("Reuse", self.cli("explain"))
+        self.assertIn("Reuse", self.cli("run", "--dry-run"))
         self.assertNotIn("Submitted target", self.cli("run"))
         self.assertEqual(trace.read_text(), "executed\n")
 
@@ -161,7 +161,7 @@ class ManagedCoordinationTests(LocalBackendTestCase):
         self.assertIn("#SBATCH --job-name=" + compute["name"], compute["script"])
         self.assertEqual((self.work / "results/sample/report.txt").read_text(), "hello")
         (self.work / "forgotten-slurm-history").touch()
-        self.assertIn("Reuse", self.cli("-b", "slurm", "explain", env=env))
+        self.assertIn("Reuse", self.cli("-b", "slurm", "run", "--dry-run", env=env))
         self.assertNotIn("Submitted target", self.cli("-b", "slurm", "run", env=env))
 
     def test_slurm_wrapper_failure_cannot_publish_completion(self):
@@ -175,7 +175,7 @@ class ManagedCoordinationTests(LocalBackendTestCase):
                                env=env, capture_output=True, text=True, check=True).stdout
         self.assertIn("FAILED", state)
         self.assertFalse((self.work / "results/sample").exists())
-        self.assertRegex(self.cli("-b", "slurm", "explain", env=env), r"Task sample\s+Retry\s+")
+        self.assertRegex(self.cli("-b", "slurm", "run", "--dry-run", env=env), r"Task sample\s+Retry\s+")
 
     def test_slurm_acknowledgement_survives_frontend_loss_before_tracking(self):
         held, release = self.work / "held", self.work / "release"
@@ -215,7 +215,7 @@ class ManagedCoordinationTests(LocalBackendTestCase):
         finally:
             release.touch()
         self.finish()
-        self.assertIn("Reuse", self.cli("-b", "slurm", "explain", env=env))
+        self.assertIn("Reuse", self.cli("-b", "slurm", "run", "--dry-run", env=env))
 
     def test_execution_evidence_resolves_acceptance_after_tracking_and_ack_are_lost(self):
         held, release, trace = (self.work / name for name in ("held", "release", "executions"))
@@ -227,10 +227,10 @@ class ManagedCoordinationTests(LocalBackendTestCase):
         finally:
             release.touch()
         self.settle()
-        self.assertIn("Continue", self.cli("explain"))
+        self.assertIn("Continue", self.cli("run", "--dry-run"))
         self.run_complete()
         self.assertEqual(trace.read_text(), "executed\n")
-        self.assertIn("Reuse", self.cli("explain"))
+        self.assertIn("Reuse", self.cli("run", "--dry-run"))
 
     def test_missing_current_intent_does_not_resubmit_archived_admission(self):
         self.run_complete()
@@ -263,7 +263,7 @@ class ManagedCoordinationTests(LocalBackendTestCase):
         finally:
             (self.work / "preparation-release").touch()
         self.finish()
-        self.assertIn("Reuse", self.cli("explain"))
+        self.assertIn("Reuse", self.cli("run", "--dry-run"))
 
     def test_confirmed_cancelled_preparation_can_retry(self):
         from gwf.backends.local import Client, LocalStatus
@@ -274,11 +274,11 @@ class ManagedCoordinationTests(LocalBackendTestCase):
             self.assertEqual(len(running), 1)
             client.cancel(int(running[0]))
         self.settle()
-        self.assertIn("preparation interrupted", self.cli("explain"))
+        self.assertIn("preparation interrupted", self.cli("run", "--dry-run"))
         self.cli("run")
         self.settle()
         self.assertEqual((self.work / "results/sample/report.txt").read_text(), "hello")
-        self.assertIn("Reuse", self.cli("explain"))
+        self.assertIn("Reuse", self.cli("run", "--dry-run"))
 
     def test_missing_initialization_ready_evidence_blocks_admission(self):
         self.cli("-b", "recovery_fixture", "run", env=self.inject(reject_before_admission=True), success=False)

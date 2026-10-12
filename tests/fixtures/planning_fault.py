@@ -7,7 +7,7 @@ import stat
 import sys
 
 from click.testing import CliRunner
-from gwf.cli import main
+from gwflow.cli import main
 
 
 scenario = json.loads(Path(sys.argv[1]).read_text())

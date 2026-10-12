@@ -30,8 +30,8 @@ class PlanningObservationTests(LocalBackendTestCase):
 
     def test_consumer_and_replacement_checks_share_job_evidence(self):
         self.run_complete()
-        for command in (("status",), ("status", "--details", "c"), ("explain",),
-                        ("run", "--dry-run"), ("run",), ("explain", "--force-task", "a")):
+        for command in (("status",), ("status", "--details", "c"), ("run", "--dry-run",),
+                        ("run", "--dry-run"), ("run",), ("run", "--dry-run", "--force-task", "a")):
             with self.subTest(command=command):
                 output, report = self.probe(*command)
                 self.assertEqual(output, self.cli_result(*command).stdout)
@@ -64,9 +64,9 @@ class PlanningObservationTests(LocalBackendTestCase):
     def test_changed_admission_during_inspection_protects_its_producer(self):
         self.run_complete()
         _, _, writes, ack = self.new_admission()
-        result, = self.scenario([["explain", "--force-task", "a"]],
+        result, = self.scenario([["run", "--dry-run", "--force-task", "a"]],
                                [{"pass": 0, "after": ack, "write": writes}])
-        self.assertEqual(result["exit_code"], 0)
+        self.assertNotEqual(result["exit_code"], 0)
         self.assertRegex(result["output"], r"Task a\s+Blocked\s+")
         self.assertIn("active consumers", result["output"])
         self.assertEqual((self.work / "results/a/result.txt").read_text(), "a")
@@ -94,9 +94,9 @@ class PlanningObservationTests(LocalBackendTestCase):
                 writes = {str(attempt_path): attempt,
                           str(attempt_path.parent / "submissions" / generation / selected.name): intent,
                           str(attempt_path.parent / "admissions" / token / "intent.json"): intent}
-                result, = self.scenario([["explain", "--force-task", "a"]],
+                result, = self.scenario([["run", "--dry-run", "--force-task", "a"]],
                                        [{"pass": 0, "after": str(ack), "write": writes}])
-                self.assertEqual(result["exit_code"], 0)
+                self.assertNotEqual(result["exit_code"], 0)
                 self.assertRegex(result["output"], r"Task a\s+Blocked\s+")
                 self.assertIn("active consumers", result["output"])
                 attempt_path.write_text(original)
@@ -202,8 +202,8 @@ class ProducerEvidenceTests(LocalBackendTestCase):
                 "gwf.task(task, alias='nested')\n"
             )
         self.run_complete()
-        self.cli("clean-work", "--delete")
-        self.assertEqual(self.cli("explain").count("Reuse"), 3)
+        self.cli("clean", "--delete")
+        self.assertEqual(self.cli("run", "--dry-run").count("Reuse"), 3)
         self.assertIn("No new jobs were submitted", self.cli("run"))
         self.assertEqual((self.work / "results/nested/nested.txt").read_text(), "hello\nhello\n")
 
@@ -219,7 +219,7 @@ class ProducerEvidenceTests(LocalBackendTestCase):
         intent["producers"] = attempt["producers"]
         selected.write_text(json.dumps(intent))
         (record.parent / "admissions" / intent["admission"] / "intent.json").write_text(json.dumps(intent))
-        output = self.cli("explain")
+        output = self.cli("run", "--dry-run")
         self.assertRegex(output, r"Task sample0\s+Reuse\s+")
         self.assertRegex(output, r"Task sample1\s+Run\s+")
         self.assertNotRegex(output, r"Task sample1\s+Reuse\s+")
@@ -229,12 +229,12 @@ class ProducerEvidenceTests(LocalBackendTestCase):
         completion = next((self.work / ".gwf/gwflow").glob("owners/*/tasks/sample0/attempts/*/operations/*/completion.json"))
         original = json.loads(completion.read_text())
         completion.unlink()
-        first, second = self.scenario([["explain"], ["explain"]], [
+        first, second = self.scenario([["run", "--dry-run"], ["run", "--dry-run"]], [
             {"pass": 0, "after": "missing:" + str(completion),
              "write": {str(completion): {**original, "attempt": "0" * 32}}},
             {"pass": 0, "after": "planned", "write": {str(completion): original}},
         ])
-        self.assertEqual(first["exit_code"], 0)
+        self.assertNotEqual(first["exit_code"], 0)
         self.assertRegex(first["output"], r"Task sample0\s+Blocked\s+")
         self.assertEqual(second["exit_code"], 0)
         self.assertRegex(second["output"], r"Task sample0\s+Reuse\s+")
@@ -245,12 +245,12 @@ class ProducerEvidenceTests(LocalBackendTestCase):
         retained = self.work / "results/reference/value0.txt"
         sentinel = self.work / "outside-sentinel.txt"
         sentinel.write_text("outside data")
-        result, = self.scenario([["explain", "--details"]], [{
+        result, = self.scenario([["run", "--dry-run", "--details"]], [{
             "pass": 0, "after": "metadata:" + str(retained),
             "rename": {str(retained): str(retained) + ".saved"},
             "symlink": {str(retained): str(sentinel)},
         }])
-        self.assertEqual(result["exit_code"], 0)
+        self.assertNotEqual(result["exit_code"], 0)
         self.assertIn("Task sample0", result["output"])
         self.assertIn("State: blocked", result["output"])
         self.assertEqual(sentinel.read_text(), "outside data")
@@ -280,9 +280,9 @@ class ProducerEvidenceTests(LocalBackendTestCase):
         intent["producers"] = producer["producers"]
         writes = {str(producer_path): producer, str(baseline_path): baseline, str(intent_path): intent,
                   str(producer_path.parent / "admissions" / intent["admission"] / "intent.json"): intent}
-        result, = self.scenario([["explain", "--details"]],
+        result, = self.scenario([["run", "--dry-run", "--details"]],
                                [{"pass": 0, "after": str(consumer_path), "write": writes}])
-        self.assertEqual(result["exit_code"], 0)
+        self.assertNotEqual(result["exit_code"], 0)
         self.assertIn("Recorded Task dependency graph contains a cycle", result["output"])
         self.assertIn("State: blocked", result["output"])
         self.assertEqual(incoming.read_text(), "hello\n")

@@ -1,19 +1,13 @@
-"""Compact managed Task status and unchanged gwf formatting for plain workflows."""
+"""Compact managed Task status."""
 
 import click
-from gwf import Workflow as GwfWorkflow
-from gwf.backends import create_backend
-from gwf.core import CachedFilesystem, Graph, Status, get_spec_hashes, pass_context
-from gwf.filtering import EndpointFilter, GroupFilter, NameFilter, StatusFilter, filter_generic
-from gwf.plugins.status import FORMATS, status as gwf_status
-from gwf.scheduling import get_status_map
+from gwf.core import Status, pass_context
 
-from ._frontend import _submission_guard
+from ._frontend import _submission_guard, load_workflow
 from ._state import state_name
 from .planning import plan_workflow
 from .presentation import STATES, Report, output_options, selected_rows, task_groups, task_order
 from .selection import status_selection
-from .workflow import Workflow
 
 
 class _StatusChoice(click.Choice):
@@ -24,7 +18,7 @@ class _StatusChoice(click.Choice):
 def inspection_command(targets, endpoints, group, plain, no_truncate):
     """Retain invocation context and selection; attention supplies one state."""
     root = click.get_current_context().find_root()
-    command = ["gwf"]
+    command = ["gwflow"]
     for name, option in (("file", "--file"), ("backend", "--backend"), ("verbose", "--verbose")):
         if root.get_parameter_source(name) == click.core.ParameterSource.COMMANDLINE:
             command.extend((option, str(root.params[name])))
@@ -42,35 +36,11 @@ def inspection_command(targets, endpoints, group, plain, no_truncate):
     return command
 
 
-def _plain_status(workflow, ctx, targets, endpoints, output_format, statuses, group):
-    if set(statuses) - {state_name(state) for state in Status}:
-        raise click.UsageError("Ordinary gwf status filters use target states: "
-                               + ", ".join(state_name(state) for state in Status))
-    fs = CachedFilesystem()
-    graph = Graph.from_targets(workflow.targets, fs)
-    with create_backend(ctx.backend, working_dir=ctx.working_dir, config=ctx.config) as backend:
-        with get_spec_hashes(working_dir=ctx.working_dir, config=ctx.config) as hashes:
-            states = get_status_map(graph, fs, hashes, backend)
-            filters = []
-            if statuses:
-                filters.append(StatusFilter(states.get, [Status[("cancelled" if name == "canceled" else name).upper()]
-                                                         for name in statuses]))
-            if targets:
-                filters.append(NameFilter(targets))
-            if endpoints:
-                filters.append(EndpointFilter(graph.endpoints()))
-            if group:
-                filters.append(GroupFilter(group))
-            selected = set(filter_generic(graph, filters))
-            FORMATS["default" if output_format == "tree" else output_format](
-                {target: state for target, state in states.items() if target in selected}, backend)
-
-
 @output_options
 @click.command(name="status")
 @click.argument("targets", nargs=-1)
 @click.option("--endpoints", is_flag=True, default=False,
-              help="Show endpoint Tasks (endpoint targets in plain gwf workflows).")
+              help="Show endpoint Tasks.")
 @click.option("-f", "--format", "output_format", default="tree", type=click.Choice(("tree", "default", "summary", "grouped")),
               help="Format for ordinary gwf workflows only.")
 @click.option("-s", "--status", "statuses", multiple=True, type=_StatusChoice(tuple(dict.fromkeys((*STATES, *(state_name(state) for state in Status))))))
@@ -81,15 +51,13 @@ def _plain_status(workflow, ctx, targets, endpoints, output_format, statuses, gr
 @click.option("--no-truncate", is_flag=True,
               help="Keep full names and information (always enabled for managed status).")
 @pass_context
-def managed_status(ctx, targets, endpoints, output_format, statuses, group, instances, details, plain, no_truncate):
+def status(ctx, targets, endpoints, output_format, statuses, group, instances, details, plain, no_truncate):
     """Show grouped Task condition, attention previews, and workflow notices.
 
     Select visible groups, Tasks, or public jobs. Use task: and job: to resolve
     overlapping names. Quote globs; they stay grouped unless a view flag is set.
     """
-    workflow = GwfWorkflow.from_context(ctx)
-    if not isinstance(workflow, Workflow):
-        return _plain_status(workflow, ctx, targets, endpoints, output_format, statuses, group)
+    workflow = load_workflow(ctx)
     if output_format != "tree":
         raise click.UsageError("--format is only supported for ordinary gwf workflows; use --details for managed Tasks")
     invalid = set(statuses) - set(STATES)
@@ -112,9 +80,3 @@ def managed_status(ctx, targets, endpoints, output_format, statuses, group, inst
         else:
             report.status(rows, len(plan.tasks), expand=view == "details")
         report.workflow_notices(task_order(workflow, plan), rows)
-
-
-gwf_status.params = managed_status.params
-gwf_status.callback = managed_status.callback
-gwf_status.help = managed_status.help
-status = gwf_status

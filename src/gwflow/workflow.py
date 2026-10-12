@@ -13,8 +13,11 @@ from types import MappingProxyType
 
 import click
 from gwf import Target as GwfTarget, Workflow as GwfWorkflow
+from gwf.core import Context
 from gwf.exceptions import WorkflowError
 from gwf.utils import is_valid_name
+
+from ._frontend import ManagedContext
 
 from . import images
 
@@ -164,20 +167,16 @@ def lifecycle_jobs(targets):
     return ["gwflow_prepare", *targets, "gwflow_complete"]
 
 
-class _TaskTargets(dict):
-    def values(self):
-        cli = click.get_current_context(silent=True)
-        if cli is not None and cli.info_name in ("clean", "touch"):
-            raise WorkflowError("Generic clean/touch cannot mutate managed Tasks; use clean-work for work cleanup")
-        return super().values()
-
-
 class Workflow(GwfWorkflow):
     """Register Task factories and select their managed storage locations."""
 
     def __init__(self, working_dir=None, defaults=None, executor=None, *,
                  completion_defaults=None, preparation_defaults=None, managed_tmpdir=True,
                  work_root="work", results_root="results", results_staging_root=None):
+        cli = click.get_current_context(silent=True)
+        context = cli.find_object(Context) if cli is not None else None
+        if context is not None and not isinstance(context, ManagedContext):
+            raise WorkflowError("Managed workflows require the dedicated executable; use gwflow instead of gwf.")
         if working_dir is None:
             working_dir = str(Path(getfile(_getframe(1))).resolve().parent)
         kwargs = {"working_dir": str(Path(working_dir).absolute()), "defaults": defaults or {}}
@@ -195,7 +194,7 @@ class Workflow(GwfWorkflow):
         self._task_declarations = {}
         self._task_naming = {}
         self._result_dirs = {}
-        self.targets = _TaskTargets()
+        self.targets = {}
 
     def _add_target(self, target):
         raise WorkflowError("Every computation target in gwflow.Workflow must belong to a Task")
