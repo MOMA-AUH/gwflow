@@ -2,19 +2,19 @@
 
 [![Conda Version](https://img.shields.io/conda/vn/MOMA-AUH/gwflow?style=for-the-badge&cacheSeconds=300)](https://anaconda.org/MOMA-AUH/gwflow) [![Conda Downloads](https://img.shields.io/conda/dn/MOMA-AUH/gwflow?style=for-the-badge&cacheSeconds=300)](https://anaconda.org/MOMA-AUH/gwflow)
 
-gwflow runs workflows as reusable **Tasks**: groups of jobs with named results.
+gwflow runs workflows as reusable tasks: groups of jobs with named results.
 Computation uses disposable work directories; retained results stay available
 after that work is cleaned. It uses [gwf](https://gwf.app/) for scheduling.
 
 ## Install
 
 Use Linux and Bash. Install the released package from the
-[MOMA-AUH conda channel](https://anaconda.org/MOMA-AUH/gwflow), with Python 3.12
-and gwf 2.1.1. Container execution additionally needs Apptainer; this quickstart
+[MOMA-AUH](https://anaconda.org/MOMA-AUH/gwflow) conda channel and gwf 2.1.1.
+Container execution additionally needs Apptainer; this quickstart
 runs on the host.
 
 ```sh
-conda create -n gwflow --override-channels -c MOMA-AUH -c gwforg -c conda-forge python=3.12 gwflow
+conda create -n gwflow --override-channels -c MOMA-AUH -c gwforg -c conda-forge gwflow
 conda activate gwflow
 gwflow --version
 mkdir demo
@@ -48,7 +48,7 @@ gwflow config set backend local
 gwflow config set use_spec_hashes true
 ```
 
-In a **second terminal**, activate the environment and start workers in the same
+In a second terminal, activate the environment and start workers in the same
 `demo` directory. Leave them running:
 
 ```sh
@@ -66,7 +66,7 @@ gwflow status '*'
 ```
 
 Submission returns before the jobs finish. Repeat `gwflow status '*'` until
-`hello` is **reusable**, then inspect its retained result and individual job log:
+`hello` is `reusable`, then inspect its retained result and individual job log:
 
 ```sh
 cat results/hello/message.txt       # hello
@@ -75,20 +75,20 @@ gwflow logs hello__write --no-pager
 
 ## Everyday commands
 
-Run without selectors to consider the whole workflow. Exact Task names and quoted
-globs select whole Tasks; every selector must match:
+Run without selectors to consider the whole workflow. Exact task names and quoted
+globs select whole tasks; every selector must match:
 
 ```sh
 gwflow run hello --dry-run
 gwflow run 'hello*'
 gwflow status                      # grouped overview
-gwflow status hello                # selected Task rows
+gwflow status hello                # selected task rows
 gwflow status hello --details      # include computation and lifecycle jobs
 gwflow run hello --dry-run --details
 ```
 
-A selected run includes its required upstream Tasks and reuses valid results.
-Status focuses on the selected Tasks and explains relevant upstream blockers.
+A selected run includes its required upstream tasks and reuses valid results.
+Status focuses on the selected tasks and explains relevant upstream blockers.
 To recompute `hello`, preview and request a fresh attempt:
 
 ```sh
@@ -97,7 +97,7 @@ gwflow run hello --force
 gwflow status hello
 ```
 
-Force applies only to directly selected Tasks; upstream dependencies undergo
+Force applies only to directly selected tasks; upstream dependencies undergo
 normal checks. Wait for `hello` to become **reusable** again before cleaning:
 
 ```sh
@@ -109,7 +109,7 @@ gwflow run hello                   # Reuse; no new jobs submitted
 
 Cleanup preserves retained results, logs, and the records needed for Reuse.
 It gives up intermediate files that could repair damaged results; if results
-later become invalid, cleaned Tasks must compute again. Keep `results/` and
+later become invalid, cleaned tasks must compute again. Keep `results/` and
 `.gwf/` together. Stop the local workers with Ctrl-C when finished.
 
 Use `gwflow --help` and `gwflow COMMAND --help` for all options. Managed workflows
