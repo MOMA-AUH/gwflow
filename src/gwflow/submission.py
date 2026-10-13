@@ -32,8 +32,10 @@ def _job(store, attempt, local, workflow, intent):
         kwargs["executor"] = declaration.targets[local].executor
     elif workflow.executor is not None:
         kwargs["executor"] = workflow.executor
+    # The backend must track the managed worker itself, not a shell that can
+    # die on cancellation while its child continues publishing checked work.
     return Target(name=intent["submission"], inputs=[], outputs=[], options=dict(options),
-                  working_dir=workflow.working_dir, spec=shlex.join(command), **kwargs)
+                  working_dir=workflow.working_dir, spec="exec " + shlex.join(command), **kwargs)
 
 
 def _log_aliases(working_dir, public_name, job_name):

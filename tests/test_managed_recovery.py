@@ -266,13 +266,11 @@ class ManagedCoordinationTests(LocalBackendTestCase):
         self.assertIn("Reuse", self.cli("run", "--dry-run"))
 
     def test_confirmed_cancelled_preparation_can_retry(self):
-        from gwf.backends.local import Client, LocalStatus
         self.cli("-b", "recovery_fixture", "run", env=self.preparation_gate())
         self.wait_for(lambda: (self.work / "preparation-held").exists())
-        with Client.connect(port=self.port) as client:
-            running = [job_id for job_id, state in client.status().items() if state == LocalStatus.RUNNING]
-            self.assertEqual(len(running), 1)
-            client.cancel(int(running[0]))
+        output = self.cli("cancel", "sample")
+        self.assertEqual(output.count("Cancellation requested"), 3, output)
+        self.assertRegex(output, r"sample__gwflow_prepare:.*Cancellation requested")
         self.settle()
         self.assertIn("preparation interrupted", self.cli("run", "--dry-run"))
         self.cli("run")

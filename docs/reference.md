@@ -133,7 +133,7 @@ loaded workflow; removing a Python declaration does not end its admitted jobs.
 
 Use `gwflow` for `gwflow.Workflow` declarations and `gwf` for ordinary
 `gwf.Workflow` declarations. The managed commands are `run`, `status`, `logs`,
-`clean`, `config`, and `workers`. Cancellation uses the backend's own tools.
+`cancel`, `clean`, `config`, and `workers`.
 
 The default workflow is `workflow.py` with an object named `gwf`. Relative file
 lookup searches the current directory and its parents. Select another file or
@@ -309,7 +309,7 @@ jobs may continue, and submission is not rolled back. `--details` includes
 individual outcomes and available submission names and backend IDs. Reports go
 to stdout; operational diagnostics and command errors go to stderr.
 
-Status, dry-run, logs, and cleanup preview wait for frontend bookkeeping transitions
+Status, dry-run, logs, cancellation, and cleanup preview wait for frontend bookkeeping transitions
 and leave Task attempts, baselines, Completion records, work, and results intact.
 Run, run preview, and status may acquire missing registry images for selected
 and required upstream Tasks, including otherwise reusable Tasks. Cleanup neither
@@ -374,6 +374,44 @@ Use the displayed `run TASK --dry-run --details` command for the planner's Next
 action and reason; that separate preview retains its normal image-acquisition and
 planning behavior. Human-readable reports are the supported interface, not a stable
 machine-readable schema.
+
+### Cancelling current Task work
+
+```sh
+gwflow cancel hello --dry-run       # preview current admitted jobs
+gwflow cancel hello                 # request without an interactive prompt
+gwflow cancel hello other 'batch__*'
+gwflow cancel '*'                   # explicitly select all Tasks
+gwflow run hello --dry-run --details # inspect ordinary recovery after inactivity
+```
+
+Cancellation requires explicit Task names or quoted patterns. Every selector
+must match before any request is sent, and overlapping selections are addressed
+once. Names come from current declarations and recorded Tasks. Removed Tasks
+remain selectable and are marked "no longer declared"; a declared Task without
+an attempt reports "no admitted work to cancel" successfully.
+
+Requests address admitted computation, preparation, and completion jobs in each
+Selected Task's current recorded attempt. They do not add upstream Tasks,
+expand downstream, or inspect older attempts for cancellation eligibility.
+Completed work and retained outputs are preserved. The backend controls the
+disposition of dependent jobs; Slurm configurations need not automatically
+cancel them. Select any additional Tasks explicitly when needed.
+
+`--dry-run` shows the requests without sending them. Actual cancellation returns
+after reporting backend request outcomes, without polling for jobs to stop.
+An accepted request says the job may still be stopping; only available backend
+evidence is reported as confirmed inactivity. Missing live state can still
+permit a request when the recorded submission and backend job identity are
+known and consistent. Conflicting or unresolved identities receive no request.
+
+Other identifiable jobs are still addressed when one identity is unresolved or
+one request fails. Each failure is reported, and the command exits nonzero even
+when other requests succeed. Accepted requests are not rolled back. Request
+acceptance never authorizes replacement, recovery, or cleanup that requires
+inactivity. Cancellation does not delete work or create persistent pause state:
+after the ordinary inactivity conditions hold, a later `gwflow run TASK` can
+retry or recover eligible work without a resume operation.
 
 ## Containers
 
@@ -734,8 +772,8 @@ dependents block replacement until they settle; run does not cancel them.
 An already queued finishing job keeps its original bindings. Retry can proceed
 while that job remains queued, but finishing is deferred until a later run after
 the obsolete submission settles. If the scheduler leaves failed dependencies
-queued, cancel those jobs using the backend's normal mechanism and wait for
-confirmed inactivity before running again.
+queued, use `gwflow cancel TASK` to request cancellation of its admitted work
+and wait for confirmed inactivity before running again.
 
 Retries require the original input baseline and workspace. Resource changes
 permit continuation. Structural changes and enabled command changes require a

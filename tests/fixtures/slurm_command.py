@@ -38,6 +38,8 @@ elif command in ("squeue", "sacct"):
                 print(f"{job_id}|{'PENDING' if state == LocalStatus.SUBMITTED else 'TIMEOUT' if state == LocalStatus.KILLED else state.name}")
 elif command == "scancel":
     # A cancellation request is deliberately not a confirmed cancellation.
+    with (work / "slurm-cancelled.jsonl").open("a") as stream:
+        stream.write(json.dumps({"id": sys.argv[-1], "args": sys.argv[1:]}) + "\n")
     (work / "cancellation-requested").touch()
 else:
     raise SystemExit(f"unexpected fixture command: {command}")
