@@ -97,19 +97,9 @@ def read_intent(store, attempt, local):
     if record is None:
         if _files.exists(store.attempt_dir(attempt) / path):
             raise WorkflowError(f"Malformed submission intent for {attempt['task']}__{local}")
-        archive = store.attempt_dir(attempt) / "admissions"
-        if _files.exists(archive):
-            with _files.directory(archive) as directory:
-                tokens = os.listdir(directory)
-            for token in tokens:
-                if not _uuid(token):
-                    raise WorkflowError("Malformed admission archive")
-                previous = store.read(attempt, f"admissions/{token}/intent.json", "submission-intent")
-                if (previous is None or previous.get("admission") != token
-                        or not _known_job(attempt, previous.get("job"))):
-                    raise WorkflowError(f"unresolved submission: admission {token} has unreadable history")
-                if previous["job"] == attempt["jobs"][local]:
-                    raise WorkflowError(f"unresolved submission: {previous.get('submission', local)}; current intent is missing")
+        for previous in recorded_intents(store, attempt):
+            if previous["job"] == attempt["jobs"][local]:
+                raise WorkflowError(f"unresolved submission: {previous['submission']}; current intent is missing")
         return None
     admission = record.get("admission")
     if (not _uuid(admission) or record.get("submission") != f"{attempt['jobs'][local]}__{admission}"
@@ -118,6 +108,27 @@ def read_intent(store, attempt, local):
             or store.read(attempt, f"admissions/{admission}/intent.json", "submission-intent") != record):
         raise WorkflowError(f"Malformed submission intent for {attempt['task']}__{local}")
     return record
+
+
+def recorded_intents(store, attempt):
+    """Read archived submission identities, including replaced retry admissions."""
+    archive = store.attempt_dir(attempt) / "admissions"
+    if not _files.exists(archive):
+        return []
+    with _files.directory(archive) as directory:
+        tokens = sorted(os.listdir(directory))
+    records = []
+    for token in tokens:
+        if not _uuid(token):
+            raise WorkflowError("Malformed admission archive")
+        record = store.read(attempt, f"admissions/{token}/intent.json", "submission-intent")
+        if (record is None or record.get("admission") != token
+                or not _known_job(attempt, record.get("job"))
+                or record.get("submission") != f"{record['job']}__{token}"
+                or not isinstance(record.get("backend"), dict)):
+            raise WorkflowError(f"unresolved submission: admission {token} has unreadable history")
+        records.append(record)
+    return records
 
 
 def identity(intent):
@@ -162,6 +173,7 @@ def require_dependencies(store, attempt, intent):
 
 
 def observe(store, attempt, backend, name):
+    """Inspect current admissions; backend=None uses only recorded evidence."""
     # Resolve the selected admissions before reuse: the attempt's execution
     # identity alone does not identify a resubmission of the same job.
     intents = {local: read_intent(store, attempt, local)
@@ -184,7 +196,7 @@ def _observe(store, attempt, backend, name, intents):
         checked = succeeded(store, attempt, local, intent)
         target = Target(intent["submission"], [], [], {})
         tracked_id, state = None, BackendStatus.UNKNOWN
-        same_backend = intent["backend"] == backend_identity(backend, name)
+        same_backend = backend is not None and intent["backend"] == backend_identity(backend, name)
         if same_backend:
             tracked_id = backend.get_tracked_id(target) if hasattr(backend, "get_tracked_id") else None
             state = backend.status(target)
