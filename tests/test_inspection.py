@@ -251,7 +251,7 @@ class LifecycleInspectionTests(LocalBackendTestCase):
             self.finish()
             before = self.snapshot()
             for index, command in enumerate((("status",), ("run", "--dry-run"), ("clean",),
-                                             ("logs",), ("logs", "a__compute", "--no-pager"))):
+                                             ("logs",), ("logs", "--history"), ("logs", "a__compute", "--no-pager"))):
                 process, output = self.launch(*command, filename=f"inspection-{index}")
                 inspectors.append((process, output))
                 self.wait_for(lambda: "Waiting for frontend" in output.read_text() or process.poll() is not None)

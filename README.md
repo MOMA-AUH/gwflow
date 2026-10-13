@@ -93,6 +93,8 @@ Status focuses on the selected tasks and explains relevant upstream blockers.
 Use `gwflow logs` for all current task log indexes, or `gwflow logs 'hello*'`
 for a selected group. Each index shows failures first and links to individual
 streams and the recovery preview. Add `--stderr` only when reading one job's log.
+Use `gwflow logs hello --history` to include earlier retries and attempts, marked
+as historical; a retry can create new job submissions within the same attempt.
 To recompute `hello`, preview and request a fresh attempt:
 
 ```sh

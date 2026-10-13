@@ -183,6 +183,15 @@ def observe(store, attempt, backend, name):
     return _observations.reuse("jobs", key, lambda: _observe(store, attempt, backend, name, intents))
 
 
+def observe_submissions(store, attempt, backend, name):
+    """Inspect all archived admissions, including superseded retry submissions."""
+    observations = []
+    for intent in recorded_intents(store, attempt):
+        local = intent["job"].removeprefix(attempt["task"] + "__").rsplit("__", 1)[0]
+        observations.extend(_observe(store, attempt, backend, name, {local: intent}).values())
+    return observations
+
+
 def _observe(store, attempt, backend, name, intents):
     observations = {}
     for local, intent in intents.items():
