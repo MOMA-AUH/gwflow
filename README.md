@@ -95,6 +95,8 @@ for a selected group. Each index shows failures first and links to individual
 streams and the recovery preview. Add `--stderr` only when reading one job's log.
 Use `gwflow logs hello --history` to include earlier retries and attempts, marked
 as historical; a retry can create new job submissions within the same attempt.
+Logs and cancellation also accept recorded tasks whose declarations have been
+removed, marking them "no longer declared".
 
 To stop a task's admitted jobs, preview with `gwflow cancel hello --dry-run`,
 then request with `gwflow cancel hello`. Selectors are required; `cancel '*'`
