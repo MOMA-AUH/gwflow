@@ -496,7 +496,7 @@ class Report:
         headers = ["Task", *(["Target"] if expand else []), "State", "Jobs completed", "Detail"]
         entries = []
         for row in rows:
-            cells = ["Task " + row.task.name, *([""] if expand else []), row.state, row.progress, row.detail]
+            cells = [row.task.name, *([""] if expand else []), row.state, row.progress, row.detail]
             entries.append((cells, row.state))
             if expand:
                 for name, state in self._status_jobs(row):
@@ -514,7 +514,7 @@ class Report:
         for index, row in enumerate(rows):
             if index:
                 self.status_line("")
-            self.status_line("Task " + row.task.name, style="bold")
+            self.status_line(row.task.name, style="bold")
             self.status_line("  State: " + row.state, style=_VISUALS[row.state][1])
             self.status_line("  Jobs completed: " + row.progress)
             if row.detail:

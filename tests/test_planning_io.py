@@ -137,7 +137,7 @@ class PlanningObservationTests(LocalBackendTestCase):
                 first, second = self.scenario([["status"], ["status", "c"]], actions)
                 self.assertEqual(first["exit_code"], 0 if failure is None else 1)
                 self.assertEqual(second["exit_code"], 0)
-                self.assertRegex(second["output"], r"Task c\s+blocked")
+                self.assertRegex(second["output"], r"(?m)^c\s+blocked")
                 self.assertIn("submission outcome unknown", second["output"])
                 selected.write_text(json.dumps(original))
 

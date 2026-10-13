@@ -13,7 +13,7 @@ class StatusScopeTests(LocalBackendTestCase):
     task_evidence = test_run_selection.SelectedRunTests.task_evidence
 
     def names(self, output):
-        return re.findall(r"(?m)^Task (\S+)\s+", output)
+        return re.findall(r"(?m)^(\S+)[ \t]+\w+[ \t]+[?\d]+/\d+", output)
 
     def test_selected_details_explain_upstream_blockers_without_unrelated_tasks(self):
         workflow = self.work / "workflow.py"
@@ -27,14 +27,14 @@ class StatusScopeTests(LocalBackendTestCase):
         self.assertIn("a (outside selection)", output)
         self.assertIn("image unavailable", output)
         self.assertNotIn("unrelated.sif", output)
-        self.assertNotIn("Task d", output)
-        self.assertNotIn("Task e", output)
+        self.assertNotRegex(output, r"(?m)^d\s")
+        self.assertNotRegex(output, r"(?m)^e\s")
         self.assertNotIn("a__compute", output)
         self.assertNotIn("b__compute", output)
         self.assertIn("c__compute", output)
         self.assertEqual(self.task_evidence("a", "b", "c", "d", "e"), before)
         preview = self.cli("run", "c", "--dry-run", success=False)
-        self.assertEqual(self.names(preview), ["a", "b", "c"])
+        self.assertEqual(list(test_run_selection.SelectedRunTests.actions(self, preview)), ["a", "b", "c"])
 
     def test_blocker_preview_hints_preserve_workflow_context_and_selected_scope(self):
         self.cli("run", "c")
@@ -61,7 +61,7 @@ class StatusScopeTests(LocalBackendTestCase):
                     self.assertIn("--plain", command)
                     self.assertTrue(all(selector in command for selector in selectors))
                     preview = self.cli(*command[1:], env=environment, success=False)
-                    self.assertEqual(self.names(preview), ["a", "b", "c"])
+                    self.assertEqual(list(test_run_selection.SelectedRunTests.actions(self, preview)), ["a", "b", "c"])
                     self.assertIn(str(damaged), preview)
                 self.assertEqual(self.task_evidence("a", "b", "c", "d", "e"), before)
 
@@ -116,7 +116,7 @@ class StatusImageScopeTests(test_registry_images.RegistryTestCase):
         before = self.snapshot()
         output = self.cli("status", "consumer")
         self.assertEqual(self.names(output), ["consumer"])
-        self.assertRegex(output, r"Task consumer\s+reusable\s+3/3")
+        self.assertRegex(output, r"(?m)^consumer\s+reusable\s+3/3")
         self.assertEqual(len(self.calls("pull")), 2)
         self.cli("status", "consumer", "--details")
         self.assertEqual(len(self.calls("pull")), 2)

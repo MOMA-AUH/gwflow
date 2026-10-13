@@ -20,7 +20,7 @@ class ManagedStatusTests(LocalBackendTestCase):
         self.assertRegex(output, r"Task\s+Target\s+State\s+Jobs completed\s+Detail")
         self.assertEqual(output.count("Jobs completed"), 1)
         self.assertIn("3 of 3 Tasks selected\n3 pending", output)
-        sections = re.split(r"^Task [abc]\s+pending\s+0/3\s*$", output, flags=re.MULTILINE)
+        sections = re.split(r"^[abc]\s+pending\s+0/3\s*$", output, flags=re.MULTILINE)
         self.assertEqual(len(sections), 4)
         for owner, section in zip("abc", sections[1:]):
             jobs = re.findall(r"^\s+([|`]-) (.+?)\s+(pending)\s*$", section, re.MULTILINE)
@@ -35,13 +35,13 @@ class ManagedStatusTests(LocalBackendTestCase):
         self.assertIn("Attempt:", explanation)
 
     def test_expanded_terminal_and_plain_tables_keep_targets_beside_states(self):
-        for width in (80, 110, 140):
+        for width in (60, 80, 110, 140):
             for color, options, branch in (("--no-color", (), "├─"), ("--use-color", (), "├─"),
                                            ("--no-color", ("--plain",), "|-")):
                 with self.subTest(width=width, color=color, options=options):
                     output = self.terminal_cli(color, "status", "--details", *options, width=width).stdout
                     text = re.sub(r"\x1b\[[0-9;]*m", "", output)
-                    if width >= 110:
+                    if width >= 80:
                         self.assertRegex(text, r"Task\s+Target\s+State\s+Jobs completed")
                     else:
                         self.assertIn("State: pending", text)
@@ -74,7 +74,7 @@ class ManagedStatusTests(LocalBackendTestCase):
     def test_task_rows_are_compact_and_details_expand_public_names(self):
         output = self.cli("status", "*")
         self.assertIn("Jobs completed", output)
-        self.assertRegex(output, r"Task sample\s+pending\s+0/5")
+        self.assertRegex(output, r"(?m)^sample\s+pending\s+0/5")
         self.assertIn("1 of 1 Tasks selected", output)
         self.assertIn("1 pending", output)
         self.assertNotIn("left", output)
@@ -92,7 +92,7 @@ class ManagedStatusTests(LocalBackendTestCase):
         self.cli("run")
         self.settle()
         output = self.cli("status", "*", "--status", "failed")
-        self.assertRegex(output, r"Task sample\s+failed\s+2/5\s+.*retry available")
+        self.assertRegex(output, r"(?m)^sample\s+failed\s+2/5\s+.*retry available")
         self.assertNotIn("right", output)
         self.assertIn("1 failed", output)
         self.assertNotIn("Attempt:", output)
@@ -115,7 +115,7 @@ class ManagedStatusTests(LocalBackendTestCase):
         self.wait_for(held.exists)
         try:
             output = self.cli("status", "*")
-            self.assertRegex(output, r"Task sample\s+running")
+            self.assertRegex(output, r"(?m)^sample\s+running")
             self.assertNotIn("left", output)
             self.assertIn("1 running", output)
             self.assertIn("1 job running", output)
@@ -141,7 +141,7 @@ class ManagedStatusTests(LocalBackendTestCase):
         for output in (plain, redirected):
             self.assertNotIn("\x1b[", output)
             self.assertNotRegex(output, "[╭○━]")
-            self.assertRegex(output, r"Task sample\s+pending\s+0/5")
+            self.assertRegex(output, r"(?m)^sample\s+pending\s+0/5")
         self.assertEqual(re.sub(r"\x1b\[[0-9;]*m", "", decorated), monochrome)
         self.assertEqual(plain, monochrome)
 
@@ -160,7 +160,7 @@ class ManagedStatusTests(LocalBackendTestCase):
         self.run_complete()
         self.cli("clean", "--delete")
         output = self.cli("status", "*")
-        self.assertRegex(output, r"Task sample\s+reusable\s+5/5\s+work cleaned")
+        self.assertRegex(output, r"(?m)^sample\s+reusable\s+5/5\s+work cleaned")
         self.assertNotIn("left", output)
         expanded = self.cli("status", "sample", "--details")
         self.assertRegex(expanded, r"left\s+completed")
@@ -170,16 +170,16 @@ class ManagedStatusTests(LocalBackendTestCase):
     def test_selected_tasks_exclude_upstream_rows_and_fresh_work_hides_old_completion(self):
         test_fresh.FreshAttemptTests.configure_workflow(self)
         output = self.cli("status", "b", "c")
-        self.assertNotIn("Task a", output)
-        self.assertIn("Task b", output)
-        self.assertIn("Task c", output)
+        self.assertNotRegex(output, r"(?m)^a\s")
+        self.assertRegex(output, r"(?m)^b\s")
+        self.assertRegex(output, r"(?m)^c\s")
         self.assertIn("2 of 3 Tasks selected", output)
         self.configure(use_spec_hashes=True)
         self.run_complete()
         workflow = self.work / "workflow.py"
         workflow.write_text(workflow.read_text().replace("printf a", "printf changed"))
         output = self.cli("status", "a", "--details")
-        self.assertRegex(output, r"Task a\s+pending\s+0/3\s+fresh attempt required")
+        self.assertRegex(output, r"(?m)^a\s+pending\s+0/3\s+fresh attempt required")
         self.assertRegex(output, r"compute\s+pending")
         self.assertNotIn("reusable", output)
 
@@ -188,9 +188,9 @@ class ManagedStatusTests(LocalBackendTestCase):
         self.run_complete()
         (self.work / "results/a/result.txt").unlink()
         output = self.cli("status", "*")
-        self.assertRegex(output, r"Task a\s+repairable\s+2/3")
-        self.assertRegex(output, r"Task b\s+reusable\s+3/3")
-        self.assertRegex(output, r"Task c\s+deferred\s+3/3\s+run again after upstream result recovery")
+        self.assertRegex(output, r"(?m)^a\s+repairable\s+2/3")
+        self.assertRegex(output, r"(?m)^b\s+reusable\s+3/3")
+        self.assertRegex(output, r"(?m)^c\s+deferred\s+3/3\s+run again after upstream result recovery")
         self.assertIn("1 repairable, 1 reusable, 1 deferred", output)
         self.assertIn("1 of 3 Tasks selected\n1 deferred", self.cli("status", "*", "--status", "deferred"))
 
@@ -201,11 +201,11 @@ class ManagedStatusTests(LocalBackendTestCase):
             with self.subTest(local=local):
                 output = self.cli("-b", "recovery_fixture", "status", "*",
                                   env=self.inject(running_prefix="sample__" + local))
-                self.assertRegex(output, rf"Task sample\s+{state}\s+4/5")
+                self.assertRegex(output, rf"(?m)^sample\s+{state}\s+4/5")
                 self.assertIn(f"1 {state}", output)
                 output = self.cli("-b", "recovery_fixture", "status", "*",
                                   env=self.inject(queued_prefix="sample__" + local))
-                self.assertRegex(output, r"Task sample\s+queued\s+4/5")
+                self.assertRegex(output, r"(?m)^sample\s+queued\s+4/5")
                 self.assertIn("1 queued", output)
                 self.assertNotIn("1 active", output)
 
@@ -217,7 +217,7 @@ class ManagedStatusTests(LocalBackendTestCase):
         workflow.write_text(workflow.read_text().replace("printf a", "printf updated"))
         output = self.cli("-b", "recovery_fixture", "status", "*",
                           env=self.inject(queued_prefix="c__compute"))
-        self.assertRegex(output, r"Task a\s+blocked\s+0/3\s+.*fresh attempt required")
+        self.assertRegex(output, r"(?m)^a\s+blocked\s+0/3\s+.*fresh attempt required")
         self.assertNotIn("progress unavailable", output)
 
     def test_fresh_blocked_by_own_running_work_keeps_activity_visible(self):
@@ -236,7 +236,7 @@ class ManagedStatusTests(LocalBackendTestCase):
                 with self.subTest(change=before):
                     workflow.write_text(original.replace(before, after))
                     output = self.cli("status", "*")
-                    self.assertRegex(output, r"Task sample\s+blocked\s+0/5")
+                    self.assertRegex(output, r"(?m)^sample\s+blocked\s+0/5")
                     self.assertIn("fresh attempt required; 1 job still running", output)
                     self.assertNotIn("1 active", output)
         finally:
@@ -248,7 +248,7 @@ class ManagedStatusTests(LocalBackendTestCase):
         workflow.write_text(workflow.read_text().replace(
             "outputs=['same.txt'])", "outputs=['same.txt'], image='missing.sif')", 1))
         output = self.cli("status", "*")
-        self.assertRegex(output, r"Task sample\s+blocked\s+\?/5")
+        self.assertRegex(output, r"(?m)^sample\s+blocked\s+\?/5")
         self.assertIn("progress unavailable", output)
 
     def test_failure_and_blockage_take_precedence_over_running_jobs(self):
@@ -257,13 +257,13 @@ class ManagedStatusTests(LocalBackendTestCase):
         self.settle()
         output = self.cli("-b", "recovery_fixture", "status", "*",
                           env=self.inject(running_prefix="sample__left"))
-        self.assertRegex(output, r"Task sample\s+failed\s+1/5")
+        self.assertRegex(output, r"(?m)^sample\s+failed\s+1/5")
         self.assertIn("1 job still running", output)
         self.assertIn("1 failed", output)
         self.assertNotIn("1 active", output)
         env = self.inject(running_prefix="sample__join")
         output = self.cli("-b", "recovery_fixture", "status", "*", env=env)
-        self.assertRegex(output, r"Task sample\s+blocked\s+2/5")
+        self.assertRegex(output, r"(?m)^sample\s+blocked\s+2/5")
         self.assertIn("2 jobs failed; 1 job still running", output)
         self.assertIn("1 blocked", output)
         self.assertIn("0 of 1 Tasks selected", self.cli(
@@ -274,7 +274,7 @@ class ManagedStatusTests(LocalBackendTestCase):
         self.finish()
         env = self.inject(job_states={"sample__left": "CANCELLED"})
         output = self.cli("-b", "recovery_fixture", "status", "*", "--status", "canceled", env=env)
-        self.assertRegex(output, r"Task sample\s+canceled\s+1/5")
+        self.assertRegex(output, r"(?m)^sample\s+canceled\s+1/5")
         self.assertIn("1 job canceled", output)
         self.assertNotIn("1 failed", output)
 
@@ -293,14 +293,14 @@ class ManagedStatusTests(LocalBackendTestCase):
         try:
             environment = self.inject(job_states={"sample__right": "CANCELLED"})
             output = self.cli_result("-b", "recovery_fixture", "status", "*", env=environment).stdout
-            self.assertRegex(output, r"Task sample\s+canceled\s+1/4")
+            self.assertRegex(output, r"(?m)^sample\s+canceled\s+1/4")
             self.assertIn("1 of 1 Tasks selected\n1 canceled", output)
             self.assertIn("1 job canceled; 1 job still running", output)
             self.assertNotIn("1 active", output)
             self.assertNotIn("1 failed", output)
             selected = self.cli_result("-b", "recovery_fixture", "status", "sample", "--details",
                                        "--status", "canceled", env=environment).stdout
-            self.assertRegex(selected, r"Task sample\s+canceled\s+1/4")
+            self.assertRegex(selected, r"(?m)^sample\s+canceled\s+1/4")
             for name, state in (("[preparation]", "completed"), ("left", "running"),
                                 ("right", "canceled"), ("[completion]", "queued")):
                 self.assertRegex(selected, re.escape(name) + r"\s+" + state)
@@ -328,6 +328,7 @@ class ManagedStatusTests(LocalBackendTestCase):
         for command in (("status", "*",), ("run", "--dry-run"), ("run",)):
             with self.subTest(command=command):
                 output = self.cli_result(*command).stdout
-                names = re.findall(r"^Task (\S+)", output, re.MULTILINE)
+                pattern = r"^(\S+)\s+\w+\s+\d+/\d+" if command[0] == "status" else r"^Task (\S+)"
+                names = re.findall(pattern, output, re.MULTILINE)
                 self.assertEqual(names, ["z_independent", "source", "consumer", "a_independent"])
         self.finish()

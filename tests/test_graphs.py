@@ -101,7 +101,7 @@ class TaskGraphTests(LocalBackendTestCase):
             for command in (("status", "*",), ("run", "--dry-run")):
                 output = self.cli_result(*command, "--details").stdout
                 if command[0] == "status":
-                    self.assertRegex(output, r"Task sample\s+failed\s+\d+/5")
+                    self.assertRegex(output, r"(?m)^sample\s+failed\s+\d+/5")
                     self.assertIn("retry available", output)
                 else:
                     self.assertIn("State: failed; Jobs completed:", output)
@@ -198,7 +198,7 @@ class TaskGraphTests(LocalBackendTestCase):
         output = next(line.removeprefix("SOURCE=") for line in logs.splitlines() if line.startswith("SOURCE="))
         Path(output).write_text("damaged source")
         failing.unlink()
-        self.assertRegex(self.cli("status", "*"), r"Task sample\s+failed\s+1/6")
+        self.assertRegex(self.cli("status", "*"), r"(?m)^sample\s+failed\s+1/6")
         self.cli("run")
         self.settle()
         self.assertEqual((self.work / "results/sample/result.txt").read_text(), "leftright")

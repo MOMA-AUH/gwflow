@@ -60,7 +60,7 @@ class StatusLayoutTests(LocalBackendTestCase):
                             self.assertIn("*", shlex.split(command))
                         else:
                             for key in ("A", "B"):
-                                self.assertIn(f"{prefix}__{key}", output)
+                                self.assertRegex(output, rf"(?m)^{prefix}__{key}$")
                                 if "--details" in view:
                                     for job in (local, "gwflow_prepare", "gwflow_complete"):
                                         self.assertIn(f"{prefix}__{key}__{job}", output)
@@ -151,5 +151,5 @@ class StatusLayoutTests(LocalBackendTestCase):
         self.assertIn("*", failed)
         expanded = self.cli(*failed[1:])
         self.assertIn("1 of 45 Tasks selected", expanded)
-        self.assertRegex(expanded, r"Task duplex_mapping__sample_B\s+failed\s+2/5")
+        self.assertRegex(expanded, r"(?m)^duplex_mapping__sample_B\s+failed\s+2/5")
         self.assertEqual(self.snapshot(), before)
