@@ -69,10 +69,12 @@ def _display_index(store, name, attempt, jobs, declared, unavailable=None, histo
     for previous, submissions in history:
         same_attempt = previous["attempt"] == attempt["attempt"]
         historical = [item for item in submissions if not same_attempt or item.submission not in current]
-        if historical:
+        if historical or not same_attempt:
             context = "Historical submissions in current attempt" if same_attempt else "Historical attempt"
             click.echo(f"  {context} {previous['attempt']}:")
             _display_jobs(store, name, historical, historical=True)
+            if not historical:
+                click.echo("    No recorded submissions")
     if declared:
         click.echo("  Next action and reason: " + shlex.join(inspection_command("run", name, "--dry-run", "--details")))
     else:

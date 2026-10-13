@@ -4,6 +4,8 @@ import json
 import re
 import shlex
 import shutil
+import subprocess
+import sys
 
 from support import FIXTURES, LocalBackendTestCase
 import test_graphs
@@ -224,6 +226,23 @@ class TaskLogHistoryTests(LocalBackendTestCase):
     @staticmethod
     def submissions(index):
         return re.findall(r"; submission (\S+)", index)
+
+    def test_previous_attempt_without_submissions_remains_visible(self):
+        interrupted = subprocess.run([
+            sys.executable, str(FIXTURES / "frontend_fault.py"), str(self.work), "after_ready", "sample", "run",
+        ], cwd=self.work, capture_output=True, text=True, timeout=30)
+        self.assertEqual(interrupted.returncode, 93, interrupted.stdout + interrupted.stderr)
+        current = self.cli("logs", "sample")
+        previous = re.search(r"attempt ([0-9a-f]{32})", current).group(1)
+        self.assertIn("submission not submitted", current)
+        self.cli("run", "sample", "--force")
+        self.finish()
+        before = self.snapshot()
+        self.assertNotIn(previous, self.cli("logs", "sample"))
+        history = self.cli("logs", "sample", "--history")
+        self.assertIn("Historical attempt " + previous, history)
+        self.assertIn("No recorded submissions", history)
+        self.assertEqual(self.snapshot(), before)
 
     def test_history_requires_task_index_mode(self):
         self.run_complete()

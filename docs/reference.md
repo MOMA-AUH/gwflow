@@ -343,6 +343,8 @@ creating a distinct submission; the index shows both identities. Historical
 streams use exact submission commands, so they remain readable after retries,
 fresh attempts, and managed work cleanup. `--history` supports the same exact,
 multiple, pattern, and bare all-Task selection, including removed Tasks.
+An earlier attempt interrupted before job admission is listed with no recorded
+submissions.
 
 Task names and quoted patterns use the same selection language as other managed
 commands: every selector must match, and overlapping matches appear once. With
