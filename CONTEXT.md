@@ -20,7 +20,7 @@ A Task name or Task-name pattern used to choose whole Tasks for a command.
 The Tasks directly chosen for a command, before any required upstream dependencies are included.
 
 **Task name**:
-A stable name identifying one Task instance, unique within its workflow and independent of declaration order. It uses the Task alias when supplied, or otherwise the Task implementation's name, with an Instance key appended when supplied.
+A stable name identifying one Task instance, unique within its workflow, distinct from Public job names and Submission names, and independent of declaration order. It uses the Task alias when supplied, or otherwise the Task implementation's name, with an Instance key appended when supplied.
 
 **Instance key**:
 An optional author-supplied value distinguishing Task instances under the same name prefix, stable across runs and independent of declaration order.
@@ -40,11 +40,20 @@ A release of the orchestration that selects task implementations and connects th
 **Local target name**:
 A name identifying one target within its owning task. Different task instances may use the same local target names.
 
+**Public job name**:
+A workflow-wide name identifying one computation target or lifecycle job, independent of the particular Task attempt or retry.
+
+**Submission name**:
+A name identifying one specific submission of a computation target or lifecycle job, including when its logs are accessed historically.
+
 **Computation target**:
 An author-declared gwf target within a Task that performs part of its computation.
 
 **Lifecycle job**:
 A job introduced by gwflow to prepare a Task for computation or bring it to Completion. Preparation and completion jobs are distinct from the Task's computation targets.
+
+**Cancellation**:
+A request to stop a Task's admitted computation and lifecycle jobs, preserving valid completed work and retained outputs without imposing a persistent pause. The request alone does not establish job inactivity.
 
 **Task progress**:
 The count of completed computation targets and lifecycle jobs, relative to their total, after excluding steps known to require repetition; a required fresh attempt starts at zero, while retries and Repair retain valid completed steps. It measures completed steps rather than time, effort, or eligibility for Reuse; the count is unknown when completion cannot be established.
