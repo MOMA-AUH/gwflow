@@ -27,7 +27,7 @@ cd examples/packaged
 gwflow config set use_spec_hashes true
 ```
 
-The factory packages accept gwflow `>=0.5.3,<0.7`; the commands below use the
+The factory packages accept gwflow `>=0.5.3,<0.8`; the commands below use the
 current checkout's dedicated `gwflow` CLI. Editable installs with `-e` are also
 supported. Package implementation or version changes do not independently
 invalidate Reuse; use force for changes not reflected in tracked commands,

@@ -8,14 +8,14 @@ Workflow commands report a clear error when no workflow file is found, with guid
 
 Workflow discovery retains the `workflow.py:gwf` default and `--file PATH[:OBJECT]` override, with `gwf` as the default object name when omitted. Relative file paths are searched from the current directory through its parents. The Python object name is independent of the executable name, preserving a single familiar discovery convention.
 
-The command set is `run`, `status`, `logs`, `clean`, `config`, and `workers`. Managed work cleanup is renamed from `clean-work` to `clean`, retaining its managed cleanup semantics and protection of retained results. The inherited `info`, `touch`, and `cancel` commands are omitted; cancellation remains a backend operation for this release, since a managed cancellation command would require a separate design.
+The v0.6.0 command set was `run`, `status`, `logs`, `clean`, `config`, and `workers`. Managed work cleanup was renamed from `clean-work` to `clean`, retaining its managed cleanup semantics and protection of retained results. The inherited `info`, `touch`, and `cancel` commands were omitted; cancellation remained a backend operation for that release, pending a separate managed cancellation design.
 
-The planned v0.7.0 managed cancellation extension is recorded in
+Starting with v0.7.0, the managed `cancel` command follows the contract recorded in
 [ADR 0009](0009-cancel-admitted-work-without-pausing-tasks.md).
 
 The remaining backend and configuration infrastructure stays unchanged: backend selection and discovery, settings, verbosity, and color controls continue to serve managed workflows. Logs retain their individual job-name selection and existing options, as do configuration and local workers. The `.gwfconf.json` and `.gwf/` locations, configured work/results directories, and image-cache location are preserved; changing the executable does not require changing storage conventions. `gwflow --version` reports the gwflow release.
 
-For v0.7.0, the planned Task-level troubleshooting extension presents failed computation and lifecycle jobs, their Task attempts and logs, and the planner's Next action with its reason. It brings together observed evidence and existing recovery guidance; automatic interpretation of arbitrary tool logs to diagnose causes or suggest fixes is deferred.
+For v0.7.0, the Task-level troubleshooting extension presents failed computation and lifecycle jobs, their Task attempts and logs, and the planner's Next action with its reason. It brings together observed evidence and existing recovery guidance; automatic interpretation of arbitrary tool logs to diagnose causes or suggest fixes is deferred.
 
 Task-level log access extends the existing command: `gwflow logs TASK` shows a job/log index for the Task's current attempt, with failures first. The index identifies the attempt and each job's state and available log streams, provides commands to read individual logs, and points to `run TASK --dry-run --details` for recovery guidance. Individual-job selection continues to display log contents. This keeps parallel jobs' output distinguishable while making their logs discoverable by Task name.
 
@@ -37,7 +37,7 @@ For v0.7.0, Task names must not collide with public computation or lifecycle job
 
 The `run`, `status`, and `clean` commands accept multiple positional exact Task names and quoted glob patterns, resolved only against Task names. Factory-group and public-job names do not expand to their member or owning Tasks, and the `task:` and `job:` namespaces are removed. Automatic grouping remains available in the status overview, while a shared Task-selection language keeps the command interface consistent.
 
-When no Task selectors are supplied, all Tasks are Selected Tasks. An unqualified `gwflow run` therefore retains whole-workflow planning and execution with normal Reuse, and `gwflow run --force` starts fresh attempts for every Task.
+When no Task selectors are supplied to `run`, `status`, or `clean`, all Tasks available to that command are Selected Tasks. An unqualified `gwflow run` therefore retains whole-workflow planning and execution with normal Reuse, and `gwflow run --force` starts fresh attempts for every Task.
 
 Every supplied Task selector must match at least one Task in `run`, `status`, and `clean`. If any selector is unmatched, the entire invocation fails before job submission, Task-state changes, or cleanup deletion and reports all unmatched selectors, even when other selectors match. A partially matched request must not appear to have addressed all intended Tasks.
 

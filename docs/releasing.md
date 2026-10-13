@@ -30,10 +30,11 @@ matching `v<version>` tag on `master`. The tag workflow rejects a tag whose
 version differs from `pyproject.toml` or whose commit is absent from `master`.
 It builds a Conda artifact without automatic upload, installs that artifact in
 a fresh environment, and runs the full local-backend test suite plus the
-small-file cleanup and reuse check. Only then does the separate `publish` job
+small-file cleanup/reuse and troubleshooting/cancellation/recovery smoke checks.
+Only then does the separate `publish` job
 upload the same artifact to the `MOMA-AUH` Anaconda.org channel. It creates
-another fresh environment from the published channel and repeats the cleanup
-and reuse check. A failed upload or published-package check fails the release
+another fresh environment from the published channel and repeats those smoke
+checks. A failed upload or published-package check fails the release
 workflow; do not claim publication from a successful build alone.
 
 After the tag workflow has successfully uploaded and installed the published
