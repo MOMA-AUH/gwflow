@@ -83,8 +83,11 @@ class RecoveryBackend(TrackingBackend):
             wait_for(lambda: (self.work / "submission-release").exists())
         faults = [*self.options.get("job_fault_prefixes", []), self.options.get("job_fault")]
         if any(prefix and target.name.startswith(prefix + "__") for prefix in faults):
-            original = shlex.split(target.spec)
-            target.spec = shlex.join([sys.executable, str(self.work / "job_fault.py"), str(self.work), *original[1:]])
+            original = shlex.split(target.spec.removeprefix("exec "))
+            target.spec = "exec " + shlex.join([sys.executable, str(self.work / "job_fault.py"), str(self.work), *original[1:]])
+        if self.options.get("shell_epilogue"):
+            # Keep a shell parent even on Bash, as Dash does for one command.
+            target.spec += "\n:"
         super().submit(target, dependencies)
         self.submitted = True
         if self.options.get("record_acceptances"):

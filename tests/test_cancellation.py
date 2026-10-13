@@ -35,7 +35,7 @@ class CancellationTests(LocalBackendTestCase):
     def test_cancelled_completion_recovers_without_repeating_computation(self):
         shutil.copy(FIXTURES / "job_fault.py", self.work)
         (self.work / "job-fault.json").write_text(json.dumps({"gate_after_manifest": True}))
-        environment = self.inject(job_fault="sample__gwflow_complete")
+        environment = self.inject(job_fault="sample__gwflow_complete", shell_epilogue=True)
         self.cli("-b", "recovery_fixture", "run", env=environment)
         self.wait_for((self.work / "manifest-held").exists)
         try:
@@ -103,7 +103,7 @@ class CancellationTests(LocalBackendTestCase):
         self.configure_workflow(right_command=(
             f"echo right >> {shlex.quote(str(trace))}; touch {shlex.quote(str(held))}; "
             f"while [ ! -e {shlex.quote(str(release))} ]; do sleep 0.025; done; printf right > same.txt"))
-        self.cli("run")
+        self.cli("-b", "recovery_fixture", "run", env=self.inject(shell_epilogue=True))
         self.wait_for(held.exists)
         try:
             self.wait_for(lambda: "sample__left: complete" in self.cli("logs", "sample"))
