@@ -322,6 +322,7 @@ and files can change afterward, so run and cleanup recheck before acting.
 gwflow logs                         # all declared and recorded Tasks
 gwflow logs hello                   # current submissions in its current attempt
 gwflow logs hello other 'batch__*'   # grouped, deduplicated Task indexes
+gwflow logs hello --history         # include earlier retries and attempts
 gwflow logs hello__write --no-pager
 gwflow logs hello__write --stderr --no-pager
 gwflow run hello --dry-run --details # separate Next action and reason
@@ -333,6 +334,17 @@ identifies the public job and submission, its observed state, and availability
 of stdout and stderr. Available streams have commands that read that specific
 submission; indexes never concatenate streams. Earlier retry submissions and
 attempts are excluded from the current index.
+
+Add `--history` to include earlier submissions in the current attempt and all
+recorded submissions in previous attempts. Each historical group identifies its
+attempt, and each job entry is marked historical, keeping resolved failures
+separate from current work. Retrying a job can preserve the Task attempt while
+creating a distinct submission; the index shows both identities. Historical
+streams use exact submission commands, so they remain readable after retries,
+fresh attempts, and managed work cleanup. `--history` supports the same exact,
+multiple, pattern, and bare all-Task selection, including removed Tasks.
+An earlier attempt interrupted before job admission is listed with no recorded
+submissions.
 
 Task names and quoted patterns use the same selection language as other managed
 commands: every selector must match, and overlapping matches appear once. With
@@ -350,6 +362,9 @@ Task indexes. `--stderr` on an index is a usage error because indexes already sh
 both streams. Missing streams are marked in indexes and are errors when requested
 individually. Logs remain in `.gwf/logs/` after work cleanup; exact earlier submission
 names continue to read their logs directly.
+`--history` is only for Task indexes; combining it with an individual job or
+submission request is a usage error. Reading an exact historical submission does
+not require `--history`.
 
 Log inspection neither acquires images nor invokes execution planning, and it
 preserves Task records, work, and retained outputs. If scheduler observation fails

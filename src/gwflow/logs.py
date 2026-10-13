@@ -37,27 +37,44 @@ def _observation_deadline():
         signal.signal(signal.SIGALRM, previous)
 
 
-def _display_index(store, name, attempt, jobs, declared, unavailable=None):
-    context = f"attempt {attempt['attempt']}" if attempt else "no recorded work"
+def _display_jobs(store, name, jobs, *, historical=False):
+    indent = "    " if historical else "  "
+    for item in sorted(jobs, key=lambda item: item.state != "failed"):
+        live = "; live state unavailable" if item.intent and item.backend_state == BackendStatus.UNKNOWN else ""
+        state = ({BackendStatus.SUBMITTED: "queued", BackendStatus.RUNNING: "running"}.get(item.backend_state, item.state)
+                 if item.state == "active" else item.state)
+        if historical:
+            state += " (historical)"
+        click.echo(f"{indent}{name}__{item.local}: {state}; submission {item.submission or 'not submitted'}{live}")
+        if item.job_id is not None:
+            click.echo(f"{indent}  Backend job: {item.job_id}")
+        for stream in ("stdout", "stderr"):
+            path = store.working_dir / ".gwf" / "logs" / f"{item.submission}.{stream}"
+            available = item.submission is not None and path.is_file()
+            click.echo(f"{indent}  {stream}: {'available' if available else 'missing'}")
+            if available:
+                options = ["--stderr"] if stream == "stderr" else []
+                click.echo(indent + "    " + shlex.join(inspection_command("logs", item.submission, *options, "--no-pager")))
+
+
+def _display_index(store, name, attempt, jobs, declared, unavailable=None, history=()):
+    context = f"current attempt {attempt['attempt']}" if attempt else "no recorded work"
     if not declared:
         context += "; no longer declared"
     click.echo(f"Task {name}: {context}")
     if unavailable:
         click.echo(f"  live state unavailable: {unavailable}")
-    for local, item in sorted(jobs.items(), key=lambda pair: pair[1].state != "failed"):
-        live = "; live state unavailable" if item.intent and item.backend_state == BackendStatus.UNKNOWN else ""
-        state = ({BackendStatus.SUBMITTED: "queued", BackendStatus.RUNNING: "running"}.get(item.backend_state, item.state)
-                 if item.state == "active" else item.state)
-        click.echo(f"  {name}__{local}: {state}; submission {item.submission or 'not submitted'}{live}")
-        if item.job_id is not None:
-            click.echo(f"    Backend job: {item.job_id}")
-        for stream in ("stdout", "stderr"):
-            path = store.working_dir / ".gwf" / "logs" / f"{item.submission}.{stream}"
-            available = item.submission is not None and path.is_file()
-            click.echo(f"    {stream}: {'available' if available else 'missing'}")
-            if available:
-                options = ["--stderr"] if stream == "stderr" else []
-                click.echo("      " + shlex.join(inspection_command("logs", item.submission, *options, "--no-pager")))
+    _display_jobs(store, name, jobs.values())
+    current = {item.submission for item in jobs.values()}
+    for previous, submissions in history:
+        same_attempt = previous["attempt"] == attempt["attempt"]
+        historical = [item for item in submissions if not same_attempt or item.submission not in current]
+        if historical or not same_attempt:
+            context = "Historical submissions in current attempt" if same_attempt else "Historical attempt"
+            click.echo(f"  {context} {previous['attempt']}:")
+            _display_jobs(store, name, historical, historical=True)
+            if not historical:
+                click.echo("    No recorded submissions")
     if declared:
         click.echo("  Next action and reason: " + shlex.join(inspection_command("run", name, "--dry-run", "--details")))
     else:
@@ -78,12 +95,14 @@ def _job_names(store, workflow):
 @click.argument("selectors", nargs=-1)
 @click.option("-e", "--stderr", is_flag=True)
 @click.option("--no-pager", is_flag=True)
+@click.option("--history", is_flag=True, help="Include earlier retry submissions and previous Task attempts.")
 @pass_context
-def logs(ctx, selectors, stderr, no_pager):
+def logs(ctx, selectors, stderr, no_pager, history):
     """Index current logs for Task names or quoted globs; omit selectors for all Tasks.
 
     One exact public job or submission name reads its individual log instead.
     Use --stderr only with an individual job; indexes show both streams.
+    --history adds earlier submissions and attempts to Task indexes only.
     """
     workflow = load_workflow(ctx)
     try:
@@ -93,6 +112,8 @@ def logs(ctx, selectors, stderr, no_pager):
             names = set(workflow._task_declarations) | set(attempts)
             job_names = _job_names(store, workflow)
             if len(selectors) == 1 and selectors[0] in job_names and selectors[0] not in names:
+                if history:
+                    raise click.UsageError("--history requires a Task index, not an individual job or submission stream.")
                 target = selectors[0]
                 click.get_current_context().invoke(gwf_logs, target=target, stderr=stderr, no_pager=no_pager)
                 return
@@ -102,22 +123,32 @@ def logs(ctx, selectors, stderr, no_pager):
             if stderr:
                 raise click.UsageError("--stderr requires one exact individual job or submission name; Task indexes show both streams.")
             observations = {}
+            historical = {}
             unavailable = None
             recorded = [name for name in sorted(selected) if name in attempts]
+            archived = [attempt for attempt in store.recorded_attempts() if attempt["task"] in selected] if history else []
             if recorded:
+                def inspect(backend):
+                    current = {name: admission.observe(store, attempts[name], backend, ctx.backend) for name in recorded}
+                    earlier = {attempt["attempt"]: admission.observe_submissions(store, attempt, backend, ctx.backend)
+                               for attempt in archived}
+                    return current, earlier
+
                 try:
                     # Cancel the alarm before backend cleanup can save tracking.
                     with ExitStack() as cleanup, _observation_deadline():
                         backend = cleanup.enter_context(create_backend(ctx.backend, working_dir=ctx.working_dir, config=ctx.config))
-                        observations = {name: admission.observe(store, attempts[name], backend, ctx.backend) for name in recorded}
+                        observations, historical = inspect(backend)
                 except Exception as error:
                     # Disk evidence remains inspectable during a scheduler
                     # outage. UNKNOWN observations never establish inactivity.
                     unavailable = str(error)
-                    observations = {name: admission.observe(store, attempts[name], None, ctx.backend) for name in recorded}
+                    observations, historical = inspect(None)
             for name in sorted(selected):
+                history_indexes = [(attempt, historical[attempt["attempt"]]) for attempt in archived if attempt["task"] == name]
+                history_indexes.sort(key=lambda item: item[0]["attempt"] != attempts[name]["attempt"])
                 _display_index(store, name, attempts.get(name), observations.get(name, {}),
-                               name in workflow._task_declarations, unavailable)
+                               name in workflow._task_declarations, unavailable, history_indexes)
             if not selected:
                 click.echo("No Tasks selected")
     except OSError as error:
