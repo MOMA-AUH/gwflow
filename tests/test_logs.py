@@ -106,6 +106,16 @@ class TaskLogTests(LocalBackendTestCase):
             self.assertIn("individual job", error)
         self.assertEqual(self.snapshot(), before)
 
+    def test_stalled_worker_connection_falls_back_to_recorded_logs(self):
+        self.run_complete()
+        before = self.snapshot()
+        output = self.cli("-b", "recovery_fixture", "logs", "sample",
+                          env=self.inject(stall_connection=True))
+        self.assertIn("live state unavailable: scheduler observation timed out", output)
+        self.assertIn("sample__left: complete", output)
+        self.assertIn("stdout: available", output)
+        self.assertEqual(self.snapshot(), before)
+
     def test_retained_public_and_historical_submission_names_cannot_ambiguously_select_a_task(self):
         self.configure_workflow(left_command="echo old-left-log; printf left > same.txt")
         self.run_complete()

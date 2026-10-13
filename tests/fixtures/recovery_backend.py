@@ -9,6 +9,7 @@ import json
 import os
 from pathlib import Path
 import shlex
+import socket
 import sys
 import time
 
@@ -35,6 +36,11 @@ class RecoveryBackend(TrackingBackend):
         self.work = Path(working_dir)
         self.port = int(port)
         self.options = json.loads((self.work / "injection.json").read_text())
+        if self.options.get("stall_connection"):
+            # Model a blackholed worker, not an immediately refused port.
+            def stalled_connect(sock, address):
+                time.sleep(60)
+            socket.socket.connect = stalled_connect
         super().__init__(working_dir, name="local", ops=LocalOps(working_dir, "localhost", self.port, {}))
         self.submitted = False
 
