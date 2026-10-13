@@ -62,7 +62,7 @@ class TaskFactoryTests(unittest.TestCase):
         with self.assertRaisesRegex(TypeError, "Task definition"):
             invalid()
 
-    def test_collisions_identify_declarations_and_namespace_overlap_is_allowed(self):
+    def test_collisions_identify_declarations(self):
         from gwflow import task_template
 
         @task_template
@@ -81,8 +81,8 @@ class TaskFactoryTests(unittest.TestCase):
             workflow.task(second(), alias="a__b")
         with self.assertRaisesRegex(WorkflowError, "a.*first.*second"):
             workflow.task(second(), alias="a")
-        workflow.task(second(), alias="a__b__write")
-        self.assertIn("a__b__write__write", workflow.targets)
+        with self.assertRaisesRegex(WorkflowError, "a__b__write.*first.*second"):
+            workflow.task(second(), alias="a__b__write")
 
     def test_factory_calls_and_registrations_are_independent(self):
         from gwflow import task_template
@@ -104,6 +104,39 @@ class TaskFactoryTests(unittest.TestCase):
         workflow.task(one, key="2")
         self.assertNotIn("cached__1__late", workflow.targets)
         self.assertIn("cached__2__late", workflow.targets)
+
+    def test_task_and_computation_or_lifecycle_names_cannot_overlap_in_either_order(self):
+        from gwflow import task_template
+
+        @task_template
+        def producer():
+            task = Task(inputs=[])
+            task.target("copy__file", inputs=[], outputs=["out"])
+            return task
+
+        @task_template
+        def other():
+            return Task(inputs=[])
+
+        for local in ("copy__file", "gwflow_prepare", "gwflow_complete"):
+            name = f"_sample__A.1__{local}"
+            for reverse in (False, True):
+                with self.subTest(local=local, reverse=reverse):
+                    workflow = Workflow(working_dir=".")
+                    declarations = [(producer(), {"alias": "_sample", "key": "A.1"}),
+                                    (other(), {"alias": name})]
+                    if reverse:
+                        declarations.reverse()
+                    definition, options = declarations[0]
+                    workflow.task(definition, **options)
+                    with self.assertRaises(WorkflowError) as error:
+                        definition, options = declarations[1]
+                        workflow.task(definition, **options)
+                    for context in (name, "_sample__A.1", "producer", "other"):
+                        self.assertIn(context, str(error.exception))
+                    # Reject only exact overlap: separators and lifecycle-like
+                    # suffixes remain valid in otherwise distinct Task names.
+                    workflow.task(other(), alias=name + "__distinct")
 
 
 class FactoryReuseTests(LocalBackendTestCase):

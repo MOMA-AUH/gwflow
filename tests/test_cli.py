@@ -100,3 +100,37 @@ class StartupTests(unittest.TestCase):
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
                 self.assertEqual(result.stdout.strip(), expected)
             self.assertFalse((Path(directory) / "workflow.py").exists())
+
+    def test_task_job_collisions_fail_loading_before_command_effects(self):
+        with tempfile.TemporaryDirectory(prefix="gwflow names ") as directory:
+            work = Path(directory)
+            declaration = (
+                "from gwflow import Task, Workflow, task_template\n"
+                "@task_template\n"
+                "def producer():\n"
+                "    task = Task(inputs=[])\n"
+                "    task.target('copy', inputs=[], outputs=['out']) << 'touch out'\n"
+                "    return task\n"
+                "@task_template\n"
+                "def other():\n"
+                "    return Task(inputs=[])\n"
+                "gwf = Workflow()\n"
+            )
+            for local in ("copy", "gwflow_prepare", "gwflow_complete"):
+                name = f"sample__{local}"
+                registrations = ["gwf.task(producer(), alias='sample')\n",
+                                 f"gwf.task(other(), alias={name!r})\n"]
+                for reverse in (False, True):
+                    (work / "workflow.py").write_text(
+                        declaration + "".join(reversed(registrations) if reverse else registrations))
+                    for command in (("run",), ("status",), ("logs", name), ("clean", "--delete")):
+                        with self.subTest(local=local, reverse=reverse, command=command):
+                            result = subprocess.run([GWFLOW, *command], cwd=work, input="",
+                                                    capture_output=True, text=True, timeout=30)
+                            self.assertNotEqual(result.returncode, 0)
+                            for context in (name, "sample", "producer", "other", "collides"):
+                                self.assertIn(context, result.stderr)
+                            self.assertNotIn("Traceback", result.stderr)
+                            self.assertFalse((work / "work").exists())
+                            self.assertFalse((work / "results").exists())
+                            self.assertEqual(list((work / ".gwf").rglob("*.json")), [])
