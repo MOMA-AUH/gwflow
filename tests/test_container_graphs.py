@@ -117,9 +117,9 @@ class ContainerGraphTests(LocalBackendTestCase):
         for arguments in (("run", "--dry-run", "--details"), ("status", "--details"), ("run", "--dry-run", "--details")):
             preview = self.cli(*arguments)
             if arguments[0] == "status":
-                self.assertRegex(preview, r"Task producer\s+pending\s+0/6\s+fresh attempt required")
-                self.assertRegex(preview, r"Task consumer\s+pending\s+0/3\s+fresh attempt required")
-                self.assertRegex(preview, r"Task independent\s+reusable")
+                self.assertRegex(preview, r"(?m)^producer\s+pending\s+0/6\s+fresh attempt required")
+                self.assertRegex(preview, r"(?m)^consumer\s+pending\s+0/3\s+fresh attempt required")
+                self.assertRegex(preview, r"(?m)^independent\s+reusable")
             else:
                 self.assertIn("input metadata changed", preview)
                 self.assertRegex(preview, r"Task producer\s+Run\s+")
