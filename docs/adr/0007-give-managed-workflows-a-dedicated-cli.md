@@ -10,7 +10,30 @@ Workflow discovery retains the `workflow.py:gwf` default and `--file PATH[:OBJEC
 
 The command set is `run`, `status`, `logs`, `clean`, `config`, and `workers`. Managed work cleanup is renamed from `clean-work` to `clean`, retaining its managed cleanup semantics and protection of retained results. The inherited `info`, `touch`, and `cancel` commands are omitted; cancellation remains a backend operation for this release, since a managed cancellation command would require a separate design.
 
+The planned v0.6.2 managed cancellation extension is recorded in
+[ADR 0009](0009-cancel-admitted-work-without-pausing-tasks.md).
+
 The remaining backend and configuration infrastructure stays unchanged: backend selection and discovery, settings, verbosity, and color controls continue to serve managed workflows. Logs retain their individual job-name selection and existing options, as do configuration and local workers. The `.gwfconf.json` and `.gwf/` locations, configured work/results directories, and image-cache location are preserved; changing the executable does not require changing storage conventions. `gwflow --version` reports the gwflow release.
+
+For v0.6.2, the planned Task-level troubleshooting extension presents failed computation and lifecycle jobs, their Task attempts and logs, and the planner's Next action with its reason. It brings together observed evidence and existing recovery guidance; automatic interpretation of arbitrary tool logs to diagnose causes or suggest fixes is deferred.
+
+Task-level log access extends the existing command: `gwflow logs TASK` shows a job/log index for the Task's current attempt, with failures first. The index identifies the attempt and each job's state and available log streams, provides commands to read individual logs, and points to `run TASK --dry-run --details` for recovery guidance. Individual-job selection continues to display log contents. This keeps parallel jobs' output distinguishable while making their logs discoverable by Task name.
+
+The default log index shows current job submissions within the current Task attempt. `--history` also exposes earlier retry submissions and previous Task attempts, explicitly marked as historical so resolved failures do not appear to be current problems. Task attempt identity alone does not distinguish retries, since retries can preserve that identity.
+
+Task log indexes accept multiple exact Task names and quoted glob patterns, with results grouped by Task. Reading individual-job log contents continues to require one exact job name, keeping selection of multiple Tasks an index operation.
+
+The `-e`/`--stderr` option selects stderr only when reading an individual job's log contents. Task indexes always show availability of both stdout and stderr. Using `--stderr` in Task-index mode is a usage error with guidance to select an individual job.
+
+Task log indexes remain available when the scheduler cannot supply current job states: recorded jobs and available logs are still listed, with unavailable live state marked explicitly. Reading recorded logs does not require image acquisition or execution planning. Recovery explanations remain in the separate run preview, and unavailable job state never implies inactivity.
+
+With no selectors, `gwflow logs` shows all Tasks' current log indexes, consistent with the read-only overview provided by bare `status`. Earlier submissions and attempts appear in Task indexes only with `--history`; an exact historical submission name still selects its log contents directly.
+
+Log indexes select Task names from both current declarations and recorded attempts, including Tasks removed from the workflow. Removed Tasks are marked as "no longer declared"; declaration removal does not hide their recorded work or logs. The same selection set applies to bare `logs`, while `--history` continues to control inclusion of earlier submissions and attempts.
+
+Log Task selectors follow the shared rule that every supplied selector must match. Declared Tasks without recorded attempts match successfully and report no recorded work. Indexes identify missing log streams, while requesting a missing individual stream remains an error. `--history` applies only to Task indexes and is rejected with an individual-job content request. For a Task that is no longer declared, recovery guidance explains that its declaration must be restored before using the run preview.
+
+For v0.6.2, Task names must not collide with public computation or lifecycle job names. Workflow construction rejects these collisions regardless of declaration order and identifies both conflicting declarations, deliberately replacing the earlier allowance for Task/job name overlap while retaining the existing naming syntax. Log resolution also checks retained public job and historical submission names for conflicts with Task names and reports ambiguity as an error. This keeps current and historical selection unambiguous without name-precedence rules or a separate `--job` option.
 
 The `run`, `status`, and `clean` commands accept multiple positional exact Task names and quoted glob patterns, resolved only against Task names. Factory-group and public-job names do not expand to their member or owning Tasks, and the `task:` and `job:` namespaces are removed. Automatic grouping remains available in the status overview, while a shared Task-selection language keeps the command interface consistent.
 
