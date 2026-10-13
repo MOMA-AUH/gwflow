@@ -83,6 +83,7 @@ class LifecycleInspectionTests(LocalBackendTestCase):
         before = self.snapshot()
         details = self.cli("run", "--dry-run", "--details")
         first = re.search(r"sample__right: (\S+)", details).group(1)
+        first_attempt = re.search(r"Attempt: ([0-9a-f]{32})", details).group(1)
         self.assertIn("(failed)", details)
         self.assertIn("Backend job:", details)
         self.assertIn(str(self.work / ".gwf/logs" / (first + ".stdout")), details)
@@ -96,6 +97,9 @@ class LifecycleInspectionTests(LocalBackendTestCase):
         self.assertRegex(preview, r"Task sample\s+Retry\s+")
         self.run_previewed(preview)
         self.settle()
+        index = self.cli("logs", "sample")
+        self.assertIn(first_attempt, index)
+        self.assertNotIn(first, index)
         self.cli("run", "--force")
         self.settle()
         details = self.cli("run", "--dry-run", "--details")
@@ -106,8 +110,11 @@ class LifecycleInspectionTests(LocalBackendTestCase):
         self.cli("clean", "--delete")
         self.assertEqual(self.cli("logs", first, "--no-pager"), original_log)
         self.assertIn("job-error", self.cli("logs", first, "--stderr", "--no-pager"))
-        for invalid in ("sample", "sample__*"):
-            self.cli("logs", invalid, "--no-pager", success=False)
+        for selector in ("sample", "sam*"):
+            index = self.cli("logs", selector, "--no-pager")
+            self.assertIn(latest, index)
+            self.assertNotIn(first, index)
+        self.cli("logs", "sample__*", "--no-pager", success=False)
         self.assertEqual(self.cli("logs", "sample__right", "--no-pager"), latest_log)
 
     def test_compact_status_distinguishes_condition_from_next_action_and_cleaned_work(self):
@@ -243,7 +250,8 @@ class LifecycleInspectionTests(LocalBackendTestCase):
             self.wait_for((self.work / "tracking-held").exists)
             self.finish()
             before = self.snapshot()
-            for index, command in enumerate((("status",), ("run", "--dry-run"), ("clean",))):
+            for index, command in enumerate((("status",), ("run", "--dry-run"), ("clean",),
+                                             ("logs",), ("logs", "a__compute", "--no-pager"))):
                 process, output = self.launch(*command, filename=f"inspection-{index}")
                 inspectors.append((process, output))
                 self.wait_for(lambda: "Waiting for frontend" in output.read_text() or process.poll() is not None)

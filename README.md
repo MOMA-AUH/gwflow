@@ -70,6 +70,7 @@ Submission returns before the jobs finish. Repeat `gwflow status '*'` until
 
 ```sh
 cat results/hello/message.txt       # hello
+gwflow logs hello                  # current jobs and log-reading commands
 gwflow logs hello__write --no-pager
 ```
 
@@ -89,6 +90,9 @@ gwflow run hello --dry-run --details
 
 A selected run includes its required upstream tasks and reuses valid results.
 Status focuses on the selected tasks and explains relevant upstream blockers.
+Use `gwflow logs` for all current task log indexes, or `gwflow logs 'hello*'`
+for a selected group. Each index shows failures first and links to individual
+streams and the recovery preview. Add `--stderr` only when reading one job's log.
 To recompute `hello`, preview and request a fresh attempt:
 
 ```sh

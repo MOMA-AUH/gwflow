@@ -309,25 +309,56 @@ jobs may continue, and submission is not rolled back. `--details` includes
 individual outcomes and available submission names and backend IDs. Reports go
 to stdout; operational diagnostics and command errors go to stderr.
 
-Status, dry-run, and cleanup preview wait for frontend bookkeeping transitions
+Status, dry-run, logs, and cleanup preview wait for frontend bookkeeping transitions
 and leave Task attempts, baselines, Completion records, work, and results intact.
 Run, run preview, and status may acquire missing registry images for selected
 and required upstream Tasks, including otherwise reusable Tasks. Cleanup neither
 acquires nor deletes images. Observations are not a distributed snapshot: jobs
 and files can change afterward, so run and cleanup recheck before acting.
 
-### Individual job logs
+### Task indexes and individual job logs
 
 ```sh
+gwflow logs                         # all declared and recorded Tasks
+gwflow logs hello                   # current submissions in its current attempt
+gwflow logs hello other 'batch__*'   # grouped, deduplicated Task indexes
 gwflow logs hello__write --no-pager
 gwflow logs hello__write --stderr --no-pager
+gwflow run hello --dry-run --details # separate Next action and reason
 ```
 
-Logs take one exact public job name or historical submission name, not a Task or
-glob. Public names follow the selected execution generation. Logs remain in
-`.gwf/logs/` after work cleanup; earlier retries and attempts remain accessible
-using their submission names from detailed run reports. Human-readable reports
-are the supported interface, not a stable machine-readable schema.
+Task indexes show the current recorded attempt and current submissions of its
+computation, preparation, and completion jobs, with failures first. Each entry
+identifies the public job and submission, its observed state, and availability
+of stdout and stderr. Available streams have commands that read that specific
+submission; indexes never concatenate streams. Earlier retry submissions and
+attempts are excluded from the current index.
+
+Task names and quoted patterns use the same selection language as other managed
+commands: every selector must match, and overlapping matches appear once. With
+no selectors, all declared and recorded Task names are selected. Factory groups
+and job names do not expand into Tasks. Declared Tasks without an attempt report
+"no recorded work". Removed Tasks remain selectable, marked "no longer declared";
+restore their declaration before using the run preview. Logs fail explicitly if
+a selected Task name is also a retained public job or historical submission name,
+including names from previous attempts.
+
+One exact public job or submission name reads an individual stream: stdout by
+default, stderr with `-e`/`--stderr`, and direct output with `--no-pager`. Public
+names follow the selected execution generation. Multiple selectors always select
+Task indexes. `--stderr` on an index is a usage error because indexes already show
+both streams. Missing streams are marked in indexes and are errors when requested
+individually. Logs remain in `.gwf/logs/` after work cleanup; exact earlier submission
+names continue to read their logs directly.
+
+Log inspection neither acquires images nor invokes execution planning, and it
+preserves Task records, work, and retained outputs. If scheduler observation fails
+or times out, indexes still show recorded jobs and available streams, marking live
+state unavailable. Missing or expired scheduler state never establishes inactivity.
+Use the displayed `run TASK --dry-run --details` command for the planner's Next
+action and reason; that separate preview retains its normal image-acquisition and
+planning behavior. Human-readable reports are the supported interface, not a stable
+machine-readable schema.
 
 ## Containers
 
