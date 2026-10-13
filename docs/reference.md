@@ -50,8 +50,14 @@ a leading digit or dot. Supplied aliases and keys must be nonempty strings;
 whitespace, trailing newlines, and other characters are rejected without
 normalization. Double underscores are allowed. Duplicate Task names and duplicate
 public job names (`Task_name__local_target`) are authoring errors identifying both
-declarations; qualification never repairs collisions. A Task name may equal a
-public job name. Local target and lifecycle job names remain unchanged.
+declarations; qualification never repairs collisions. A Task name must also differ
+from every public computation, preparation, and completion job name, regardless of
+declaration order. For example, a Task named `sample__copy` conflicts with the
+`copy` target in Task `sample`; `sample__gwflow_prepare` and
+`sample__gwflow_complete` conflict with that Task's lifecycle jobs. The error
+identifies the conflicting name and both Tasks and factories so the relevant alias,
+key, or local target name can be changed. Local target and lifecycle job names
+remain unchanged.
 
 Each factory call produces an independent definition, and registration snapshots
 it. Later edits cannot change registered work. Nested decorated factories use the

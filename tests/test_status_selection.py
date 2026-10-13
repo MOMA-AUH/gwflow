@@ -32,14 +32,21 @@ class StatusSelectionTests(LocalBackendTestCase):
             self.assertIn("Unmatched Task selectors", output)
             self.assertIn(repr(selector), output)
 
-    def test_names_that_overlap_groups_or_public_jobs_still_select_only_tasks(self):
-        self.append_workflow("gwf.task(mapping(), key='A__compute')\n"
+    def test_task_job_overlap_is_rejected_before_status_selection(self):
+        self.append_workflow("gwf.task(mapping(), key='A__compute')\n")
+        for options in ((), ("--details",)):
+            output = self.cli("status", "mapping__A__compute", *options, success=False)
+            self.assertIn("Task/public job name 'mapping__A__compute' collides", output)
+            self.assertIn("library.mapping", output)
+
+    def test_separator_names_without_job_overlap_select_only_tasks(self):
+        self.append_workflow("gwf.task(mapping(), key='A__compute_extra')\n"
                              "gwf.task(mapping(), alias='mapping__A__compute', key='Z')\n")
         for options in ((), ("--details",)):
-            self.assertEqual(self.names(self.cli("status", "mapping__A__compute", *options)),
-                             ["mapping__A__compute"])
+            self.assertEqual(self.names(self.cli("status", "mapping__A__compute_extra", *options)),
+                             ["mapping__A__compute_extra"])
         self.assertEqual(self.names(self.cli("status", "mapping__A__compute*")),
-                         ["mapping__A__compute", "mapping__A__compute__Z"])
+                         ["mapping__A__compute_extra", "mapping__A__compute__Z"])
         self.cli("status", "job:mapping__A__compute", success=False)
 
     def test_qualified_group_labels_are_display_only(self):

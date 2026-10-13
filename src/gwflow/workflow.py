@@ -224,6 +224,11 @@ class Workflow(GwfWorkflow):
         names = {f"{name}__{local}" for local in lifecycle_jobs(snapshot.targets)}
         for previous_name, previous in self._task_declarations.items():
             previous_names = {f"{previous_name}__{local}" for local in lifecycle_jobs(previous.targets)}
+            if name in previous_names or previous_name in names:
+                collision = name if name in previous_names else previous_name
+                raise WorkflowError(f"Task/public job name {collision!r} collides between "
+                                    f"Task {previous_name!r} ({self._task_naming[previous_name].factory}) "
+                                    f"and Task {name!r} ({factory})")
             collisions = names & previous_names
             if collisions:
                 raise WorkflowError(f"Public job name {sorted(collisions)[0]!r} collides between "
