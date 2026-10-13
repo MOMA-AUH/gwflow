@@ -49,7 +49,7 @@ class GroupedStatusTests(LocalBackendTestCase):
                 output = self.cli("status", *options)
                 self.assertIn("4 of 4 Tasks selected", output)
                 for name in ("mapping__A", "remapping__B", "mapping__C", "mapping"):
-                    self.assertRegex(output, rf"(?m)^Task {name}\s+pending\s+0/3")
+                    self.assertRegex(output, rf"(?m)^{name}\s+pending\s+0/3")
                 self.assertNotIn("Reusable", output)
                 self.assertEqual(output.count("[preparation]"), 4 if "--details" in options else 0)
         output = self.cli("status", "mapping__A")
@@ -95,7 +95,7 @@ class GroupedStatusTests(LocalBackendTestCase):
                     record.unlink(missing_ok=True)
                     output = self.cli("-b", "recovery_fixture", "status", *options, env=environment)
                     if "*" in options or "--details" in options:
-                        self.assertRegex(output, rf"Task mapping__A\s+{state}\s+2/3")
+                        self.assertRegex(output, rf"(?m)^mapping__A\s+{state}\s+2/3")
                         self.assertNotIn("1 active", output)
                     else:
                         self.assertIn("1 active", output)
@@ -180,7 +180,7 @@ class GroupedStatusTests(LocalBackendTestCase):
         self.assertRegex(output, r"(?m)^sample\s+0/1\s+1 blocked$")
         self.assertIn("Workflow blocked", output)
         output = self.cli("status", "*")
-        self.assertRegex(output, r"Task sample\s+blocked\s+\?/5")
+        self.assertRegex(output, r"(?m)^sample\s+blocked\s+\?/5")
         # A separate rejected computation has no checked completion evidence.
         self.configure_workflow()
         self.cli("-b", "recovery_fixture", "run",
@@ -219,5 +219,5 @@ class GroupedStatusTests(LocalBackendTestCase):
         self.assertNotIn("Reusable", output)
         output = self.cli("status", "consumer", "--status", "pending")
         self.assertIn("1 of 5 Tasks selected", output)
-        self.assertRegex(output, r"(?m)^Task consumer\s+pending\s+0/3")
-        self.assertNotIn("Task mapping__A", output)
+        self.assertRegex(output, r"(?m)^consumer\s+pending\s+0/3")
+        self.assertNotRegex(output, r"(?m)^mapping__A\s")

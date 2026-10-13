@@ -30,7 +30,7 @@ class TaskPresentationTests(LocalBackendTestCase):
                 self.assertNotIn("Submitted target", result.stderr)
                 details = self.cli_result(*command, "--details", success=success).stdout
                 if command[0] == "status":
-                    self.assertRegex(details, r"Task sample\s+blocked\s+\?/5")
+                    self.assertRegex(details, r"(?m)^sample\s+blocked\s+\?/5")
                     self.assertRegex(details, r"left\s+unknown")
                     self.assertNotIn("missing.sif", details)
                 else:
@@ -59,7 +59,7 @@ class TaskPresentationTests(LocalBackendTestCase):
                 detailed = self.cli_result(*command, "--details", success=success).stdout
                 if command[0] == "status":
                     self.assertNotIn(str(damaged), detailed)
-                    self.assertRegex(detailed, r"Task sample\s+blocked\s+5/5")
+                    self.assertRegex(detailed, r"(?m)^sample\s+blocked\s+5/5")
                 else:
                     self.assertIn(str(damaged), detailed)
                     self.assertIn("State: blocked; Jobs completed: 5/5", detailed)
@@ -74,7 +74,7 @@ class TaskPresentationTests(LocalBackendTestCase):
                 result = self.cli_result(*command, "--details")
                 output = result.stdout
                 if command[0] == "status":
-                    self.assertRegex(output, r"Task sample\s+reusable\s+5/5")
+                    self.assertRegex(output, r"(?m)^sample\s+reusable\s+5/5")
                 else:
                     self.assertIn("State: reusable; Jobs completed: 5/5", output)
                 jobs = ["[preparation]", "left", "right", "join", "[completion]"]
@@ -199,7 +199,7 @@ class TaskPresentationTests(LocalBackendTestCase):
         for command in (("status",), ("run", "--dry-run")):
             output = self.cli_result(*command, "--details").stdout
             if command[0] == "status":
-                self.assertRegex(output, r"Task sample\s+pending\s+0/5")
+                self.assertRegex(output, r"(?m)^sample\s+pending\s+0/5")
                 self.assertNotIn("Attempt:", output)
             else:
                 self.assertIn("State: pending; Jobs completed: 0/5", output)
@@ -210,7 +210,7 @@ class TaskPresentationTests(LocalBackendTestCase):
         test_fresh.FreshAttemptTests.configure_workflow(self)
         for command in (("status",), ("run", "--dry-run")):
             output = self.cli_result(*command, "--details").stdout
-            prefix = "Task " if command[0] == "status" else "Details for Task "
+            prefix = "\n" if command[0] == "status" else "Details for Task "
             positions = [output.index(prefix + name) for name in ("a", "b", "c")]
             for first, last in zip(positions, [*positions[1:], len(output)]):
                 section = output[first:last]

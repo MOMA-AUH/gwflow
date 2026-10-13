@@ -85,7 +85,7 @@ class SharedInputObservationTests(RegistryTestCase):
             [{"pass": 0, "after": "planned", "remove": [str(alias)], "symlink": {str(alias): str(other)}}],
         )
         self.assertNotIn("blocked", first["output"].lower())
-        self.assertRegex(second["output"], r"Task sample0\s+blocked")
+        self.assertRegex(second["output"], r"(?m)^sample0\s+blocked")
         self.assertIn("External input points into managed storage", self.cli("run", "--dry-run", "--details", success=False))
 
     def test_missing_local_image_does_not_poison_later_acquisition_in_same_pass(self):
@@ -96,8 +96,8 @@ class SharedInputObservationTests(RegistryTestCase):
         workflow = self.work / "workflow.py"
         workflow.write_text(workflow.read_text().replace(repr(self.reference), repr(str(image)), 1))
         first, second = self.scenario([["status", "--details"], ["status", "--details"]], [])
-        self.assertRegex(first["output"], r"Task sample0\s+blocked")
-        self.assertRegex(first["output"], r"Task sample1\s+pending\s+0/3")
+        self.assertRegex(first["output"], r"(?m)^sample0\s+blocked")
+        self.assertRegex(first["output"], r"(?m)^sample1\s+pending\s+0/3")
         self.assertNotIn("Blocked", second["output"])
         self.assertEqual(len(self.calls("pull")), 2)
 

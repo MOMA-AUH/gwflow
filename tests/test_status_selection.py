@@ -13,7 +13,7 @@ class StatusSelectionTests(LocalBackendTestCase):
     snapshot = test_grouped_status.GroupedStatusTests.snapshot
 
     def names(self, output):
-        return re.findall(r"(?m)^Task (\S+)\s+", output)
+        return re.findall(r"(?m)^(\S+)[ \t]+\w+[ \t]+[?\d]+/\d+", output)
 
     def append_workflow(self, source):
         path = self.work / "workflow.py"
@@ -24,7 +24,7 @@ class StatusSelectionTests(LocalBackendTestCase):
             with self.subTest(selector=selector):
                 output = self.cli("status", selector)
                 self.assertEqual(self.names(output), [selector])
-                self.assertRegex(output, rf"Task {selector}\s+pending\s+0/3")
+                self.assertRegex(output, rf"(?m)^{selector}\s+pending\s+0/3")
                 self.assertNotIn("[preparation]", output)
         for selector in ("remapping", "mapping@library.mapping", "task:mapping",
                          "job:mapping__A__compute", "mapping__A__gwflow_prepare"):
@@ -104,7 +104,7 @@ class StatusSelectionTests(LocalBackendTestCase):
             output = self.cli("status", "consumer", "--status", "pending", *options)
             self.assertEqual(self.names(output), ["consumer"])
             self.assertIn("1 of 5 Tasks selected", output)
-            self.assertRegex(output, r"Task consumer\s+pending\s+0/3")
+            self.assertRegex(output, r"(?m)^consumer\s+pending\s+0/3")
             self.assertEqual(output.count("[preparation]"), 1 if options else 0)
         self.assertIn("No Tasks selected", self.cli("status", "consumer", "--status", "failed"))
         self.cli("status", "*", "--status", "active", success=False)

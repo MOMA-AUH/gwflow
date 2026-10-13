@@ -63,7 +63,7 @@ class StatusAttentionTests(LocalBackendTestCase):
             r"All (blocked|failed|canceled) Tasks:\n  (gwflow [^\n]+)", output)}
 
     def names(self, output):
-        return re.findall(r"(?m)^Task (\S+)\s+", output)
+        return re.findall(r"(?m)^(\S+)[ \t]+\w+[ \t]+[?\d]+/\d+", output)
 
     def test_independent_caps_include_omitted_and_removed_job_observations(self):
         self.declarations([(alias, str(index), int(alias == 'failed' and index == 5), None)
@@ -111,7 +111,7 @@ class StatusAttentionTests(LocalBackendTestCase):
             expected = [f"{state}__{index}" for index in range(6)]
             if state == "blocked":
                 expected.append("blocked__image")
-                self.assertRegex(expanded, r"Task blocked__0\s+blocked\s+0/5")
+                self.assertRegex(expanded, r"(?m)^blocked__0\s+blocked\s+0/5")
             self.assertEqual(self.names(expanded), expected)
             self.assertNotIn("Needs attention", expanded)
             self.assertEqual(record.read_text().splitlines(), baseline)
@@ -218,7 +218,7 @@ class StatusAttentionTests(LocalBackendTestCase):
         command = self.commands(output)["blocked"]
         self.assertEqual(command, ["gwflow", "status", "*", "--status", "blocked"])
         expanded = self.cli(*command[1:])
-        self.assertRegex(expanded, r"Task mapping__A\s+blocked\s+\?/6")
+        self.assertRegex(expanded, r"(?m)^mapping__A\s+blocked\s+\?/6")
         for options in ((), ("--plain",)):
             output = self.terminal_cli("--no-color", "status", *options, width=40).stdout
             command = self.commands(output)["blocked"]
