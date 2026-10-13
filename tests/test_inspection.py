@@ -243,19 +243,24 @@ class LifecycleInspectionTests(LocalBackendTestCase):
         self.finish()
 
     def test_all_inspectors_wait_for_tracking_then_leave_evidence_unchanged(self):
+        commands = (("status",), ("run", "--dry-run"), ("clean",),
+                    ("logs",), ("logs", "--history"), ("logs", "a__compute", "--no-pager"),
+                    ("cancel", "a", "--dry-run"), ("cancel", "a"))
+        # Each CLI gets its own startup allowance; the held frontend must
+        # outlive all of them, including slow imports on shared filesystems.
         submitter, submitted = self.launch("-b", "recovery_fixture", "run",
-                                          env=self.inject(hold_tracking=True), filename="submitted")
+                                          env=self.inject(hold_tracking=True, tracking_timeout=20 * (len(commands) + 1)),
+                                          filename="submitted")
         inspectors = []
         try:
             self.wait_for((self.work / "tracking-held").exists)
             self.finish()
             before = self.snapshot()
-            for index, command in enumerate((("status",), ("run", "--dry-run"), ("clean",),
-                                             ("logs",), ("logs", "--history"), ("logs", "a__compute", "--no-pager"))):
+            for index, command in enumerate(commands):
                 process, output = self.launch(*command, filename=f"inspection-{index}")
                 inspectors.append((process, output))
                 self.wait_for(lambda: "Waiting for frontend" in output.read_text() or process.poll() is not None)
-                self.assertIsNone(process.poll(), output.read_text())
+                self.assertIsNone(process.poll(), output.read_text() + "\nSubmitting frontend:\n" + submitted.read_text())
                 self.assertNotIn("Task a:", output.read_text())
         finally:
             (self.work / "tracking-release").touch()

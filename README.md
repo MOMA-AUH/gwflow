@@ -95,6 +95,14 @@ for a selected group. Each index shows failures first and links to individual
 streams and the recovery preview. Add `--stderr` only when reading one job's log.
 Use `gwflow logs hello --history` to include earlier retries and attempts, marked
 as historical; a retry can create new job submissions within the same attempt.
+
+To stop a task's admitted jobs, preview with `gwflow cancel hello --dry-run`,
+then request with `gwflow cancel hello`. Selectors are required; `cancel '*'`
+explicitly addresses all tasks. Accepted requests may still be stopping, and
+partial failures return an error. Completed work and retained results stay
+protected. Once jobs are inactive, an ordinary `gwflow run hello` can retry or
+recover eligible work; there is no pause/resume step.
+
 To recompute `hello`, preview and request a fresh attempt:
 
 ```sh

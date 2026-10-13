@@ -1,7 +1,8 @@
 """Generation-specific admission and recovery over gwf's pinned backends.
 
 Only this module knows how gwf 2.1.1 persists job tracking. Inspecting evidence
-is read-only; restoration happens under the frontend guard during submission.
+is read-only; restoration happens under the frontend guard during submission
+or cancellation requests.
 """
 
 from dataclasses import dataclass
@@ -192,6 +193,12 @@ def observe_submissions(store, attempt, backend, name):
     return observations
 
 
+def observe_job(store, attempt, local, backend, name):
+    """Inspect one current admission independently of other jobs' evidence."""
+    intent = read_intent(store, attempt, local)
+    return _observe(store, attempt, backend, name, {local: intent})[local]
+
+
 def _observe(store, attempt, backend, name, intents):
     observations = {}
     for local, intent in intents.items():
@@ -295,6 +302,26 @@ def restore_tracking(backend, name, observations):
             if (observation.job_id is not None and observation.state != "uncertain"
                     and observation.intent["backend"] == backend_identity(backend, name)):
                 backend._tracked_jobs[observation.submission] = observation.job_id
+
+
+def require_cancellation_identity(backend, name, observation):
+    """Cancellation needs a known job identity, independently of live state."""
+    if observation.intent["backend"] != backend_identity(backend, name):
+        raise WorkflowError("recorded backend does not match the selected backend")
+    if observation.job_id is None:
+        raise WorkflowError("no recorded or tracked backend job ID")
+    target = Target(observation.submission, [], [], {})
+    tracked = backend.get_tracked_id(target) if hasattr(backend, "get_tracked_id") else None
+    if tracked is not None and tracked != observation.job_id:
+        raise WorkflowError("conflicting backend job IDs")
+
+
+def request_cancellation(backend, name, observation):
+    """Use verified admission identity without recording any inactivity claim."""
+    require_cancellation_identity(backend, name, observation)
+    if isinstance(backend, TrackingBackend):
+        backend._tracked_jobs[observation.submission] = observation.job_id
+    backend.cancel(Target(observation.submission, [], [], {}))
 
 
 def require_retry_inactive(observations, replaced):

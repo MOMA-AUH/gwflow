@@ -19,8 +19,8 @@ from gwf.backends.base import TrackingBackend
 from gwf.backends.local import Client, LocalStatus, LocalOps
 
 
-def wait_for(predicate):
-    deadline = time.monotonic() + 20
+def wait_for(predicate, timeout=20):
+    deadline = time.monotonic() + timeout
     while not predicate():
         if time.monotonic() > deadline:
             raise RuntimeError("timed out waiting for fixture coordination")
@@ -42,6 +42,8 @@ class RecoveryBackend(TrackingBackend):
                 time.sleep(60)
             socket.socket.connect = stalled_connect
         super().__init__(working_dir, name="local", ops=LocalOps(working_dir, "localhost", self.port, {}))
+        if self.options.get("identity_host"):
+            self.ops.host = self.options["identity_host"]
         self.submitted = False
 
     @property
@@ -96,7 +98,21 @@ class RecoveryBackend(TrackingBackend):
             raise KeyboardInterrupt
 
     def get_tracked_id(self, target):
-        return super().get_tracked_id(target)
+        tracked = super().get_tracked_id(target)
+        prefix = self.options.get("conflicting_tracking_prefix")
+        if prefix and target.name.startswith(prefix + "__") and tracked is not None:
+            return tracked + 10000
+        return tracked
+
+    def cancel(self, target):
+        if self.options.get("record_cancellations"):
+            with (self.work / "cancellation-requests.jsonl").open("a") as stream:
+                stream.write(json.dumps(target.name) + "\n")
+        prefix = self.options.get("reject_cancel_prefix")
+        if prefix and target.name.startswith(prefix + "__"):
+            raise RuntimeError("injected cancellation rejection")
+        if not self.options.get("accept_cancel_only"):
+            super().cancel(target)
 
     def __enter__(self):
         type(self).active = True
@@ -106,7 +122,8 @@ class RecoveryBackend(TrackingBackend):
         try:
             if self.submitted and self.options.get("hold_tracking"):
                 (self.work / "tracking-held").touch()
-                wait_for(lambda: (self.work / "tracking-release").exists())
+                wait_for(lambda: (self.work / "tracking-release").exists(),
+                         timeout=self.options.get("tracking_timeout", 20))
             transition = self.options.get("fail_after_observation")
             if transition and not (self.work / "transition-done").exists():
                 # Release an actually running job into failure after planning's

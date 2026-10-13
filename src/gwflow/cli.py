@@ -12,6 +12,7 @@ from gwf.plugins.config import config
 from gwf.utils import find_workflow
 
 from ._frontend import ManagedContext
+from .cancel import cancel
 from .clean_work import clean_work
 from .logs import logs
 from .run import run
@@ -47,5 +48,5 @@ def main(ctx, file, backend, verbose, no_color):
                              workflow_file=path, workflow_obj=obj_name)
 
 
-for command in (run, status, logs, clean_work, config, workers):
+for command in (run, status, logs, cancel, clean_work, config, workers):
     main.add_command(command)
