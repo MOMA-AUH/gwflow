@@ -1,6 +1,6 @@
 # Cancel admitted work without pausing Tasks
 
-For v0.6.2, managed Cancellation extends the backend-only cancellation boundary
+For v0.7.0, managed Cancellation extends the backend-only cancellation boundary
 in [ADR 0007](0007-give-managed-workflows-a-dedicated-cli.md), requesting that
 admitted computation and lifecycle jobs stop while preserving valid completed
 work, retained outputs, and recovery evidence. A later ordinary run may retry
@@ -8,13 +8,13 @@ eligible work through the existing inactivity and recovery checks, avoiding a
 separate pause/resume lifecycle. Issuing a cancellation request alone never
 establishes job inactivity.
 
-Cancellation requests address the selected Tasks. For v0.6.2, dependent-job
+Cancellation requests address the selected Tasks. For v0.7.0, dependent-job
 handling remains the backend's responsibility, without an explicit downstream
 expansion option. This keeps the command focused on selecting work to stop;
 backend observations still determine when affected jobs are inactive.
 
 Cancellation addresses the admitted computation and lifecycle jobs of each
-selected Task's current recorded attempt. v0.6.2 does not add selection of older
+selected Task's current recorded attempt. v0.7.0 does not add selection of older
 attempts: normal replacement already requires the preceding attempt to be
 inactive, and querying older scheduler records can introduce irrelevant
 uncertainty after those records expire. Earlier attempts remain available for
@@ -44,6 +44,6 @@ without reporting a partially addressed request as wholly successful.
 
 The command returns after reporting backend request outcomes, without polling
 for confirmed inactivity. Its report distinguishes cancellation requests from
-confirmed stopped jobs and makes clear when jobs may still be stopping. v0.6.2
+confirmed stopped jobs and makes clear when jobs may still be stopping. v0.7.0
 does not add waiting or timeout options; recovery and cleanup retain their
 existing inactivity checks.
