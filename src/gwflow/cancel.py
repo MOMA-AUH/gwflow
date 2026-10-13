@@ -43,11 +43,11 @@ def cancel(ctx, selectors, dry_run):
                         click.echo(f"Task {name}: no admitted work to cancel{removed}")
                         continue
                     click.echo(f"Task {name}: current attempt {attempt['attempt']}{removed}")
-                    requested = False
+                    has_requestable_jobs = False
                     task_errors = False
                     for local in lifecycle_jobs(ordered_targets(attempt["structure"])):
                         try:
-                            item = admission.observe_job(store, attempt, local, backend, ctx.backend)
+                            item = admission.observe_cancellation(store, attempt, local, backend, ctx.backend)
                         except Exception as error:
                             click.echo(f"  {name}__{local}: Unresolved job identity: {error}; no request")
                             errors += 1
@@ -72,7 +72,7 @@ def cancel(ctx, selectors, dry_run):
                                 errors += 1
                                 task_errors = True
                                 continue
-                            requested = True
+                            has_requestable_jobs = True
                             if dry_run:
                                 click.echo(f"  {label}; Would request cancellation (backend job {item.job_id})")
                                 continue
@@ -83,7 +83,7 @@ def cancel(ctx, selectors, dry_run):
                                 errors += 1
                             else:
                                 click.echo(f"  {label}; Cancellation requested; job may still be stopping (backend job {item.job_id})")
-                    if not requested:
+                    if not has_requestable_jobs:
                         click.echo("  No cancellation requests sent" if task_errors else "  No admitted work to cancel")
     except OSError as error:
         raise click.ClickException(str(error)) from error

@@ -78,6 +78,17 @@ class CancellationTests(LocalBackendTestCase):
             self.assertTrue(any(name.startswith("sample__gwflow_complete__") for name in requested))
             self.assertEqual(self.snapshot(), before)
             (self.work / "cancellation-requests.jsonl").unlink()
+            environment = self.inject(fail_status_prefix="sample__right", record_cancellations=True,
+                                      accept_cancel_only=True)
+            preview = self.cli("-b", "recovery_fixture", "cancel", "sample", "--dry-run", env=environment)
+            self.assertEqual(preview.count("Would request cancellation"), 3, preview)
+            output = self.cli("-b", "recovery_fixture", "cancel", "sample", env=environment)
+            self.assertEqual(output.count("Cancellation requested"), 3, output)
+            requested = [json.loads(line) for line in (self.work / "cancellation-requests.jsonl").read_text().splitlines()]
+            self.assertEqual(len(requested), 3)
+            self.assertTrue(any(name.startswith("sample__right__") for name in requested))
+            self.assertEqual(self.snapshot(), before)
+            (self.work / "cancellation-requests.jsonl").unlink()
             environment = self.inject(identity_host="different-worker", record_cancellations=True, accept_cancel_only=True)
             output = self.cli("-b", "recovery_fixture", "cancel", "sample", env=environment, success=False)
             self.assertEqual(output.count("recorded backend does not match the selected backend"), 3, output)

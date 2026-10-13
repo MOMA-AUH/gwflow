@@ -193,13 +193,13 @@ def observe_submissions(store, attempt, backend, name):
     return observations
 
 
-def observe_job(store, attempt, local, backend, name):
-    """Inspect one current admission independently of other jobs' evidence."""
+def observe_cancellation(store, attempt, local, backend, name):
+    """Resolve one current admission even when its live state is unavailable."""
     intent = read_intent(store, attempt, local)
-    return _observe(store, attempt, backend, name, {local: intent})[local]
+    return _observe(store, attempt, backend, name, {local: intent}, tolerate_state_errors=True)[local]
 
 
-def _observe(store, attempt, backend, name, intents):
+def _observe(store, attempt, backend, name, intents, *, tolerate_state_errors=False):
     observations = {}
     for local, intent in intents.items():
         if intent is None:
@@ -215,12 +215,18 @@ def _observe(store, attempt, backend, name, intents):
         same_backend = backend is not None and intent["backend"] == backend_identity(backend, name)
         if same_backend:
             tracked_id = backend.get_tracked_id(target) if hasattr(backend, "get_tracked_id") else None
-            state = backend.status(target)
         saved_id = ack.get("job_id") if ack else None
         mismatch = tracked_id is not None and saved_id is not None and tracked_id != saved_id
         job_id = saved_id if saved_id is not None else tracked_id
-        if same_backend and tracked_id is None and job_id is not None and isinstance(backend, TrackingBackend):
-            state = backend.ops.get_job_states([job_id]).get(job_id, BackendStatus.UNKNOWN)
+        if same_backend:
+            try:
+                state = backend.status(target)
+                if tracked_id is None and job_id is not None and isinstance(backend, TrackingBackend):
+                    state = backend.ops.get_job_states([job_id]).get(job_id, BackendStatus.UNKNOWN)
+            except Exception:
+                if not tolerate_state_errors:
+                    raise
+                state = BackendStatus.UNKNOWN
         if mismatch:
             status = "uncertain"
         elif state in (BackendStatus.SUBMITTED, BackendStatus.RUNNING):
