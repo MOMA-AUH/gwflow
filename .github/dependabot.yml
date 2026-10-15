@@ -7,8 +7,12 @@ updates:
       - "/examples/packaged/packages/summary-task"
     schedule:
       interval: weekly
+    assignees:
+      - micknudsen
 
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
       interval: weekly
+    assignees:
+      - micknudsen
