@@ -122,7 +122,6 @@ class ContainerRecoveryTests(LocalBackendTestCase):
         self.assertNotIn("Submitted target", self.cli("run"))
 
     def test_unavailable_image_blocks_repair_and_changed_image_requires_fresh_computation(self):
-        self.configure(use_spec_hashes=False)
         self.failure.unlink()
         self.run_complete()
         attempt = self.attempt()
@@ -169,7 +168,6 @@ class ContainerRecoveryTests(LocalBackendTestCase):
         self.assertNotIn("Submitted target", self.cli("run"))
 
     def test_protected_dependents_block_retry_and_image_changes_refresh_successful_siblings(self):
-        self.configure(use_spec_hashes=False)
         self.cli("run")
         self.settle()
         attempt = self.attempt()

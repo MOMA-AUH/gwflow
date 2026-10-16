@@ -177,7 +177,6 @@ class ContainerStagingTests(LocalBackendTestCase):
                 write_workflow(self.work, sources, command=command, stage_as=layout)
                 self.assertNotIn("Submitted target", self.cli("run"))
                 self.assertEqual(self.attempt(), previous)
-        self.configure(use_spec_hashes=False)
         write_workflow(self.work, sources, command=command, stage_as={"new dir/input.txt": "input.txt"})
         before = self.snapshot()
         for arguments in (("run", "--dry-run", "--details"), ("status", "--details"), ("run", "--dry-run", "--details")):

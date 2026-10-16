@@ -22,6 +22,9 @@ def load_workflow(ctx):
     workflow = GwfWorkflow.from_context(ctx)
     if not isinstance(workflow, Workflow):
         raise WorkflowError("Managed commands require a gwflow.Workflow; use gwf for ordinary workflows.")
+    if not ctx.config.get("use_spec_hashes"):
+        raise WorkflowError("Managed command tracking is mandatory; remove use_spec_hashes=false with "
+                            "'gwflow config unset use_spec_hashes'.")
     return workflow
 
 

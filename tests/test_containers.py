@@ -122,8 +122,7 @@ class ContainerRuntimeTests(LocalBackendTestCase):
                 for root in (self.work / ".gwf/gwflow", self.work / "work", self.work / "results")
                 for path in root.rglob("*") if path.is_file()}
 
-    def test_image_metadata_changes_require_fresh_attempt_without_command_tracking(self):
-        self.configure(use_spec_hashes=False)
+    def test_image_metadata_changes_require_fresh_attempt_with_unchanged_commands(self):
         self.run_complete()
         for change in ("size", "mtime", "path"):
             with self.subTest(change=change):
@@ -287,7 +286,6 @@ class ContainerRuntimeTests(LocalBackendTestCase):
         self.assertIn("Reuse", self.cli("run", "--dry-run"))
 
     def test_image_changes_after_cleanup_still_require_fresh_attempt(self):
-        self.configure(use_spec_hashes=False)
         self.run_complete()
         attempt = self.attempt()
         self.cli("clean", "--delete")

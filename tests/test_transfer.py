@@ -66,6 +66,19 @@ class TransferRecoveryTests(LocalBackendTestCase):
     def test_installed_transfer_finishes_completion_after_work_removal(self):
         self.installed_interruption("crash_after_results_install")
 
+    def test_command_edit_replaces_pending_finishing_with_fresh_computation(self):
+        self.cli("-b", "recovery_fixture", "run", env=self.fault(crash_after_manifest=True))
+        self.settle()
+        before = self.attempt()
+        workflow = self.work / "workflow.py"
+        workflow.write_text(workflow.read_text().replace("printf first", "printf changed"))
+        self.assertIn("changed commands", self.cli("run", "--dry-run"))
+        self.cli("run")
+        self.settle()
+        self.assertNotEqual(self.attempt(), before)
+        self.assertEqual((self.work / "results/samples/a/report/renamed.txt").read_text(), "changed")
+        self.assertEqual((self.work / "trace").read_text().splitlines(), ["compute", "compute"])
+
     def test_interruption_before_completion_rechecks_installed_set(self):
         self.installed_interruption("crash_before_completion")
 

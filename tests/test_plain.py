@@ -82,3 +82,13 @@ class PlainWorkflowTests(LocalBackendTestCase):
         self.cli("run", "selected")
         self.finish()
         self.assertIn("Submitted target selected", self.cli("run", "selected", "--force"))
+
+    def test_ordinary_command_tracking_remains_optional(self):
+        self.cli("run", "selected")
+        self.finish()
+        workflow = self.work / "workflow.py"
+        workflow.write_text(workflow.read_text().replace("echo log-message", "echo changed-command"))
+        self.assertNotIn("Submitted target", self.cli("run", "selected"))
+        self.configure(use_spec_hashes=False)
+        self.assertNotIn("Submitted target", self.cli("run", "selected"))
+        self.assertIn("log-message", self.cli("logs", "selected", "--no-pager"))

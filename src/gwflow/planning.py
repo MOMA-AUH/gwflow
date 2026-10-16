@@ -28,7 +28,7 @@ def tracked_commands_match(store, attempt, commands):
                and store.execution(attempt, local)["command"] == commands[local] for local in commands)
 
 
-def definition_change(store, observation, observations_by_name, *, force_option, tracking, initializing):
+def definition_change(store, observation, observations_by_name, *, force_option, initializing):
     attempt = observation.attempt
     if force_option:
         return f"requested {force_option}"
@@ -43,14 +43,13 @@ def definition_change(store, observation, observations_by_name, *, force_option,
             return f"producer {producer} will start a fresh attempt; expected producer attempt was {expected}"
         if upstream.attempt["attempt"] != expected:
             return f"producer {producer} attempt changed: expected {expected}, current {upstream.attempt['attempt']}"
-    if tracking:
-        changed = [local for local, command in observation.commands.items() if command != attempt["commands"][local]]
-        if changed:
-            return "changed commands: " + ", ".join(changed)
-        if not attempt["command_tracking"]:
-            return "command tracking enabled; previous commands were not tracked"
-        if not initializing and not tracked_commands_match(store, attempt, observation.commands):
-            return "selected execution commands differ or lack a tracked baseline"
+    changed = [local for local, command in observation.commands.items() if command != attempt["commands"][local]]
+    if changed:
+        return "changed commands: " + ", ".join(changed)
+    if not attempt["command_tracking"]:
+        return "command tracking required; previous commands were not tracked"
+    if not initializing and not tracked_commands_match(store, attempt, observation.commands):
+        return "selected execution commands differ or lack a tracked baseline"
     return None
 
 
@@ -242,7 +241,7 @@ def plan_workflow(workflow, ctx, *, selectors=(), force=False):
                         observation.action, observation.reason = "blocked", "unresolved submission: " + ", ".join(uncertain)
                     elif change := definition_change(store, observation, observations_by_name,
                                                       force_option="--force" if force and name in selected_names else None,
-                                                      tracking=ctx.config.get("use_spec_hashes"), initializing=initializing):
+                                                      initializing=initializing):
                         fresh_observation(store, observation, change)
                     elif initializing:
                         observation.restart_required = True

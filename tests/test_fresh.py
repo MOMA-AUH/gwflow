@@ -351,8 +351,7 @@ class FreshAttemptTests(LocalBackendTestCase):
         self.assertEqual((self.work / "results/a/extras/two.txt").read_text(), "two")
         self.assertEqual(Counter((self.work / "trace").read_text().splitlines()), {"a": 2, "b": 1, "c": 2})
 
-    def test_enabled_command_changes_refresh_and_disabling_tracking_reuses(self):
-        self.configure(use_spec_hashes=True)
+    def test_command_changes_refresh_without_configuration(self):
         self.run_complete()
         workflow = self.work / "workflow.py"
         workflow.write_text(workflow.read_text().replace("printf a >", "printf updated >"))
@@ -360,11 +359,37 @@ class FreshAttemptTests(LocalBackendTestCase):
         self.finish()
         self.assertEqual((self.work / "results/c/result.txt").read_text(), "updated")
         before = self.attempts()
-        self.configure(use_spec_hashes=False)
-        workflow.write_text(workflow.read_text().replace("printf updated >", "printf third >"))
         self.cli("run")
         self.assertEqual(self.attempts(), before)
         self.assertEqual((self.work / "results/c/result.txt").read_text(), "updated")
+        self.assertEqual(Counter((self.work / "trace").read_text().splitlines()), {"a": 2, "b": 1, "c": 2})
+        self.cli("clean", "--delete")
+        self.assertNotIn("Submitted target", self.cli("run"))
+        self.assertEqual(self.attempts(), before)
+        workflow.write_text(workflow.read_text().replace("printf updated >", "printf after_cleanup >"))
+        self.run_complete()
+        self.assertNotEqual(self.attempts()["a"], before["a"])
+        self.assertEqual((self.work / "results/c/result.txt").read_text(), "after_cleanup")
+        self.assertEqual(Counter((self.work / "trace").read_text().splitlines()), {"a": 3, "b": 1, "c": 3})
+
+    def test_disabling_tracking_refuses_work_and_explains_configuration_removal(self):
+        self.run_complete()
+        before = self.attempts()
+        workflow = self.work / "workflow.py"
+        workflow.write_text(workflow.read_text().replace("printf a >", "printf changed >"))
+        self.configure(use_spec_hashes=False)
+        for arguments in (("run",), ("run", "--dry-run"), ("run", "--force"), ("status",)):
+            with self.subTest(arguments=arguments):
+                output = self.cli(*arguments, success=False)
+                self.assertIn("command tracking is mandatory", output)
+                self.assertIn("gwflow config unset use_spec_hashes", output)
+                self.assertNotIn("Submitted target", output)
+                self.assertNotIn("Traceback", output)
+                self.assertEqual((self.work / "results/a/result.txt").read_text(), "a")
+        self.cli("config", "unset", "use_spec_hashes")
+        self.assertEqual(self.attempts(), before)
+        self.run_complete()
+        self.assertEqual((self.work / "results/c/result.txt").read_text(), "changed")
 
     def test_failed_fresh_computation_does_not_restore_old_results(self):
         self.run_complete()
