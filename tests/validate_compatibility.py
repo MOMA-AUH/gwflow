@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import shlex
 import shutil
 import subprocess
 import sys
@@ -16,9 +17,14 @@ from gwf.backends.local import Client, LocalStatus
 
 from support import FIXTURES, LocalBackendTestCase
 from test_managed_recovery import ManagedCoordinationTests
+from test_graphs import TaskGraphTests
+from test_inputs import ExternalInputTests
+from test_transfer import TransferRecoveryTests
+from test_repair import ResultsRepairTests
+from test_recovery import OperatorRecoveryTests
 
 
-class CompletedCompatibilityTests(LocalBackendTestCase):
+class InstalledCompatibilityTests(LocalBackendTestCase):
     def inject(self, **options):
         ManagedCoordinationTests.inject(self, **options)
         return {**self.environment, "PYTHONPATH": str(self.work)}
@@ -32,9 +38,6 @@ class CompletedCompatibilityTests(LocalBackendTestCase):
         work.mkdir()
         return work
 
-    def configure_workflow(self):
-        shutil.copy(FIXTURES / "compatibility_workflow.py", self.work / "workflow.py")
-
     def select_installation(self, side):
         self.side = side
         self.executable = str(Path(self.installations[side]["executable"]).with_name("gwflow"))
@@ -47,7 +50,8 @@ class CompletedCompatibilityTests(LocalBackendTestCase):
 
     def record(self, event):
         with (self.root / "transcript.jsonl").open("a") as stream:
-            stream.write(json.dumps({"time": time.time(), "side": self.side, **event}) + "\n")
+            stream.write(json.dumps({"time": time.time(), "test": self._testMethodName,
+                                     "side": self.side, **event}) + "\n")
 
     def cli_result(self, *args, success=True, env=None):
         result = super().cli_result(*args, success=success, env=env or self.environment)
@@ -61,6 +65,11 @@ class CompletedCompatibilityTests(LocalBackendTestCase):
             "size": path.stat().st_size, "mtime_ns": path.stat().st_mtime_ns,
         } for directory in (".gwf/gwflow", "results")
                 for path in (self.work / directory).rglob("*") if path.is_file()}
+
+
+class CompletedCompatibilityTests(InstalledCompatibilityTests):
+    def configure_workflow(self):
+        shutil.copy(FIXTURES / "compatibility_workflow.py", self.work / "workflow.py")
 
     def test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer(self):
         names = ("completed", "cleaned", "recovered")
@@ -138,6 +147,319 @@ class CompletedCompatibilityTests(LocalBackendTestCase):
         self.record({"task": task, "runtime": runtime})
 
 
+class IncompleteCompatibilityTests(InstalledCompatibilityTests):
+    settle = TaskGraphTests.settle
+
+    def setUp(self):
+        self.history = {}
+        super().setUp()
+        self.environment["PYTHONPATH"] = str(self.work)
+        self.configure(backend="recovery_fixture")
+        self.inject()
+
+    def inject(self, **options):
+        return super().inject(**{"record_acceptances": True, "submission_states": self.history, **options})
+
+    def handoff(self, *external_roots):
+        self.settle()
+        with Client.connect(port=self.port) as client:
+            states = client.status()
+        self.assertTrue(states and all(state in (LocalStatus.COMPLETED, LocalStatus.FAILED,
+                                                LocalStatus.CANCELLED, LocalStatus.KILLED)
+                                       for state in states.values()), states)
+        accepted = [json.loads(line) for line in (self.work / "backend-acceptances.jsonl").read_text().splitlines()]
+        self.history = {job["name"]: ("FAILED" if states[str(job["id"])] == LocalStatus.KILLED
+                                     else states[str(job["id"])].name) for job in accepted}
+        self.assertEqual({str(job["id"]) for job in accepted}, set(states))
+        self.workflow_before = (self.work / "workflow.py").read_bytes()
+        self.storage_before = {str(path): {"device": path.stat().st_dev, "inode": path.stat().st_ino}
+                               for path in (self.work, self.work / "work", self.work / "results",
+                                            self.work / ".gwf/gwflow", *external_roots) if path.exists()}
+        before = self.snapshot()
+        self.stop_worker(self.worker)
+        self.assertIsNotNone(self.worker.poll())
+        self.record({"all_jobs_inactive": True, "worker_exit": self.worker.returncode,
+                     "job_states": {str(job): state.name for job, state in states.items()},
+                     "accepted_submissions": accepted, "replayed_terminal_states": self.history,
+                     "storage": self.storage_before, "snapshot": before})
+        self.select_installation("candidate")
+        self.environment["PYTHONPATH"] = str(self.work)
+        self.inject()
+        self.worker = self.start_worker()
+        self.cli("status", "--details")
+        self.assertEqual(self.snapshot(), before)
+        self.assert_same_storage()
+
+    def assert_same_storage(self):
+        self.assertEqual((self.work / "workflow.py").read_bytes(), self.workflow_before)
+        for path, expected in self.storage_before.items():
+            self.assertEqual({"device": Path(path).stat().st_dev, "inode": Path(path).stat().st_ino}, expected)
+
+    def assert_preserved(self, attempts, counts, retained):
+        self.assertEqual(self.task_attempts(), attempts)
+        observed_counts = Counter((self.work / "trace").read_text().splitlines())
+        self.assertEqual(observed_counts, counts)
+        observed_outputs = {str(path): path.read_text() for path in retained}
+        self.assertEqual(observed_outputs, {str(path): content for path, content in retained.items()})
+        self.assert_same_storage()
+        self.assertNotIn("Submitted target", self.cli("run"))
+        self.record({"preserved_attempts": attempts, "computation_counts": dict(observed_counts),
+                     "retained_outputs": observed_outputs, "same_storage": self.storage_before,
+                     "unchanged_workflow_sha256": hashlib.sha256(self.workflow_before).hexdigest()})
+
+
+class PartialCompatibilityTests(IncompleteCompatibilityTests):
+    configure_workflow = TaskGraphTests.configure_workflow
+    interrupt_computation = OperatorRecoveryTests.interrupt_computation
+
+    def test_failed_branch_preserves_successful_sibling_across_upgrade(self):
+        failing = self.work / "fail-right"
+        failing.touch()
+        self.configure_workflow(right_command=(
+            f"echo right >> {shlex.quote(str(self.work / 'trace'))}; "
+            f"if [ -e {shlex.quote(str(failing))} ]; then exit 8; fi; printf right > same.txt"))
+        self.cli("run")
+        self.settle()
+        attempts = self.task_attempts()
+        self.assertEqual(Counter((self.work / "trace").read_text().splitlines()), {"left": 1, "right": 1})
+        self.handoff()
+        failing.unlink()
+        self.assertRegex(self.cli("run", "--dry-run"), r"Task sample\s+Retry\s+")
+        self.cli("run")
+        self.finish()
+        self.assert_preserved(attempts, {"left": 1, "right": 2, "join": 1},
+                              {self.work / "results/sample/result.txt": "leftright"})
+
+    def test_recorded_recovery_survives_upgrade_and_does_not_resolve_new_admissions(self):
+        self.interrupt_computation()
+        attempts = self.task_attempts()
+        output = self.cli("recover", "sample", env=self.inject(job_states={"sample": "UNKNOWN"}))
+        self.assertEqual(output.count("Resolved submission"), 3, output)
+        records = {path: path.read_bytes() for path in (self.work / ".gwf/gwflow").rglob("recovery.json")}
+        self.assertEqual(len(records), 3)
+        self.assertFalse((self.work / "results/sample").exists())
+        self.handoff()
+        self.history = dict.fromkeys(self.history, "UNKNOWN")
+        self.inject()
+        self.record({"expired_scheduler_history": self.history})
+        self.assertIn("No unresolved submissions", self.cli("recover", "sample"))
+        self.assertRegex(self.cli("run", "--dry-run"), r"Task sample\s+Retry\s+")
+        self.assertEqual((self.work / "trace").read_text().splitlines(), ["left"])
+        self.assertFalse((self.work / "results/sample").exists())
+        self.cli("run", env=self.inject(reject_prefix="sample__right"), success=False)
+        self.inject()
+        self.assertIn("unresolved submission", self.cli("run", success=False))
+        self.assertEqual({path: path.read_bytes() for path in records}, records)
+        output = self.cli("recover", "sample")
+        self.assertEqual(output.count("Resolved submission"), 1, output)
+        self.assertEqual(len(list((self.work / ".gwf/gwflow").rglob("recovery.json"))), 4)
+        self.cli("run")
+        self.finish()
+        self.assertEqual({path: path.read_bytes() for path in records}, records)
+        self.assert_preserved(attempts, {"left": 1, "right": 1, "join": 1},
+                              {self.work / "results/sample/result.txt": "leftright"})
+        self.record({"preserved_recovery_records": len(records), "new_recovery_records": 1})
+
+    def test_upgrade_preserves_command_and_input_invalidation_after_recovery(self):
+        workflow = self.work / "workflow.py"
+        original = workflow.read_text().replace("empty_task(inputs=[])", "empty_task(inputs=['input.txt'])")
+        workflow.write_text(original)
+        self.interrupt_computation()
+        attempts = self.task_attempts()
+        self.cli("recover", "sample", env=self.inject(job_states={"sample": "UNKNOWN"}))
+        self.handoff()
+        before = self.snapshot()
+        workflow.write_text(original.replace("printf right", "printf changed"))
+        self.assertIn("changed commands", self.cli("run", "--dry-run", "--details"))
+        self.assertEqual(self.snapshot(), before)
+        workflow.write_text(original)
+        (self.work / "input.txt").write_text("changed external input\n")
+        self.assertIn("input metadata changed", self.cli("run", "--dry-run", "--details"))
+        self.assertEqual(self.snapshot(), before)
+        self.cli("run")
+        self.finish()
+        self.assertNotEqual(self.task_attempts()["sample"], attempts["sample"])
+        counts = Counter((self.work / "trace").read_text().splitlines())
+        self.assertEqual(counts, {"left": 2, "right": 1, "join": 1})
+        self.assertEqual((self.work / "results/sample/result.txt").read_text(), "leftright")
+        self.assert_same_storage()
+        self.record({"changed_commands_require_fresh": True, "changed_inputs_require_fresh": True,
+                     "old_attempts": attempts, "new_attempts": self.task_attempts(), "computation_counts": dict(counts)})
+
+
+class PreparationCompatibilityTests(IncompleteCompatibilityTests):
+    fault = ExternalInputTests.fault
+
+    def configure_workflow(self):
+        ExternalInputTests.configure_workflow(self, command=(
+            "printf '%s\\n' {source} > alias.txt; cat {source} > {out}; "
+            f"echo read >> {shlex.quote(str(self.work / 'trace'))}"))
+
+    def preparation_interruption(self, phase):
+        self.cli("run", env=self.fault(**{phase: True}))
+        self.settle()
+        attempts = self.task_attempts()
+        self.assertFalse((self.work / "trace").exists())
+        inputs = {path: path.read_bytes() for path in (self.work / ".gwf/gwflow").rglob("*.json")
+                  if json.loads(path.read_text()).get("kind") == "gwflow.inputs"}
+        self.assertEqual(len(inputs), 1 if phase == "crash_after_baseline" else 0)
+        self.handoff()
+        self.assertRegex(self.cli("run", "--dry-run"), r"Task sample\s+Retry\s+")
+        self.cli("run")
+        self.finish()
+        self.assertEqual({path: path.read_bytes() for path in inputs}, inputs)
+        self.assert_preserved(attempts, {"read": 1}, {self.work / "results/sample/result.txt": "hello\n",
+                              self.work / "results/sample/alias.txt": str(self.work / "input.txt") + "\n"})
+
+    def test_interrupted_preparation_before_input_baseline_survives_upgrade(self):
+        self.preparation_interruption("crash_before_baseline")
+
+    def test_interrupted_preparation_preserves_accepted_input_baseline_across_upgrade(self):
+        self.preparation_interruption("crash_after_baseline")
+
+
+class FinishingCompatibilityTests(IncompleteCompatibilityTests):
+    configure_workflow = TransferRecoveryTests.configure_workflow
+    assert_results = TransferRecoveryTests.assert_results
+    fault = TransferRecoveryTests.fault
+    separate_filesystem = TransferRecoveryTests.separate_filesystem
+    add_consumer = TransferRecoveryTests.add_consumer
+    finishing_generation = ResultsRepairTests.finishing_generation
+
+    def finishing_interruption(self, phase):
+        self.cli("run", env=self.fault(**{phase: True}))
+        self.settle()
+        attempts = self.task_attempts()
+        self.assertEqual((self.work / "trace").read_text().splitlines(), ["compute"])
+        result = self.work / "results/samples/a/report"
+        installed = phase == "crash_after_results_install"
+        self.assertEqual(result.exists(), installed)
+        self.handoff(*([result] if installed else []))
+        preview = self.cli("run", "--dry-run")
+        self.assertRegex(preview, r"Task a\s+Finish\s+")
+        if phase == "crash_after_manifest":
+            self.assertIn("install prepared", preview)
+        if installed:
+            self.assertIn("finish checked installed", preview)
+        self.cli("run")
+        self.finish()
+        self.assert_results(result)
+        self.assert_preserved(attempts, {"compute": 1}, {result / "renamed.txt": "first",
+                                                       result / "nested/two.txt": "second"})
+
+    def test_partial_copy_survives_upgrade_without_computation(self):
+        self.finishing_interruption("crash_during_copy")
+
+    def test_prepared_installation_survives_upgrade_without_computation(self):
+        self.finishing_interruption("crash_after_manifest")
+
+    def test_installed_results_finish_completion_after_upgrade(self):
+        self.finishing_interruption("crash_after_results_install")
+
+    def test_interrupted_repair_preserves_computation_and_consumer_across_upgrade(self):
+        self.add_consumer()
+        self.run_complete()
+        attempts = self.task_attempts()
+        result = self.work / "results/samples/a/report"
+        (result / "renamed.txt").write_text("damaged retained set")
+        self.cli("run", env=self.fault(crash_during_copy=True))
+        self.settle()
+        generation = self.finishing_generation()
+        self.assertEqual((result / "renamed.txt").read_text(), "damaged retained set")
+        self.handoff()
+        self.assertRegex(self.cli("run", "--dry-run"), r"Task c\s+Defer\s+")
+        self.cli("run")
+        self.finish()
+        self.assertEqual(self.finishing_generation(), generation)
+        self.assert_results(result)
+        self.assert_preserved(attempts, {"compute": 1, "consumer": 1},
+                              {result / "renamed.txt": "first", result / "nested/two.txt": "second",
+                               self.work / "results/c/joined.txt": "firstsecond"})
+
+    def test_partial_copy_on_separate_filesystem_survives_upgrade(self):
+        remote = self.separate_filesystem()
+        self.configure_workflow(settings=f"results_root={str(remote / 'results')!r}, results_staging_root={str(remote / 'staging')!r}")
+        self.cli("run", env=self.fault(crash_during_copy=True))
+        self.settle()
+        attempts = self.task_attempts()
+        self.handoff(remote, remote / "results", remote / "staging")
+        self.assertNotEqual(remote.stat().st_dev, self.work.stat().st_dev)
+        self.assertRegex(self.cli("run", "--dry-run"), r"Task a\s+Finish\s+")
+        self.cli("run")
+        self.finish()
+        result = remote / "results/samples/a/report"
+        self.assert_results(result)
+        self.assert_preserved(attempts, {"compute": 1}, {result / "renamed.txt": "first",
+                                                       result / "nested/two.txt": "second"})
+
+    def test_missing_retained_output_remains_repairable_after_upgrade(self):
+        self.run_complete()
+        attempts = self.task_attempts()
+        result = self.work / "results/samples/a/report"
+        (result / "renamed.txt").unlink()
+        self.handoff()
+        self.assertRegex(self.cli("run", "--dry-run"), r"Task a\s+Repair\s+")
+        self.cli("run")
+        self.finish()
+        self.assert_results(result)
+        self.assert_preserved(attempts, {"compute": 1}, {result / "renamed.txt": "first",
+                                                       result / "nested/two.txt": "second"})
+
+    def test_missing_source_evidence_still_requires_fresh_attempt_after_upgrade(self):
+        self.run_complete()
+        attempts = self.task_attempts()
+        result = self.work / "results/samples/a/report"
+        (result / "renamed.txt").unlink()
+        next((self.work / ".gwf/gwflow").rglob("success.json")).unlink()
+        self.handoff()
+        self.assertRegex(self.cli("run", "--dry-run"), r"Task a\s+Run\s+")
+        self.cli("run")
+        self.finish()
+        self.assertNotEqual(self.task_attempts()["a"], attempts["a"])
+        self.assertEqual((self.work / "trace").read_text().splitlines(), ["compute", "compute"])
+        self.assert_results(result)
+        self.assert_same_storage()
+        self.record({"missing_source_evidence_requires_fresh": True, "old_attempts": attempts,
+                     "new_attempts": self.task_attempts(), "computation_counts": {"compute": 2}})
+
+    def test_uncertain_and_active_consumers_still_block_repair_after_upgrade(self):
+        self.run_complete()
+        self.add_consumer()
+        self.cli("run", env=self.inject(reject_prefix="c__gwflow_prepare"), success=False)
+        result = self.work / "results/samples/a/report/renamed.txt"
+        result.write_text("protected retained output")
+        self.handoff()
+        accepted = (self.work / "backend-acceptances.jsonl").read_bytes()
+        for options in ({}, {"running_prefix": "c"}):
+            output = self.cli("run", "a", env=self.inject(**options), success=False)
+            self.assertIn("Active consumers block replacement: c", output)
+            self.assertEqual(result.read_text(), "protected retained output")
+            self.assertEqual((self.work / "backend-acceptances.jsonl").read_bytes(), accepted)
+        self.assertEqual((self.work / "trace").read_text().splitlines(), ["compute"])
+        self.assert_same_storage()
+        self.record({"uncertain_consumer_blocks_repair": True, "active_consumer_blocks_repair": True,
+                     "protected_output": result.read_text(), "new_submissions": 0})
+
+    def test_insufficient_result_ownership_still_blocks_repair_after_upgrade(self):
+        self.run_complete()
+        result = self.work / "results/samples/a/report"
+        (result / "renamed.txt").unlink()
+        self.cli("run", env=self.inject(reject_before_admission=True), success=False)
+        result.rename(result.with_name("original"))
+        result.mkdir()
+        unowned = result / "unrelated.txt"
+        unowned.write_text("unowned content")
+        self.handoff()
+        accepted = (self.work / "backend-acceptances.jsonl").read_bytes()
+        self.assertIn("ownership", self.cli("run", success=False))
+        self.assertEqual(unowned.read_text(), "unowned content")
+        self.assertEqual((self.work / "backend-acceptances.jsonl").read_bytes(), accepted)
+        self.assertEqual((self.work / "trace").read_text().splitlines(), ["compute"])
+        self.assert_same_storage()
+        self.record({"insufficient_ownership_blocks_repair": True, "unowned_output": unowned.read_text(),
+                     "new_submissions": 0})
+
+
 def installed_environment(python, source):
     program = """
 import hashlib, importlib.metadata as m, json, pathlib, platform, sys
@@ -169,6 +491,7 @@ def main():
     parser.add_argument("--baseline-source", required=True, help="Exact baseline source commit or artifact identifier")
     parser.add_argument("--candidate-source", required=True, help="Exact candidate source commit or artifact identifier")
     parser.add_argument("--root", type=Path, required=True, help="New directory for persistent storage and raw evidence")
+    parser.add_argument("--test", action="append", help="Run only matching test names (glob; repeatable)")
     args = parser.parse_args()
     installations = {side: installed_environment(getattr(args, side + "_python"), getattr(args, side + "_source"))
                      for side in ("baseline", "candidate")}
@@ -177,8 +500,16 @@ def main():
     root = args.root.resolve()
     root.mkdir(parents=True, exist_ok=False)
     (root / "environment.json").write_text(json.dumps(installations, indent=2) + "\n")
-    case = type("InstalledCompatibility", (CompletedCompatibilityTests,), {"root": root, "installations": installations})
-    result = unittest.TextTestRunner(verbosity=2).run(unittest.defaultTestLoader.loadTestsFromTestCase(case))
+    loader = unittest.TestLoader()
+    loader.testNamePatterns = args.test
+    suite = unittest.TestSuite()
+    for base in (CompletedCompatibilityTests, PartialCompatibilityTests, PreparationCompatibilityTests,
+                 FinishingCompatibilityTests):
+        case = type(base.__name__, (base,), {"root": root, "installations": installations})
+        suite.addTests(loader.loadTestsFromTestCase(case))
+    if not suite.countTestCases():
+        parser.error("No compatibility tests matched")
+    result = unittest.TextTestRunner(verbosity=2).run(suite)
     (root / "summary.json").write_text(json.dumps({"run": result.testsRun, "failures": len(result.failures),
         "errors": len(result.errors), "skips": len(result.skipped)}, indent=2) + "\n")
     return 0 if result.wasSuccessful() and not result.skipped else 1

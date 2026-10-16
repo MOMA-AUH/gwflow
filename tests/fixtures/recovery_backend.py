@@ -67,6 +67,11 @@ class RecoveryBackend(TrackingBackend):
             return BackendStatus.SUBMITTED
         if self.options.get("running_prefix") and target.name.startswith(self.options["running_prefix"] + "__"):
             return BackendStatus.RUNNING
+        # A restarted local worker forgets history and reuses numeric IDs.
+        # Compatibility journeys replay observed terminal states for exact old
+        # submission names; new submissions still use the real worker.
+        if target.name in self.options.get("submission_states", {}):
+            return BackendStatus[self.options["submission_states"][target.name]]
         if self.options.get("hold_observation"):
             (self.work / "observation-held").touch()
             wait_for(lambda: (self.work / "observation-release").exists())
