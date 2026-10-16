@@ -101,6 +101,11 @@ uninstrumented command times measure different things.
 
 ## Historical evidence index
 
+The [installed compatibility baseline](compatibility/README.md) describes the
+two-environment completed/cleaned-Task journey, the pinned bootstrap source,
+runtime provenance, and how to test a later installed candidate against it.
+Its same-source bootstrap is not evidence for all future 1.x upgrades.
+
 The release column identifies the release associated with the feature. Tested
 package metadata can precede that release; for example, the registry runs used
 gwflow 0.4.1 and the planning measurements used 0.5.0. Follow each record for its

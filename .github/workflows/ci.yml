@@ -21,6 +21,23 @@ jobs:
           conda create -y -n gwflow-tests python=3.12 pip gwf=2.1.1 -c gwforg -c conda-forge
           conda run -n gwflow-tests python -m pip install .
           conda run -n gwflow-tests python -m pip install ./examples/packaged/packages/summary-task ./examples/packaged/packages/report-task
+      - name: Verify completed Task compatibility
+        shell: bash -l {0}
+        run: |
+          baseline_source=$(python -c 'import json; print(json.load(open("docs/validation/compatibility/baseline.json"))["source"]["commit"])')
+          git fetch --no-tags --depth=1 origin "$baseline_source"
+          mkdir -p build/validation/compatibility-baseline/source build/validation/compatibility-baseline/wheels
+          git archive "$baseline_source" | tar -x -C build/validation/compatibility-baseline/source
+          conda run -n gwflow-tests python -m pip wheel --no-deps --wheel-dir build/validation/compatibility-baseline/wheels build/validation/compatibility-baseline/source
+          conda run -n gwflow-tests python -m venv --system-site-packages build/validation/compatibility-baseline/environment
+          build/validation/compatibility-baseline/environment/bin/python -m pip install --no-deps --ignore-installed build/validation/compatibility-baseline/wheels/*.whl
+          candidate_python=$(conda run -n gwflow-tests python -c 'import sys; print(sys.executable)')
+          conda run -n gwflow-tests python tests/validate_compatibility.py \
+            --baseline-python "$PWD/build/validation/compatibility-baseline/environment/bin/python" \
+            --candidate-python "$candidate_python" \
+            --baseline-source "$baseline_source" --candidate-source "$(git rev-parse HEAD)" \
+            --root build/validation/compatibility-completed
+          cat build/validation/compatibility-completed/environment.json build/validation/compatibility-completed/summary.json
       - name: Prepare real Apptainer container tests
         run: |
           curl -fsSL -o "$RUNNER_TEMP/apptainer.deb" https://github.com/apptainer/apptainer/releases/download/v1.5.4/apptainer_1.5.4_amd64.deb
