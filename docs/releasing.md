@@ -20,8 +20,9 @@ checks are required before merging into protected `master`. The `tests` job also
 executes real Apptainer containers and the consolidated local acceptance cases;
 the Conda job reports container-runtime skips explicitly. Live Slurm evidence is
 recorded separately in the validation record. Branch protection
-applies to administrators, requires linear history, and the repository permits
-squash merges only.
+applies to administrators with no bypass actors, requires a pull request and
+linear history, and the repository permits squash merges only. Reviewer approval
+is optional; the branch must be up to date with `master` before merging.
 
 For a release, ensure the version in `pyproject.toml` and
 `conda-recipe/meta.yaml` matches the intended release, updating them together if
