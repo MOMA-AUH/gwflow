@@ -41,11 +41,10 @@ def greeting():
 gwf.task(greeting(), alias="hello")
 ```
 
-In the first terminal, select the local backend and enable command-change tracking:
+In the first terminal, select the local backend:
 
 ```sh
 gwflow config set backend local
-gwflow config set use_spec_hashes true
 ```
 
 In a second terminal, activate the environment and start workers in the same
@@ -89,6 +88,10 @@ gwflow run hello --dry-run --details
 ```
 
 A selected run includes its required upstream tasks and reuses valid results.
+Managed Tasks always track command changes; no opt-in is needed. Editing a
+computation command requires a fresh whole-Task attempt, even after cleanup.
+For changes to packages or environments that leave tracked commands and inputs
+unchanged, preview and request fresh computation with `gwflow run TASK --force`.
 Status focuses on the selected tasks and explains relevant upstream blockers.
 Use `gwflow logs` for all current task log indexes, or `gwflow logs 'hello*'`
 for a selected group. Each index shows failures first and links to individual

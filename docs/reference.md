@@ -776,11 +776,10 @@ queued, use `gwflow cancel TASK` to request cancellation of its admitted work
 and wait for confirmed inactivity before running again.
 
 Retries require the original input baseline and workspace. Resource changes
-permit continuation. Structural changes and enabled command changes require a
-fresh attempt. With command tracking disabled, retry commands may change while
-successful siblings retain earlier outputs; enabling tracking later requires
-valid baselines for every selected execution. Interrupted output sets without
-success evidence are rerun, and abandoned work remains owned for later cleanup.
+permit continuation. Structural changes and command changes require a fresh
+whole-Task attempt, including successful siblings. Unchanged commands retain
+eligible retry progress. Interrupted output sets without success evidence are
+rerun, and abandoned work remains owned for later cleanup.
 Status and dry-run show planned retries without allocating executions.
 
 The same retry rules apply to container commands. Correcting a deployment
@@ -832,8 +831,9 @@ work and consumers block repair, including consumers omitted from the loaded
 workflow.
 
 If the required work or its success evidence is missing or invalid, run starts a
-fresh attempt and recomputes. The command tracking setting also governs repair
-eligibility. Consumers with an existing input baseline defer comparison during
+fresh attempt and recomputes. Changed commands also require fresh computation
+instead of Repair or continuation of interrupted finishing. Consumers with an
+existing input baseline defer comparison during
 same-attempt repair; run preview reports when a later ordinary invocation must replan.
 Restored metadata that still matches permits consumer reuse. Different destination
 timestamp precision can instead require new consumer computation, even though the
@@ -917,17 +917,24 @@ explicit cleanup resumes by repeating the same `--attempt` selection with
 
 ## Change tracking
 
-Structure is always tracked. Commands follow gwf's inherited `use_spec_hashes`
-setting (default false); enable it explicitly in the workflow directory:
+Managed Tasks always track structure and computation commands. No configuration
+is needed. A command edit requires a fresh whole-Task attempt, including after
+cleanup or when successful partial work exists. Harmless command-text edits can
+also cause recomputation. Existing activity, ownership, and consumer checks still
+apply.
+
+Explicit `use_spec_hashes=false` is rejected. Remove that setting in the workflow
+directory before using managed commands:
 
 ```sh
-gwflow config set use_spec_hashes true
+gwflow config unset use_spec_hashes
 ```
 
-Enabling command hashes is recommended; the inherited default is unchanged.
-File size and modification
-time checks do not detect changes preserving both, and successful execution does
-not certify output contents. Resources, packages, hidden parameters, and the
+Explicit true remains accepted. Ordinary workflows run through `gwf` retain its
+separate command-tracking behavior.
+
+File size and modification time checks do not detect changes preserving both,
+and successful execution does not certify output contents. Resources, packages, hidden parameters, and the
 software environment have no independent invalidation component. Package code,
 tool versions or runtime environment changes can therefore leave a Task reusable
 when its declared structure, tracked commands, selected image identity, and file

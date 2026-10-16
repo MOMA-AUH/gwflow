@@ -51,7 +51,6 @@ class TaskGraphTests(LocalBackendTestCase):
             "printf 'LOCATION=%s|%s\n' \"$PWD\" \"$TMPDIR\"; printf partial > same.txt; "
             f"if [ -e {shlex.quote(str(failing))} ]; then printf abandoned > other.txt; exit 8; fi; test ! -e other.txt; printf fresh > other.txt; printf right > same.txt"
         ), right_outputs=("same.txt", "other.txt"))
-        self.configure(use_spec_hashes=True)
         self.cli("run")
         self.settle()
         self.assertFalse((self.work / "results/sample").exists())
@@ -204,30 +203,27 @@ class TaskGraphTests(LocalBackendTestCase):
         self.assertEqual((self.work / "results/sample/result.txt").read_text(), "leftright")
         self.assertEqual(Counter((self.work / "trace").read_text().splitlines()), {"left":2, "right":2, "mid":2, "join":1})
 
-    def test_retry_command_policy_does_not_reuse_an_obsolete_tracked_baseline(self):
+    def test_command_edit_restarts_successful_siblings_of_partial_attempt(self):
         failing = self.work / "fail-right"
         failing.touch()
         trace = shlex.quote(str(self.work / "trace"))
         original = f"echo right >> {trace}; if [ -e {shlex.quote(str(failing))} ]; then exit 8; fi; printf right > same.txt"
         self.configure_workflow(right_command=original)
-        self.configure(use_spec_hashes=True)
         self.cli("run")
         self.settle()
         failing.unlink()
         self.configure_workflow(right_command=f"echo right >> {trace}; printf repaired > same.txt")
         self.assertIn("Run", self.cli("run", "--dry-run"))
-        self.configure(use_spec_hashes=False)
         self.cli("run")
         self.settle()
         self.assertEqual((self.work / "results/sample/result.txt").read_text(), "leftrepaired")
-        self.assertEqual(Counter((self.work / "trace").read_text().splitlines()), {"left":1, "right":2, "join":1})
+        self.assertEqual(Counter((self.work / "trace").read_text().splitlines()), {"left":2, "right":2, "join":1})
         self.configure_workflow(right_command=original)
-        self.configure(use_spec_hashes=True)
         self.assertIn("Run", self.cli("run", "--dry-run"))
         self.cli("run")
         self.settle()
         self.assertEqual((self.work / "results/sample/result.txt").read_text(), "leftright")
-        self.assertEqual(Counter((self.work / "trace").read_text().splitlines()), {"left":2, "right":3, "join":2})
+        self.assertEqual(Counter((self.work / "trace").read_text().splitlines()), {"left":3, "right":3, "join":2})
 
     def test_queued_dependents_block_rebinding_without_automatic_cancellation(self):
         from gwf.backends.local import Client, LocalStatus

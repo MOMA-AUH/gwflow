@@ -274,8 +274,6 @@ class ManagedCliTests(LocalBackendTestCase):
         self.run_complete()
         workflow = self.work / "workflow.py"
         workflow.write_text(workflow.read_text().replace("printf first", "printf second"))
-        self.assertNotIn("Submitted target", self.cli("run"))
-        self.configure(use_spec_hashes=True)
         self.assertIn("commands", self.cli("run", "--dry-run"))
         self.run_complete()
         self.assertEqual((self.work / "results/sample/result.txt").read_text(), "second")

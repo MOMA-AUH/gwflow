@@ -89,7 +89,7 @@ def submit_plan(plan, workflow, ctx, *, dry_run, outcomes):
             attempt = task.attempt
             if task.action == "fresh":
                 attempt = plan.store.initialize(task, workflow._result_dirs[task.name],
-                                                tracking=ctx.config.get("use_spec_hashes"),
+                                                tracking=True,
                                                 managed_tmpdir=workflow.managed_tmpdir,
                                                 producers={name: plan.store.recorded_current(name)["attempt"]
                                                            for name in producer_names(task.structure)})
@@ -115,7 +115,7 @@ def submit_plan(plan, workflow, ctx, *, dry_run, outcomes):
                     admission.require_retry_inactive(observed, task.retry)
                     if task.action != "prepare" or _files.exists(plan.store.attempt_dir(attempt) / "inputs.json"):
                         plan.store.check_inputs(attempt)
-                    attempt = plan.store.replace_executions(task, tracking=ctx.config.get("use_spec_hashes"))
+                    attempt = plan.store.replace_executions(task, tracking=True)
                     submitted[task.name] = observed
                 admission.restore_tracking(backend, ctx.backend, observed)
                 for item in observed.values():

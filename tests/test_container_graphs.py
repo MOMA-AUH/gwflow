@@ -107,7 +107,6 @@ class ContainerGraphTests(LocalBackendTestCase):
         self.assertNotIn("Submitted target", self.cli("run"))
 
     def test_image_change_refreshes_whole_task_and_consumers_with_equal_retained_metadata(self):
-        self.configure(use_spec_hashes=False)
         self.write_workflow()
         self.run_complete()
         before = self.attempts()
@@ -150,7 +149,6 @@ class ContainerGraphTests(LocalBackendTestCase):
         self.assertNotEqual(after["consumer"], before["consumer"])
         self.assertEqual(after["independent"], before["independent"])
         before = after
-        self.configure(use_spec_hashes=False)
         for container in (False, True):
             with self.subTest(container=container):
                 self.write_workflow(second_container=container)

@@ -248,7 +248,6 @@ class ResultsRepairTests(LocalBackendTestCase):
         self.assertEqual((self.work / "trace").read_text().splitlines(), ["compute", "consumer"])
 
     def test_command_tracking_governs_repair_eligibility(self):
-        self.configure(use_spec_hashes=True)
         self.run_complete()
         before = self.attempt()
         workflow = self.work / "workflow.py"
@@ -256,12 +255,12 @@ class ResultsRepairTests(LocalBackendTestCase):
         workflow.write_text(original.replace("printf first", "printf FIRST_CHANGED"))
         (self.work / "results/samples/a/report/renamed.txt").unlink()
         self.assertRegex(self.cli("run", "--dry-run"), r"Task a\s+Run\s+")
-        self.configure(use_spec_hashes=False)
+        workflow.write_text(original)
         self.assertRegex(self.cli("run", "--dry-run"), r"Task a\s+Repair\s+")
         self.run_complete()
         self.assertEqual(self.attempt(), before)
         self.assert_results(self.work / "results/samples/a/report")
-        self.configure(use_spec_hashes=True)
+        workflow.write_text(original.replace("printf first", "printf FIRST_CHANGED"))
         (self.work / "results/samples/a/report/renamed.txt").unlink()
         self.run_complete()
         self.assertNotEqual(self.attempt(), before)

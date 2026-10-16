@@ -46,7 +46,6 @@ class RegistryRecoveryTests(test_registry_images.RegistryTestCase):
         self.assertEqual((self.work / "results/sample/out.txt").read_text(), "fixture image\n")
 
     def test_digest_reacquisition_compares_size_and_both_mtime_directions(self):
-        self.configure(use_spec_hashes=False)
         reference = "docker://example.org/tools/demo@sha256:" + "a" * 64
         self.configure_workflow(reference)
         self.run_complete()
@@ -86,7 +85,6 @@ class RegistryRecoveryTests(test_registry_images.RegistryTestCase):
         self.assertEqual((self.work / "results/sample/out.txt").read_text(), "fixture image\n")
 
     def test_alias_retarget_and_reference_binding_require_fresh_attempts(self):
-        self.configure(use_spec_hashes=False)
         self.run_complete()
         image = self.cached_images()[0]
         original = self.work / "original image.sif"
@@ -266,7 +264,6 @@ class RegistryGraphRecoveryTests(test_registry_images.RegistryTestCase):
         self.assertEqual((self.work / "results/consumer/result.txt").read_text(), "leftright")
 
     def test_changed_image_refreshes_successful_branch_of_partial_task(self):
-        self.configure(use_spec_hashes=False)
         self.failure.touch()
         self.cli("run")
         self.settle()
@@ -282,7 +279,6 @@ class RegistryGraphRecoveryTests(test_registry_images.RegistryTestCase):
         self.assertEqual(len(self.calls("pull")), 2)
 
     def test_image_change_refreshes_consumers_even_with_equal_retained_metadata(self):
-        self.configure(use_spec_hashes=False)
         self.run_complete()
         names = ("sample", "consumer", "independent")
         attempts = {name: self.detail(name, "Attempt") for name in names}

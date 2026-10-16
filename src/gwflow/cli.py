@@ -37,6 +37,8 @@ def main(ctx, file, backend, verbose, no_color):
         path, obj_name = Path(filename).absolute(), obj_name or "gwf"
     working_dir = path.parent if path.is_file() else Path.cwd()
     settings = FileConfig.load(working_dir / ".gwfconf.json")
+    # Keep explicit settings writable and leave ordinary gwf's defaults alone.
+    settings.data.maps.insert(1, {"use_spec_hashes": True})
     if no_color is None:
         no_color = settings.get("no_color")
     if no_color is None:
