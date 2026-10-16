@@ -24,7 +24,6 @@ From this repository checkout, install into a Python 3.12 environment:
 python -m pip install .
 python -m pip install ./examples/packaged/packages/summary-task ./examples/packaged/packages/report-task
 cd examples/packaged
-gwflow config set use_spec_hashes true
 ```
 
 The factory packages accept gwflow `>=0.5.3,<0.8`; the commands below use the
@@ -32,6 +31,7 @@ current checkout's dedicated `gwflow` CLI. Editable installs with `-e` are also
 supported. Package implementation or version changes do not independently
 invalidate Reuse; use force for changes not reflected in tracked commands,
 structure, inputs, or images.
+Command tracking is mandatory and needs no configuration.
 
 Start workers in a second terminal with the same environment and directory:
 
@@ -106,7 +106,6 @@ cp -r examples/packaged/data build/packaged-container-demo/
 apptainer build build/packaged-container-demo/images/summary.sif examples/packaged/images/summary.def
 apptainer build build/packaged-container-demo/images/report.sif examples/packaged/images/report.def
 cd build/packaged-container-demo
-gwflow config set use_spec_hashes true
 ```
 
 Use a fresh demonstration directory. Image builds need network access for their
