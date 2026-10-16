@@ -34,7 +34,7 @@ python tests/validate_compatibility.py \
   --baseline-python build/validation/compatibility/baseline-env/bin/python \
   --candidate-python build/validation/compatibility/candidate-env/bin/python \
   --baseline-source "$baseline_source" --candidate-source "$(git rev-parse HEAD)" \
-  --root build/validation/compatibility/completed
+  --root build/validation/compatibility/all-cases
 ```
 
 The environments can share the base interpreter and dependency installation, but
@@ -77,12 +77,47 @@ to reject unsupported ownership evidence; no migration path is introduced.
 Each invocation requires a new evidence root and writes `environment.json`,
 `transcript.jsonl`, and `summary.json`, retaining its workflow and storage for
 inspection. Failed runs return nonzero and are not compatibility evidence.
-The CI `tests` job runs this journey before its full suite; both CI package suites
+The CI `tests` job runs all compatibility journeys before its full suite; both CI package suites
 continue to cover ownership and unsupported-state rejection.
 
-Selected evidence is recorded in [acceptance.json](acceptance.json). Paths in that
-standalone record use its documented placeholders. Keep raw transcripts uncommitted
+The incomplete-attempt journeys use the existing graph, external-input,
+transfer, Repair, and recovery fixtures. They cover successful siblings alongside
+failed computation, preparation interrupted before and after Input-baseline
+publication, partial copying, prepared installation, installed-but-unfinished
+Completion, missing retained outputs, interrupted Repair with an existing
+consumer, and copying onto a separate filesystem. The candidate keeps valid
+attempts and accepted input associations, executes only the necessary remainder,
+and preserves checked outputs and reusable consumers. Recovery records remain
+effective when scheduler history expires, without establishing computation success
+or resolving a new admission.
+
+Each journey confirms actual local jobs are terminal and stops the baseline worker
+before changing installations. The local scheduler keeps history only in memory
+and reuses numeric job IDs after restart. Through the existing backend fixture, the
+journey therefore replays the terminal states observed before shutdown, keyed by
+exact old Submission names. New submissions go to the real candidate worker.
+This models a scheduler retaining its history; it does not make production code
+treat unknown observations as inactivity. The recovery case separately expires
+that history to verify the recorded operator assertion. Rejected admissions in
+these fixtures are known not to have reached a worker.
+
+The negative cases deliberately change commands or inputs, remove source success
+evidence, simulate uncertain and active consumers, or substitute unowned results.
+They prove that fresh-attempt and blockage decisions still apply. Otherwise the
+workflow and all storage remain in place; no managed record conversion is used.
+Separate-filesystem coverage uses the existing `/dev/shm` fixture. Missing
+prerequisites or skipped cases fail the runner instead of recording acceptance.
+Use repeatable `--test '*name_fragment*'` arguments for focused development;
+omit them for the full matrix.
+
+Completed-work evidence is recorded in [acceptance.json](acceptance.json), and
+the extended matrix in [incomplete-acceptance.json](incomplete-acceptance.json).
+Paths in each standalone record use its documented placeholders. Keep raw transcripts uncommitted
 and verify path normalization against them as required by [AGENTS.md](../../../AGENTS.md).
 Evidence selection summarizes the full per-file baseline snapshot by its count and
 digest. Path normalization happens afterward, against that selected raw record;
 it preserves versions, commands, results, hashes, and device/inode observations.
+The extended record selects commands and their exit codes plus each journey's
+handoff and outcome observations; full command output remains in the raw transcript.
+It summarizes accepted submissions and exact-name history maps with counts and
+digests before normalizing paths, as explained in that record's selection field.

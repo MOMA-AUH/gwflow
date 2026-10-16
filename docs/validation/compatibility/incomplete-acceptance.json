@@ -1,0 +1,1800 @@
+{
+  "scope": "Issue #215 installed compatibility matrix, including completed work and valid incomplete attempts; no release publication",
+  "recorded_date": "2026-10-16",
+  "limitations": [
+    "The pinned pre-1.0 bootstrap and candidate have identical production package content. This validates the extended journey, not a future 1.x release or every pre-1.0 format.",
+    "Package metadata is 0.7.0; exact commits and wheel hashes identify the installed artifacts. The actual immutable v1.0.0 release baseline remains unset.",
+    "The installations share Python and dependencies through system-site-packages but independently contain gwflow.",
+    "All actual jobs were confirmed terminal and baseline workers stopped before candidate workers started. Storage and workflows stayed in place except intentional negative-case edits.",
+    "The existing backend fixture replays observed terminal states by exact old Submission name because the local scheduler loses history and reuses numeric IDs on restart. New jobs execute on real local workers.",
+    "The operator-recovery case additionally simulates expired history; the consumer guard simulates a later active observation. Fixture-rejected admissions never reach workers.",
+    "There was no live upgrade, mixed-version worker execution, relocation, downgrade, or managed record conversion."
+  ],
+  "selection": "Full command output and timestamps remain in the raw transcript. Each case preserves command arguments/exit codes and handoff/outcome observations. Before path normalization, per-file snapshots and accepted-submission lists are summarized by count and digest; exact-name history maps by state counts and digest.",
+  "harness": {
+    "based_on": "956269ace2ce9dabf82021a4682511e775386c5c",
+    "files_sha256": {
+      "tests/validate_compatibility.py": "9a191bdc5899e8c2155efefdd0f5c857c8ae6a752990f943237948550203bd3d",
+      "tests/support.py": "6661103caf1254d97ff6ee37db062f5a56c80e49331b067b087a63b29b339b46",
+      "tests/test_graphs.py": "84e066353b46f69374f965696843d8913fc85cfe5c1791f97905863e161d290d",
+      "tests/test_inputs.py": "97970817efc6cb2035efb4cb107e007f4f1c1336b57349033f4058f56d04c4c4",
+      "tests/test_transfer.py": "770b9dd858147c3c2ffebccf6cd19fa7aed076cab716f17f52851161e720f79c",
+      "tests/test_repair.py": "f4607a8feabb4d002033b81aeaf423b1f274b45e4e1fc0b23aa84190af73ce01",
+      "tests/test_recovery.py": "d09d873bd2b3a33e09080ac146949430b970b8bed8bf66871ebf53275b98824a",
+      "tests/test_storage.py": "66304cb3c2d98c079ec5ef76d21c0f972faea4127f39b5f51ff6f595f68971c7",
+      "tests/test_managed.py": "d365fcbbbb539214626a38f175ef2060d3fb89f2141a245f97084f3b923c3510",
+      "tests/test_managed_recovery.py": "c75b4f53b3ef473a5969bf66a2f8e46a10ca5a15b208ac6effa36b2d6a0cce4a",
+      "tests/fixtures/recovery_backend.py": "a33d9a5e6d2b8e25be8b640fbf41ad7f1d2a50c677a914bab614de31d69b791a",
+      "tests/fixtures/job_fault.py": "95e03b4ebb8f43a02608193516e42a7d2c8fc28ebb305c13cf7d5eda50c93a9e",
+      "tests/fixtures/compatibility_workflow.py": "76f9f6754fb60e54453f91fe0e6d4e538330c77f04f4fabcfe4907223beef602"
+    }
+  },
+  "baseline_setup_evidence": "docs/validation/compatibility/acceptance.json",
+  "candidate_build_commands": [
+    "git archive 956269ace2ce9dabf82021a4682511e775386c5c | tar -x -C build/validation/issue-215/candidate-source",
+    ".conda-env/bin/python -m pip wheel --no-cache-dir --no-deps --no-build-isolation --wheel-dir build/validation/issue-215/candidate-wheels build/validation/issue-215/candidate-source",
+    ".conda-env/bin/python -m venv --system-site-packages build/validation/issue-215/candidate-env",
+    "build/validation/issue-215/candidate-env/bin/python -m pip install --no-cache-dir --no-deps --ignore-installed build/validation/issue-215/candidate-wheels/gwflow-0.7.0-py3-none-any.whl"
+  ],
+  "runner_command": ".conda-env/bin/python tests/validate_compatibility.py --baseline-python build/validation/issue-214/baseline-env/bin/python --candidate-python build/validation/issue-215/candidate-env/bin/python --baseline-source 8bad5986278152d613f356282e75fe9f65085a4c --candidate-source 956269ace2ce9dabf82021a4682511e775386c5c --root build/validation/issue-215/acceptance",
+  "environments": {
+    "baseline": {
+      "source": "8bad5986278152d613f356282e75fe9f65085a4c",
+      "executable": "<REPO>/build/validation/issue-214/baseline-env/bin/python",
+      "prefix": "<REPO>/build/validation/issue-214/baseline-env",
+      "python": "3.12.14 (main, Sep  2 2026, 23:27:36) [GCC 15.3.0]",
+      "platform": "Linux-5.14.0-687.48.1.el9_8.x86_64-x86_64-with-glibc2.34",
+      "package": "<REPO>/build/validation/issue-214/baseline-env/lib/python3.12/site-packages/gwflow",
+      "package_sha256": "09e2f0d68bb3b78cbadc3acae59d666d5f021c78ce88d1332b340dde81664fe6",
+      "versions": {
+        "gwflow": "0.7.0",
+        "gwf": "2.1.1",
+        "rich": "15.0.0"
+      },
+      "direct_url": {
+        "archive_info": {
+          "hash": "sha256=32b5f534a3bb4ec61aabdf97f1cf901ea5742a6c867da9fdc984ec9a8093eb6c",
+          "hashes": {
+            "sha256": "32b5f534a3bb4ec61aabdf97f1cf901ea5742a6c867da9fdc984ec9a8093eb6c"
+          }
+        },
+        "url": "file://<REPO>/build/validation/issue-214/wheels/gwflow-0.7.0-py3-none-any.whl"
+      }
+    },
+    "candidate": {
+      "source": "956269ace2ce9dabf82021a4682511e775386c5c",
+      "executable": "<REPO>/build/validation/issue-215/candidate-env/bin/python",
+      "prefix": "<REPO>/build/validation/issue-215/candidate-env",
+      "python": "3.12.14 (main, Sep  2 2026, 23:27:36) [GCC 15.3.0]",
+      "platform": "Linux-5.14.0-687.48.1.el9_8.x86_64-x86_64-with-glibc2.34",
+      "package": "<REPO>/build/validation/issue-215/candidate-env/lib/python3.12/site-packages/gwflow",
+      "package_sha256": "09e2f0d68bb3b78cbadc3acae59d666d5f021c78ce88d1332b340dde81664fe6",
+      "versions": {
+        "gwflow": "0.7.0",
+        "gwf": "2.1.1",
+        "rich": "15.0.0"
+      },
+      "direct_url": {
+        "archive_info": {
+          "hash": "sha256=8b71792d857dcd78ab3474c5dbcb8abae9761ae41b15e5af0618b24fe9266602",
+          "hashes": {
+            "sha256": "8b71792d857dcd78ab3474c5dbcb8abae9761ae41b15e5af0618b24fe9266602"
+          }
+        },
+        "url": "file://<REPO>/build/validation/issue-215/candidate-wheels/gwflow-0.7.0-py3-none-any.whl"
+      }
+    }
+  },
+  "result": {
+    "run": 15,
+    "failures": 0,
+    "errors": 0,
+    "skips": 0
+  },
+  "cases": {
+    "test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer": {
+      "commands": [
+        {
+          "phase": "baseline",
+          "command": "<REPO>/build/validation/issue-214/baseline-env/bin/gwflow -b recovery_fixture run recovered",
+          "exit": 1
+        },
+        {
+          "phase": "baseline",
+          "command": "<REPO>/build/validation/issue-214/baseline-env/bin/gwflow recover recovered",
+          "exit": 0
+        },
+        {
+          "phase": "baseline",
+          "command": "<REPO>/build/validation/issue-214/baseline-env/bin/gwflow run",
+          "exit": 0
+        },
+        {
+          "phase": "baseline",
+          "command": "<REPO>/build/validation/issue-214/baseline-env/bin/gwflow clean --delete cleaned",
+          "exit": 0
+        },
+        {
+          "phase": "baseline",
+          "command": "<REPO>/build/validation/issue-214/baseline-env/bin/gwflow run --dry-run --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow status --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow run --dry-run",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow run",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow recover recovered",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow run --dry-run --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow run consumer",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow run",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow run unowned",
+          "exit": 1
+        }
+      ],
+      "observations": [
+        {
+          "side": "baseline",
+          "task": "completed",
+          "runtime": {
+            "prefix": "<REPO>/build/validation/issue-214/baseline-env",
+            "package": "<REPO>/build/validation/issue-214/baseline-env/lib/python3.12/site-packages/gwflow/__init__.py"
+          }
+        },
+        {
+          "side": "baseline",
+          "task": "cleaned",
+          "runtime": {
+            "prefix": "<REPO>/build/validation/issue-214/baseline-env",
+            "package": "<REPO>/build/validation/issue-214/baseline-env/lib/python3.12/site-packages/gwflow/__init__.py"
+          }
+        },
+        {
+          "side": "baseline",
+          "task": "recovered",
+          "runtime": {
+            "prefix": "<REPO>/build/validation/issue-214/baseline-env",
+            "package": "<REPO>/build/validation/issue-214/baseline-env/lib/python3.12/site-packages/gwflow/__init__.py"
+          }
+        },
+        {
+          "side": "baseline",
+          "baseline_jobs_completed": true,
+          "worker_exit": -15,
+          "job_states": {
+            "0": "COMPLETED",
+            "1": "COMPLETED",
+            "2": "COMPLETED",
+            "3": "COMPLETED",
+            "4": "COMPLETED",
+            "5": "COMPLETED",
+            "6": "COMPLETED",
+            "7": "COMPLETED",
+            "8": "COMPLETED"
+          },
+          "attempts": {
+            "completed": "da1983b0f967401987c323c847b9b092",
+            "cleaned": "a125ee7591bd4fd58a30711260810445",
+            "recovered": "808fba6cecd447dba834a9549c1854d2"
+          },
+          "storage": {
+            "<REPO>/build/validation/issue-215/acceptance/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer": {
+              "device": 49,
+              "inode": 11832203214593710653
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/work": {
+              "device": 49,
+              "inode": 7630427808308681123
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/results": {
+              "device": 49,
+              "inode": 11219359789827753870
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/.gwf/gwflow": {
+              "device": 49,
+              "inode": 11538867633739133256
+            }
+          },
+          "baseline_file_count": 83,
+          "baseline_snapshot_sha256": "7ac2928d5484457b516b8f17940d452e236061dd5a2161e6e7eaf8f6cc917a86"
+        },
+        {
+          "side": "candidate",
+          "task": "consumer",
+          "runtime": {
+            "prefix": "<REPO>/build/validation/issue-215/candidate-env",
+            "package": "<REPO>/build/validation/issue-215/candidate-env/lib/python3.12/site-packages/gwflow/__init__.py"
+          }
+        },
+        {
+          "side": "candidate",
+          "unchanged_workflow_sha256": "76f9f6754fb60e54453f91fe0e6d4e538330c77f04f4fabcfe4907223beef602",
+          "same_storage": {
+            "<REPO>/build/validation/issue-215/acceptance/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer": {
+              "device": 49,
+              "inode": 11832203214593710653
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/work": {
+              "device": 49,
+              "inode": 7630427808308681123
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/results": {
+              "device": 49,
+              "inode": 11219359789827753870
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/.gwf/gwflow": {
+              "device": 49,
+              "inode": 11538867633739133256
+            }
+          },
+          "preserved_baseline_files": 83,
+          "computation_counts": {
+            "cleaned": 1,
+            "completed": 1,
+            "recovered": 1,
+            "consumer": 1
+          },
+          "retained_consumer": "hello\nhello\nhello\n",
+          "unowned_results_preserved": true
+        }
+      ]
+    },
+    "test_failed_branch_preserves_successful_sibling_across_upgrade": {
+      "commands": [
+        {
+          "phase": "baseline",
+          "command": "<REPO>/build/validation/issue-214/baseline-env/bin/gwflow run",
+          "exit": 0
+        },
+        {
+          "phase": "baseline",
+          "command": "<REPO>/build/validation/issue-214/baseline-env/bin/gwflow run --dry-run --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow status --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow run --dry-run",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow run",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow run --dry-run --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow run",
+          "exit": 0
+        }
+      ],
+      "observations": [
+        {
+          "side": "baseline",
+          "all_jobs_inactive": true,
+          "worker_exit": -15,
+          "job_states": {
+            "0": "COMPLETED",
+            "1": "COMPLETED",
+            "2": "FAILED",
+            "3": "FAILED",
+            "4": "FAILED"
+          },
+          "storage": {
+            "<REPO>/build/validation/issue-215/acceptance/test_failed_branch_preserves_successful_sibling_across_upgrade": {
+              "device": 49,
+              "inode": 5795578715126662184
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_failed_branch_preserves_successful_sibling_across_upgrade/work": {
+              "device": 49,
+              "inode": 13659023792309734015
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_failed_branch_preserves_successful_sibling_across_upgrade/results": {
+              "device": 49,
+              "inode": 16696454202829967921
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_failed_branch_preserves_successful_sibling_across_upgrade/.gwf/gwflow": {
+              "device": 49,
+              "inode": 6211839641050165510
+            }
+          },
+          "baseline_file_count": 28,
+          "baseline_snapshot_sha256": "02bece4aa861e2928f1e30b1385edf0ace23fe54eaae7738ea40bb5f3304982c",
+          "accepted_submission_count": 5,
+          "accepted_submissions_sha256": "73d7385f6e368582e42f60a070242686735a519767557ef23e3881510cf68db4",
+          "replayed_terminal_states_counts": {
+            "COMPLETED": 2,
+            "FAILED": 3
+          },
+          "replayed_terminal_states_sha256": "168b993a39376c7b6839fcc17893d4abc982a8e228a94c1b9fdf56fde114cd4f"
+        },
+        {
+          "side": "candidate",
+          "preserved_attempts": {
+            "sample": "3dc21e17a8584031ab25b44e28bf25cf"
+          },
+          "computation_counts": {
+            "left": 1,
+            "right": 2,
+            "join": 1
+          },
+          "retained_outputs": {
+            "<REPO>/build/validation/issue-215/acceptance/test_failed_branch_preserves_successful_sibling_across_upgrade/results/sample/result.txt": "leftright"
+          },
+          "same_storage": {
+            "<REPO>/build/validation/issue-215/acceptance/test_failed_branch_preserves_successful_sibling_across_upgrade": {
+              "device": 49,
+              "inode": 5795578715126662184
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_failed_branch_preserves_successful_sibling_across_upgrade/work": {
+              "device": 49,
+              "inode": 13659023792309734015
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_failed_branch_preserves_successful_sibling_across_upgrade/results": {
+              "device": 49,
+              "inode": 16696454202829967921
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_failed_branch_preserves_successful_sibling_across_upgrade/.gwf/gwflow": {
+              "device": 49,
+              "inode": 6211839641050165510
+            }
+          },
+          "unchanged_workflow_sha256": "905092e5a4d48d6b2e66bf1285633ea4370b39fe5bfb8e58f56f9837ce7bbe58"
+        }
+      ]
+    },
+    "test_recorded_recovery_survives_upgrade_and_does_not_resolve_new_admissions": {
+      "commands": [
+        {
+          "phase": "baseline",
+          "command": "<REPO>/build/validation/issue-214/baseline-env/bin/gwflow -b recovery_fixture run",
+          "exit": 0
+        },
+        {
+          "phase": "baseline",
+          "command": "<REPO>/build/validation/issue-214/baseline-env/bin/gwflow run --dry-run --details",
+          "exit": 0
+        },
+        {
+          "phase": "baseline",
+          "command": "<REPO>/build/validation/issue-214/baseline-env/bin/gwflow recover sample",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow status --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow recover sample",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow run --dry-run",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow run",
+          "exit": 1
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow run",
+          "exit": 1
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow recover sample",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow run",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow run --dry-run --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow run",
+          "exit": 0
+        }
+      ],
+      "observations": [
+        {
+          "side": "baseline",
+          "all_jobs_inactive": true,
+          "worker_exit": -15,
+          "job_states": {
+            "0": "COMPLETED",
+            "1": "COMPLETED",
+            "2": "FAILED",
+            "3": "FAILED",
+            "4": "FAILED"
+          },
+          "storage": {
+            "<REPO>/build/validation/issue-215/acceptance/test_recorded_recovery_survives_upgrade_and_does_not_resolve_new_admissions": {
+              "device": 49,
+              "inode": 2057827462649945592
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_recorded_recovery_survives_upgrade_and_does_not_resolve_new_admissions/work": {
+              "device": 49,
+              "inode": 2655966736869416717
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_recorded_recovery_survives_upgrade_and_does_not_resolve_new_admissions/results": {
+              "device": 49,
+              "inode": 11497205503761463356
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_recorded_recovery_survives_upgrade_and_does_not_resolve_new_admissions/.gwf/gwflow": {
+              "device": 49,
+              "inode": 1990408312972765907
+            }
+          },
+          "baseline_file_count": 30,
+          "baseline_snapshot_sha256": "ab00e40f54f30f9fd30ade8f1f667323732a57db19270384e812c1439948f215",
+          "accepted_submission_count": 5,
+          "accepted_submissions_sha256": "edbaa2089b6511a805ff57fac30e1822c16e83fc4699290cffd99bbdf878b4b4",
+          "replayed_terminal_states_counts": {
+            "COMPLETED": 2,
+            "FAILED": 3
+          },
+          "replayed_terminal_states_sha256": "d9e032d87727f3c348cfd413159f5d4f3c7860ddc53073786a6e639def6e6007"
+        },
+        {
+          "side": "candidate",
+          "expired_scheduler_history_counts": {
+            "UNKNOWN": 5
+          },
+          "expired_scheduler_history_sha256": "4db2e7f7290d048819983d40062fc5055e0773ab507f13f527ba2bb40dd61aee"
+        },
+        {
+          "side": "candidate",
+          "preserved_attempts": {
+            "sample": "a6a7cebb9ff447209484c2af4a7b0f9e"
+          },
+          "computation_counts": {
+            "left": 1,
+            "right": 1,
+            "join": 1
+          },
+          "retained_outputs": {
+            "<REPO>/build/validation/issue-215/acceptance/test_recorded_recovery_survives_upgrade_and_does_not_resolve_new_admissions/results/sample/result.txt": "leftright"
+          },
+          "same_storage": {
+            "<REPO>/build/validation/issue-215/acceptance/test_recorded_recovery_survives_upgrade_and_does_not_resolve_new_admissions": {
+              "device": 49,
+              "inode": 2057827462649945592
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_recorded_recovery_survives_upgrade_and_does_not_resolve_new_admissions/work": {
+              "device": 49,
+              "inode": 2655966736869416717
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_recorded_recovery_survives_upgrade_and_does_not_resolve_new_admissions/results": {
+              "device": 49,
+              "inode": 11497205503761463356
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_recorded_recovery_survives_upgrade_and_does_not_resolve_new_admissions/.gwf/gwflow": {
+              "device": 49,
+              "inode": 1990408312972765907
+            }
+          },
+          "unchanged_workflow_sha256": "e76d9f5a2ee7db9a528a2e18d7bdab41308ee603f2452ba30d4afda27f477ba4"
+        },
+        {
+          "side": "candidate",
+          "preserved_recovery_records": 3,
+          "new_recovery_records": 1
+        }
+      ]
+    },
+    "test_upgrade_preserves_command_and_input_invalidation_after_recovery": {
+      "commands": [
+        {
+          "phase": "baseline",
+          "command": "<REPO>/build/validation/issue-214/baseline-env/bin/gwflow -b recovery_fixture run",
+          "exit": 0
+        },
+        {
+          "phase": "baseline",
+          "command": "<REPO>/build/validation/issue-214/baseline-env/bin/gwflow run --dry-run --details",
+          "exit": 0
+        },
+        {
+          "phase": "baseline",
+          "command": "<REPO>/build/validation/issue-214/baseline-env/bin/gwflow recover sample",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow status --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow run --dry-run --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow run --dry-run --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow run",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow run --dry-run --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow run --dry-run --details",
+          "exit": 0
+        }
+      ],
+      "observations": [
+        {
+          "side": "baseline",
+          "all_jobs_inactive": true,
+          "worker_exit": -15,
+          "job_states": {
+            "0": "COMPLETED",
+            "1": "COMPLETED",
+            "2": "FAILED",
+            "3": "FAILED",
+            "4": "FAILED"
+          },
+          "storage": {
+            "<REPO>/build/validation/issue-215/acceptance/test_upgrade_preserves_command_and_input_invalidation_after_recovery": {
+              "device": 49,
+              "inode": 1163568207880730994
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_upgrade_preserves_command_and_input_invalidation_after_recovery/work": {
+              "device": 49,
+              "inode": 6902823647824514647
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_upgrade_preserves_command_and_input_invalidation_after_recovery/results": {
+              "device": 49,
+              "inode": 13144330635087488695
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_upgrade_preserves_command_and_input_invalidation_after_recovery/.gwf/gwflow": {
+              "device": 49,
+              "inode": 14754945530346087265
+            }
+          },
+          "baseline_file_count": 30,
+          "baseline_snapshot_sha256": "4924cc3c66149f176e27edb21c8701de07b1df562bbbda1711dd1a5d65714be3",
+          "accepted_submission_count": 5,
+          "accepted_submissions_sha256": "154e7015e20225bff378051aa851898a18fb1a943f99d98f2489f3775c9b68af",
+          "replayed_terminal_states_counts": {
+            "COMPLETED": 2,
+            "FAILED": 3
+          },
+          "replayed_terminal_states_sha256": "5e55be7f2bb356aff6eb60e4122f6a35adef5facc41fe08c0f432a40829c34fc"
+        },
+        {
+          "side": "candidate",
+          "changed_commands_require_fresh": true,
+          "changed_inputs_require_fresh": true,
+          "old_attempts": {
+            "sample": "4b410b185a584452ad65523c61db4b91"
+          },
+          "new_attempts": {
+            "sample": "a9b6e752d55348f1a0215e6e83bf336f"
+          },
+          "computation_counts": {
+            "left": 2,
+            "right": 1,
+            "join": 1
+          }
+        }
+      ]
+    },
+    "test_interrupted_preparation_before_input_baseline_survives_upgrade": {
+      "commands": [
+        {
+          "phase": "baseline",
+          "command": "<REPO>/build/validation/issue-214/baseline-env/bin/gwflow run",
+          "exit": 0
+        },
+        {
+          "phase": "baseline",
+          "command": "<REPO>/build/validation/issue-214/baseline-env/bin/gwflow run --dry-run --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow status --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow run --dry-run",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow run",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow run --dry-run --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow run",
+          "exit": 0
+        }
+      ],
+      "observations": [
+        {
+          "side": "baseline",
+          "all_jobs_inactive": true,
+          "worker_exit": -15,
+          "job_states": {
+            "0": "FAILED",
+            "1": "FAILED",
+            "2": "FAILED"
+          },
+          "storage": {
+            "<REPO>/build/validation/issue-215/acceptance/test_interrupted_preparation_before_input_baseline_survives_upgrade": {
+              "device": 49,
+              "inode": 14836824949084256252
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_interrupted_preparation_before_input_baseline_survives_upgrade/work": {
+              "device": 49,
+              "inode": 6666450620540189622
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_interrupted_preparation_before_input_baseline_survives_upgrade/results": {
+              "device": 49,
+              "inode": 7261684215424771506
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_interrupted_preparation_before_input_baseline_survives_upgrade/.gwf/gwflow": {
+              "device": 49,
+              "inode": 5211792959259385434
+            }
+          },
+          "baseline_file_count": 16,
+          "baseline_snapshot_sha256": "450f049ba720b759a6b7bca9b3bc552e349641b7c18b3ad5b3eb57ed377de206",
+          "accepted_submission_count": 3,
+          "accepted_submissions_sha256": "8e21370abfa13151b3bf61cacceb80941ed28aa866c784cfbb6698264f3c8c7a",
+          "replayed_terminal_states_counts": {
+            "FAILED": 3
+          },
+          "replayed_terminal_states_sha256": "3657d07000cf5bde74a7e8606b99062451daaed2095b469fd82d4805f1b80c9b"
+        },
+        {
+          "side": "candidate",
+          "preserved_attempts": {
+            "sample": "1aca70031ee74f6d97cc209125e9a1ef"
+          },
+          "computation_counts": {
+            "read": 1
+          },
+          "retained_outputs": {
+            "<REPO>/build/validation/issue-215/acceptance/test_interrupted_preparation_before_input_baseline_survives_upgrade/results/sample/result.txt": "hello\n",
+            "<REPO>/build/validation/issue-215/acceptance/test_interrupted_preparation_before_input_baseline_survives_upgrade/results/sample/alias.txt": "<REPO>/build/validation/issue-215/acceptance/test_interrupted_preparation_before_input_baseline_survives_upgrade/input.txt\n"
+          },
+          "same_storage": {
+            "<REPO>/build/validation/issue-215/acceptance/test_interrupted_preparation_before_input_baseline_survives_upgrade": {
+              "device": 49,
+              "inode": 14836824949084256252
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_interrupted_preparation_before_input_baseline_survives_upgrade/work": {
+              "device": 49,
+              "inode": 6666450620540189622
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_interrupted_preparation_before_input_baseline_survives_upgrade/results": {
+              "device": 49,
+              "inode": 7261684215424771506
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_interrupted_preparation_before_input_baseline_survives_upgrade/.gwf/gwflow": {
+              "device": 49,
+              "inode": 5211792959259385434
+            }
+          },
+          "unchanged_workflow_sha256": "b16d8eb57c11be9df6d84d1954aa5e821a02771a9d8bd6ab466d834c82778ac5"
+        }
+      ]
+    },
+    "test_interrupted_preparation_preserves_accepted_input_baseline_across_upgrade": {
+      "commands": [
+        {
+          "phase": "baseline",
+          "command": "<REPO>/build/validation/issue-214/baseline-env/bin/gwflow run",
+          "exit": 0
+        },
+        {
+          "phase": "baseline",
+          "command": "<REPO>/build/validation/issue-214/baseline-env/bin/gwflow run --dry-run --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow status --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow run --dry-run",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow run",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow run --dry-run --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow run",
+          "exit": 0
+        }
+      ],
+      "observations": [
+        {
+          "side": "baseline",
+          "all_jobs_inactive": true,
+          "worker_exit": -15,
+          "job_states": {
+            "0": "FAILED",
+            "1": "FAILED",
+            "2": "FAILED"
+          },
+          "storage": {
+            "<REPO>/build/validation/issue-215/acceptance/test_interrupted_preparation_preserves_accepted_input_baseline_across_upgrade": {
+              "device": 49,
+              "inode": 10523576833079858367
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_interrupted_preparation_preserves_accepted_input_baseline_across_upgrade/work": {
+              "device": 49,
+              "inode": 14284543873363540913
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_interrupted_preparation_preserves_accepted_input_baseline_across_upgrade/results": {
+              "device": 49,
+              "inode": 12291027422444311147
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_interrupted_preparation_preserves_accepted_input_baseline_across_upgrade/.gwf/gwflow": {
+              "device": 49,
+              "inode": 18314317039591441616
+            }
+          },
+          "baseline_file_count": 17,
+          "baseline_snapshot_sha256": "aa03bf07861c71c6239dd38e31ddce7d6e183e5a542636ce0910430be768d257",
+          "accepted_submission_count": 3,
+          "accepted_submissions_sha256": "4bdfd42acf46a32d98c4238afcf3777fb34cc8f57731c7ad2c59fcabef87f6bb",
+          "replayed_terminal_states_counts": {
+            "FAILED": 3
+          },
+          "replayed_terminal_states_sha256": "7438a81bd526005d96fa54c9b8100d8a8492649a1cfa901fd059e217a59ac778"
+        },
+        {
+          "side": "candidate",
+          "preserved_attempts": {
+            "sample": "ca255249afb94b30a91924bb690c2a9e"
+          },
+          "computation_counts": {
+            "read": 1
+          },
+          "retained_outputs": {
+            "<REPO>/build/validation/issue-215/acceptance/test_interrupted_preparation_preserves_accepted_input_baseline_across_upgrade/results/sample/result.txt": "hello\n",
+            "<REPO>/build/validation/issue-215/acceptance/test_interrupted_preparation_preserves_accepted_input_baseline_across_upgrade/results/sample/alias.txt": "<REPO>/build/validation/issue-215/acceptance/test_interrupted_preparation_preserves_accepted_input_baseline_across_upgrade/input.txt\n"
+          },
+          "same_storage": {
+            "<REPO>/build/validation/issue-215/acceptance/test_interrupted_preparation_preserves_accepted_input_baseline_across_upgrade": {
+              "device": 49,
+              "inode": 10523576833079858367
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_interrupted_preparation_preserves_accepted_input_baseline_across_upgrade/work": {
+              "device": 49,
+              "inode": 14284543873363540913
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_interrupted_preparation_preserves_accepted_input_baseline_across_upgrade/results": {
+              "device": 49,
+              "inode": 12291027422444311147
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_interrupted_preparation_preserves_accepted_input_baseline_across_upgrade/.gwf/gwflow": {
+              "device": 49,
+              "inode": 18314317039591441616
+            }
+          },
+          "unchanged_workflow_sha256": "4a30ccb6e09ab84bced8760b0d8a5d14d55c1ec06793227708c81ef2787adb56"
+        }
+      ]
+    },
+    "test_installed_results_finish_completion_after_upgrade": {
+      "commands": [
+        {
+          "phase": "baseline",
+          "command": "<REPO>/build/validation/issue-214/baseline-env/bin/gwflow run",
+          "exit": 0
+        },
+        {
+          "phase": "baseline",
+          "command": "<REPO>/build/validation/issue-214/baseline-env/bin/gwflow run --dry-run --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow status --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow run --dry-run",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow run",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow run --dry-run --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow run",
+          "exit": 0
+        }
+      ],
+      "observations": [
+        {
+          "side": "baseline",
+          "all_jobs_inactive": true,
+          "worker_exit": -15,
+          "job_states": {
+            "0": "COMPLETED",
+            "1": "COMPLETED",
+            "2": "FAILED"
+          },
+          "storage": {
+            "<REPO>/build/validation/issue-215/acceptance/test_installed_results_finish_completion_after_upgrade": {
+              "device": 49,
+              "inode": 8222269413313677406
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_installed_results_finish_completion_after_upgrade/work": {
+              "device": 49,
+              "inode": 26001576059325603
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_installed_results_finish_completion_after_upgrade/results": {
+              "device": 49,
+              "inode": 6168759852623171406
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_installed_results_finish_completion_after_upgrade/.gwf/gwflow": {
+              "device": 49,
+              "inode": 10612772270862962640
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_installed_results_finish_completion_after_upgrade/results/samples/a/report": {
+              "device": 49,
+              "inode": 4246317095374484467
+            }
+          },
+          "baseline_file_count": 24,
+          "baseline_snapshot_sha256": "278df4a02288f362b001069178b5a40794972d3075e355250670d2f53f242f1c",
+          "accepted_submission_count": 3,
+          "accepted_submissions_sha256": "dd28b4fada05320dbd206176956c902a476b0424da1cb8dbc84adc3b647b6723",
+          "replayed_terminal_states_counts": {
+            "COMPLETED": 2,
+            "FAILED": 1
+          },
+          "replayed_terminal_states_sha256": "8b0ea7c0d9d88d80185ebf86da215daa92ad00a7d3201efd63907ae7eefe40c1"
+        },
+        {
+          "side": "candidate",
+          "preserved_attempts": {
+            "a": "f10b35b7be714ee4835c42d1b589d544"
+          },
+          "computation_counts": {
+            "compute": 1
+          },
+          "retained_outputs": {
+            "<REPO>/build/validation/issue-215/acceptance/test_installed_results_finish_completion_after_upgrade/results/samples/a/report/renamed.txt": "first",
+            "<REPO>/build/validation/issue-215/acceptance/test_installed_results_finish_completion_after_upgrade/results/samples/a/report/nested/two.txt": "second"
+          },
+          "same_storage": {
+            "<REPO>/build/validation/issue-215/acceptance/test_installed_results_finish_completion_after_upgrade": {
+              "device": 49,
+              "inode": 8222269413313677406
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_installed_results_finish_completion_after_upgrade/work": {
+              "device": 49,
+              "inode": 26001576059325603
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_installed_results_finish_completion_after_upgrade/results": {
+              "device": 49,
+              "inode": 6168759852623171406
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_installed_results_finish_completion_after_upgrade/.gwf/gwflow": {
+              "device": 49,
+              "inode": 10612772270862962640
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_installed_results_finish_completion_after_upgrade/results/samples/a/report": {
+              "device": 49,
+              "inode": 4246317095374484467
+            }
+          },
+          "unchanged_workflow_sha256": "fde447134c116671b8a824f87d765147cf5897dba9350fb6b204ea4429637f1b"
+        }
+      ]
+    },
+    "test_insufficient_result_ownership_still_blocks_repair_after_upgrade": {
+      "commands": [
+        {
+          "phase": "baseline",
+          "command": "<REPO>/build/validation/issue-214/baseline-env/bin/gwflow run",
+          "exit": 0
+        },
+        {
+          "phase": "baseline",
+          "command": "<REPO>/build/validation/issue-214/baseline-env/bin/gwflow run",
+          "exit": 1
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow status --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow run",
+          "exit": 1
+        }
+      ],
+      "observations": [
+        {
+          "side": "baseline",
+          "all_jobs_inactive": true,
+          "worker_exit": -15,
+          "job_states": {
+            "0": "COMPLETED",
+            "1": "COMPLETED",
+            "2": "COMPLETED"
+          },
+          "storage": {
+            "<REPO>/build/validation/issue-215/acceptance/test_insufficient_result_ownership_still_blocks_repair_after_upgrade": {
+              "device": 49,
+              "inode": 253442908856204479
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_insufficient_result_ownership_still_blocks_repair_after_upgrade/work": {
+              "device": 49,
+              "inode": 5091522818294025139
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_insufficient_result_ownership_still_blocks_repair_after_upgrade/results": {
+              "device": 49,
+              "inode": 16121805362078471534
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_insufficient_result_ownership_still_blocks_repair_after_upgrade/.gwf/gwflow": {
+              "device": 49,
+              "inode": 2517296809241186873
+            }
+          },
+          "baseline_file_count": 31,
+          "baseline_snapshot_sha256": "2e4b9efa1b474c6394634e1e92e136eb297c6313954aa56dd5c195a7e12f9caa",
+          "accepted_submission_count": 3,
+          "accepted_submissions_sha256": "2380b0dd1cd6b40cd53b639b22a3d60a7fbb7d81882f0faa5bfde0489f7cffe0",
+          "replayed_terminal_states_counts": {
+            "COMPLETED": 3
+          },
+          "replayed_terminal_states_sha256": "392625e98fcba936e0953ee49e86354c77a6022f1fd757589a89ae6589170807"
+        },
+        {
+          "side": "candidate",
+          "insufficient_ownership_blocks_repair": true,
+          "unowned_output": "unowned content",
+          "new_submissions": 0
+        }
+      ]
+    },
+    "test_interrupted_repair_preserves_computation_and_consumer_across_upgrade": {
+      "commands": [
+        {
+          "phase": "baseline",
+          "command": "<REPO>/build/validation/issue-214/baseline-env/bin/gwflow run",
+          "exit": 0
+        },
+        {
+          "phase": "baseline",
+          "command": "<REPO>/build/validation/issue-214/baseline-env/bin/gwflow run --dry-run --details",
+          "exit": 0
+        },
+        {
+          "phase": "baseline",
+          "command": "<REPO>/build/validation/issue-214/baseline-env/bin/gwflow run",
+          "exit": 0
+        },
+        {
+          "phase": "baseline",
+          "command": "<REPO>/build/validation/issue-214/baseline-env/bin/gwflow run --dry-run --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow status --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow run --dry-run",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow run",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow run --dry-run --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow run --dry-run --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow run",
+          "exit": 0
+        }
+      ],
+      "observations": [
+        {
+          "side": "baseline",
+          "all_jobs_inactive": true,
+          "worker_exit": -15,
+          "job_states": {
+            "0": "COMPLETED",
+            "1": "COMPLETED",
+            "2": "COMPLETED",
+            "3": "COMPLETED",
+            "4": "COMPLETED",
+            "5": "COMPLETED",
+            "6": "FAILED"
+          },
+          "storage": {
+            "<REPO>/build/validation/issue-215/acceptance/test_interrupted_repair_preserves_computation_and_consumer_across_upgrade": {
+              "device": 49,
+              "inode": 10789543957466432948
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_interrupted_repair_preserves_computation_and_consumer_across_upgrade/work": {
+              "device": 49,
+              "inode": 15404554569994734370
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_interrupted_repair_preserves_computation_and_consumer_across_upgrade/results": {
+              "device": 49,
+              "inode": 10448005279390893002
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_interrupted_repair_preserves_computation_and_consumer_across_upgrade/.gwf/gwflow": {
+              "device": 49,
+              "inode": 16493919860431210442
+            }
+          },
+          "baseline_file_count": 59,
+          "baseline_snapshot_sha256": "6cfd46467f62d975baac94b1734c18dcab7c2575b0b7abc6c596036335e9829d",
+          "accepted_submission_count": 7,
+          "accepted_submissions_sha256": "02b08ea0c5921bb1446104311a397352d58672e3efe2fa2e8a7ab0b26e534f26",
+          "replayed_terminal_states_counts": {
+            "COMPLETED": 6,
+            "FAILED": 1
+          },
+          "replayed_terminal_states_sha256": "33d47b69be1d1d1e6b3848fbd71d1db84f6c767dd400914dab855ee89de780fa"
+        },
+        {
+          "side": "candidate",
+          "preserved_attempts": {
+            "a": "d35c659177de408daed2982671be7b60",
+            "c": "9729f0f7c6d747feba41d057fe5b9189"
+          },
+          "computation_counts": {
+            "compute": 1,
+            "consumer": 1
+          },
+          "retained_outputs": {
+            "<REPO>/build/validation/issue-215/acceptance/test_interrupted_repair_preserves_computation_and_consumer_across_upgrade/results/samples/a/report/renamed.txt": "first",
+            "<REPO>/build/validation/issue-215/acceptance/test_interrupted_repair_preserves_computation_and_consumer_across_upgrade/results/samples/a/report/nested/two.txt": "second",
+            "<REPO>/build/validation/issue-215/acceptance/test_interrupted_repair_preserves_computation_and_consumer_across_upgrade/results/c/joined.txt": "firstsecond"
+          },
+          "same_storage": {
+            "<REPO>/build/validation/issue-215/acceptance/test_interrupted_repair_preserves_computation_and_consumer_across_upgrade": {
+              "device": 49,
+              "inode": 10789543957466432948
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_interrupted_repair_preserves_computation_and_consumer_across_upgrade/work": {
+              "device": 49,
+              "inode": 15404554569994734370
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_interrupted_repair_preserves_computation_and_consumer_across_upgrade/results": {
+              "device": 49,
+              "inode": 10448005279390893002
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_interrupted_repair_preserves_computation_and_consumer_across_upgrade/.gwf/gwflow": {
+              "device": 49,
+              "inode": 16493919860431210442
+            }
+          },
+          "unchanged_workflow_sha256": "022756729986ecb871e48c291ac5436f1c2b9da9817d96857d01f5204c03ff6d"
+        }
+      ]
+    },
+    "test_missing_retained_output_remains_repairable_after_upgrade": {
+      "commands": [
+        {
+          "phase": "baseline",
+          "command": "<REPO>/build/validation/issue-214/baseline-env/bin/gwflow run",
+          "exit": 0
+        },
+        {
+          "phase": "baseline",
+          "command": "<REPO>/build/validation/issue-214/baseline-env/bin/gwflow run --dry-run --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow status --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow run --dry-run",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow run",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow run --dry-run --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow run",
+          "exit": 0
+        }
+      ],
+      "observations": [
+        {
+          "side": "baseline",
+          "all_jobs_inactive": true,
+          "worker_exit": -15,
+          "job_states": {
+            "0": "COMPLETED",
+            "1": "COMPLETED",
+            "2": "COMPLETED"
+          },
+          "storage": {
+            "<REPO>/build/validation/issue-215/acceptance/test_missing_retained_output_remains_repairable_after_upgrade": {
+              "device": 49,
+              "inode": 149656832515973373
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_missing_retained_output_remains_repairable_after_upgrade/work": {
+              "device": 49,
+              "inode": 5172674870753639746
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_missing_retained_output_remains_repairable_after_upgrade/results": {
+              "device": 49,
+              "inode": 12834797934148092897
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_missing_retained_output_remains_repairable_after_upgrade/.gwf/gwflow": {
+              "device": 49,
+              "inode": 4892394742183854547
+            }
+          },
+          "baseline_file_count": 26,
+          "baseline_snapshot_sha256": "7fc8fae6e9b4662c0b8f0c341bd63ef4cacbef9525157fc54bbde4d78f04c022",
+          "accepted_submission_count": 3,
+          "accepted_submissions_sha256": "a9ec81aafba8f6252727e3a785efb19ea489479f37c8200bd7f77e89244267c0",
+          "replayed_terminal_states_counts": {
+            "COMPLETED": 3
+          },
+          "replayed_terminal_states_sha256": "bdfa9c67d070a216ac13d0affe4320c5bd2f2ebd190288844018ecc0418b74d1"
+        },
+        {
+          "side": "candidate",
+          "preserved_attempts": {
+            "a": "58e40199cf5e450b8294bc9ce30bd633"
+          },
+          "computation_counts": {
+            "compute": 1
+          },
+          "retained_outputs": {
+            "<REPO>/build/validation/issue-215/acceptance/test_missing_retained_output_remains_repairable_after_upgrade/results/samples/a/report/renamed.txt": "first",
+            "<REPO>/build/validation/issue-215/acceptance/test_missing_retained_output_remains_repairable_after_upgrade/results/samples/a/report/nested/two.txt": "second"
+          },
+          "same_storage": {
+            "<REPO>/build/validation/issue-215/acceptance/test_missing_retained_output_remains_repairable_after_upgrade": {
+              "device": 49,
+              "inode": 149656832515973373
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_missing_retained_output_remains_repairable_after_upgrade/work": {
+              "device": 49,
+              "inode": 5172674870753639746
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_missing_retained_output_remains_repairable_after_upgrade/results": {
+              "device": 49,
+              "inode": 12834797934148092897
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_missing_retained_output_remains_repairable_after_upgrade/.gwf/gwflow": {
+              "device": 49,
+              "inode": 4892394742183854547
+            }
+          },
+          "unchanged_workflow_sha256": "c4735b08bdc9b17ec7e2f5d269fe51e470c565ac79fdc7d67cb9cf0e8e915d13"
+        }
+      ]
+    },
+    "test_missing_source_evidence_still_requires_fresh_attempt_after_upgrade": {
+      "commands": [
+        {
+          "phase": "baseline",
+          "command": "<REPO>/build/validation/issue-214/baseline-env/bin/gwflow run",
+          "exit": 0
+        },
+        {
+          "phase": "baseline",
+          "command": "<REPO>/build/validation/issue-214/baseline-env/bin/gwflow run --dry-run --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow status --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow run --dry-run",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow run",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow run --dry-run --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow run --dry-run --details",
+          "exit": 0
+        }
+      ],
+      "observations": [
+        {
+          "side": "baseline",
+          "all_jobs_inactive": true,
+          "worker_exit": -15,
+          "job_states": {
+            "0": "COMPLETED",
+            "1": "COMPLETED",
+            "2": "COMPLETED"
+          },
+          "storage": {
+            "<REPO>/build/validation/issue-215/acceptance/test_missing_source_evidence_still_requires_fresh_attempt_after_upgrade": {
+              "device": 49,
+              "inode": 471950443025682709
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_missing_source_evidence_still_requires_fresh_attempt_after_upgrade/work": {
+              "device": 49,
+              "inode": 2839848270462986333
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_missing_source_evidence_still_requires_fresh_attempt_after_upgrade/results": {
+              "device": 49,
+              "inode": 8169735566620725567
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_missing_source_evidence_still_requires_fresh_attempt_after_upgrade/.gwf/gwflow": {
+              "device": 49,
+              "inode": 14397657867429588960
+            }
+          },
+          "baseline_file_count": 25,
+          "baseline_snapshot_sha256": "064e5ca51fb01508921bfdd642fd7b6445ec3c4e933c5b50894633d86b6aa506",
+          "accepted_submission_count": 3,
+          "accepted_submissions_sha256": "d25ea828f1f5a05ee70bad381e1fc38245ebf6db9c08b49a0bdaa4b326914b5d",
+          "replayed_terminal_states_counts": {
+            "COMPLETED": 3
+          },
+          "replayed_terminal_states_sha256": "53aba093e68c2e1cee61d7b4fce6b19abf4b4e1a4ba0de03fd8c09f2ec56e5d3"
+        },
+        {
+          "side": "candidate",
+          "missing_source_evidence_requires_fresh": true,
+          "old_attempts": {
+            "a": "a16056c2cf8a493289b9312d946ab1db"
+          },
+          "new_attempts": {
+            "a": "b6f51c51bcd9419d9c7b5914f624ed5a"
+          },
+          "computation_counts": {
+            "compute": 2
+          }
+        }
+      ]
+    },
+    "test_partial_copy_on_separate_filesystem_survives_upgrade": {
+      "commands": [
+        {
+          "phase": "baseline",
+          "command": "<REPO>/build/validation/issue-214/baseline-env/bin/gwflow run",
+          "exit": 0
+        },
+        {
+          "phase": "baseline",
+          "command": "<REPO>/build/validation/issue-214/baseline-env/bin/gwflow run --dry-run --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow status --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow run --dry-run",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow run",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow run --dry-run --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow run",
+          "exit": 0
+        }
+      ],
+      "observations": [
+        {
+          "side": "baseline",
+          "all_jobs_inactive": true,
+          "worker_exit": -15,
+          "job_states": {
+            "0": "COMPLETED",
+            "1": "COMPLETED",
+            "2": "FAILED"
+          },
+          "storage": {
+            "<REPO>/build/validation/issue-215/acceptance/test_partial_copy_on_separate_filesystem_survives_upgrade": {
+              "device": 49,
+              "inode": 2235778641324197498
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_partial_copy_on_separate_filesystem_survives_upgrade/work": {
+              "device": 49,
+              "inode": 226073979042081896
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_partial_copy_on_separate_filesystem_survives_upgrade/.gwf/gwflow": {
+              "device": 49,
+              "inode": 566226614499057968
+            },
+            "<SECOND_FS>": {
+              "device": 23,
+              "inode": 1972007
+            },
+            "<SECOND_FS>/results": {
+              "device": 23,
+              "inode": 1972008
+            },
+            "<SECOND_FS>/staging": {
+              "device": 23,
+              "inode": 1972009
+            }
+          },
+          "baseline_file_count": 21,
+          "baseline_snapshot_sha256": "782ca8e4d49440669ea7c01dfa12a0fca5f8e08ed1fed63e314cc056d1cfba03",
+          "accepted_submission_count": 3,
+          "accepted_submissions_sha256": "46ccaed3214fa912c46a86ed8bb6a2453ab8b936148d058b09a32aaa219d8218",
+          "replayed_terminal_states_counts": {
+            "COMPLETED": 2,
+            "FAILED": 1
+          },
+          "replayed_terminal_states_sha256": "61cc222842dd06b283582027780c39386bd8527d49e222e451f386608b47149f"
+        },
+        {
+          "side": "candidate",
+          "preserved_attempts": {
+            "a": "5e7daaa6e7aa48e2a75b22b7e30bcaba"
+          },
+          "computation_counts": {
+            "compute": 1
+          },
+          "retained_outputs": {
+            "<SECOND_FS>/results/samples/a/report/renamed.txt": "first",
+            "<SECOND_FS>/results/samples/a/report/nested/two.txt": "second"
+          },
+          "same_storage": {
+            "<REPO>/build/validation/issue-215/acceptance/test_partial_copy_on_separate_filesystem_survives_upgrade": {
+              "device": 49,
+              "inode": 2235778641324197498
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_partial_copy_on_separate_filesystem_survives_upgrade/work": {
+              "device": 49,
+              "inode": 226073979042081896
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_partial_copy_on_separate_filesystem_survives_upgrade/.gwf/gwflow": {
+              "device": 49,
+              "inode": 566226614499057968
+            },
+            "<SECOND_FS>": {
+              "device": 23,
+              "inode": 1972007
+            },
+            "<SECOND_FS>/results": {
+              "device": 23,
+              "inode": 1972008
+            },
+            "<SECOND_FS>/staging": {
+              "device": 23,
+              "inode": 1972009
+            }
+          },
+          "unchanged_workflow_sha256": "f1beb9c9f6c8b155cba80f4efd5a0e6397abea4fc6dc2c1944abd26ed748e27c"
+        }
+      ]
+    },
+    "test_partial_copy_survives_upgrade_without_computation": {
+      "commands": [
+        {
+          "phase": "baseline",
+          "command": "<REPO>/build/validation/issue-214/baseline-env/bin/gwflow run",
+          "exit": 0
+        },
+        {
+          "phase": "baseline",
+          "command": "<REPO>/build/validation/issue-214/baseline-env/bin/gwflow run --dry-run --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow status --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow run --dry-run",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow run",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow run --dry-run --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow run",
+          "exit": 0
+        }
+      ],
+      "observations": [
+        {
+          "side": "baseline",
+          "all_jobs_inactive": true,
+          "worker_exit": -15,
+          "job_states": {
+            "0": "COMPLETED",
+            "1": "COMPLETED",
+            "2": "FAILED"
+          },
+          "storage": {
+            "<REPO>/build/validation/issue-215/acceptance/test_partial_copy_survives_upgrade_without_computation": {
+              "device": 49,
+              "inode": 16220841841654169514
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_partial_copy_survives_upgrade_without_computation/work": {
+              "device": 49,
+              "inode": 17949692317613158102
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_partial_copy_survives_upgrade_without_computation/results": {
+              "device": 49,
+              "inode": 3376830294965314363
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_partial_copy_survives_upgrade_without_computation/.gwf/gwflow": {
+              "device": 49,
+              "inode": 8854479525204118308
+            }
+          },
+          "baseline_file_count": 22,
+          "baseline_snapshot_sha256": "47c8d1cc2c1b1f69923c1092b9a03ef8f1ee7d4305d5dc0b9a9f2ea269a63842",
+          "accepted_submission_count": 3,
+          "accepted_submissions_sha256": "04f24c1959deef61cedb11d5e6a8be2f91e576ef7e1f75ff366a71a78a783aea",
+          "replayed_terminal_states_counts": {
+            "COMPLETED": 2,
+            "FAILED": 1
+          },
+          "replayed_terminal_states_sha256": "c7c7af63e4ad2d9ea15cd8729073d693f36ac000da678b06922a9e076bd6b3b4"
+        },
+        {
+          "side": "candidate",
+          "preserved_attempts": {
+            "a": "d0bfb833d64343449ceaa762c31c3e2d"
+          },
+          "computation_counts": {
+            "compute": 1
+          },
+          "retained_outputs": {
+            "<REPO>/build/validation/issue-215/acceptance/test_partial_copy_survives_upgrade_without_computation/results/samples/a/report/renamed.txt": "first",
+            "<REPO>/build/validation/issue-215/acceptance/test_partial_copy_survives_upgrade_without_computation/results/samples/a/report/nested/two.txt": "second"
+          },
+          "same_storage": {
+            "<REPO>/build/validation/issue-215/acceptance/test_partial_copy_survives_upgrade_without_computation": {
+              "device": 49,
+              "inode": 16220841841654169514
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_partial_copy_survives_upgrade_without_computation/work": {
+              "device": 49,
+              "inode": 17949692317613158102
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_partial_copy_survives_upgrade_without_computation/results": {
+              "device": 49,
+              "inode": 3376830294965314363
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_partial_copy_survives_upgrade_without_computation/.gwf/gwflow": {
+              "device": 49,
+              "inode": 8854479525204118308
+            }
+          },
+          "unchanged_workflow_sha256": "f7935fb133ef9843230c7fd47f680f498777a9c675fc99234765f829ea876eb4"
+        }
+      ]
+    },
+    "test_prepared_installation_survives_upgrade_without_computation": {
+      "commands": [
+        {
+          "phase": "baseline",
+          "command": "<REPO>/build/validation/issue-214/baseline-env/bin/gwflow run",
+          "exit": 0
+        },
+        {
+          "phase": "baseline",
+          "command": "<REPO>/build/validation/issue-214/baseline-env/bin/gwflow run --dry-run --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow status --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow run --dry-run",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow run",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow run --dry-run --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow run",
+          "exit": 0
+        }
+      ],
+      "observations": [
+        {
+          "side": "baseline",
+          "all_jobs_inactive": true,
+          "worker_exit": -15,
+          "job_states": {
+            "0": "COMPLETED",
+            "1": "COMPLETED",
+            "2": "FAILED"
+          },
+          "storage": {
+            "<REPO>/build/validation/issue-215/acceptance/test_prepared_installation_survives_upgrade_without_computation": {
+              "device": 49,
+              "inode": 15907666708901978212
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_prepared_installation_survives_upgrade_without_computation/work": {
+              "device": 49,
+              "inode": 197801924993283421
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_prepared_installation_survives_upgrade_without_computation/results": {
+              "device": 49,
+              "inode": 15141828035285840120
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_prepared_installation_survives_upgrade_without_computation/.gwf/gwflow": {
+              "device": 49,
+              "inode": 3738053278947005053
+            }
+          },
+          "baseline_file_count": 24,
+          "baseline_snapshot_sha256": "b900d5d5b743db74c30b88fc2fd8685912b1644b2c9c4746cd18673926e8f764",
+          "accepted_submission_count": 3,
+          "accepted_submissions_sha256": "6fdcca085bee9a2ad89c9b8736dbb306f84e482665dd18d8521032f5580abe24",
+          "replayed_terminal_states_counts": {
+            "COMPLETED": 2,
+            "FAILED": 1
+          },
+          "replayed_terminal_states_sha256": "488420a09c442c34011f504f12713ab346248c406b5781723dbf1f932e8e8832"
+        },
+        {
+          "side": "candidate",
+          "preserved_attempts": {
+            "a": "23e9bd4ecc334691810748034e85066b"
+          },
+          "computation_counts": {
+            "compute": 1
+          },
+          "retained_outputs": {
+            "<REPO>/build/validation/issue-215/acceptance/test_prepared_installation_survives_upgrade_without_computation/results/samples/a/report/renamed.txt": "first",
+            "<REPO>/build/validation/issue-215/acceptance/test_prepared_installation_survives_upgrade_without_computation/results/samples/a/report/nested/two.txt": "second"
+          },
+          "same_storage": {
+            "<REPO>/build/validation/issue-215/acceptance/test_prepared_installation_survives_upgrade_without_computation": {
+              "device": 49,
+              "inode": 15907666708901978212
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_prepared_installation_survives_upgrade_without_computation/work": {
+              "device": 49,
+              "inode": 197801924993283421
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_prepared_installation_survives_upgrade_without_computation/results": {
+              "device": 49,
+              "inode": 15141828035285840120
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_prepared_installation_survives_upgrade_without_computation/.gwf/gwflow": {
+              "device": 49,
+              "inode": 3738053278947005053
+            }
+          },
+          "unchanged_workflow_sha256": "3d9362dce1e68b0b06827abc21de4e33b7dbaf2ef54b26ff3bf20dc0b2e42fda"
+        }
+      ]
+    },
+    "test_uncertain_and_active_consumers_still_block_repair_after_upgrade": {
+      "commands": [
+        {
+          "phase": "baseline",
+          "command": "<REPO>/build/validation/issue-214/baseline-env/bin/gwflow run",
+          "exit": 0
+        },
+        {
+          "phase": "baseline",
+          "command": "<REPO>/build/validation/issue-214/baseline-env/bin/gwflow run",
+          "exit": 1
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow status --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow run a",
+          "exit": 1
+        },
+        {
+          "phase": "candidate",
+          "command": "<REPO>/build/validation/issue-215/candidate-env/bin/gwflow run a",
+          "exit": 1
+        }
+      ],
+      "observations": [
+        {
+          "side": "baseline",
+          "all_jobs_inactive": true,
+          "worker_exit": -15,
+          "job_states": {
+            "0": "COMPLETED",
+            "1": "COMPLETED",
+            "2": "COMPLETED"
+          },
+          "storage": {
+            "<REPO>/build/validation/issue-215/acceptance/test_uncertain_and_active_consumers_still_block_repair_after_upgrade": {
+              "device": 49,
+              "inode": 2307385491475273772
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_uncertain_and_active_consumers_still_block_repair_after_upgrade/work": {
+              "device": 49,
+              "inode": 1871868843259274620
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_uncertain_and_active_consumers_still_block_repair_after_upgrade/results": {
+              "device": 49,
+              "inode": 17147403877842804609
+            },
+            "<REPO>/build/validation/issue-215/acceptance/test_uncertain_and_active_consumers_still_block_repair_after_upgrade/.gwf/gwflow": {
+              "device": 49,
+              "inode": 6729712474849946817
+            }
+          },
+          "baseline_file_count": 34,
+          "baseline_snapshot_sha256": "6615ea44d6239f1b036ba450c1cfdacd2e3f2ca76e2558af7b2e47d337cfd93a",
+          "accepted_submission_count": 3,
+          "accepted_submissions_sha256": "e4eedc9347fd8074933afb28b9dd0ef28422e82e86861ee063dd3fefc8462f2b",
+          "replayed_terminal_states_counts": {
+            "COMPLETED": 3
+          },
+          "replayed_terminal_states_sha256": "6e4a897db1c5bfe2051f5c8ef3c87e66ccb29a49a1d2f035673994d93af76161"
+        },
+        {
+          "side": "candidate",
+          "uncertain_consumer_blocks_repair": true,
+          "active_consumer_blocks_repair": true,
+          "protected_output": "protected retained output",
+          "new_submissions": 0
+        }
+      ]
+    }
+  },
+  "raw_evidence": "build/validation/issue-215/acceptance",
+  "path_placeholders": {
+    "<REPO>": "Absolute checkout root. Relative commands and evidence paths are relative to it; file://<REPO>/... preserves absolute pip artifact URLs.",
+    "<SECOND_FS>": "Temporary directory on the separate /dev/shm filesystem used by the copying case. Results and staging stayed at these same paths and device/inode identities across the installation switch. The fixture removed this directory after checking and recording its outputs."
+  }
+}

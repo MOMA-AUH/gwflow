@@ -102,7 +102,7 @@ uninstrumented command times measure different things.
 ## Historical evidence index
 
 The [installed compatibility baseline](compatibility/README.md) describes the
-two-environment completed/cleaned-Task journey, the pinned bootstrap source,
+two-environment completed, cleaned, and incomplete Task journeys, the pinned bootstrap source,
 runtime provenance, and how to test a later installed candidate against it.
 Its same-source bootstrap is not evidence for all future 1.x upgrades.
 
