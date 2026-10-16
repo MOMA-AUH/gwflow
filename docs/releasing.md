@@ -13,6 +13,8 @@ on both backends, the BeeGFS storage correction, and
 deployment limits. Broader runtime and backend support has not been verified.
 Use the [validation guide](validation/README.md) for current setup and checks,
 and its evidence index to find the relevant historical records.
+Operators should use the [operating and upgrade guide](operating.md) for force,
+cleanup, unresolved submissions, and upgrades with all affected jobs inactive.
 
 Pull requests and pushes to `master` run the installed-package test suite and
 the Conda build and installed-artifact checks in CI. The `tests` and `conda`
@@ -102,7 +104,8 @@ pipeline on Slurm.
 
 Final CLI terminal output must be settled before v1.0.0. The maintainer has
 additional presentation wishes that are not yet specified, so this remains an
-open design milestone within the agreed release plan. The review covers layout,
+open design milestone in [issue #213](https://github.com/MOMA-AUH/gwflow/issues/213)
+within the agreed release plan. The review covers layout,
 wording, colors, grouping, progress, verbosity
 of reports, and error/recovery guidance. Command names, arguments, flags, and
 behavior remain governed by the settled command decisions; this review does not

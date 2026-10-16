@@ -86,7 +86,7 @@ A file declared by the task author as an output to keep after successful task co
 A file used within a task that need not be retained after successful completion and is not available as a dependency of another task. Its absence alone must not invalidate an otherwise reusable task.
 
 **Reuse**:
-Accepting a completed task without rerunning its targets while its external inputs and retained outputs remain valid. Completion carries the same guarantees and limitations as gwf target completion.
+Accepting a completed Task without repeating computation while its tracked definition, inputs, producer attempts, and retained outputs remain valid. Reuse survives removal of internal intermediates.
 
 **Repair**:
 Restoring missing or changed retained outputs from a Task's valid existing work without rerunning its computation.
@@ -95,10 +95,10 @@ Restoring missing or changed retained outputs from a Task's valid existing work 
 Postponing further handling of a Task until upstream retained outputs have been recovered and its external-input state can be reassessed. Proceeding requires a later workflow invocation.
 
 **Completion**:
-The task being considered finished under gwf's completion semantics, including their limitations. This does not imply stronger proof of successful execution or output correctness.
+The checked finished state of a Task attempt, established by successful computation and installation of its complete retained-output set for the accepted inputs. It does not certify scientific output correctness.
 
 **Completion record**:
-Bookkeeping that a task reached completion under gwf's semantics, retained so later reuse can ignore removed internal intermediates. It does not independently certify process success or output correctness.
+Durable evidence of a Task attempt's checked Completion, retained so later Reuse can ignore removed internal intermediates. It does not certify scientific output correctness.
 
 **File freshness**:
 The existence-and-modification-time relationship between a target's inputs and outputs under gwf's rules. Freshness alone does not establish successful execution or a managed task's eligibility for Reuse.

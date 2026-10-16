@@ -144,6 +144,7 @@ use `gwflow`; ordinary `gwf.Workflow` workflows continue to use `gwf`.
 
 ## More
 
+- [Operating, upgrading, and recovering workflows](docs/operating.md)
 - [Task authoring and dependencies](docs/reference.md#authoring-tasks)
 - [Selection, status, logs, and backend configuration](docs/reference.md#commands-and-reports)
 - [Container images and staged inputs](docs/reference.md#containers)
