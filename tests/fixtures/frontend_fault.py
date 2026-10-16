@@ -38,6 +38,8 @@ def replace(source, destination, **kwargs):
         os._exit(99)
     if selected and destination == "ack.json" and phase == "ack_write_error":
         raise OSError("injected acknowledgement storage failure")
+    if selected and destination == "recovery.json" and phase == "before_recovery_record":
+        os._exit(112)
     if selected and destination == "attempt.json" and phase == "before_repair_selection":
         os._exit(100)
     if destination == "owner.json" and phase == "before_work_recreation":
@@ -46,6 +48,8 @@ def replace(source, destination, **kwargs):
         if json.loads((parent / source).read_text()).get("state") == "removed":
             os._exit(105)
     result = original_replace(source, destination, **kwargs)
+    if selected and destination == "recovery.json" and phase == "after_recovery_record":
+        os._exit(113)
     if selected and destination == "ack.json" and phase == "after_preparation_ack":
         if "__gwflow_prepare__" in json.loads((parent / destination).read_text())["job"]:
             os._exit(110)

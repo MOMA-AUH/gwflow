@@ -191,7 +191,7 @@ def inspection_command(*arguments):
     if root.get_parameter_source("no_color") == click.core.ParameterSource.COMMANDLINE:
         command.append("--no-color" if root.params["no_color"] else "--use-color")
     command.extend(arguments)
-    if context.params.get("plain"):
+    if context.params.get("plain") and arguments[0] in ("run", "status"):
         command.append("--plain")
     return command
 
@@ -488,6 +488,20 @@ class Report:
             else:
                 self.status_line(line)
 
+        self.recovery_notices(tasks)
+
+    def recovery_notices(self, tasks):
+        for task in tasks:
+            unresolved = [item.submission for item in task.submissions.values() if item.state == "uncertain"]
+            if not unresolved:
+                continue
+            self.notice(f"Task {task.name}: unresolved submissions: " + ", ".join(unresolved))
+            self.status_line("Investigate the scheduler and job logs. Establish whole-Task inactivity, including "
+                             "computation, preparation, and completion jobs; cancellation requests alone are insufficient.")
+            self.status_line("Only then assert inactivity with:")
+            click.echo("  " + shlex.join(inspection_command("recover", task.name)), color=False)
+            self.status_line("Recovery records your assertion; it submits no jobs and does not establish success.")
+
     def status(self, rows, total, *, expand=False):
         self.status_line(summary(rows, total), style="bold cyan")
         if not rows:
@@ -571,6 +585,7 @@ class Report:
                 if not plan.blocked:
                     for local in row.task.pending:
                         self.line(f"  Would submit {row.task.name}__{local}")
+        self.recovery_notices(plan.tasks)
 
     def submissions(self, outcomes, *, interrupted=False, details=False):
         confirmed = [outcome for outcome in outcomes if outcome.confirmed]

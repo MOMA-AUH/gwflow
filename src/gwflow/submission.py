@@ -104,6 +104,8 @@ def submit_plan(plan, workflow, ctx, *, dry_run, outcomes):
     with create_backend(ctx.backend, working_dir=ctx.working_dir, config=ctx.config) as backend:
         with get_spec_hashes(working_dir=ctx.working_dir, config=ctx.config) as hashes:
             for task, attempt in selected:
+                if admission.superseded_activity(plan.store, attempt, backend, ctx.backend):
+                    raise WorkflowError(f"Task {task.name}: unresolved or active recovered submissions prevent submission")
                 observed = {} if task.action == "fresh" else dict(task.submissions)
                 if task.action == "repair":
                     observed = admission.observe(plan.store, attempt, backend, ctx.backend)

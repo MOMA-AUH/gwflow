@@ -1,8 +1,7 @@
 """Discover Task logs and read individual job streams without planning work."""
 
 import shlex
-import signal
-from contextlib import ExitStack, contextmanager
+from contextlib import ExitStack
 
 import click
 from gwf.backends import BackendStatus, create_backend
@@ -10,31 +9,11 @@ from gwf.core import pass_context
 from gwf.plugins.logs import logs as gwf_logs
 
 from . import admission
-from ._frontend import _submission_guard, load_workflow
+from ._frontend import _submission_guard, load_workflow, observation_deadline
 from .lifecycle import Store
 from .presentation import inspection_command
 from .selection import task_selection
 from .workflow import lifecycle_jobs
-
-
-class _ObservationTimeout(Exception):
-    """Escape backend retries that catch OSError (including TimeoutError)."""
-
-
-@contextmanager
-def _observation_deadline():
-    # gwf's local client retries a missing worker for hours. Log discovery
-    # must return using disk evidence even when a backend call never returns.
-    def expired(signum, frame):
-        raise _ObservationTimeout("scheduler observation timed out")
-
-    previous = signal.signal(signal.SIGALRM, expired)
-    timer = signal.setitimer(signal.ITIMER_REAL, 5)
-    try:
-        yield
-    finally:
-        signal.setitimer(signal.ITIMER_REAL, *timer)
-        signal.signal(signal.SIGALRM, previous)
 
 
 def _display_jobs(store, name, jobs, *, historical=False):
@@ -136,7 +115,7 @@ def logs(ctx, selectors, stderr, no_pager, history):
 
                 try:
                     # Cancel the alarm before backend cleanup can save tracking.
-                    with ExitStack() as cleanup, _observation_deadline():
+                    with ExitStack() as cleanup, observation_deadline():
                         backend = cleanup.enter_context(create_backend(ctx.backend, working_dir=ctx.working_dir, config=ctx.config))
                         observations, historical = inspect(backend)
                 except Exception as error:

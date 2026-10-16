@@ -233,11 +233,14 @@ def plan_workflow(workflow, ctx, *, selectors=(), force=False):
                     finishing = jobs["gwflow_complete"]
                     observation.submissions = jobs
                     observation.observations_available = True
+                    superseded = admission.superseded_activity(store, attempt, backend, ctx.backend)
                     uncertain = [item.submission for item in jobs.values() if item.state == "uncertain"]
                     active = [item.submission for item in jobs.values() if item.state == "active"]
                     pending = pending_submissions(attempt, jobs)
                     failed = [local for local, item in jobs.items() if item.state in ("failed", "cancelled") and local not in pending]
-                    if uncertain:
+                    if superseded:
+                        observation.action, observation.reason = "blocked", "Unresolved or active recovered submissions: " + ", ".join(item.submission for item in superseded)
+                    elif uncertain:
                         observation.action, observation.reason = "blocked", "unresolved submission: " + ", ".join(uncertain)
                     elif change := definition_change(store, observation, observations_by_name,
                                                       force_option="--force" if force and name in selected_names else None,
