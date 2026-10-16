@@ -155,7 +155,7 @@ print(json.dumps({'executable': sys.executable, 'prefix': sys.prefix,
     'direct_url': json.loads(distribution.read_text('direct_url.json') or 'null')}))
 """
     result = json.loads(subprocess.check_output([str(python), "-I", "-c", program], text=True))
-    if not Path(result["package"]).is_relative_to(result["prefix"]):
+    if not Path(result["package"]).resolve().is_relative_to(Path(result["prefix"]).resolve()):
         raise ValueError(f"gwflow must be independently installed inside {result['prefix']}")
     if not result["python"].startswith("3.12.") or result["versions"]["gwf"] != "2.1.1":
         raise ValueError("Use Python 3.12 and gwf 2.1.1 for both installations")
@@ -172,7 +172,7 @@ def main():
     args = parser.parse_args()
     installations = {side: installed_environment(getattr(args, side + "_python"), getattr(args, side + "_source"))
                      for side in ("baseline", "candidate")}
-    if installations["baseline"]["prefix"] == installations["candidate"]["prefix"]:
+    if Path(installations["baseline"]["prefix"]).samefile(installations["candidate"]["prefix"]):
         parser.error("Baseline and candidate must be independently installed in distinct environments")
     root = args.root.resolve()
     root.mkdir(parents=True, exist_ok=False)

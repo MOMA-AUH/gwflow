@@ -83,3 +83,6 @@ continue to cover ownership and unsupported-state rejection.
 Selected evidence is recorded in [acceptance.json](acceptance.json). Paths in that
 standalone record use its documented placeholders. Keep raw transcripts uncommitted
 and verify path normalization against them as required by [AGENTS.md](../../../AGENTS.md).
+Evidence selection summarizes the full per-file baseline snapshot by its count and
+digest. Path normalization happens afterward, against that selected raw record;
+it preserves versions, commands, results, hashes, and device/inode observations.
