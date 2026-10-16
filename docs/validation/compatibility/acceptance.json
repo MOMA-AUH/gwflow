@@ -1,0 +1,384 @@
+{
+  "scope": "Issue #214 completed and cleaned Task compatibility bootstrap; no release publication",
+  "recorded_date": "2026-10-16",
+  "limitations": [
+    "Both independent installations use the same pinned source. This validates the baseline and journey, not all future 1.x upgrades.",
+    "Package metadata is 0.7.0. The exact source includes mandatory tracking and operator recovery; this does not promise compatibility with other pre-1.0 records.",
+    "Final release preparation/publication must identify the actual immutable v1.0.0 baseline artifact and checksum.",
+    "The environments share Python and installed dependencies through system-site-packages but contain independent gwflow installations.",
+    "Local workers were used; there was no relocation, live upgrade, mixed-version worker operation, downgrade, or manual record conversion."
+  ],
+  "harness": {
+    "based_on": "8bad5986278152d613f356282e75fe9f65085a4c",
+    "files_sha256": {
+      "tests/validate_compatibility.py": "569b271bb3237a5c0367143b2714a508a6815e3498652739e83cc98356ddb2bd",
+      "tests/fixtures/compatibility_workflow.py": "76f9f6754fb60e54453f91fe0e6d4e538330c77f04f4fabcfe4907223beef602",
+      "tests/support.py": "6661103caf1254d97ff6ee37db062f5a56c80e49331b067b087a63b29b339b46"
+    }
+  },
+  "build_commands": [
+    "git archive 8bad5986278152d613f356282e75fe9f65085a4c | tar -x -C build/validation/issue-214/source",
+    ".conda-env/bin/python -m pip wheel --no-cache-dir --no-deps --no-build-isolation --wheel-dir build/validation/issue-214/wheels build/validation/issue-214/source",
+    ".conda-env/bin/python -m venv --system-site-packages build/validation/issue-214/baseline-env",
+    ".conda-env/bin/python -m venv --system-site-packages build/validation/issue-214/candidate-env",
+    "build/validation/issue-214/baseline-env/bin/python -m pip install --no-cache-dir --no-deps --ignore-installed build/validation/issue-214/wheels/gwflow-0.7.0-py3-none-any.whl",
+    "build/validation/issue-214/candidate-env/bin/python -m pip install --no-cache-dir --no-deps --ignore-installed build/validation/issue-214/wheels/gwflow-0.7.0-py3-none-any.whl"
+  ],
+  "runner_command": ".conda-env/bin/python tests/validate_compatibility.py --baseline-python build/validation/issue-214/baseline-env/bin/python --candidate-python build/validation/issue-214/candidate-env/bin/python --baseline-source 8bad5986278152d613f356282e75fe9f65085a4c --candidate-source 8bad5986278152d613f356282e75fe9f65085a4c --root build/validation/issue-214/final",
+  "environments": {
+    "baseline": {
+      "source": "8bad5986278152d613f356282e75fe9f65085a4c",
+      "executable": "<REPO>/build/validation/issue-214/baseline-env/bin/python",
+      "prefix": "<REPO>/build/validation/issue-214/baseline-env",
+      "python": "3.12.14 (main, Sep  2 2026, 23:27:36) [GCC 15.3.0]",
+      "platform": "Linux-5.14.0-687.48.1.el9_8.x86_64-x86_64-with-glibc2.34",
+      "package": "<REPO>/build/validation/issue-214/baseline-env/lib/python3.12/site-packages/gwflow",
+      "package_sha256": "09e2f0d68bb3b78cbadc3acae59d666d5f021c78ce88d1332b340dde81664fe6",
+      "versions": {
+        "gwflow": "0.7.0",
+        "gwf": "2.1.1",
+        "rich": "15.0.0"
+      },
+      "direct_url": {
+        "archive_info": {
+          "hash": "sha256=32b5f534a3bb4ec61aabdf97f1cf901ea5742a6c867da9fdc984ec9a8093eb6c",
+          "hashes": {
+            "sha256": "32b5f534a3bb4ec61aabdf97f1cf901ea5742a6c867da9fdc984ec9a8093eb6c"
+          }
+        },
+        "url": "file://<REPO>/build/validation/issue-214/wheels/gwflow-0.7.0-py3-none-any.whl"
+      }
+    },
+    "candidate": {
+      "source": "8bad5986278152d613f356282e75fe9f65085a4c",
+      "executable": "<REPO>/build/validation/issue-214/candidate-env/bin/python",
+      "prefix": "<REPO>/build/validation/issue-214/candidate-env",
+      "python": "3.12.14 (main, Sep  2 2026, 23:27:36) [GCC 15.3.0]",
+      "platform": "Linux-5.14.0-687.48.1.el9_8.x86_64-x86_64-with-glibc2.34",
+      "package": "<REPO>/build/validation/issue-214/candidate-env/lib/python3.12/site-packages/gwflow",
+      "package_sha256": "09e2f0d68bb3b78cbadc3acae59d666d5f021c78ce88d1332b340dde81664fe6",
+      "versions": {
+        "gwflow": "0.7.0",
+        "gwf": "2.1.1",
+        "rich": "15.0.0"
+      },
+      "direct_url": {
+        "archive_info": {
+          "hash": "sha256=32b5f534a3bb4ec61aabdf97f1cf901ea5742a6c867da9fdc984ec9a8093eb6c",
+          "hashes": {
+            "sha256": "32b5f534a3bb4ec61aabdf97f1cf901ea5742a6c867da9fdc984ec9a8093eb6c"
+          }
+        },
+        "url": "file://<REPO>/build/validation/issue-214/wheels/gwflow-0.7.0-py3-none-any.whl"
+      }
+    }
+  },
+  "result": {
+    "run": 1,
+    "failures": 0,
+    "errors": 0,
+    "skips": 0
+  },
+  "transcript": [
+    {
+      "time": 1792147504.874822,
+      "side": "baseline",
+      "command": [
+        "<REPO>/build/validation/issue-214/baseline-env/bin/gwflow",
+        "-b",
+        "recovery_fixture",
+        "run",
+        "recovered"
+      ],
+      "cwd": "<REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer",
+      "exit": 1,
+      "stdout": "Managed execution plan\nTask                              Next action    Why\nTask recovered                    Run            no completed managed attempt; fresh attempt required\nSubmission interrupted: 0 jobs confirmed submitted across 0 Tasks; 1 submission outcome unknown; 2 planned jobs not attempted. Already submitted jobs may continue; submission was not rolled back.\n",
+      "stderr": "Traceback (most recent call last):\n  File \"<REPO>/build/validation/issue-214/baseline-env/bin/gwflow\", line 10, in <module>\n    sys.exit(main())\n             ^^^^^^\n  File \"<REPO>/.conda-env/lib/python3.12/site-packages/click/core.py\", line 1631, in __call__\n    return self.main(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"<REPO>/.conda-env/lib/python3.12/site-packages/click/core.py\", line 1552, in main\n    rv = self.invoke(ctx)\n         ^^^^^^^^^^^^^^^^\n  File \"<REPO>/.conda-env/lib/python3.12/site-packages/click/core.py\", line 2032, in invoke\n    return _process_result(sub_ctx.command.invoke(sub_ctx))\n                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"<REPO>/.conda-env/lib/python3.12/site-packages/click/core.py\", line 1415, in invoke\n    return ctx.invoke(self.callback, **ctx.params)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"<REPO>/.conda-env/lib/python3.12/site-packages/click/core.py\", line 910, in invoke\n    return callback(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"<REPO>/.conda-env/lib/python3.12/site-packages/click/decorators.py\", line 93, in new_func\n    return ctx.invoke(f, obj, *args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"<REPO>/.conda-env/lib/python3.12/site-packages/click/core.py\", line 910, in invoke\n    return callback(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"<REPO>/build/validation/issue-214/baseline-env/lib/python3.12/site-packages/gwflow/run.py\", line 29, in run\n    submit_plan(plan, workflow, ctx, dry_run=dry_run, outcomes=outcomes)\n  File \"<REPO>/build/validation/issue-214/baseline-env/lib/python3.12/site-packages/gwflow/submission.py\", line 149, in submit_plan\n    observed[local] = admission.submit(plan.store, attempt, intent, target, dependencies, backend, hashes,\n                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"<REPO>/build/validation/issue-214/baseline-env/lib/python3.12/site-packages/gwflow/admission.py\", line 441, in submit\n    submit_backend(target, dependencies, call, hashes)\n  File \"<REPO>/.conda-env/lib/python3.12/site-packages/gwf/scheduling.py\", line 162, in submit_backend\n    backend.submit(target, dependencies)\n  File \"<REPO>/build/validation/issue-214/baseline-env/lib/python3.12/site-packages/gwflow/admission.py\", line 430, in submit\n    result = self.backend.submit(target, dependencies)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"<REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/recovery_backend.py\", line 80, in submit\n    raise RuntimeError(\"injected submission failure\")\nRuntimeError: injected submission failure\n"
+    },
+    {
+      "time": 1792147505.4991488,
+      "side": "baseline",
+      "command": [
+        "<REPO>/build/validation/issue-214/baseline-env/bin/gwflow",
+        "recover",
+        "recovered"
+      ],
+      "cwd": "<REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer",
+      "exit": 0,
+      "stdout": "Task recovered: current attempt 2fbf356905744efd9584516afb34ea20\n  Resolved submission recovered__gwflow_prepare__0944a259fd9c4c598d8c3896da88c90b__fba1faec35f44b2b9d8535f1d53d7d75; whole-Task inactivity asserted\nNo jobs submitted. Inspect 'gwflow run recovered --dry-run' before ordinary run.\n",
+      "stderr": ""
+    },
+    {
+      "time": 1792147506.5832589,
+      "side": "baseline",
+      "command": [
+        "<REPO>/build/validation/issue-214/baseline-env/bin/gwflow",
+        "run"
+      ],
+      "cwd": "<REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer",
+      "exit": 0,
+      "stdout": "Managed execution plan\nTask                              Next action    Why\nTask completed                    Run            no completed managed attempt; fresh attempt required\nTask cleaned                      Run            no completed managed attempt; fresh attempt required\nTask recovered                    Retry          preparation interrupted; restart in the same attempt\nSubmitted 9 jobs across 3 Tasks.\n",
+      "stderr": "Submitted target cleaned__gwflow_prepare__a8adda98e04b4e6fb56cb49ef9e9ff82__03f41e9527784346837b9b84d390cf60\nSubmitted target cleaned__copy__f8caf8c818b44406be2ae6c4263451e3__134574ce362f48f7b7be5079a5d1ada9\nSubmitted target cleaned__gwflow_complete__3720ca6262a5461796832098074004c2__2d953e39b0044e4a9b1bd3cc9648ca50\nSubmitted target completed__gwflow_prepare__a886201df5db4e7d98e1af1d9cc2f5a4__25d72a40715940dbbd7c9a260d3cca09\nSubmitted target completed__copy__66db6a9fade240b4b9391e2b588b1250__98347c312ade42e3868f88347446d022\nSubmitted target completed__gwflow_complete__7b0ddfa4f8e44291ba8abc48980f8937__12245254119243b6a6dba6baa9027597\nSubmitted target recovered__gwflow_prepare__0944a259fd9c4c598d8c3896da88c90b__1ac42459fcae45cd86896c7d23ffa92b\nSubmitted target recovered__copy__63b5240a76d74a7d8b7c3b9c6436f9a5__f3e58df915af4f238b28cb1b381ffe37\nSubmitted target recovered__gwflow_complete__a82651a61de0470eab6dd59d3c287b1c__e1a860cafef745f88b169837a2eba9b9\n"
+    },
+    {
+      "time": 1792147511.1093972,
+      "side": "baseline",
+      "command": [
+        "<REPO>/build/validation/issue-214/baseline-env/bin/gwflow",
+        "clean",
+        "--delete",
+        "cleaned"
+      ],
+      "cwd": "<REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer",
+      "exit": 0,
+      "stdout": "Work cleanup\nTask cleaned attempt 8423014ec89c41428077a100ce0cf250: removed; removed owned disposable work; results and bookkeeping preserved\n  Workspace: <REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/work/cleaned/8423014ec89c41428077a100ce0cf250\n  Staging group: <REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/.gwf/gwflow/staging/8423014ec89c41428077a100ce0cf250\n  Staging: <REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/.gwf/gwflow/staging/8423014ec89c41428077a100ce0cf250/3720ca6262a5461796832098074004c2\n  Staging: <REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/.gwf/gwflow/staging/8423014ec89c41428077a100ce0cf250/.staging-8440ac86f5934244895b0c00ed2b937f\n",
+      "stderr": ""
+    },
+    {
+      "time": 1792147511.8654213,
+      "side": "baseline",
+      "command": [
+        "<REPO>/build/validation/issue-214/baseline-env/bin/gwflow",
+        "run",
+        "--dry-run",
+        "--details"
+      ],
+      "cwd": "<REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer",
+      "exit": 0,
+      "stdout": "Managed execution plan\nTask                              Next action    Why\nTask completed                    Reuse          checked Completion and retained metadata match\nTask cleaned                      Reuse          checked Completion and retained metadata match\nTask recovered                    Reuse          checked Completion and retained metadata match\nDetails for Task completed:\n  State: reusable; Jobs completed: 3/3\n  [preparation]                 completed\n  copy                          completed\n  [completion]                  completed\n  Condition: reusable work-present\n  Next action: Reuse\n  Reason: checked Completion and retained metadata match\n  Attempt: e540b10e421c4c2abf575fa7bc5b5adc\n  Workspace: <REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/work/completed/e540b10e421c4c2abf575fa7bc5b5adc\n  Results: <REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/results/completed\n  Staging: <REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/.gwf/gwflow/staging/e540b10e421c4c2abf575fa7bc5b5adc/7b0ddfa4f8e44291ba8abc48980f8937\n  completed__gwflow_prepare: completed__gwflow_prepare__a886201df5db4e7d98e1af1d9cc2f5a4__25d72a40715940dbbd7c9a260d3cca09 (complete)\n    Backend job: 3\n    Log stdout: <REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/.gwf/logs/completed__gwflow_prepare__a886201df5db4e7d98e1af1d9cc2f5a4__25d72a40715940dbbd7c9a260d3cca09.stdout\n    Log stderr: <REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/.gwf/logs/completed__gwflow_prepare__a886201df5db4e7d98e1af1d9cc2f5a4__25d72a40715940dbbd7c9a260d3cca09.stderr\n  completed__copy: completed__copy__66db6a9fade240b4b9391e2b588b1250__98347c312ade42e3868f88347446d022 (complete)\n    Backend job: 4\n    Log stdout: <REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/.gwf/logs/completed__copy__66db6a9fade240b4b9391e2b588b1250__98347c312ade42e3868f88347446d022.stdout\n    Log stderr: <REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/.gwf/logs/completed__copy__66db6a9fade240b4b9391e2b588b1250__98347c312ade42e3868f88347446d022.stderr\n  completed__gwflow_complete: completed__gwflow_complete__7b0ddfa4f8e44291ba8abc48980f8937__12245254119243b6a6dba6baa9027597 (complete)\n    Backend job: 5\n    Log stdout: <REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/.gwf/logs/completed__gwflow_complete__7b0ddfa4f8e44291ba8abc48980f8937__12245254119243b6a6dba6baa9027597.stdout\n    Log stderr: <REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/.gwf/logs/completed__gwflow_complete__7b0ddfa4f8e44291ba8abc48980f8937__12245254119243b6a6dba6baa9027597.stderr\nDetails for Task cleaned:\n  State: reusable; Jobs completed: 3/3\n  [preparation]                 completed\n  copy                          completed\n  [completion]                  completed\n  Condition: reusable work-cleaned\n  Next action: Reuse\n  Reason: checked Completion and retained metadata match\n  Attempt: 8423014ec89c41428077a100ce0cf250\n  Workspace: <REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/work/cleaned/8423014ec89c41428077a100ce0cf250\n  Results: <REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/results/cleaned\n  Staging: <REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/.gwf/gwflow/staging/8423014ec89c41428077a100ce0cf250/3720ca6262a5461796832098074004c2\n  cleaned__gwflow_prepare: cleaned__gwflow_prepare__a8adda98e04b4e6fb56cb49ef9e9ff82__03f41e9527784346837b9b84d390cf60 (complete)\n    Backend job: 0\n    Log stdout: <REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/.gwf/logs/cleaned__gwflow_prepare__a8adda98e04b4e6fb56cb49ef9e9ff82__03f41e9527784346837b9b84d390cf60.stdout\n    Log stderr: <REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/.gwf/logs/cleaned__gwflow_prepare__a8adda98e04b4e6fb56cb49ef9e9ff82__03f41e9527784346837b9b84d390cf60.stderr\n  cleaned__copy: cleaned__copy__f8caf8c818b44406be2ae6c4263451e3__134574ce362f48f7b7be5079a5d1ada9 (complete)\n    Backend job: 1\n    Log stdout: <REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/.gwf/logs/cleaned__copy__f8caf8c818b44406be2ae6c4263451e3__134574ce362f48f7b7be5079a5d1ada9.stdout\n    Log stderr: <REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/.gwf/logs/cleaned__copy__f8caf8c818b44406be2ae6c4263451e3__134574ce362f48f7b7be5079a5d1ada9.stderr\n  cleaned__gwflow_complete: cleaned__gwflow_complete__3720ca6262a5461796832098074004c2__2d953e39b0044e4a9b1bd3cc9648ca50 (complete)\n    Backend job: 2\n    Log stdout: <REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/.gwf/logs/cleaned__gwflow_complete__3720ca6262a5461796832098074004c2__2d953e39b0044e4a9b1bd3cc9648ca50.stdout\n    Log stderr: <REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/.gwf/logs/cleaned__gwflow_complete__3720ca6262a5461796832098074004c2__2d953e39b0044e4a9b1bd3cc9648ca50.stderr\nDetails for Task recovered:\n  State: reusable; Jobs completed: 3/3\n  [preparation]                 completed\n  copy                          completed\n  [completion]                  completed\n  Condition: reusable work-present\n  Next action: Reuse\n  Reason: checked Completion and retained metadata match\n  Attempt: 2fbf356905744efd9584516afb34ea20\n  Workspace: <REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/work/recovered/2fbf356905744efd9584516afb34ea20\n  Results: <REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/results/recovered\n  Staging: <REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/.gwf/gwflow/staging/2fbf356905744efd9584516afb34ea20/a82651a61de0470eab6dd59d3c287b1c\n  recovered__gwflow_prepare: recovered__gwflow_prepare__0944a259fd9c4c598d8c3896da88c90b__1ac42459fcae45cd86896c7d23ffa92b (complete)\n    Backend job: 6\n    Log stdout: <REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/.gwf/logs/recovered__gwflow_prepare__0944a259fd9c4c598d8c3896da88c90b__1ac42459fcae45cd86896c7d23ffa92b.stdout\n    Log stderr: <REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/.gwf/logs/recovered__gwflow_prepare__0944a259fd9c4c598d8c3896da88c90b__1ac42459fcae45cd86896c7d23ffa92b.stderr\n  recovered__copy: recovered__copy__63b5240a76d74a7d8b7c3b9c6436f9a5__f3e58df915af4f238b28cb1b381ffe37 (complete)\n    Backend job: 7\n    Log stdout: <REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/.gwf/logs/recovered__copy__63b5240a76d74a7d8b7c3b9c6436f9a5__f3e58df915af4f238b28cb1b381ffe37.stdout\n    Log stderr: <REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/.gwf/logs/recovered__copy__63b5240a76d74a7d8b7c3b9c6436f9a5__f3e58df915af4f238b28cb1b381ffe37.stderr\n  recovered__gwflow_complete: recovered__gwflow_complete__a82651a61de0470eab6dd59d3c287b1c__e1a860cafef745f88b169837a2eba9b9 (complete)\n    Backend job: 8\n    Log stdout: <REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/.gwf/logs/recovered__gwflow_complete__a82651a61de0470eab6dd59d3c287b1c__e1a860cafef745f88b169837a2eba9b9.stdout\n    Log stderr: <REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/.gwf/logs/recovered__gwflow_complete__a82651a61de0470eab6dd59d3c287b1c__e1a860cafef745f88b169837a2eba9b9.stderr\n",
+      "stderr": ""
+    },
+    {
+      "time": 1792147511.8679364,
+      "side": "baseline",
+      "task": "completed",
+      "runtime": {
+        "prefix": "<REPO>/build/validation/issue-214/baseline-env",
+        "package": "<REPO>/build/validation/issue-214/baseline-env/lib/python3.12/site-packages/gwflow/__init__.py"
+      }
+    },
+    {
+      "time": 1792147511.8702273,
+      "side": "baseline",
+      "task": "cleaned",
+      "runtime": {
+        "prefix": "<REPO>/build/validation/issue-214/baseline-env",
+        "package": "<REPO>/build/validation/issue-214/baseline-env/lib/python3.12/site-packages/gwflow/__init__.py"
+      }
+    },
+    {
+      "time": 1792147511.878073,
+      "side": "baseline",
+      "task": "recovered",
+      "runtime": {
+        "prefix": "<REPO>/build/validation/issue-214/baseline-env",
+        "package": "<REPO>/build/validation/issue-214/baseline-env/lib/python3.12/site-packages/gwflow/__init__.py"
+      }
+    },
+    {
+      "time": 1792147512.2494287,
+      "side": "baseline",
+      "baseline_jobs_completed": true,
+      "worker_exit": -15,
+      "job_states": {
+        "0": "COMPLETED",
+        "1": "COMPLETED",
+        "2": "COMPLETED",
+        "3": "COMPLETED",
+        "4": "COMPLETED",
+        "5": "COMPLETED",
+        "6": "COMPLETED",
+        "7": "COMPLETED",
+        "8": "COMPLETED"
+      },
+      "attempts": {
+        "completed": "e540b10e421c4c2abf575fa7bc5b5adc",
+        "cleaned": "8423014ec89c41428077a100ce0cf250",
+        "recovered": "2fbf356905744efd9584516afb34ea20"
+      },
+      "storage": {
+        "<REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer": {
+          "device": 49,
+          "inode": 12871329134090131387
+        },
+        "<REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/work": {
+          "device": 49,
+          "inode": 4063716732303654520
+        },
+        "<REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/results": {
+          "device": 49,
+          "inode": 8218985870871827551
+        },
+        "<REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/.gwf/gwflow": {
+          "device": 49,
+          "inode": 12048263157125976042
+        }
+      },
+      "baseline_file_count": 83,
+      "baseline_snapshot_sha256": "166b0f29854bb1ca4e95cd134c7a0bd72d3e5ed8ec02af7c563e4373c9cd7caa"
+    },
+    {
+      "time": 1792147513.9975843,
+      "side": "candidate",
+      "command": [
+        "<REPO>/build/validation/issue-214/candidate-env/bin/gwflow",
+        "status",
+        "--details"
+      ],
+      "cwd": "<REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer",
+      "exit": 0,
+      "stdout": "3 of 3 Tasks selected\n3 reusable\nTask       Target                                      State      Jobs completed  Detail\ncompleted                                              reusable   3/3             work present\n           |- completed__gwflow_prepare [preparation]  completed\n           |- completed__copy                          completed\n           `- completed__gwflow_complete [completion]  completed\ncleaned                                                reusable   3/3             work cleaned\n           |- cleaned__gwflow_prepare [preparation]    completed\n           |- cleaned__copy                            completed\n           `- cleaned__gwflow_complete [completion]    completed\nrecovered                                              reusable   3/3             work present\n           |- recovered__gwflow_prepare [preparation]  completed\n           |- recovered__copy                          completed\n           `- recovered__gwflow_complete [completion]  completed\n",
+      "stderr": ""
+    },
+    {
+      "time": 1792147515.3411593,
+      "side": "candidate",
+      "command": [
+        "<REPO>/build/validation/issue-214/candidate-env/bin/gwflow",
+        "run",
+        "--dry-run"
+      ],
+      "cwd": "<REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer",
+      "exit": 0,
+      "stdout": "Managed execution plan\nTask                              Next action    Why\nTask completed                    Reuse          checked Completion and retained metadata match\nTask cleaned                      Reuse          checked Completion and retained metadata match\nTask recovered                    Reuse          checked Completion and retained metadata match\n",
+      "stderr": ""
+    },
+    {
+      "time": 1792147516.3005164,
+      "side": "candidate",
+      "command": [
+        "<REPO>/build/validation/issue-214/candidate-env/bin/gwflow",
+        "run"
+      ],
+      "cwd": "<REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer",
+      "exit": 0,
+      "stdout": "Managed execution plan\nTask                              Next action    Why\nTask completed                    Reuse          checked Completion and retained metadata match\nTask cleaned                      Reuse          checked Completion and retained metadata match\nTask recovered                    Reuse          checked Completion and retained metadata match\nNo new jobs were submitted.\n",
+      "stderr": ""
+    },
+    {
+      "time": 1792147516.909687,
+      "side": "candidate",
+      "command": [
+        "<REPO>/build/validation/issue-214/candidate-env/bin/gwflow",
+        "recover",
+        "recovered"
+      ],
+      "cwd": "<REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer",
+      "exit": 0,
+      "stdout": "Task recovered: current attempt 2fbf356905744efd9584516afb34ea20\n  No unresolved submissions\nNo jobs submitted. Inspect 'gwflow run recovered --dry-run' before ordinary run.\n",
+      "stderr": ""
+    },
+    {
+      "time": 1792147517.7545087,
+      "side": "candidate",
+      "command": [
+        "<REPO>/build/validation/issue-214/candidate-env/bin/gwflow",
+        "run",
+        "--dry-run",
+        "--details"
+      ],
+      "cwd": "<REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer",
+      "exit": 0,
+      "stdout": "Managed execution plan\nTask                              Next action    Why\nTask completed                    Reuse          checked Completion and retained metadata match\nTask cleaned                      Reuse          checked Completion and retained metadata match\nTask recovered                    Reuse          checked Completion and retained metadata match\nDetails for Task completed:\n  State: reusable; Jobs completed: 3/3\n  [preparation]                 completed\n  copy                          completed\n  [completion]                  completed\n  Condition: reusable work-present\n  Next action: Reuse\n  Reason: checked Completion and retained metadata match\n  Attempt: e540b10e421c4c2abf575fa7bc5b5adc\n  Workspace: <REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/work/completed/e540b10e421c4c2abf575fa7bc5b5adc\n  Results: <REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/results/completed\n  Staging: <REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/.gwf/gwflow/staging/e540b10e421c4c2abf575fa7bc5b5adc/7b0ddfa4f8e44291ba8abc48980f8937\n  completed__gwflow_prepare: completed__gwflow_prepare__a886201df5db4e7d98e1af1d9cc2f5a4__25d72a40715940dbbd7c9a260d3cca09 (complete)\n    Backend job: 3\n    Log stdout: <REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/.gwf/logs/completed__gwflow_prepare__a886201df5db4e7d98e1af1d9cc2f5a4__25d72a40715940dbbd7c9a260d3cca09.stdout\n    Log stderr: <REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/.gwf/logs/completed__gwflow_prepare__a886201df5db4e7d98e1af1d9cc2f5a4__25d72a40715940dbbd7c9a260d3cca09.stderr\n  completed__copy: completed__copy__66db6a9fade240b4b9391e2b588b1250__98347c312ade42e3868f88347446d022 (complete)\n    Backend job: 4\n    Log stdout: <REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/.gwf/logs/completed__copy__66db6a9fade240b4b9391e2b588b1250__98347c312ade42e3868f88347446d022.stdout\n    Log stderr: <REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/.gwf/logs/completed__copy__66db6a9fade240b4b9391e2b588b1250__98347c312ade42e3868f88347446d022.stderr\n  completed__gwflow_complete: completed__gwflow_complete__7b0ddfa4f8e44291ba8abc48980f8937__12245254119243b6a6dba6baa9027597 (complete)\n    Backend job: 5\n    Log stdout: <REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/.gwf/logs/completed__gwflow_complete__7b0ddfa4f8e44291ba8abc48980f8937__12245254119243b6a6dba6baa9027597.stdout\n    Log stderr: <REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/.gwf/logs/completed__gwflow_complete__7b0ddfa4f8e44291ba8abc48980f8937__12245254119243b6a6dba6baa9027597.stderr\nDetails for Task cleaned:\n  State: reusable; Jobs completed: 3/3\n  [preparation]                 completed\n  copy                          completed\n  [completion]                  completed\n  Condition: reusable work-cleaned\n  Next action: Reuse\n  Reason: checked Completion and retained metadata match\n  Attempt: 8423014ec89c41428077a100ce0cf250\n  Workspace: <REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/work/cleaned/8423014ec89c41428077a100ce0cf250\n  Results: <REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/results/cleaned\n  Staging: <REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/.gwf/gwflow/staging/8423014ec89c41428077a100ce0cf250/3720ca6262a5461796832098074004c2\n  cleaned__gwflow_prepare: cleaned__gwflow_prepare__a8adda98e04b4e6fb56cb49ef9e9ff82__03f41e9527784346837b9b84d390cf60 (complete)\n    Backend job: 0\n    Log stdout: <REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/.gwf/logs/cleaned__gwflow_prepare__a8adda98e04b4e6fb56cb49ef9e9ff82__03f41e9527784346837b9b84d390cf60.stdout\n    Log stderr: <REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/.gwf/logs/cleaned__gwflow_prepare__a8adda98e04b4e6fb56cb49ef9e9ff82__03f41e9527784346837b9b84d390cf60.stderr\n  cleaned__copy: cleaned__copy__f8caf8c818b44406be2ae6c4263451e3__134574ce362f48f7b7be5079a5d1ada9 (complete)\n    Backend job: 1\n    Log stdout: <REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/.gwf/logs/cleaned__copy__f8caf8c818b44406be2ae6c4263451e3__134574ce362f48f7b7be5079a5d1ada9.stdout\n    Log stderr: <REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/.gwf/logs/cleaned__copy__f8caf8c818b44406be2ae6c4263451e3__134574ce362f48f7b7be5079a5d1ada9.stderr\n  cleaned__gwflow_complete: cleaned__gwflow_complete__3720ca6262a5461796832098074004c2__2d953e39b0044e4a9b1bd3cc9648ca50 (complete)\n    Backend job: 2\n    Log stdout: <REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/.gwf/logs/cleaned__gwflow_complete__3720ca6262a5461796832098074004c2__2d953e39b0044e4a9b1bd3cc9648ca50.stdout\n    Log stderr: <REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/.gwf/logs/cleaned__gwflow_complete__3720ca6262a5461796832098074004c2__2d953e39b0044e4a9b1bd3cc9648ca50.stderr\nDetails for Task recovered:\n  State: reusable; Jobs completed: 3/3\n  [preparation]                 completed\n  copy                          completed\n  [completion]                  completed\n  Condition: reusable work-present\n  Next action: Reuse\n  Reason: checked Completion and retained metadata match\n  Attempt: 2fbf356905744efd9584516afb34ea20\n  Workspace: <REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/work/recovered/2fbf356905744efd9584516afb34ea20\n  Results: <REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/results/recovered\n  Staging: <REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/.gwf/gwflow/staging/2fbf356905744efd9584516afb34ea20/a82651a61de0470eab6dd59d3c287b1c\n  recovered__gwflow_prepare: recovered__gwflow_prepare__0944a259fd9c4c598d8c3896da88c90b__1ac42459fcae45cd86896c7d23ffa92b (complete)\n    Backend job: 6\n    Log stdout: <REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/.gwf/logs/recovered__gwflow_prepare__0944a259fd9c4c598d8c3896da88c90b__1ac42459fcae45cd86896c7d23ffa92b.stdout\n    Log stderr: <REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/.gwf/logs/recovered__gwflow_prepare__0944a259fd9c4c598d8c3896da88c90b__1ac42459fcae45cd86896c7d23ffa92b.stderr\n  recovered__copy: recovered__copy__63b5240a76d74a7d8b7c3b9c6436f9a5__f3e58df915af4f238b28cb1b381ffe37 (complete)\n    Backend job: 7\n    Log stdout: <REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/.gwf/logs/recovered__copy__63b5240a76d74a7d8b7c3b9c6436f9a5__f3e58df915af4f238b28cb1b381ffe37.stdout\n    Log stderr: <REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/.gwf/logs/recovered__copy__63b5240a76d74a7d8b7c3b9c6436f9a5__f3e58df915af4f238b28cb1b381ffe37.stderr\n  recovered__gwflow_complete: recovered__gwflow_complete__a82651a61de0470eab6dd59d3c287b1c__e1a860cafef745f88b169837a2eba9b9 (complete)\n    Backend job: 8\n    Log stdout: <REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/.gwf/logs/recovered__gwflow_complete__a82651a61de0470eab6dd59d3c287b1c__e1a860cafef745f88b169837a2eba9b9.stdout\n    Log stderr: <REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/.gwf/logs/recovered__gwflow_complete__a82651a61de0470eab6dd59d3c287b1c__e1a860cafef745f88b169837a2eba9b9.stderr\n",
+      "stderr": ""
+    },
+    {
+      "time": 1792147518.7550948,
+      "side": "candidate",
+      "command": [
+        "<REPO>/build/validation/issue-214/candidate-env/bin/gwflow",
+        "run",
+        "consumer"
+      ],
+      "cwd": "<REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer",
+      "exit": 0,
+      "stdout": "Managed execution plan\nTask                              Next action    Why\nTask completed                    Reuse          checked Completion and retained metadata match\nTask cleaned                      Reuse          checked Completion and retained metadata match\nTask recovered                    Reuse          checked Completion and retained metadata match\nTask consumer                     Run            no completed managed attempt; fresh attempt required\nSubmitted 3 jobs across 1 Task.\n",
+      "stderr": "Submitted target consumer__gwflow_prepare__6106b9c06c094b76bb9bb284997687c6__6544acb8d17543ae9edb7731577fa422\nSubmitted target consumer__join__be8604806a8c49dfafebe2c6d265d3e2__ea84d6b52d774b4ab74009db9b8e3a6e\nSubmitted target consumer__gwflow_complete__dbc1b1f3d826412c84edb76cf8f91027__fea25c079e1a4cc2b026bb69d995eeb0\n"
+    },
+    {
+      "time": 1792147521.1462626,
+      "side": "candidate",
+      "task": "consumer",
+      "runtime": {
+        "prefix": "<REPO>/build/validation/issue-214/candidate-env",
+        "package": "<REPO>/build/validation/issue-214/candidate-env/lib/python3.12/site-packages/gwflow/__init__.py"
+      }
+    },
+    {
+      "time": 1792147522.6748352,
+      "side": "candidate",
+      "command": [
+        "<REPO>/build/validation/issue-214/candidate-env/bin/gwflow",
+        "run"
+      ],
+      "cwd": "<REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer",
+      "exit": 0,
+      "stdout": "Managed execution plan\nTask                              Next action    Why\nTask completed                    Reuse          checked Completion and retained metadata match\nTask cleaned                      Reuse          checked Completion and retained metadata match\nTask recovered                    Reuse          checked Completion and retained metadata match\nTask consumer                     Reuse          checked Completion and retained metadata match\nNo new jobs were submitted.\n",
+      "stderr": ""
+    },
+    {
+      "time": 1792147523.7366192,
+      "side": "candidate",
+      "command": [
+        "<REPO>/build/validation/issue-214/candidate-env/bin/gwflow",
+        "run",
+        "unowned"
+      ],
+      "cwd": "<REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer",
+      "exit": 1,
+      "stdout": "",
+      "stderr": "Error: Missing ownership/attempt evidence for Task 'unowned'; existing files are not adopted\n"
+    },
+    {
+      "time": 1792147523.7393787,
+      "side": "candidate",
+      "unchanged_workflow_sha256": "76f9f6754fb60e54453f91fe0e6d4e538330c77f04f4fabcfe4907223beef602",
+      "same_storage": {
+        "<REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer": {
+          "device": 49,
+          "inode": 12871329134090131387
+        },
+        "<REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/work": {
+          "device": 49,
+          "inode": 4063716732303654520
+        },
+        "<REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/results": {
+          "device": 49,
+          "inode": 8218985870871827551
+        },
+        "<REPO>/build/validation/issue-214/final/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/.gwf/gwflow": {
+          "device": 49,
+          "inode": 12048263157125976042
+        }
+      },
+      "preserved_baseline_files": 83,
+      "computation_counts": {
+        "completed": 1,
+        "cleaned": 1,
+        "recovered": 1,
+        "consumer": 1
+      },
+      "retained_consumer": "hello\nhello\nhello\n",
+      "unowned_results_preserved": true
+    }
+  ],
+  "boundary_checks": {
+    "command": "PYTHONPATH=tests build/validation/issue-214/candidate-env/bin/python -m unittest test_managed.ManagedCliTests.test_legacy_and_truncated_records_cannot_supply_ownership test_managed.ManagedCliTests.test_unowned_results_and_changed_recorded_roots_are_not_adopted -v",
+    "output": "test_legacy_and_truncated_records_cannot_supply_ownership (test_managed.ManagedCliTests.test_legacy_and_truncated_records_cannot_supply_ownership) ... ok\ntest_unowned_results_and_changed_recorded_roots_are_not_adopted (test_managed.ManagedCliTests.test_unowned_results_and_changed_recorded_roots_are_not_adopted) ... ok\n\n----------------------------------------------------------------------\nRan 2 tests in 7.932s\n\nOK\n"
+  },
+  "independent_installation_guard": {
+    "command": ".conda-env/bin/python tests/validate_compatibility.py --baseline-python build/validation/issue-214/baseline-env/bin/python --candidate-python build/validation/issue-214/baseline-env/bin/python --baseline-source 8bad5986278152d613f356282e75fe9f65085a4c --candidate-source 8bad5986278152d613f356282e75fe9f65085a4c --root build/validation/issue-214/same-installation",
+    "exit": 2,
+    "output": "usage: validate_compatibility.py [-h] --baseline-python BASELINE_PYTHON\n                                 --candidate-python CANDIDATE_PYTHON\n                                 --baseline-source BASELINE_SOURCE\n                                 --candidate-source CANDIDATE_SOURCE --root\n                                 ROOT\nvalidate_compatibility.py: error: Baseline and candidate must be independently installed in distinct environments\n"
+  },
+  "symlink_installation_guard": {
+    "setup": "ln -s baseline-env build/validation/issue-214/baseline-alias",
+    "command": ".conda-env/bin/python tests/validate_compatibility.py --baseline-python build/validation/issue-214/baseline-env/bin/python --candidate-python build/validation/issue-214/baseline-alias/bin/python --baseline-source 8bad5986278152d613f356282e75fe9f65085a4c --candidate-source 8bad5986278152d613f356282e75fe9f65085a4c --root build/validation/issue-214/alias-after",
+    "exit": 2,
+    "output": "usage: validate_compatibility.py [-h] --baseline-python BASELINE_PYTHON\n                                 --candidate-python CANDIDATE_PYTHON\n                                 --baseline-source BASELINE_SOURCE\n                                 --candidate-source CANDIDATE_SOURCE --root\n                                 ROOT\nvalidate_compatibility.py: error: Baseline and candidate must be independently installed in distinct environments\n"
+  },
+  "raw_evidence": "build/validation/issue-214/final",
+  "path_placeholders": {
+    "<REPO>": "The absolute repository checkout root, including generated installations and shared workflow/storage under build/validation/issue-214. Repository-relative command paths are relative to this root. file://<REPO>/... preserves the shape of absolute pip artifact URLs."
+  }
+}

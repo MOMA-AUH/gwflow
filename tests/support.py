@@ -39,9 +39,7 @@ class LocalBackendTestCase(unittest.TestCase):
     workers = 2
 
     def setUp(self):
-        temporary = tempfile.TemporaryDirectory(prefix="gwflow reuse ")
-        self.addCleanup(temporary.cleanup)
-        self.work = Path(temporary.name)
+        self.work = self.make_workdir()
         (self.work / "input.txt").write_text("hello\n")
         (self.work / "extra.txt").write_text("extra\n")
         self.configure_workflow()
@@ -50,12 +48,21 @@ class LocalBackendTestCase(unittest.TestCase):
             self.port = probe.getsockname()[1]
         self.config = {"backend": "local", "backend.local.port": self.port}
         self.configure()
+        self.worker = self.start_worker()
+
+    def make_workdir(self):
+        temporary = tempfile.TemporaryDirectory(prefix="gwflow reuse ")
+        self.addCleanup(temporary.cleanup)
+        return Path(temporary.name)
+
+    def start_worker(self, *, env=None):
         worker = subprocess.Popen(
             [self.executable, "workers", "--host", "127.0.0.1", "-n", str(self.workers), "-p", str(self.port)], cwd=self.work,
-            stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True,
+            stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True, env=env,
         )
         self.addCleanup(self.stop_worker, worker)
         self.wait_for(lambda: self.worker_ready(worker))
+        return worker
 
     def worker_ready(self, worker):
         if worker.poll() is not None:
