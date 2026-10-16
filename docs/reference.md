@@ -133,7 +133,7 @@ loaded workflow; removing a Python declaration does not end its admitted jobs.
 
 Use `gwflow` for `gwflow.Workflow` declarations and `gwf` for ordinary
 `gwf.Workflow` declarations. The managed commands are `run`, `status`, `logs`,
-`cancel`, `clean`, `config`, and `workers`.
+`cancel`, `recover`, `clean`, `config`, and `workers`.
 
 The default workflow is `workflow.py` with an object named `gwf`. Relative file
 lookup searches the current directory and its parents. Select another file or
@@ -538,8 +538,9 @@ frontend invocation resolves the dependency and plans recovery or a fresh attemp
 
 Deployments must keep images stable while jobs use them. Metadata observations
 are neither content hashes, locks, nor snapshots; changes preserving all
-observed fields can remain undetected. They do not strengthen gwf's Completion
-guarantees.
+observed fields can remain undetected. Managed Completion still requires checked
+execution and retained-set installation; these observations do not certify
+scientific output correctness.
 The frontend and computation nodes must see the image, inputs, and managed
 storage. The supported validation profile is Linux local workers and Slurm,
 Python 3.12, gwf 2.1.1, and Apptainer 1.5.4. See the
@@ -1036,6 +1037,16 @@ supported; these guarantees are not universal power-loss certification.
 
 ## Compatibility
 
+Starting with v1.0.0, forward upgrades within 1.x preserve the public authoring
+API and CLI, completed work after cleanup, and valid partial attempts without
+upgrade-induced recomputation or manual record conversion. All affected queued
+and running computation and lifecycle jobs must be confirmed inactive before
+changing environments; a cancellation request alone does not establish this.
+Live upgrades, mixed-version frontend/worker operation, downgrades, and storage
+relocation are outside that contract. Follow the
+[operating and upgrade guide](operating.md) for the procedure, supported profile,
+recovery responsibilities, and current baseline-evidence limits.
+
 Before v1.0, each release supports one authoring interface and one durable record
 format: the ones documented by that release. Factories must use the managed API.
 There is no cross-version Reuse, retry, or repair guarantee and no automatic
@@ -1044,8 +1055,8 @@ Initialized storage cannot be relocated. Ordinary authored top-level targets are
 not supported in a managed Workflow. Genuinely incompatible future record changes
 use the existing record kind/schema checks; the CLI redesign does not change them.
 
-Finish or deliberately stop existing jobs before switching versions. Use the
-matching old release for supported inspection or cleanup of old runs. When
+Finish or cancel existing jobs and confirm inactivity before switching versions.
+Use the matching old release for supported inspection or cleanup of old runs. When
 records are incompatible, start fresh runs in separate workflow and storage
 locations. Keep bookkeeping with its work and retained results; deleting
 bookkeeping alone does not make existing results adoptable.
