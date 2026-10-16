@@ -2,12 +2,33 @@
 
 from contextlib import contextmanager
 import fcntl
+import signal
 from pathlib import Path
 
 import click
 from gwf import Workflow as GwfWorkflow
 from gwf.core import Context
 from gwf.exceptions import WorkflowError
+
+
+class _ObservationTimeout(Exception):
+    """Escape backend retries that catch OSError (including TimeoutError)."""
+
+
+@contextmanager
+def observation_deadline():
+    # gwf's local client retries a missing worker for hours. Frontends that
+    # can use disk evidence need bounded observation without timing out writes.
+    def expired(signum, frame):
+        raise _ObservationTimeout("scheduler observation timed out")
+
+    previous = signal.signal(signal.SIGALRM, expired)
+    timer = signal.setitimer(signal.ITIMER_REAL, 5)
+    try:
+        yield
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, *timer)
+        signal.signal(signal.SIGALRM, previous)
 
 
 class ManagedContext(Context):

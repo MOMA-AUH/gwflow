@@ -6,8 +6,10 @@ or cancellation requests.
 """
 
 from dataclasses import dataclass
+from contextlib import nullcontext
 import json
 import os
+import time
 from uuid import uuid4
 
 from gwf import Target
@@ -19,6 +21,7 @@ from gwf.exceptions import WorkflowError
 from gwf.scheduling import submit_backend
 
 from . import _files, _observations
+from ._frontend import observation_deadline
 from .lifecycle import _uuid, ordered_targets, target_dependencies
 from .workflow import lifecycle_jobs
 
@@ -136,6 +139,33 @@ def identity(intent):
     return {key: intent[key] for key in ("job", "admission", "submission", "backend")}
 
 
+def read_recovery(store, attempt, intent):
+    path = f"admissions/{intent['admission']}/recovery.json"
+    record = store.read(attempt, path, "operator-recovery", **identity(intent))
+    if record is None and not _files.exists(store.record_path(attempt, path)):
+        return None
+    if (record is None or record.get("assertion") != "whole-task-inactive"
+            or not _uuid(record.get("recovery")) or type(record.get("asserted_at_ns")) is not int
+            or record["asserted_at_ns"] <= 0):
+        raise WorkflowError(f"Malformed operator recovery for {intent['submission']}")
+    return record
+
+
+def resolve_submissions(store, attempt, observations):
+    active = [item.submission for item in observations
+              if item.backend_state in (BackendStatus.SUBMITTED, BackendStatus.RUNNING)]
+    if active:
+        raise WorkflowError("Recovery requires whole-Task inactivity; queued or running submissions: " + ", ".join(active))
+    unresolved = [item for item in observations if item.state == "uncertain"]
+    recovery, asserted_at = uuid4().hex, time.time_ns()
+    for item in unresolved:
+        store.publish(attempt, f"admissions/{item.intent['admission']}/recovery.json", "operator-recovery",
+                      **identity(item.intent), recovery=recovery, asserted_at_ns=asserted_at,
+                      assertion="whole-task-inactive", observed_job_id=item.job_id,
+                      observed_backend_state=item.backend_state.name)
+    return unresolved
+
+
 def success_evidence(store, attempt, local, intent):
     token = intent["admission"]
     if local == "gwflow_prepare":
@@ -184,12 +214,14 @@ def observe(store, attempt, backend, name):
     return _observations.reuse("jobs", key, lambda: _observe(store, attempt, backend, name, intents))
 
 
-def observe_submissions(store, attempt, backend, name):
+def observe_submissions(store, attempt, backend, name, *, tolerate_state_errors=False):
     """Inspect all archived admissions, including superseded retry submissions."""
     observations = []
     for intent in recorded_intents(store, attempt):
         local = intent["job"].removeprefix(attempt["task"] + "__").rsplit("__", 1)[0]
-        observations.extend(_observe(store, attempt, backend, name, {local: intent}).values())
+        with observation_deadline() if tolerate_state_errors else nullcontext():
+            observations.extend(_observe(store, attempt, backend, name, {local: intent},
+                                         tolerate_state_errors=tolerate_state_errors).values())
     return observations
 
 
@@ -209,6 +241,7 @@ def _observe(store, attempt, backend, name, intents, *, tolerate_state_errors=Fa
         ack = store.read(attempt, f"admissions/{token}/ack.json", "submission-ack", **identity(intent))
         rejection = store.read(attempt, f"admissions/{token}/rejected.json", "submission-rejected", **identity(intent))
         outcome = store.read(attempt, f"admissions/{token}/outcome.json", "job-outcome", **identity(intent))
+        recovery = None
         checked = succeeded(store, attempt, local, intent)
         target = Target(intent["submission"], [], [], {})
         tracked_id, state = None, BackendStatus.UNKNOWN
@@ -225,9 +258,13 @@ def _observe(store, attempt, backend, name, intents, *, tolerate_state_errors=Fa
                     state = backend.ops.get_job_states([job_id]).get(job_id, BackendStatus.UNKNOWN)
             except Exception:
                 if not tolerate_state_errors:
-                    raise
+                    recovery = read_recovery(store, attempt, intent)
+                    if recovery is None:
+                        raise
                 state = BackendStatus.UNKNOWN
-        if mismatch:
+        if mismatch and recovery is None:
+            recovery = read_recovery(store, attempt, intent)
+        if mismatch and recovery is None:
             status = "uncertain"
         elif state in (BackendStatus.SUBMITTED, BackendStatus.RUNNING):
             status = "active"
@@ -245,7 +282,8 @@ def _observe(store, attempt, backend, name, intents, *, tolerate_state_errors=Fa
             # Scheduler exit status cannot stand in for checked file evidence.
             status = "failed"
         else:
-            status = "uncertain"
+            recovery = recovery or read_recovery(store, attempt, intent)
+            status = "failed" if recovery is not None else "uncertain"
         observations[local] = JobObservation(local, status, intent, job_id,
                                              saved_id is None and job_id is not None and not mismatch, state)
     return observations

@@ -15,6 +15,7 @@ from ._frontend import ManagedContext
 from .cancel import cancel
 from .clean_work import clean_work
 from .logs import logs
+from .recover import recover
 from .run import run
 from .status import status
 from .workers import workers
@@ -50,5 +51,5 @@ def main(ctx, file, backend, verbose, no_color):
                              workflow_file=path, workflow_obj=obj_name)
 
 
-for command in (run, status, logs, cancel, clean_work, config, workers):
+for command in (run, status, logs, cancel, recover, clean_work, config, workers):
     main.add_command(command)

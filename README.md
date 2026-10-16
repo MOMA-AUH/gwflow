@@ -108,6 +108,14 @@ partial failures return an error. Completed work and retained results stay
 protected. Once jobs are inactive, an ordinary `gwflow run hello` can retry or
 recover eligible work; there is no pause/resume step.
 
+If submission uncertainty keeps the Task blocked, investigate all of its
+computation and lifecycle jobs first. Only after establishing that none can still
+run, invoke `gwflow recover hello`. This asserts whole-Task inactivity without a
+confirmation prompt and records the resolved submissions in the current attempt.
+It refuses known queued or running jobs, submits nothing, and does not establish
+success. Then inspect `gwflow run hello --dry-run` and use ordinary run to retry
+or finish eligible work. Cancellation requests alone do not justify recovery.
+
 To recompute `hello`, preview and request a fresh attempt:
 
 ```sh

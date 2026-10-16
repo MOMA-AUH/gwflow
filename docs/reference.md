@@ -745,10 +745,44 @@ from an acknowledged ID when frontend tracking was interrupted.
 A failure known to precede the backend call permits another admission. An
 arbitrary backend exception, missing ID, or `UNKNOWN` scheduler state does not
 prove rejection or inactivity. Unresolved submissions block run with the Task
-and submission name; no uncertainty override is provided. Status and run preview
-show the same decision without modifying managed records. Later matching
-execution evidence can resolve uncertainty, and expired scheduler history does
-not invalidate checked Completion. Retries require confirmed inactivity for every execution being replaced.
+and submission name. Status and run preview show the same decision without
+modifying managed records. Later matching execution evidence can resolve
+uncertainty automatically, and expired scheduler history does not invalidate
+checked Completion. Retries require inactivity for every execution being replaced.
+
+For uncertainty that cannot be resolved automatically, investigate the scheduler,
+job logs, and execution environment. Establish that **all jobs in the Task are
+inactive**, including preparation, computation, completion, and queued jobs.
+Requesting cancellation alone does not establish this. Then use:
+
+```sh
+gwflow recover hello
+gwflow run hello --dry-run
+gwflow run hello
+```
+
+`recover` accepts one exact Task name and no recovery flags or extra arguments.
+There is no interactive confirmation: invoking it is the operator's assertion of
+whole-Task inactivity, including when automatic observations are unavailable.
+Any observed queued or running job in that Task prevents recovery, even an
+unrelated successful sibling. Recorded Tasks removed from the workflow can be
+recovered; restore their declarations before previewing or running them.
+
+Recovery reports exactly which unresolved submissions it resolves, preserving
+original submission evidence and recording each intervention durably. It covers
+all unresolved admissions in the current recorded attempt, including earlier
+retry submissions in that attempt, and leaves historical attempts unchanged.
+Repeated invocation with nothing unresolved is a no-op. Resolution applies only
+to those admissions; new submissions and later positive activity remain subject
+to ordinary checks.
+
+Recovery submits no jobs, cancels none, and does not establish successful
+execution or Completion. Ordinary preview/run determines retry, Repair, or
+finishing from checked work. Successful siblings remain valid when their inputs
+and commands match; unchecked outputs never become successful by assertion.
+Changed commands or inputs, missing valid sources, storage ownership, and active
+or uncertain consumers still govern subsequent actions. This is not a generic
+repair command for corrupted or unowned state.
 
 Within a Task, declare upstream outputs as target inputs and bind those same
 references into commands:
