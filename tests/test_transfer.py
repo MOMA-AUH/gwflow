@@ -73,7 +73,8 @@ class TransferRecoveryTests(LocalBackendTestCase):
         workflow = self.work / "workflow.py"
         workflow.write_text(workflow.read_text().replace("printf first", "printf changed"))
         self.assertIn("changed commands", self.cli("run", "--dry-run"))
-        self.run_complete()
+        self.cli("run")
+        self.settle()
         self.assertNotEqual(self.attempt(), before)
         self.assertEqual((self.work / "results/samples/a/report/renamed.txt").read_text(), "changed")
         self.assertEqual((self.work / "trace").read_text().splitlines(), ["compute", "compute"])
