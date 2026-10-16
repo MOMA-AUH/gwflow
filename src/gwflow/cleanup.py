@@ -24,9 +24,9 @@ def observe(store, attempt, backend, backend_name, *, explicit=False):
         if not explicit and store.recorded_current(attempt["task"])["attempt"] != attempt["attempt"]:
             observation.reason = "superseded attempt; default cleanup keeps older work"
             return observation
-        jobs = admission.observe(store, attempt, backend, backend_name)
-        uncertain = [job.submission for job in jobs.values() if job.state == "uncertain"]
-        active = [job.submission for job in jobs.values() if job.state == "active"]
+        jobs = admission.activity(store, attempt, backend, backend_name)
+        uncertain = [job.submission for job in jobs if job.state == "uncertain"]
+        active = [job.submission for job in jobs if job.state == "active"]
         if uncertain:
             observation.action, observation.reason = "blocked", "unresolved submission: " + ", ".join(uncertain)
             return observation

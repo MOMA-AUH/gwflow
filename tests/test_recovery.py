@@ -34,7 +34,8 @@ class OperatorRecoveryTests(LocalBackendTestCase):
         evidence = {path: path.read_bytes() for path in (self.work / ".gwf/gwflow").rglob("*.json")}
         intent_path = next(path for path in evidence if path.name == "intent.json")
         intent = json.loads(evidence[intent_path])
-        output = self.cli("recover", "sample")
+        output = self.cli("--file", "workflow.py", "--backend", "local", "recover", "sample")
+        self.assertIn("gwflow --file workflow.py --backend local run sample --dry-run", output)
         self.assertIn(intent["submission"], output)
         self.assertIn("Resolved", output)
         self.assertNotIn("Submitted target", output)
@@ -112,6 +113,23 @@ class OperatorRecoveryTests(LocalBackendTestCase):
         environment = self.inject(job_states={"sample__right": "RUNNING", "sample": "UNKNOWN"})
         self.assertIn("queued or running", self.cli("-b", "recovery_fixture", "recover", "sample", env=environment, success=False))
         self.assertIn("active work", self.cli("-b", "recovery_fixture", "run", "--force", env=environment, success=False))
+
+    def test_recovered_old_submission_activity_blocks_reuse_replacement_and_cleanup(self):
+        self.interrupt_computation()
+        self.cli("-b", "recovery_fixture", "recover", "sample", env=self.inject(job_states={"sample": "UNKNOWN"}))
+        records = [json.loads(path.read_text()) for path in (self.work / ".gwf/gwflow").rglob("recovery.json")]
+        old_right = next(record["job"] for record in records if "__right__" in record["job"])
+        self.cli("run")
+        self.settle()
+        attempt = self.task_attempts()["sample"]
+        environment = self.inject(job_states={old_right: "RUNNING"})
+        for arguments in (("run",), ("run", "--force"), ("run", "--force", "--dry-run")):
+            output = self.cli("-b", "recovery_fixture", *arguments, env=environment, success=False)
+            self.assertIn(old_right, output)
+        self.assertIn(old_right, self.cli("-b", "recovery_fixture", "clean", "--delete", "sample", env=environment))
+        self.assertEqual(self.task_attempts()["sample"], attempt)
+        self.assertTrue((self.work / "work/sample" / attempt).exists())
+        self.assertEqual((self.work / "results/sample/result.txt").read_text(), "leftright")
 
     def test_blocked_reports_explain_investigation_and_the_inactivity_assertion(self):
         self.cli("-b", "recovery_fixture", "run", env=self.inject(reject_prefix="sample__gwflow_prepare"), success=False)
@@ -247,6 +265,27 @@ class FinishingRecoveryTests(LocalBackendTestCase):
     inject = test_transfer.TransferRecoveryTests.inject
     fault = test_transfer.TransferRecoveryTests.fault
     add_consumer = test_transfer.TransferRecoveryTests.add_consumer
+
+    def test_recovered_old_consumer_submission_still_protects_producer_results(self):
+        workflow = self.work / "workflow.py"
+        producer_only = workflow.read_text()
+        self.add_consumer()
+        shutil.copy(FIXTURES / "job_fault.py", self.work)
+        (self.work / "job-fault.json").write_text(json.dumps({"crash_before_execution": True}))
+        self.cli("-b", "recovery_fixture", "run", env=self.inject(job_fault="c__join"))
+        self.settle()
+        self.cli("-b", "recovery_fixture", "recover", "c", env=self.inject(job_states={"c": "UNKNOWN"}))
+        records = [json.loads(path.read_text()) for path in (self.work / ".gwf/gwflow").rglob("recovery.json")]
+        old_join = next(record["job"] for record in records if "c__join__" in record["job"])
+        self.cli("run")
+        self.settle()
+        workflow.write_text(producer_only)
+        environment = self.inject(job_states={old_join: "RUNNING"})
+        for arguments in (("run", "a", "--force", "--dry-run"), ("run", "a", "--force")):
+            self.assertIn("Active consumers block replacement: c",
+                          self.cli("-b", "recovery_fixture", *arguments, env=environment, success=False))
+        self.assert_results(self.work / "results/samples/a/report")
+        self.assertEqual((self.work / "trace").read_text().splitlines(), ["compute", "consumer"])
 
     def test_recovery_finishes_prepared_results_and_interrupted_repair_without_computation(self):
         self.cli("-b", "recovery_fixture", "run", env=self.fault(crash_after_manifest=True))

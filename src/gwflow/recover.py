@@ -1,6 +1,7 @@
 """Record an operator's whole-Task inactivity assertion without submitting work."""
 
 from contextlib import ExitStack
+import shlex
 
 import click
 from gwf.backends import create_backend
@@ -10,6 +11,7 @@ from gwf.exceptions import WorkflowError
 from . import admission
 from ._frontend import _submission_guard, load_workflow, observation_deadline
 from .lifecycle import Store
+from .presentation import inspection_command
 from .workflow import lifecycle_jobs
 
 
@@ -53,4 +55,5 @@ def recover(ctx, task):
             click.echo(f"  Resolved submission {item.submission}; whole-Task inactivity asserted")
         if not resolved:
             click.echo("  No unresolved submissions")
-        click.echo(f"No jobs submitted. Inspect 'gwflow run {task} --dry-run' before ordinary run.")
+        preview = shlex.join(inspection_command("run", task, "--dry-run"))
+        click.echo(f"No jobs submitted. Inspect '{preview}' before ordinary run.")

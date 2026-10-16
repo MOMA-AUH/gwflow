@@ -121,18 +121,19 @@ def recorded_intents(store, attempt):
         return []
     with _files.directory(archive) as directory:
         tokens = sorted(os.listdir(directory))
-    records = []
-    for token in tokens:
-        if not _uuid(token):
-            raise WorkflowError("Malformed admission archive")
-        record = store.read(attempt, f"admissions/{token}/intent.json", "submission-intent")
-        if (record is None or record.get("admission") != token
-                or not _known_job(attempt, record.get("job"))
-                or record.get("submission") != f"{record['job']}__{token}"
-                or not isinstance(record.get("backend"), dict)):
-            raise WorkflowError(f"unresolved submission: admission {token} has unreadable history")
-        records.append(record)
-    return records
+    return [_archived_intent(store, attempt, token) for token in tokens]
+
+
+def _archived_intent(store, attempt, token):
+    if not _uuid(token):
+        raise WorkflowError("Malformed admission archive")
+    record = store.read(attempt, f"admissions/{token}/intent.json", "submission-intent")
+    if (record is None or record.get("admission") != token
+            or not _known_job(attempt, record.get("job"))
+            or record.get("submission") != f"{record['job']}__{token}"
+            or not isinstance(record.get("backend"), dict)):
+        raise WorkflowError(f"unresolved submission: admission {token} has unreadable history")
+    return record
 
 
 def identity(intent):
@@ -140,7 +141,7 @@ def identity(intent):
 
 
 def read_recovery(store, attempt, intent):
-    path = f"admissions/{intent['admission']}/recovery.json"
+    path = f"recoveries/{intent['admission']}/recovery.json"
     record = store.read(attempt, path, "operator-recovery", **identity(intent))
     if record is None and not _files.exists(store.record_path(attempt, path)):
         return None
@@ -159,7 +160,7 @@ def resolve_submissions(store, attempt, observations):
     unresolved = [item for item in observations if item.state == "uncertain"]
     recovery, asserted_at = uuid4().hex, time.time_ns()
     for item in unresolved:
-        store.publish(attempt, f"admissions/{item.intent['admission']}/recovery.json", "operator-recovery",
+        store.publish(attempt, f"recoveries/{item.intent['admission']}/recovery.json", "operator-recovery",
                       **identity(item.intent), recovery=recovery, asserted_at_ns=asserted_at,
                       assertion="whole-task-inactive", observed_job_id=item.job_id,
                       observed_backend_state=item.backend_state.name)
@@ -229,6 +230,31 @@ def observe_cancellation(store, attempt, local, backend, name):
     """Resolve one current admission even when its live state is unavailable."""
     intent = read_intent(store, attempt, local)
     return _observe(store, attempt, backend, name, {local: intent}, tolerate_state_errors=True)[local]
+
+
+def superseded_activity(store, attempt, backend, name):
+    """Recovery never overrides later activity, including after a retry."""
+    archive = store.attempt_dir(attempt) / "recoveries"
+    if not _files.exists(archive):
+        return []
+    with _files.directory(archive) as directory:
+        tokens = sorted(os.listdir(directory))
+    active = []
+    for token in tokens:
+        intent = _archived_intent(store, attempt, token)
+        local = intent["job"].removeprefix(attempt["task"] + "__").rsplit("__", 1)[0]
+        if intent == read_intent(store, attempt, local):
+            continue
+        item = _observe(store, attempt, backend, name, {local: intent})[local]
+        if item.state in ("active", "uncertain"):
+            active.append(item)
+    return active
+
+
+def activity(store, attempt, backend, name):
+    current = [item for item in observe(store, attempt, backend, name).values()
+               if item.state in ("active", "uncertain")]
+    return current + superseded_activity(store, attempt, backend, name)
 
 
 def _observe(store, attempt, backend, name, intents, *, tolerate_state_errors=False):
@@ -302,8 +328,7 @@ def consumer_activity(store, backend, name, *, producers=None):
                     if producers is None or producer in producers}
         if not bindings:
             continue
-        active = [item for item in observe(store, attempt, backend, name).values()
-                  if item.state in ("active", "uncertain")]
+        active = activity(store, attempt, backend, name)
         if active:
             for producer, expected in bindings.items():
                 consumers.setdefault((producer, expected), {})[attempt["task"]] = active
@@ -326,17 +351,16 @@ class ReplacementActivity:
 
 def replacement_activity(store, attempt, backend, name, consumers):
     """Observe the attempt and any previous results protected by initialization."""
-    activity = ReplacementActivity([], {})
+    observed = ReplacementActivity([], {})
     checked = set()
     while attempt is not None:
         if attempt["attempt"] in checked:
             raise WorkflowError("Cyclic previous-attempt initialization evidence")
         checked.add(attempt["attempt"])
-        activity.submissions.extend(item.submission for item in observe(store, attempt, backend, name).values()
-                                    if item.state in ("active", "uncertain"))
-        activity.consumers.update(consumers.get((attempt["task"], attempt["attempt"]), {}))
+        observed.submissions.extend(item.submission for item in activity(store, attempt, backend, name))
+        observed.consumers.update(consumers.get((attempt["task"], attempt["attempt"]), {}))
         attempt = store.initialization_previous(attempt) if store.read(attempt, "ready.json", "ready") is None else None
-    return activity
+    return observed
 
 
 def restore_tracking(backend, name, observations):
