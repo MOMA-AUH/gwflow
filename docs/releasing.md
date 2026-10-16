@@ -48,3 +48,62 @@ The `publish` job requires a repository Actions secret named
 Store the token in GitHub Actions secrets, not in the repository. Until that
 secret is configured, the reviewable build and tests can run, but the tag
 workflow cannot complete publication.
+
+## Planned v1.0.0 acceptance scope
+
+The release plan below was agreed on 2026-10-16. It records intended work and
+release requirements, not completed implementation or validation.
+
+v1.0.0 targets the maintainer's production pipelines on the current
+Linux/Slurm/Apptainer infrastructure, with local workers for development and
+testing. Independent adoption across a broader range of deployments is not a
+release requirement.
+
+### Agreed work and order
+
+1. Make command tracking mandatory in managed workflows and reject
+   `use_spec_hashes=false` with guidance to remove the setting
+   ([ADR 0011](adr/0011-track-command-changes-by-default.md)). Keep explicit
+   `gwflow run TASK --force` for untracked changes, add no Reuse key, and preserve
+   cleanup's existing meaning
+   ([ADR 0012](adr/0012-use-explicit-force-for-untracked-changes.md)).
+2. Add `gwflow recover TASK` for unresolved submissions, following the operator
+   assertion, whole-Task inactivity, current-attempt scope, evidence preservation,
+   and partial-work recovery contract in
+   [ADR 0013](adr/0013-provide-explicit-recovery-for-unresolved-submissions.md).
+   It takes no additional arguments or flags, asks no interactive confirmation,
+   and submits no jobs.
+3. Review and settle final CLI terminal presentation against those behaviors,
+   as described below.
+4. Complete compatibility validation and documentation for the 1.x baseline
+   ([ADR 0010](adr/0010-preserve-public-interfaces-and-completed-work-through-1-x.md)).
+   Preserve public interfaces, completed results after work cleanup, valid partial
+   computation, and interrupted-installation recovery across forward 1.x
+   upgrades made with jobs confirmed inactive. Establish automated regression
+   coverage and baseline evidence for future upgrades; do not promise blanket
+   support for pre-1.0 records. Reconcile the glossary's Completion semantics
+   with the managed implementation and document upgrade and recovery procedures.
+5. Complete the automated, installed-package, and publication checks for release.
+
+Broader platform support, structured JSON output, storage relocation, and
+unrelated refactoring are outside this release scope. Internal fixes necessary
+to meet the agreed guarantees remain included.
+
+### Release acceptance
+
+Automated tests and the existing examples are the release acceptance basis,
+alongside the installed-artifact and publication checks described above.
+Representative pipeline validation on the actual cluster is follow-up work,
+not a gate for v1.0.0. Release evidence must distinguish the automated checks
+performed for the candidate from historical live-cluster evidence; passing the
+former does not establish that the candidate passed a representative production
+pipeline on Slurm.
+
+Final CLI terminal output must be settled before v1.0.0. The maintainer has
+additional presentation wishes that are not yet specified, so this remains an
+open design milestone within the agreed release plan. The review covers layout,
+wording, colors, grouping, progress, verbosity
+of reports, and error/recovery guidance. Command names, arguments, flags, and
+behavior remain governed by the settled command decisions; this review does not
+reopen them. The detailed presentation changes and review criteria remain to be
+agreed.
