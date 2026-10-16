@@ -1,17 +1,24 @@
 version: 2
 updates:
-  - package-ecosystem: pip
-    directories:
-      - "/"
-      - "/examples/packaged/packages/report-task"
-      - "/examples/packaged/packages/summary-task"
+  - package-ecosystem: github-actions
+    directory: /
     schedule:
       interval: weekly
     assignees:
       - micknudsen
 
-  - package-ecosystem: github-actions
-    directory: "/"
+  - package-ecosystem: pip
+    directories:
+      - /
+      - /examples/packaged/packages/report-task
+      - /examples/packaged/packages/summary-task
+    schedule:
+      interval: weekly
+    assignees:
+      - micknudsen
+
+  - package-ecosystem: conda
+    directory: /
     schedule:
       interval: weekly
     assignees:
