@@ -13,6 +13,7 @@ work, phase, task = Path(sys.argv[1]), sys.argv[2], sys.argv[3]
 sys.argv = ["gwflow", *sys.argv[4:]]
 original_replace, original_unlink, original_rename, original_rmdir = os.replace, os.unlink, os.rename, os.rmdir
 original_symlink = os.symlink
+recovery_writes = 0
 
 
 def directory(kwargs, key):
@@ -29,8 +30,13 @@ def gate(name):
 
 
 def replace(source, destination, **kwargs):
+    global recovery_writes
     parent = directory(kwargs, "dst_dir_fd")
     selected = parent is not None and f"/tasks/{task}/" in str(parent) + "/"
+    if selected and destination == "recovery.json":
+        recovery_writes += 1
+        if phase == "recovery_second_write_error" and recovery_writes == 2:
+            raise OSError("injected recovery publication failure")
     if selected and destination == "initialization.json" and phase == "before_initialization_intent":
         os._exit(91)
     if selected and destination == "current.json" and phase == "before_selection":
@@ -49,6 +55,8 @@ def replace(source, destination, **kwargs):
         if json.loads((parent / source).read_text()).get("state") == "removed":
             os._exit(105)
     result = original_replace(source, destination, **kwargs)
+    if selected and destination == "recovery.json" and phase == "recovery_second_write_interrupt" and recovery_writes == 2:
+        raise KeyboardInterrupt
     if selected and destination == "recovery.json" and phase == "after_recovery_record":
         os._exit(113)
     if selected and destination == "ack.json" and phase == "after_preparation_ack":
@@ -94,11 +102,17 @@ def unlink(path, **kwargs):
         os._exit(94)
     if phase == "cleanup_during_remove" and parent is not None and work / "work" / task in parent.parents:
         os._exit(103)
+    if phase == "cleanup_remove_error" and parent is not None and work / "work" / task in parent.parents:
+        raise OSError("injected cleanup removal failure")
+    if phase == "cleanup_remove_interrupt" and parent is not None and work / "work" / task in parent.parents:
+        raise KeyboardInterrupt
     return result
 
 
 def rmdir(path, **kwargs):
     parent = directory(kwargs, "dir_fd")
+    if phase == "cleanup_staging_error" and parent is not None and "/staging/" in str(parent) + "/":
+        raise OSError("injected staging removal failure")
     result = original_rmdir(path, **kwargs)
     if phase == "cleanup_after_workspace_remove" and parent == work / "work" / task:
         os._exit(104)

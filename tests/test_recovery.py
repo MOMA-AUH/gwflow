@@ -8,6 +8,7 @@ import sys
 
 from support import FIXTURES, LocalBackendTestCase
 import test_graphs
+import test_fresh
 import test_managed_recovery
 import test_transfer
 
@@ -78,7 +79,14 @@ class OperatorRecoveryTests(LocalBackendTestCase):
         environment = self.inject(job_states={"sample": "UNKNOWN"}, record_acceptances=True,
                                   record_cancellations=True)
         self.assertIn("unresolved submission", self.cli("-b", "recovery_fixture", "run", env=environment, success=False))
-        output = self.cli("-b", "recovery_fixture", "recover", "sample", env=environment)
+        result = self.cli_result("-b", "recovery_fixture", "recover", "sample", env=environment)
+        output = result.stdout
+        self.assertTrue(output.startswith("Task sample\n  Resolved 3 submissions.\n"), output)
+        self.assertIn("Whole-Task inactivity asserted by the operator.", output)
+        self.assertIn("Attempt: " + before, output)
+        self.assertIn("No jobs submitted or canceled.", output)
+        self.assertIn("Recovery does not establish successful computation.", output)
+        self.assertNotIn("Resolved 3 submissions", result.stderr)
         self.assertEqual(output.count("Resolved submission"), 3, output)
         for local in ("right", "join", "gwflow_complete"):
             self.assertIn(f"sample__{local}__", output)
@@ -94,6 +102,28 @@ class OperatorRecoveryTests(LocalBackendTestCase):
         self.assertEqual(self.task_attempts()["sample"], before)
         self.assertEqual(Counter((self.work / "trace").read_text().splitlines()), {"left": 1, "right": 1, "join": 1})
         self.assertEqual((self.work / "results/sample/result.txt").read_text(), "leftright")
+
+    def test_backend_close_failure_preserves_confirmed_recovery_receipts(self):
+        self.interrupt_computation()
+        accepted = (self.work / "backend-acceptances.jsonl").read_bytes()
+        result = self.cli_result("-b", "recovery_fixture", "recover", "sample", success=False,
+                                 env=self.inject(job_states={"sample": "UNKNOWN"}, fail_backend_close=True,
+                                                 record_acceptances=True, record_cancellations=True))
+        self.assertIn("Resolved 3 submissions.", result.stdout)
+        self.assertIn("Recovery interrupted", result.stdout)
+        self.assertNotIn("Resolution unconfirmed:", result.stdout)
+        self.assertIn("injected backend close failure", result.stderr)
+        records = list((self.work / ".gwf/gwflow").rglob("recovery.json"))
+        self.assertEqual(len(records), 3)
+        for path in records:
+            self.assertIn("Resolved submission " + json.loads(path.read_text())["submission"], result.stdout)
+        self.assertEqual((self.work / "backend-acceptances.jsonl").read_bytes(), accepted)
+        self.assertFalse((self.work / "cancellation-requests.jsonl").exists())
+        self.assertIn("No unresolved submissions", self.cli("-b", "recovery_fixture", "recover", "sample",
+                                                          env=self.inject(job_states={"sample": "UNKNOWN"})))
+        self.cli("run")
+        self.settle()
+        self.assertEqual(Counter((self.work / "trace").read_text().splitlines()), {"left": 1, "right": 1, "join": 1})
 
     def test_whole_task_activity_refuses_recovery_even_for_a_successful_sibling(self):
         self.interrupt_computation()
@@ -143,6 +173,48 @@ class OperatorRecoveryTests(LocalBackendTestCase):
                 self.assertIn("gwflow recover sample", output)
                 self.assertNotIn("gwflow recover sample --plain", output)
 
+    def test_multiple_unresolved_tasks_share_guidance_with_full_receipts_and_command_context(self):
+        test_fresh.FreshAttemptTests.configure_workflow(self)
+        shutil.copy(FIXTURES / "job_fault.py", self.work)
+        (self.work / "job-fault.json").write_text(json.dumps({"crash_before_execution": True}))
+        self.cli("-b", "recovery_fixture", "run", "a", "b",
+                 env=self.inject(job_fault_prefixes=["a__compute", "b__compute"], record_acceptances=True))
+        self.settle()
+        accepted = (self.work / "backend-acceptances.jsonl").read_bytes()
+        submissions = [json.loads(line)["name"] for line in accepted.splitlines()
+                       if "__gwflow_prepare__" not in json.loads(line)["name"]]
+        evidence = {path: path.read_bytes() for path in (self.work / ".gwf/gwflow").rglob("*.json")}
+        environment = self.inject(job_states={"a": "UNKNOWN", "b": "UNKNOWN"},
+                                  record_acceptances=True, record_cancellations=True)
+        context = ("--file", "workflow.py", "--backend", "recovery_fixture")
+        for arguments in (("status",), ("status", "a", "b", "--plain"), ("run", "a", "b", "--dry-run")):
+            with self.subTest(arguments=arguments):
+                result = self.cli_result(*context, *arguments, env=environment, success=arguments[0] == "status")
+                self.assertEqual(result.stdout.count("Investigate the scheduler and job logs."), 1, result.stdout)
+                self.assertEqual(result.stdout.count("cancellation requests alone are insufficient"), 1)
+                for name in ("a", "b"):
+                    self.assertIn(f"Task {name}: unresolved submissions:", result.stdout)
+                    self.assertIn(f"gwflow --file workflow.py --backend recovery_fixture recover {name}", result.stdout)
+                for submission in submissions:
+                    self.assertIn(submission, result.stdout)
+                self.assertNotIn("Investigate the scheduler", result.stderr)
+        self.assertEqual({path: path.read_bytes() for path in evidence}, evidence)
+        self.assertEqual((self.work / "backend-acceptances.jsonl").read_bytes(), accepted)
+        self.assertFalse((self.work / "cancellation-requests.jsonl").exists())
+        for name in ("a", "b"):
+            result = self.terminal_cli(*context, "recover", name, width=32, no_color=True, env=environment)
+            text = " ".join(result.stdout.split())
+            self.assertIn("Resolved 2 submissions.", text)
+            self.assertIn("Whole-Task inactivity asserted by the operator.", text)
+            self.assertIn(f"gwflow --file workflow.py --backend recovery_fixture run {name} --dry-run", text)
+            for submission in submissions:
+                if submission.startswith(name + "__"):
+                    self.assertIn(submission, text)
+        self.cli("run")
+        self.settle()
+        self.assertNoSubmissions(self.cli("run"))
+        self.assertEqual(Counter((self.work / "trace").read_text().splitlines()), {"a": 1, "b": 1, "c": 1})
+
     def test_lost_acknowledgement_and_tracking_recover_without_repeating_checked_work(self):
         shutil.copy(FIXTURES / "job_fault.py", self.work)
         (self.work / "job-fault.json").write_text(json.dumps({"crash_before_execution": True}))
@@ -178,6 +250,8 @@ class OperatorRecoveryTests(LocalBackendTestCase):
         output = self.cli("recover", "sample")
         self.assertIn(current, output)
         self.assertNotIn(previous, output)
+        self.assertIn("Restore this Task's declaration", output)
+        self.assertNotIn("gwflow run sample --dry-run", output)
         self.assertEqual({path: path.read_bytes() for path in history}, history)
         workflow.write_text(declaration)
         self.run_complete()
@@ -187,8 +261,10 @@ class OperatorRecoveryTests(LocalBackendTestCase):
 
     def interrupted_recovery(self, phase, code, recorded):
         self.interrupt_computation()
+        attempt = self.task_attempts()["sample"]
+        accepted = (self.work / "backend-acceptances.jsonl").read_bytes()
         evidence = {path: path.read_bytes() for path in (self.work / ".gwf/gwflow").rglob("*.json")}
-        environment = self.inject(job_states={"sample": "UNKNOWN"})
+        environment = self.inject(job_states={"sample": "UNKNOWN"}, record_acceptances=True, record_cancellations=True)
         result = subprocess.run([sys.executable, str(FIXTURES / "frontend_fault.py"), str(self.work), phase,
                                  "sample", "-b", "recovery_fixture", "recover", "sample"], cwd=self.work,
                                 env=environment, capture_output=True, text=True, timeout=30)
@@ -196,6 +272,19 @@ class OperatorRecoveryTests(LocalBackendTestCase):
         self.assertEqual({path: path.read_bytes() for path in evidence}, evidence)
         resolutions = list((self.work / ".gwf/gwflow").rglob("recovery.json"))
         self.assertEqual(len(resolutions), recorded)
+        self.assertEqual((self.work / "backend-acceptances.jsonl").read_bytes(), accepted)
+        self.assertFalse((self.work / "cancellation-requests.jsonl").exists())
+        if phase.startswith("recovery_second_write_"):
+            self.assertIn("Recovery interrupted", result.stdout)
+            self.assertIn("Resolved 1 submission.", result.stdout)
+            self.assertEqual(result.stdout.count("Resolved submission"), 1)
+            self.assertIn("Resolution unconfirmed:", result.stdout)
+            self.assertIn("Attempt: " + attempt, result.stdout)
+            self.assertIn("No jobs submitted or canceled.", result.stdout)
+            self.assertNotIn("No unresolved submissions", result.stdout)
+            for path in resolutions:
+                self.assertIn(json.loads(path.read_text())["submission"], result.stdout)
+            self.assertIn("injected recovery publication failure" if phase.endswith("error") else "Aborted", result.stderr)
         self.assertIn("unresolved submission", self.cli("-b", "recovery_fixture", "run", "--dry-run",
                                                        env=environment, success=False))
         output = self.cli("-b", "recovery_fixture", "recover", "sample", env=environment)
@@ -210,6 +299,12 @@ class OperatorRecoveryTests(LocalBackendTestCase):
 
     def test_interruption_after_recovery_publication_only_resolves_recorded_submission(self):
         self.interrupted_recovery("after_recovery_record", 113, 1)
+
+    def test_recovery_publication_failure_keeps_confirmed_and_uncertain_receipts(self):
+        self.interrupted_recovery("recovery_second_write_error", 1, 1)
+
+    def test_recovery_interruption_after_write_does_not_claim_unconfirmed_resolution(self):
+        self.interrupted_recovery("recovery_second_write_interrupt", 1, 2)
 
     def test_recovery_serializes_with_other_frontend_operations(self):
         self.cli("-b", "recovery_fixture", "run", env=self.inject(reject_prefix="sample__gwflow_prepare"), success=False)
@@ -232,7 +327,8 @@ class OperatorRecoveryTests(LocalBackendTestCase):
 
     def test_recovery_requires_one_exact_task_and_unstarted_task_is_a_noop(self):
         for arguments in ((), ("*",), ("missing",), ("sample__left",), ("sample", "another"),
-                          ("sample", "--force"), ("sample", "--dry-run"), ("sample", "--reason", "inactive")):
+                          ("sample", "--force"), ("sample", "--dry-run"), ("sample", "--reason", "inactive"),
+                          ("sample", "--details"), ("sample", "--plain")):
             with self.subTest(arguments=arguments):
                 self.cli("recover", *arguments, success=False)
                 self.assertFalse((self.work / ".gwf/gwflow").exists())

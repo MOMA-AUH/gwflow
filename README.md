@@ -140,6 +140,8 @@ If submission uncertainty keeps the Task blocked, investigate all of its
 computation and lifecycle jobs first. Only after establishing that none can still
 run, invoke `gwflow recover hello`. This asserts whole-Task inactivity without a
 confirmation prompt and records the resolved submissions in the current attempt.
+The report gives the resolved count, full attempt UUID, and exact submission
+receipts, or explicitly says that nothing was unresolved.
 It refuses known queued or running jobs, submits nothing, and does not establish
 success. Then inspect `gwflow run hello --dry-run` and use ordinary run to retry
 or finish eligible work. Cancellation requests alone do not justify recovery.
@@ -162,7 +164,10 @@ cat results/hello/message.txt      # retained result is still here
 gwflow run hello                   # Reuse; no new jobs submitted
 ```
 
-Cleanup preserves retained results, logs, and the records needed for Reuse.
+The preview groups attempts by Task with full identities and paths and says no
+files were removed. Deletion reports newly removed, already removed, and kept
+work; failures preserve known removals and unconfirmed paths. Add `--plain` for
+undecorated output. Cleanup preserves retained results, logs, and the records needed for Reuse.
 It gives up intermediate files that could repair damaged results; if results
 later become invalid, cleaned tasks must compute again. Keep `results/` and
 `.gwf/` together. Stop the local workers with Ctrl-C when finished.

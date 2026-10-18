@@ -984,13 +984,21 @@ Any observed queued or running job in that Task prevents recovery, even an
 unrelated successful sibling. Recorded Tasks removed from the workflow can be
 recovered; restore their declarations before previewing or running them.
 
-Recovery reports exactly which unresolved submissions it resolves, preserving
-original submission evidence and recording each intervention durably. It covers
+Recovery starts with the resolved count and the operator's whole-Task inactivity
+assertion, followed by the full current-attempt UUID and every exact resolved
+submission. It preserves original submission evidence and records each
+intervention durably. It covers
 all unresolved admissions in the current recorded attempt, including earlier
 retry submissions in that attempt, and leaves historical attempts unchanged.
-Repeated invocation with nothing unresolved is a no-op. Resolution applies only
+Repeated invocation with nothing unresolved explicitly reports a no-op. If a
+write or backend close fails, the report retains confirmed resolutions and marks
+any interrupted write as unconfirmed; investigate the error before repeating
+recovery. Backend-observation failures remain visible. Resolution applies only
 to those admissions; new submissions and later positive activity remain subject
 to ordinary checks.
+
+Status and run list every affected Task and complete unresolved submission name,
+then give one shared investigation notice and context-preserving recovery commands.
 
 Recovery submits no jobs, cancels none, and does not establish successful
 execution or Completion. Ordinary preview/run determines retry, Repair, or
@@ -1103,9 +1111,12 @@ must still keep images stable while jobs use them; checks are not locks.
 
 ## Cleanup
 
-Use `gwflow clean` to preview work cleanup. It lists every recorded attempt for
-matched Tasks, including older and failed attempts, with UUIDs, workspace and
-staging locations, eligibility, and reasons. Positional exact Task names or
+Use `gwflow clean` to preview work cleanup. The report summarizes eligibility and
+states that no files were removed. It groups every recorded attempt under its
+Task, including older and failed attempts, with outcome/reason first, full UUIDs,
+workspace and staging-group paths, and observed owned staging paths. These details
+remain complete in narrow terminals and with `--plain`; redirected reports are
+automatically plain. Positional exact Task names or
 quoted globs select current and recorded-only Tasks, without adding upstream
 dependencies. A declared Task without attempts reports no recorded work. Every
 selector must match; unmatched selectors fail the whole request before deletion.
@@ -1115,6 +1126,7 @@ Add `--delete` for noninteractive removal of eligible work.
 gwflow clean
 gwflow clean A B
 gwflow clean 'sample_*'
+gwflow clean A --plain
 gwflow clean A B --delete
 ```
 
@@ -1124,6 +1136,12 @@ transferring, and repairable work is kept. Active jobs are skipped; unresolved
 submissions and insufficient ownership cause requested deletion to fail. A prior
 preview does not authorize a later deletion: ownership, result validity, and
 activity are checked again under the same frontend guard as submission.
+
+Deletion reports count work removed in this invocation separately from already
+removed, kept, and blocked/failed attempts. An initial refusal removes nothing.
+An interruption preserves known removed paths and identifies remaining or
+unconfirmed work, including a directory that may be partly removed. Read the
+reported error before resuming deletion.
 
 Cleanup removes the owned workspace and recorded transfer-staging directories,
 including staging on configured storage. Retained results, external inputs, logs,
@@ -1149,7 +1167,7 @@ gwflow clean --delete --attempt UUID --attempt ANOTHER_UUID
 ```
 
 This deliberately permits inactive failed, superseded, or repairable work to be
-removed. Each selected attempt's preview explains the loss of successful
+removed. A shared notice explains the loss of successful
 intermediate progress, diagnostics stored inside work, and repair sources.
 Failed work cannot continue after cleanup intent is recorded; its next computation
 uses a fresh attempt and repeats successful intermediate steps too. Cleaning older

@@ -15,6 +15,17 @@ class CleanupObservation:
     reason: str
     directories: dict = field(default_factory=dict)
     explicit: bool = False
+    paths_error: str = ""
+    removed_paths: list[str] = field(default_factory=list)
+    removing_path: str | None = None
+
+    @property
+    def outcome(self):
+        if self.action == "removed" and not self.removed_paths:
+            return "already_removed"
+        if self.action == "keep" and self.removed_paths:
+            return "partial"
+        return self.action
 
 
 def observe(store, attempt, backend, backend_name, *, explicit=False):
@@ -63,26 +74,44 @@ def observe(store, attempt, backend, backend_name, *, explicit=False):
                                   "checked Completion and retained results; no active work")
     except (WorkflowError, OSError) as error:
         observation.action, observation.reason = "blocked", str(error)
+    finally:
+        if observation.action in ("keep", "blocked"):
+            try:
+                observation.directories.update(store.staging_directories(attempt))
+            except (WorkflowError, OSError) as error:
+                observation.paths_error = str(error)
     return observation
 
 
 def remove(store, observation, backend, backend_name):
-    checked = observe(store, observation.attempt, backend, backend_name, explicit=observation.explicit)
-    if checked.action != "eligible":
-        return checked
-    attempt = checked.attempt
-    record = store.cleanup_record(attempt)
-    token = record["cleanup"] if record else uuid4().hex
-    fields = dict(cleanup=token, operation=attempt["operation"], executions=attempt["executions"],
-                  directories=checked.directories)
-    store.publish(attempt, "cleanup.json", "cleanup", state="removing", **fields)
-    for path, identity in checked.directories.items():
-        store.validate_roots()
-        if _files.exists(path):
-            rechecked = observe(store, attempt, backend, backend_name, explicit=observation.explicit)
-            if rechecked.action != "eligible":
-                return rechecked
-            _files.remove_directory(path, identity)
-    store.publish(attempt, "cleanup.json", "cleanup", state="removed", **fields)
-    checked.action, checked.reason = "removed", "removed owned disposable work; results and bookkeeping preserved"
-    return checked
+    """Keep invocation receipts visible even when removal cannot finish."""
+    try:
+        checked = observe(store, observation.attempt, backend, backend_name, explicit=observation.explicit)
+        observation.action, observation.reason = checked.action, checked.reason
+        observation.directories, observation.paths_error = checked.directories, checked.paths_error
+        if observation.action != "eligible":
+            return observation
+        attempt = observation.attempt
+        record = store.cleanup_record(attempt)
+        token = record["cleanup"] if record else uuid4().hex
+        fields = dict(cleanup=token, operation=attempt["operation"], executions=attempt["executions"],
+                      directories=observation.directories)
+        store.publish(attempt, "cleanup.json", "cleanup", state="removing", **fields)
+        for path, identity in observation.directories.items():
+            store.validate_roots()
+            if _files.exists(path):
+                rechecked = observe(store, attempt, backend, backend_name, explicit=observation.explicit)
+                if rechecked.action != "eligible":
+                    observation.action, observation.reason = rechecked.action, rechecked.reason
+                    observation.paths_error = rechecked.paths_error
+                    return observation
+                observation.removing_path = path
+                if _files.remove_directory(path, identity):
+                    observation.removed_paths.append(path)
+                observation.removing_path = None
+        store.publish(attempt, "cleanup.json", "cleanup", state="removed", **fields)
+        observation.action, observation.reason = "removed", "removed owned disposable work; results and bookkeeping preserved"
+        return observation
+    except BaseException as error:
+        observation.action, observation.reason = "failed", str(error) or type(error).__name__
+        raise
