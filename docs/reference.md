@@ -578,6 +578,7 @@ machine-readable schema.
 ```sh
 gwflow cancel hello --dry-run       # preview current admitted jobs
 gwflow cancel hello                 # request without an interactive prompt
+gwflow cancel hello --details       # request and keep every per-job receipt
 gwflow cancel hello other 'batch__*'
 gwflow cancel '*'                   # explicitly select all Tasks
 gwflow run hello --dry-run --details # inspect ordinary recovery after inactivity
@@ -587,7 +588,7 @@ Cancellation requires explicit Task names or quoted patterns. Every selector
 must match before any request is sent, and overlapping selections are addressed
 once. Names come from current declarations and recorded Tasks. Removed Tasks
 remain selectable and are marked "no longer declared"; a declared Task without
-an attempt reports "no admitted work to cancel" successfully.
+an attempt reports "No admitted work to cancel" successfully.
 
 Requests address admitted computation, preparation, and completion jobs in each
 Selected Task's current recorded attempt. They do not add upstream Tasks,
@@ -602,6 +603,22 @@ An accepted request says the job may still be stopping; only available backend
 evidence is reported as confirmed inactivity. Missing live state can still
 permit a request when the recorded submission and backend job identity are
 known and consistent. Conflicting or unresolved identities receive no request.
+
+Reports lead with each Task's outcome and counts. Identical routine outcomes
+share a summary, such as "No admitted work to cancel" followed by "All 4 jobs
+confirmed inactive (completed)". Mixed outcomes identify the affected public
+jobs individually. Recorded success without current inactivity evidence says
+"Recorded successful work; live state unavailable." It does not establish that
+the job has stopped.
+
+Add `--details` to the original cancellation invocation for every per-job outcome
+and available full attempt, submission, and backend job identities. Default
+reports retain these identities for failures or uncertainty. Do not repeat a
+mutating cancellation to obtain details about a previous invocation. `--plain`
+prints undecorated output; redirected reports are automatically plain. Receipts
+go to stdout, while operational errors and diagnostic tracebacks go to stderr.
+An interrupted invocation keeps accepted requests, unconfirmed request outcomes,
+and the current Task's unprocessed-job count visible.
 
 Other identifiable jobs are still addressed when one identity is unresolved or
 one request fails. Each failure is reported, and the command exits nonzero even

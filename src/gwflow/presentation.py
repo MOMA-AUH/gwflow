@@ -524,6 +524,66 @@ class Report:
             click.echo("  " + shlex.join(inspection_command("recover", task.name)), color=False)
             self.status_line("Recovery records your assertion; it submits no jobs and does not establish success.")
 
+    def cancellations(self, name, attempt, outcomes, *, removed="", details=False, interrupted=False):
+        descriptions = {
+            "recorded_success": "Recorded successful work; live state unavailable.",
+            "recorded_failure": "Recorded failure; live state unavailable.",
+            "not_admitted": "Not admitted",
+            "preview": "Would request cancellation",
+            "unconfirmed": "Request outcome unconfirmed",
+            "requested": "Cancellation requested; job may still be stopping",
+        }
+        counts = Counter((item.state, item.observation.backend_state if item.state == "inactive" else None)
+                         for item in outcomes)
+        idle = all(item.state in ("inactive", "recorded_success", "recorded_failure", "not_admitted")
+                   for item in outcomes)
+        heading = ("Cancellation interrupted" if interrupted else
+                   "No admitted work to cancel" if idle else "Cancellation outcomes")
+        self.status_line(f"Task {name}: {heading}{removed}", style="bold cyan")
+        for (state, backend_state), count in counts.items():
+            suffix = "s" if count != 1 else ""
+            if state == "inactive":
+                prefix = "All " if len(counts) == 1 else ""
+                self.status_line(f"  {prefix}{count} job{suffix} confirmed inactive ({backend_state.name.lower()})")
+            elif state == "requested":
+                self.status_line(f"  {count} cancellation request{suffix} accepted; jobs may still be stopping")
+            elif state == "preview":
+                self.status_line(f"  Would send {count} cancellation request{suffix}; no requests sent")
+            elif state == "unconfirmed":
+                self.status_line(f"  {count} request outcome{suffix} unconfirmed")
+            elif state == "unresolved":
+                self.status_line(f"  {count} unresolved job identit{'ies' if count != 1 else 'y'}; no request")
+            elif state == "failed":
+                self.status_line(f"  {count} failed cancellation request{suffix}")
+            else:
+                description = descriptions[state]
+                self.status_line(f"  {count} job{suffix}: {description[0].lower() + description[1:]}")
+        if interrupted:
+            remaining = len(lifecycle_jobs(attempt["structure"]["targets"])) - len(outcomes)
+            self.status_line(f"  {remaining} jobs not processed")
+            self.status_line("  Already accepted requests were not rolled back; jobs may still be stopping.")
+        if attempt is not None and (details or any(item.diagnostic for item in outcomes)):
+            self.status_line(f"  Attempt: {attempt['attempt']}")
+        for item in outcomes:
+            if len(counts) == 1 and not item.diagnostic and not details:
+                continue
+            if item.state == "inactive":
+                description = f"Confirmed inactive ({item.observation.backend_state.name.lower()})"
+            elif item.state == "unresolved":
+                description = f"Unresolved job identity: {item.reason}; no request"
+            elif item.state == "failed":
+                description = f"Cancellation request failed: {item.reason}"
+            else:
+                description = descriptions[item.state]
+            if item.state in ("preview", "requested") and item.diagnostic:
+                description += "; live state unavailable"
+            self.status_line(f"  {name}__{item.local}: {description}")
+            if item.diagnostic or details:
+                if item.observation is not None:
+                    self.status_line(f"    Submission: {item.observation.submission or 'not submitted'}")
+                    if item.observation.job_id is not None:
+                        self.status_line(f"    Backend job: {item.observation.job_id}")
+
     def status(self, rows, total, *, expand=False):
         self.status_line(summary(rows, total), style="bold cyan")
         if not rows:

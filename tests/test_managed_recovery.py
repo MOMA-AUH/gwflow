@@ -268,7 +268,7 @@ class ManagedCoordinationTests(LocalBackendTestCase):
     def test_confirmed_cancelled_preparation_can_retry(self):
         self.cli("-b", "recovery_fixture", "run", env=self.preparation_gate())
         self.wait_for(lambda: (self.work / "preparation-held").exists())
-        output = self.cli("cancel", "sample")
+        output = self.cli("cancel", "sample", "--details")
         self.assertEqual(output.count("Cancellation requested"), 3, output)
         self.assertRegex(output, r"sample__gwflow_prepare:.*Cancellation requested")
         self.settle()

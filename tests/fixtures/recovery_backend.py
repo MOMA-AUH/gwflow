@@ -46,6 +46,7 @@ class RecoveryBackend(TrackingBackend):
         if self.options.get("identity_host"):
             self.ops.host = self.options["identity_host"]
         self.submitted = False
+        self.cancelled = False
 
     @property
     def target_defaults(self):
@@ -123,8 +124,12 @@ class RecoveryBackend(TrackingBackend):
         prefix = self.options.get("reject_cancel_prefix")
         if prefix and target.name.startswith(prefix + "__"):
             raise RuntimeError("injected cancellation rejection")
+        prefix = self.options.get("interrupt_cancel_prefix")
+        if prefix and target.name.startswith(prefix + "__"):
+            raise KeyboardInterrupt
         if not self.options.get("accept_cancel_only"):
             super().cancel(target)
+        self.cancelled = True
 
     def __enter__(self):
         type(self).active = True
@@ -138,6 +143,8 @@ class RecoveryBackend(TrackingBackend):
                          timeout=self.options.get("tracking_timeout", 20))
             if self.submitted and self.options.get("fail_tracking_flush"):
                 raise RuntimeError("injected backend tracking flush failure")
+            if self.cancelled and self.options.get("fail_cancel_flush"):
+                raise RuntimeError("injected cancellation tracking flush failure")
             transition = self.options.get("fail_after_observation")
             if transition and not (self.work / "transition-done").exists():
                 # Release an actually running job into failure after planning's

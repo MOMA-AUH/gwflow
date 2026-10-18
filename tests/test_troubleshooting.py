@@ -53,7 +53,7 @@ class TroubleshootingJourneyTests(LocalBackendTestCase):
             history = self.cli("logs", "sample", "--history", "--details")
             self.assertIn(f"sample__right: failed (historical); submission {first}", history)
             self.assertIn(second, history)
-            preview = self.cli("cancel", "sample", "--dry-run")
+            preview = self.cli("cancel", "sample", "--dry-run", "--details")
             self.assertEqual(preview.count("Would request cancellation"), 3, preview)
             self.assertIn(second, preview)
             self.assertNotIn("Task finished:", preview)

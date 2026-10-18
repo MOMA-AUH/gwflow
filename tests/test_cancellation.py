@@ -7,6 +7,7 @@ import shlex
 import shutil
 
 from support import FIXTURES, LocalBackendTestCase
+from terminal_session import rendered_lines
 import test_graphs
 import test_inspection
 import test_run_selection
@@ -19,18 +20,161 @@ class CancellationTests(LocalBackendTestCase):
     slurm_environment = test_graphs.TaskGraphTests.slurm_environment
     snapshot = test_inspection.LifecycleInspectionTests.snapshot
 
+    def test_four_completed_jobs_share_one_outcome_without_repeated_identities(self):
+        workflow = self.work / "workflow.py"
+        workflow.write_text(workflow.read_text().split("join = task.target")[0] +
+                            "task.retain('right', source=right.output('same.txt'), path='result.txt')\n"
+                            "gwf.task(task, alias='sample')\n")
+        self.run_complete()
+        before = self.snapshot()
+        result = self.cli_result("cancel", "sample")
+        self.assertIn("No admitted work to cancel", result.stdout)
+        self.assertIn("All 4 jobs confirmed inactive (completed)", result.stdout)
+        self.assertNotIn("Submission:", result.stdout)
+        self.assertNotIn("Attempt:", result.stdout)
+        self.assertNotIn("sample__", result.stdout)
+        self.assertNotIn("confirmed inactive", result.stderr)
+        self.assertEqual(self.snapshot(), before)
+
     def test_inactive_jobs_are_distinguished_from_unavailable_live_state(self):
         self.run_complete()
         before = self.snapshot()
         output = self.cli("cancel", "sample")
-        self.assertEqual(output.count("backend confirms inactivity"), 5, output)
+        self.assertIn("All 5 jobs confirmed inactive (completed)", output)
         self.assertIn("No admitted work to cancel", output)
         environment = self.inject(job_states={"sample": "UNKNOWN"}, record_cancellations=True)
         output = self.cli("-b", "recovery_fixture", "cancel", "sample", env=environment)
-        self.assertNotIn("backend confirms inactivity", output)
-        self.assertEqual(output.count("completed work preserved; live state unavailable"), 5, output)
+        self.assertNotIn("confirmed inactive", output)
+        self.assertEqual(output.count("Recorded successful work; live state unavailable."), 5, output)
         self.assertFalse((self.work / "cancellation-requests.jsonl").exists())
         self.assertEqual(self.snapshot(), before)
+
+    def test_details_keep_every_identity_and_mixed_outcomes_lead_with_counts(self):
+        self.run_complete()
+        index = self.cli("logs", "sample", "--details")
+        attempt = re.search(r"attempt ([0-9a-f]{32})", index).group(1)
+        submissions = re.findall(r"; submission (\S+)", index)
+        backend_ids = re.findall(r"Backend job: (\S+)", index)
+        self.assertEqual(len(submissions), 5)
+        self.assertEqual(len(backend_ids), 5)
+        environment = self.inject(job_states={"sample__right": "RUNNING", "sample__join": "UNKNOWN"},
+                                  record_cancellations=True, accept_cancel_only=True)
+        before = self.snapshot()
+        result = self.cli_result("-b", "recovery_fixture", "cancel", "sample", "--details", env=environment)
+        self.assertIn("3 jobs confirmed inactive (completed)", result.stdout)
+        self.assertIn("1 cancellation request accepted; jobs may still be stopping", result.stdout)
+        self.assertIn("Recorded successful work; live state unavailable.", result.stdout)
+        self.assertLess(result.stdout.index("3 jobs confirmed inactive"), result.stdout.index("sample__gwflow_prepare:"))
+        self.assertIn(attempt, result.stdout)
+        for submission in submissions:
+            self.assertIn(submission, result.stdout)
+        for job_id in backend_ids:
+            self.assertIn("Backend job: " + job_id, result.stdout)
+        requested = [json.loads(line) for line in (self.work / "cancellation-requests.jsonl").read_text().splitlines()]
+        self.assertEqual(requested, [next(name for name in submissions if name.startswith("sample__right__"))])
+        self.assertNotIn("Cancellation requested", result.stderr)
+        self.assertEqual(self.snapshot(), before)
+
+    def test_interruption_retains_accepted_and_unconfirmed_requests_without_retrying(self):
+        self.run_complete()
+        index = self.cli("logs", "sample", "--details")
+        left = re.search(r"sample__left: complete; submission (\S+)", index).group(1)
+        before = self.snapshot()
+        environment = self.inject(job_states={"sample": "RUNNING"}, record_cancellations=True,
+                                  accept_cancel_only=True, interrupt_cancel_prefix="sample__left")
+        result = self.cli_result("-b", "recovery_fixture", "cancel", "sample", env=environment, success=False)
+        self.assertIn("Cancellation interrupted", result.stdout)
+        self.assertIn("1 cancellation request accepted; jobs may still be stopping", result.stdout)
+        self.assertIn("1 request outcome unconfirmed", result.stdout)
+        self.assertIn("3 jobs not processed", result.stdout)
+        self.assertIn("Already accepted requests were not rolled back", result.stdout)
+        self.assertIn(left, result.stdout)
+        self.assertNotIn("No admitted work to cancel", result.stdout)
+        self.assertIn("Aborted", result.stderr)
+        requested = [json.loads(line) for line in (self.work / "cancellation-requests.jsonl").read_text().splitlines()]
+        self.assertEqual(len(requested), 2)
+        self.assertEqual(requested[1], left)
+        self.assertEqual(self.snapshot(), before)
+
+    def test_terminal_plain_and_redirected_receipts_preserve_failures_and_complete_identities(self):
+        self.run_complete()
+        index = self.cli("logs", "sample", "--details")
+        left = re.search(r"sample__left: complete; submission (\S+)", index).group(1)
+        environment = self.inject(job_states={"sample__left": "RUNNING", "sample__right": "RUNNING"},
+                                  reject_cancel_prefix="sample__left", accept_cancel_only=True,
+                                  record_cancellations=True)
+        before = self.snapshot()
+        for mode in ("terminal", "plain", "no_color", "redirected"):
+            with self.subTest(mode=mode):
+                args = ("-b", "recovery_fixture", "cancel", "sample")
+                if mode == "plain":
+                    args += ("--plain",)
+                if mode == "redirected":
+                    result = self.cli_result(*args, env=environment, success=False)
+                    visible = result.stdout
+                else:
+                    result = self.terminal_cli(*args, width=180 if mode == "terminal" else 32,
+                                               no_color=mode == "no_color", merge_stderr=True,
+                                               env=environment, success=False)
+                    visible = rendered_lines(result.stdout) if mode == "terminal" else result.stdout
+                self.assertIn(left, visible)
+                compact = " ".join(visible.split())
+                self.assertIn("1 failed cancellation request", compact)
+                self.assertIn("1 cancellation request accepted", compact)
+                self.assertIn("Cancellation request failed: injected cancellation rejection", compact)
+                self.assertIn("sample__right: Cancellation requested", compact)
+                if mode in ("plain", "redirected"):
+                    self.assertNotIn("\x1b[", result.stdout + result.stderr)
+                if mode == "no_color":
+                    self.assertNotRegex(result.stdout, r"\x1b\[[0-9;]*m")
+                requests = self.work / "cancellation-requests.jsonl"
+                self.assertEqual(len(requests.read_text().splitlines()), 2)
+                requests.unlink()
+                self.assertEqual(self.snapshot(), before)
+
+    def test_backend_close_failure_retains_accepted_receipts_from_the_same_invocation(self):
+        self.run_complete()
+        index = self.cli("logs", "sample", "--details")
+        submissions = re.findall(r"; submission (\S+)", index)
+        environment = self.inject(job_states={"sample": "RUNNING"}, record_cancellations=True,
+                                  accept_cancel_only=True, fail_cancel_flush=True)
+        before = self.snapshot()
+        result = self.cli_result("-b", "recovery_fixture", "cancel", "sample", "--details",
+                                 env=environment, success=False)
+        self.assertIn("5 cancellation requests accepted; jobs may still be stopping", result.stdout)
+        for submission in submissions:
+            self.assertIn(submission, result.stdout)
+        self.assertIn("injected cancellation tracking flush failure", result.stderr)
+        self.assertIn("Traceback:", result.stderr)
+        self.assertEqual(len((self.work / "cancellation-requests.jsonl").read_text().splitlines()), 5)
+        self.assertEqual(self.snapshot(), before)
+
+    def test_unresolved_admission_retains_identity_and_blocks_replacement_and_cleanup(self):
+        held, release = self.work / "held", self.work / "release"
+        self.configure_workflow(right_command=(
+            f"touch {shlex.quote(str(held))}; "
+            f"while [ ! -e {shlex.quote(str(release))} ]; do sleep 0.025; done; printf right > same.txt"))
+        self.cli("-b", "recovery_fixture", "run", env=self.inject(lose_tracking="sample__right"), success=False)
+        self.wait_for(held.exists)
+        try:
+            index = self.cli("logs", "sample", "--details")
+            attempt = re.search(r"attempt ([0-9a-f]{32})", index).group(1)
+            self.assertIn("sample__right: uncertain; submission ", index)
+            submission = re.search(r"sample__right: uncertain; submission ([^;\s]+)", index).group(1)
+            before = self.snapshot()
+            environment = self.inject(record_cancellations=True, accept_cancel_only=True)
+            result = self.cli_result("-b", "recovery_fixture", "cancel", "sample", env=environment, success=False)
+            self.assertIn("1 unresolved job identity; no request", result.stdout)
+            self.assertIn("no recorded or tracked backend job ID", result.stdout)
+            self.assertIn(submission, result.stdout)
+            self.assertIn(attempt, result.stdout)
+            self.assertFalse((self.work / "cancellation-requests.jsonl").exists())
+            self.assertIn("unresolved submission", self.cli("run", "sample", "--force", success=False))
+            self.assertIn("Cleanup refused", self.cli("clean", "--attempt", attempt, "--delete", success=False))
+            self.assertEqual(self.snapshot(), before)
+        finally:
+            release.touch()
+        self.finish()
 
     def test_cancelled_completion_recovers_without_repeating_computation(self):
         shutil.copy(FIXTURES / "job_fault.py", self.work)
@@ -64,6 +208,8 @@ class CancellationTests(LocalBackendTestCase):
         self.wait_for(held.exists)
         try:
             self.wait_for(lambda: "sample__left: complete" in self.cli("logs", "sample"))
+            index = self.cli("logs", "sample", "--details")
+            right = re.search(r"sample__right: running; submission (\S+)", index).group(1)
             environment = self.inject(job_states={"sample__right": "UNKNOWN"},
                                       conflicting_tracking_prefix="sample__join", record_cancellations=True,
                                       accept_cancel_only=True)
@@ -71,6 +217,7 @@ class CancellationTests(LocalBackendTestCase):
             output = self.cli("-b", "recovery_fixture", "cancel", "sample", env=environment, success=False)
             self.assertIn("sample__join", output)
             self.assertIn("conflicting backend job IDs", output)
+            self.assertIn(right, output)
             self.assertEqual(output.count("Cancellation requested"), 2, output)
             requested = [json.loads(line) for line in (self.work / "cancellation-requests.jsonl").read_text().splitlines()]
             self.assertEqual(len(requested), 2)
@@ -228,18 +375,18 @@ class CancellationSelectionTests(LocalBackendTestCase):
                                   record_cancellations=True, accept_cancel_only=True)
         before = self.snapshot()
         output = self.cli("-b", "recovery_fixture", "cancel", "b", "fresh", env=environment)
-        self.assertRegex(output, r"Task b: current attempt \w+; no longer declared")
-        self.assertIn("Task fresh: no admitted work to cancel", output)
+        self.assertIn("Task b: Cancellation outcomes; no longer declared", output)
+        self.assertIn("Task fresh: No admitted work to cancel", output)
         requested = [json.loads(line) for line in (self.work / "cancellation-requests.jsonl").read_text().splitlines()]
         self.assertEqual(len(requested), 3)
         self.assertTrue(all(name.startswith("b__") for name in requested))
-        output = self.cli("-b", "recovery_fixture", "cancel", "*", "--dry-run", env=environment)
+        output = self.cli("-b", "recovery_fixture", "cancel", "*", "--dry-run", "--details", env=environment)
         self.assertEqual(set(re.findall(r"(?m)^Task (\w+):", output)), {*"abcde", "fresh"})
         self.assertEqual(output.count("no longer declared"), 5)
         self.assertEqual(output.count("Would request cancellation"), 15)
         self.configure(**{"backend.local.port": 0})
         for options in ((), ("--dry-run",)):
-            self.assertIn("no admitted work to cancel", self.cli("cancel", "fresh", *options))
+            self.assertIn("No admitted work to cancel", self.cli("cancel", "fresh", *options))
         self.assertEqual(self.snapshot(), before)
 
     def test_exact_multiple_patterns_and_all_address_only_selected_current_attempts(self):
@@ -260,7 +407,7 @@ class CancellationSelectionTests(LocalBackendTestCase):
                 requests.unlink(missing_ok=True)
                 observations.unlink(missing_ok=True)
                 expected = {submission for submission in current if submission.split("__", 1)[0] in names}
-                preview = self.cli("-b", "recovery_fixture", "cancel", *selectors, "--dry-run", env=environment)
+                preview = self.cli("-b", "recovery_fixture", "cancel", *selectors, "--dry-run", "--details", env=environment)
                 self.assertEqual(preview.count("Would request cancellation"), len(expected), preview)
                 self.assertEqual(set(re.findall(r"(?m)^Task (\w+):", preview)), names)
                 self.assertFalse(requests.exists())
