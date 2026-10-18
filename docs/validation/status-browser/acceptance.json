@@ -52,8 +52,23 @@
       "command": "<PYTHON> -m unittest discover -s tests -p test_browser_workload.py",
       "result": "9 tests passed in 23.377 seconds",
       "raw_log": "build/validation/issue-229-workload-reviewed.log",
+      "coverage": "All captured workload checks plus review regressions for filtered-out Task/group/job fallback, latest failure updating open expanded error details, bounded filter/help menu navigation, and immediate fallback notices.",
+      "source_commit": "4eb5d667918dc5e40e38d4b12a0dfe4474d988c6"
+    },
+    {
+      "command": "<PYTHON> -",
+      "stdin_script": "Add tests/ to sys.path, then use unittest.defaultTestLoader.loadTestsFromNames and TextTestRunner to run test_status_refresh, test_status_refresh_interaction, test_browser_workload, test_browser_interaction, and test_interactive_status together.",
+      "result": "43 tests passed together in one unittest process in 160.283 seconds",
+      "raw_log": "build/validation/issue-229-browser-final.log",
+      "source_commit": "4eb5d667918dc5e40e38d4b12a0dfe4474d988c6",
+      "coverage": "All installed refresh/filter, captured workload, existing keyboard/clipboard, and interactive status CLI checks."
+    },
+    {
+      "command": "<PYTHON> -m unittest discover -s tests -p test_browser_workload.py",
+      "result": "10 tests passed in 23.988 seconds",
+      "raw_log": "build/validation/issue-229-workload-final.log",
       "source": "Final candidate source identified by the source.sha256 mapping in this record.",
-      "coverage": "All captured workload checks plus review regressions for filtered-out Task/group/job fallback, latest failure updating open expanded error details, bounded filter/help menu navigation, and immediate fallback notices."
+      "coverage": "All captured workload and review regressions, including Enter opening focused error details from the state-filter menu without applying pending choices."
     }
   ],
   "responsiveness": {
@@ -61,8 +76,8 @@
     "raw_record": "build/validation/status-browser/measurements.json",
     "normalized_record": "docs/validation/status-browser/measurements.json",
     "workload": "Synthetic captured observations: 100 Tasks, 1,000 jobs, groups of 24 and 76 Tasks, long names, mixed primary states and expanded job rows. Backend state interpretation is checked separately through real local execution and controlled Slurm commands.",
-    "result": "Across all three terminal sizes, median headless first/last-row interactions were 0.083-0.084 seconds; captured snapshot replacement was 0.202-0.274 seconds. Multi-key operations include Pilot key delivery and animation settling; complete samples are in measurements.json.",
-    "resources": "All 36 old snapshots were collected. Sampled async-task and file-descriptor counts did not increase across 12 cycles per size. Peak process RSS was 64,512 KiB.",
+    "result": "Across all three terminal sizes, median headless first/last-row interactions were 0.082-0.083 seconds; captured snapshot replacement was 0.200-0.247 seconds. Multi-key operations include Pilot key delivery and animation settling; complete samples are in measurements.json.",
+    "resources": "All 36 old snapshots were collected. Sampled async-task and file-descriptor counts did not increase across 12 cycles per size. Peak process RSS was 62,976 KiB.",
     "limits": "Shared host, headless rendering, captured data, and overlapping local validation. These are reproducible observations, not terminal-emulator or scheduler latency guarantees. CI asserts functionality and bounded resources without wall-clock responsiveness thresholds."
   },
   "ongoing_checks": {
@@ -75,11 +90,11 @@
     "base_commit": "1b8784da88920769c9f83c7ac7106d3c0bcf4727",
     "note": "Final candidate including review corrections, identified by exact source digests. Earlier focused runs identify their original source commit separately.",
     "sha256": {
-      "src/gwflow/browser.py": "b096e8231aa936227588844fc59b38e525a4b964b1bca668cfca5729d5460f0e",
+      "src/gwflow/browser.py": "ef1c6f1a43b0059a087149221d88d283d38dc21c74faa0c41bbd86d3d1447bf6",
       "src/gwflow/status_snapshot.py": "871efdd99cbbe7ae4875a1323de5a32007558045658034c21a51988b369ae54e",
       "tests/fixtures/browser_workload.py": "6105e614d160459a164c86d3a65b0809cb82863a33fcd329a804f7422012e09b",
       "tests/fixtures/slurm_command.py": "2c07fd760434d781d2b2ccf38b54a409dd994560ad71bcbab36767dbc9892fcb",
-      "tests/test_browser_workload.py": "cf2e00b7968624dde672bc0fdaa7d7a20174bef4d8d91fc21ecb67952ad5747f",
+      "tests/test_browser_workload.py": "51aec444ae682cb5347ec9c64a25176ca6047d6f177e602e87deb2241f3dbf90",
       "tests/test_status_refresh.py": "765d1cd68489affcbed8c8948e967685c2364c40cb020fd92c6602d850a534a0",
       "tests/test_status_refresh_interaction.py": "a303758cfba166a883e77fdb829fd6a06e661fd509fc70a5274e0fe4209e6ec3",
       "tests/benchmark_status_browser.py": "995df4ca994c4d35312ad8b210d457f2c1dc994edb7f1bc946f0a73af784548c"

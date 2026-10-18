@@ -486,6 +486,11 @@ class StateFilterView(Screen):
     BINDINGS = [Binding("escape", "cancel", show=False),
                 Binding("enter", "apply", show=False, priority=True), Binding("c", "clear", show=False)]
 
+    def check_action(self, action, parameters):
+        if action == "apply":
+            return isinstance(self.focused, SelectionList)
+        return True
+
     def compose(self) -> ComposeResult:
         yield Static("Filter Task states", classes="breadcrumb")
         yield InspectionStatus()
