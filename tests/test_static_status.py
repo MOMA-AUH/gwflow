@@ -59,6 +59,7 @@ class StaticStatusTests(LocalBackendTestCase):
             **{f"mapping__{index}__compute": "RUNNING" for index in range(14, 18)},
             **{f"mapping__{index}__compute": "FAILED" for index in range(18, 24)},
         })
+        environment.update(TERM="xterm-256color", PYTHONIOENCODING="utf-8")
         for terminal in (False, True):
             result = (self.terminal_cli if terminal else self.cli_result)(
                 "-b", "recovery_fixture", "status", "--static", "--status", "failed", env=environment)
