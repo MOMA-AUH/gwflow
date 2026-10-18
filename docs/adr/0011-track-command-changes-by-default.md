@@ -1,11 +1,11 @@
 # Require command tracking in managed workflows
 
-For v1.0.0, managed workflows always track command changes, replacing the
+For v0.8.0, managed workflows always track command changes, replacing the
 inherited opt-in behavior and removing the managed-workflow opt-out. A changed
 computation command requires a fresh Task attempt under the existing lifecycle
 checks, because silently reusing results after a command edit is unsuitable for
-production workflows. This establishes one command-based Reuse rule throughout
-1.x, accepting that harmless command-text changes may also require expensive
+production workflows. This establishes one command-based Reuse rule, accepting
+that harmless command-text changes may also require expensive
 recomputation.
 
 The inherited `use_spec_hashes=false` setting is rejected for managed workflows

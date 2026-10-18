@@ -52,12 +52,14 @@ Store the token in GitHub Actions secrets, not in the repository. Until that
 secret is configured, the reviewable build and tests can run, but the tag
 workflow cannot complete publication.
 
-## Planned v1.0.0 acceptance scope
+## Planned v0.8.0 acceptance scope
 
-The release plan below was agreed on 2026-10-16. It records intended work and
-release requirements, not completed implementation or validation.
+The release plan below was agreed on 2026-10-16 and retargeted from v1.0.0 to
+v0.8.0 on 2026-10-18. It records intended work and release requirements, not
+completed implementation or validation. v0.8.0 remains a pre-1.0 release;
+the future v1.0.0/1.x compatibility policy does not become a v0.8.0 guarantee.
 
-v1.0.0 targets the maintainer's production pipelines on the current
+v0.8.0 targets the maintainer's production pipelines on the current
 Linux/Slurm/Apptainer infrastructure, with local workers for development and
 testing. Independent adoption across a broader range of deployments is not a
 release requirement.
@@ -78,14 +80,16 @@ release requirement.
    and submits no jobs.
 3. Review and settle final CLI terminal presentation against those behaviors,
    as described below.
-4. Complete compatibility validation and documentation for the 1.x baseline
+4. Retain the installed compatibility journeys as regression checks and
+   preparation for the future stable baseline
    ([ADR 0010](adr/0010-preserve-public-interfaces-and-completed-work-through-1-x.md)).
-   Preserve public interfaces, completed results after work cleanup, valid partial
-   computation, and interrupted-installation recovery across forward 1.x
-   upgrades made with jobs confirmed inactive. Establish automated regression
-   coverage and baseline evidence for future upgrades; do not promise blanket
-   support for pre-1.0 records. Reconcile the glossary's Completion semantics
-   with the managed implementation and document upgrade and recovery procedures.
+   Check public interfaces, completed results after work cleanup, valid partial
+   computation, and interrupted-installation recovery with jobs confirmed
+   inactive. Record the exact tested baseline and candidate without promising
+   compatibility for untested pre-1.0 releases. v0.8.0 publication does not
+   establish the future v1.0.0 baseline. Reconcile the glossary's Completion
+   semantics with the managed implementation and document upgrade and recovery
+   procedures.
 5. Complete the automated, installed-package, and publication checks for release.
 
 Broader platform support, structured JSON output, storage relocation, and
@@ -97,17 +101,37 @@ to meet the agreed guarantees remain included.
 Automated tests and the existing examples are the release acceptance basis,
 alongside the installed-artifact and publication checks described above.
 Representative pipeline validation on the actual cluster is follow-up work,
-not a gate for v1.0.0. Release evidence must distinguish the automated checks
+not a gate for v0.8.0. Release evidence must distinguish the automated checks
 performed for the candidate from historical live-cluster evidence; passing the
 former does not establish that the candidate passed a representative production
 pipeline on Slurm.
 
-Final CLI terminal output must be settled before v1.0.0. The maintainer has
-additional presentation wishes that are not yet specified, so this remains an
-open design milestone in [issue #213](https://github.com/MOMA-AUH/gwflow/issues/213)
+CI runners must have no access to the production cluster. The maintainer ruled
+out a cluster-connected runner on 2026-10-18 because this is a public repository.
+Automated backend coverage uses local workers and the Slurm adapter with
+controlled replacement Slurm commands. Interactive presentation validation uses
+a 100-Task/1,000-job captured workload. Functional and resource-bound checks run
+in CI; reproducible performance measurements are automated and recorded
+separately, without tight wall-clock thresholds gating ordinary CI or requiring
+the maintainer to collect benchmark results manually. These checks do not replace
+or claim representative production-cluster validation.
+
+Final CLI terminal output must be settled before v0.8.0. The agreed decisions
+are recorded in ADR 0014; the maintainer approved the ten implementation slices
+and validation requirements on 2026-10-18 in
+[issue #213](https://github.com/MOMA-AUH/gwflow/issues/213)
 within the agreed release plan. The review covers layout,
 wording, colors, grouping, progress, verbosity
-of reports, and error/recovery guidance. Command names, arguments, flags, and
-behavior remain governed by the settled command decisions; this review does not
-reopen them. The detailed presentation changes and review criteria remain to be
-agreed.
+of reports, and error/recovery guidance. On 2026-10-17, the maintainer expanded
+this scope to include interactive status, now targeted for v0.8.0, defaulting to
+that view in an interactive terminal, with `status --static` for one formatted report,
+`status --plain` for one undecorated report, and automatic plain static output
+when redirected or piped
+([ADR 0014](adr/0014-make-terminal-status-interactive-by-default.md)). This
+intentionally revises the earlier presentation-only restriction. Task-selection
+semantics and ordinary execution safeguards remain in force. The v0.8.0 TUI is for
+inspection, with manual status refresh, in-app logs and history, and optional
+live log following; run and cancel remain ordinary commands, exposed through
+copyable command hints. All ten approved implementation tickets are required
+blockers of release preparation #217. Design approval does not establish that
+the features have been implemented or the release validated.

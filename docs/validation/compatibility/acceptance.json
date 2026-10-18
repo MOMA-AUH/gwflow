@@ -4,7 +4,7 @@
   "limitations": [
     "Both independent installations use the same pinned source. This validates the baseline and journey, not all future 1.x upgrades.",
     "Package metadata is 0.7.0. The exact source includes mandatory tracking and operator recovery; this does not promise compatibility with other pre-1.0 records.",
-    "Final release preparation/publication must identify the actual immutable v1.0.0 baseline artifact and checksum.",
+    "The release work was retargeted to v0.8.0 on 2026-10-18; its preparation/publication must identify the tested and published artifacts. The stable baseline artifact and checksum remain requirements for the future v1.0.0 release, not v0.8.0.",
     "The environments share Python and installed dependencies through system-site-packages but contain independent gwflow installations.",
     "Local workers were used; there was no relocation, live upgrade, mixed-version worker operation, downgrade, or manual record conversion."
   ],

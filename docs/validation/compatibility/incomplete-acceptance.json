@@ -3,7 +3,7 @@
   "recorded_date": "2026-10-16",
   "limitations": [
     "The pinned pre-1.0 bootstrap and candidate have identical production package content. This validates the extended journey, not a future 1.x release or every pre-1.0 format.",
-    "Package metadata is 0.7.0; exact commits and wheel hashes identify the installed artifacts. The actual immutable v1.0.0 release baseline remains unset.",
+    "Package metadata is 0.7.0; exact commits and wheel hashes identify the installed artifacts. The release work now targets v0.8.0, which remains pre-1.0; the actual immutable future v1.0.0 stable baseline remains unset.",
     "The installations share Python and dependencies through system-site-packages but independently contain gwflow.",
     "All actual jobs were confirmed terminal and baseline workers stopped before candidate workers started. Storage and workflows stayed in place except intentional negative-case edits.",
     "The existing backend fixture replays observed terminal states by exact old Submission name because the local scheduler loses history and reuses numeric IDs on restart. New jobs execute on real local workers.",

@@ -1,15 +1,19 @@
 # Installed compatibility baseline
 
 [ADR 0010](../../adr/0010-preserve-public-interfaces-and-completed-work-through-1-x.md)
-requires forward compatibility from v1.0.0 for public workflows and valid managed
-work. The [baseline descriptor](baseline.json) pins source after mandatory command
-tracking and operator recovery. Its package metadata is still `0.7.0`; the commit,
+requires forward compatibility from the future v1.0.0 baseline for public
+workflows and valid managed work. The current release target is v0.8.0, under
+the pre-1.0 policy; these journeys remain regression checks and preparation for
+the stable baseline. The [baseline descriptor](baseline.json) pins source after
+mandatory command tracking and operator recovery. Its package metadata is still `0.7.0`; the commit,
 not that version string alone, identifies this bootstrap baseline.
 
 There is no future 1.x release to test yet. Installing the same source twice
 validates the journey, storage handoff, and baseline provenance. It does not prove
-all future upgrades. Final release preparation and publication must identify the
-actual immutable v1.0.0 artifact and checksum and exercise it as the baseline.
+all future upgrades. v0.8.0 preparation and publication must record the exact
+tested and published artifacts, without calling them the stable compatibility
+baseline. When v1.0.0 is prepared and published, identify its actual immutable
+artifact and checksum and exercise it as the baseline for later 1.x candidates.
 Other pre-1.0 formats, relocation, live upgrades, mixed-version workers, downgrade
 support, and blanket record migration remain outside the compatibility promise.
 
