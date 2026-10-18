@@ -36,7 +36,7 @@ def capture(ctx, destination, selectors):
                 item = task.submissions.get(local)
                 submission = item.submission if item else None
                 jobs.append({"local": local, "name": f"{task.name}__{local}", "state": state,
-                             "observed_state": observed_job_state(task, local),
+                             "observed_state": observed_job_state(task, local) if submission else state,
                              "requires_repetition": bool(submission and (task.restart_required or local in task.repeated_jobs)),
                              "submission": submission, "backend_id": item.job_id if item else None,
                              "logs": {stream: str(plan.store.working_dir / ".gwf" / "logs" / f"{submission}.{stream}")
@@ -48,7 +48,7 @@ def capture(ctx, destination, selectors):
                           "commands": [shlex.join(inspection_command(*args)) for args in (
                               ("run", task.name, "--dry-run"), ("run", task.name), ("cancel", task.name))]})
         with redirect_stdout(io.StringIO()) as notices:
-            Report(plan.store, plain=True).workflow_notices(task_order(workflow, plan), rows)
+            Report(plan.store, plain=True).workflow_notices(task_order(workflow, plan), rows, include_reasons=True)
         snapshot = {
             "finished": time.time(),
             "total": len(workflow._task_declarations),

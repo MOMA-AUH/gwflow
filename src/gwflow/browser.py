@@ -23,18 +23,12 @@ from textual.widgets import Button, Collapsible, OptionList, Static
 from textual.widgets._collapsible import CollapsibleTitle
 
 from .diagnostics import error_message
-from .presentation import ACTIVE, _VISUALS
+from .presentation import ACTIVE, _VISUALS, progress_text
 
 
 def state_text(state):
     symbol, style = _VISUALS[state]
     return Text(f"{symbol} {state}", style=style)
-
-
-def progress_text(completed, total, width=10):
-    filled = int(width * completed / total) if completed is not None and total else 0
-    bar = "/" * width if completed is None else "━" * filled + "─" * (width - filled)
-    return f"{'?' if completed is None else completed}/{total} [{bar}]"
 
 
 def middle_name(value, width):
@@ -360,7 +354,7 @@ class Inspection:
         self.started = time.monotonic()
         with (self.root / "stdout").open("wb") as output, (self.root / "stderr").open("wb") as errors:
             self.process = subprocess.Popen(
-                [sys.executable, "-m", "gwflow.status_snapshot", *arguments[0],
+                [sys.executable, "-m", "gwflow._inspection_process", *arguments[0],
                  "status", "--snapshot-file", str(self.result), "--", *arguments[1]],
                 stdin=subprocess.DEVNULL, stdout=output, stderr=errors, start_new_session=True,
             )
@@ -387,11 +381,11 @@ class Inspection:
 
     def close(self):
         try:
-            os.killpg(self.process.pid, signal.SIGTERM)
+            self.process.send_signal(signal.SIGTERM)
         except ProcessLookupError:
             pass
         try:
-            self.process.wait(timeout=1)
+            self.process.wait(timeout=2)
         except subprocess.TimeoutExpired:
             pass
         try:

@@ -1,8 +1,10 @@
 """Interactive status through the installed CLI and a controlling terminal."""
 
 import fcntl
+import os
 from pathlib import Path
 import shlex
+import signal
 import sys
 
 from support import FIXTURES, GWFLOW, LocalBackendTestCase
@@ -112,9 +114,54 @@ class InteractiveStatusTests(LocalBackendTestCase):
         session = self.terminal('status', '--status', 'reusable')
         session.wait_for('Showing 0 of 1 selected Tasks')
         session.wait_for('Workflow blocked', timeout=5)
+        session.send('\t')
+        session.send('\x1b[F')
+        session.wait_for('image unavailable', timeout=5)
         self.assertNotIn('No snapshot available', session.text)
         session.send('q')
         self.assertEqual(session.finish(), 0, session.text)
+
+    def test_fresh_expanded_jobs_have_known_pending_state_without_submissions(self):
+        session = self.terminal('status', '--details')
+        session.wait_for('gwflow_prepare')
+        self.assertNotIn('unknown', session.text)
+        session.send('\x1b[B\r')
+        session.wait_for('Observed state:')
+        self.assertRegex(session.text, r'Observed state:\s*○ pending')
+        session.wait_for('not submitted')
+        session.send('q')
+        self.assertEqual(session.finish(), 0, session.text)
+
+    def test_inspection_owns_detached_orphaned_descendants_on_quit_and_completion(self):
+        workflow = self.work / 'workflow.py'
+        declaration = workflow.read_text()
+        child = ("from pathlib import Path; import os, signal, time\n"
+                 "signal.signal(signal.SIGTERM, signal.SIG_IGN)\n"
+                 "Path('detached-pid').write_text(str(os.getpid()))\n"
+                 "while not Path('detached-release').exists(): time.sleep(0.025)\n"
+                 "Path('detached-late-effect').touch()\n")
+        intermediate = f"import subprocess, sys; subprocess.Popen([sys.executable, '-c', {child!r}], start_new_session=True)"
+        for stalled in (True, False):
+            with self.subTest(stalled=stalled):
+                workflow.write_text("import subprocess, sys, time\n"
+                                    f"subprocess.run([sys.executable, '-c', {intermediate!r}], start_new_session=True)\n" +
+                                    ("time.sleep(60)\n" if stalled else "") + declaration)
+                session = self.terminal('status')
+                pidfile = self.work / 'detached-pid'
+                self.wait_for(pidfile.exists)
+                pid = int(pidfile.read_text())
+                try:
+                    session.wait_for('Inspecting workflow' if stalled else 'sample')
+                    session.send('q')
+                    self.assertEqual(session.finish(), 1 if stalled else 0, session.text)
+                    self.assertFalse(Path(f'/proc/{pid}').exists(), f'Owned detached descendant {pid} survived')
+                    self.assertFalse((self.work / 'detached-late-effect').exists())
+                finally:
+                    try:
+                        os.kill(pid, signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
+                pidfile.unlink()
 
     def test_quit_stops_import_descendants_and_lock_and_scheduler_waits(self):
         workflow = self.work / 'workflow.py'
