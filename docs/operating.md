@@ -102,6 +102,12 @@ logs and read failures stay visible, with previously read text preserved. See
 the [browser reference](reference.md#status-views-and-progress) for paging and
 read limits.
 
+Use uppercase `F` to follow that submission's log. Following starts off, checks
+about once per second, and recovers visibly from replacement, truncation, and
+temporary read failures. Scrolling upward or Home pauses it; `F` resumes, while
+End only jumps to latest. Leaving the log stops following and retries. Workflow
+status still changes only when you press `r`.
+
 An interrupted admission, missing acknowledgement, or unavailable scheduler
 history can leave work blocked. Start with the normal diagnostics:
 

@@ -92,10 +92,24 @@ class StreamChooser(PinnedView):
         return Static(Shortcuts('↑↓ choose  Enter open', 'Esc back  ? help  q quit'), classes='shortcuts')
 
 
+class LogPane(VerticalScroll):
+    def on_scroll_up(self):
+        self.screen.pause_follow()
+
+    def on_mouse_scroll_up(self, event):
+        if not event.ctrl and not event.shift:
+            self.screen.pause_follow()
+
+    def on_scroll_to(self, message):
+        if message.y is not None and message.y < self.scroll_y:
+            self.screen.pause_follow()
+
+
 class LogView(PinnedView):
-    BINDINGS = [Binding('u', 'reload', show=False),
+    BINDINGS = [Binding('u', 'reload', show=False), Binding('F', 'follow', show=False),
                 Binding('home', 'beginning', show=False, priority=True),
                 Binding('end', 'latest', show=False, priority=True),
+                Binding('up', 'scroll_up', show=False, priority=True),
                 Binding('pageup', 'older', show=False, priority=True),
                 Binding('pagedown', 'newer', show=False, priority=True)]
 
@@ -104,13 +118,18 @@ class LogView(PinnedView):
         self.stream = stream
         self.operation = None
         self.result = {}
+        self.follow_mode = 'off'
+        self.next_follow = 0.0
+        self.follow_notice = ''
+        self.read_error = ''
 
     def compose(self):
         yield self.heading()
         yield self.context()
+        yield Static('Live log: off; F: follow/pause', id='follow-status')
         with VerticalScroll(classes='read-info'):
             yield Static('Reading log...', id='read-status')
-        with VerticalScroll(id='log-pane'):
+        with LogPane(id='log-pane'):
             yield Static(f"Task: {self.observation['name']}\nPublic job: {self.job['name']}\n"
                          f"Attempt: {self.observation.get('attempt') or 'not recorded'}\n"
                          f"Submission: {self.job['submission'] or 'not submitted'}\n"
@@ -119,11 +138,11 @@ class LogView(PinnedView):
         yield self.footer()
 
     def footer(self):
-        return Static(Shortcuts('PgUp/PgDn Home/End Tab details', 'u reload r status Esc ? q quit'),
+        return Static(Shortcuts('PgUp/PgDn Home/End Tab details', 'F follow u reload r Esc ? q quit'),
                       classes='shortcuts')
 
     def check_action(self, action, parameters):
-        if action in ('beginning', 'latest', 'older', 'newer'):
+        if action in ('beginning', 'latest', 'older', 'newer', 'scroll_up'):
             return self.focused is self.query_one('#log-pane')
         return True
 
@@ -132,7 +151,39 @@ class LogView(PinnedView):
         self.action_reload()
         self.read_timer = self.set_interval(0.05, self.read_progress)
 
+    def action_follow(self):
+        if self.follow_mode == 'following':
+            self.pause_follow()
+            return
+        self.follow_mode = 'following'
+        self.query_one('#follow-status', Static).update('Live log: ' + self.follow_mode + '; F: follow/pause')
+        self.follow_tick()
+
+    def pause_follow(self):
+        if self.follow_mode == 'following':
+            self.follow_mode = 'paused'
+            self.query_one('#follow-status', Static).update('Live log: paused; F: follow/pause')
+            if self.operation is not None:
+                self.operation.close()
+                self.operation = None
+                self.query_one('#read-status', Static).update(Text(self.previous_read_status()))
+        pane = self.query_one('#log-pane')
+        pane.anchor(False)
+        self.read_position = pane.scroll_y
+
+    def on_screen_suspend(self):
+        if self.follow_mode == 'following':
+            self.pause_follow()
+
+    def follow_tick(self):
+        if self.follow_mode == 'following' and self.operation is None:
+            self.next_follow = time.monotonic() + 1
+            self.read('backward', None, 'end', following=True)
+
     def action_reload(self):
+        if self.follow_mode == 'following':
+            self.follow_tick()
+            return
         pane = self.query_one('#log-pane')
         if not self.result or self.result['end'] == self.result['size'] and pane.is_vertical_scroll_end:
             self.read('backward', None, 'end', reload=True)
@@ -140,17 +191,23 @@ class LogView(PinnedView):
             self.read('forward', self.result['start'], pane.scroll_y, reload=True)
 
     def action_beginning(self):
+        self.pause_follow()
         self.read('forward', 0, 'start')
 
     def action_latest(self):
         self.read('backward', None, 'end')
 
     def action_older(self):
+        self.pause_follow()
         pane = self.query_one('#log-pane')
         if pane.scroll_y > 0:
             pane.scroll_page_up(animate=False)
         elif self.result and self.result['start'] > 0:
             self.read('backward', self.result['start'], 'end')
+
+    def action_scroll_up(self):
+        self.pause_follow()
+        self.query_one('#log-pane').scroll_up(animate=False)
 
     def action_newer(self):
         pane = self.query_one('#log-pane')
@@ -159,7 +216,7 @@ class LogView(PinnedView):
         elif self.result and self.result['end'] < self.result['size']:
             self.read('forward', self.result['end'], 'start')
 
-    def read(self, direction, offset, position, *, reload=False):
+    def read(self, direction, offset, position, *, reload=False, following=False):
         if self.operation is None:
             pane = self.query_one('#log-pane')
             self.previous_position = 'end' if pane.is_vertical_scroll_end else pane.scroll_y
@@ -167,10 +224,19 @@ class LogView(PinnedView):
             previous = ({key: self.result[key] for key in ('start', 'end', 'size', 'identity', 'digest')}
                         if self.result and not reload else None)
             self.operation = ReadOperation({'path': self.job['logs'].get(self.stream),
-                                            'direction': direction, 'offset': offset, 'previous': previous})
-            self.query_one('#read-status', Static).update('Reading log...')
+                                            'direction': direction, 'offset': offset, 'previous': previous,
+                                            'following': following})
+            previous = self.previous_read_status() + '\n' if self.read_error else ''
+            self.query_one('#read-status', Static).update(Text(previous + 'Reading log...'))
+
+    def previous_read_status(self):
+        previous = ('Previously read ' + time.strftime('%H:%M:%S', time.localtime(self.result['finished']))
+                    if self.result else 'No log content read')
+        return previous + '; u: reload.' + ('\n' + self.read_error if self.read_error else '')
 
     def read_progress(self):
+        if self.operation is None and self.follow_mode == 'following' and time.monotonic() >= self.next_follow:
+            self.follow_tick()
         if self.operation is None or not self.operation.completed():
             return
         try:
@@ -179,15 +245,25 @@ class LogView(PinnedView):
             self.operation.close()
             self.operation = None
         if 'error' in result:
-            prefix = ('Previously read ' + time.strftime('%H:%M:%S', time.localtime(self.result['finished'])) +
-                      '; u: reload.\n') if self.result else ''
-            self.query_one('#read-status', Static).update(Text(prefix + result['error']))
+            self.read_error = result['error']
+            self.query_one('#read-status', Static).update(Text(self.previous_read_status()))
             self.read_position = self.previous_position
             self.app.call_after_refresh(self.restore_reading_position)
             return
+        notices = []
+        if self.read_error:
+            notices.append('Log readable again.')
+        if result.get('change'):
+            notices.append(result['change'] + '; reloaded latest content.')
+        if result.get('gap'):
+            notices.append('Output advanced beyond the previous portion; Home/PgUp access earlier content.')
+        if notices:
+            self.follow_notice = ' '.join(notices)
+        self.read_error = ''
         self.result = result
         self.query_one('#log-text', Static).update(log_text(result))
         self.query_one('#read-status', Static).update(
+            (self.follow_notice + '\n' if self.follow_notice else '') +
             'Log read at ' + time.strftime('%H:%M:%S', time.localtime(result['finished'])) +
             ('; 64 KiB byte limit' if any('byte limit' in notice for notice in result['notices']) else '') +
             f"; portion: bytes {result['start']}–{result['end']} of {result['size']}; up to 200 lines" +
@@ -197,7 +273,8 @@ class LogView(PinnedView):
     def restore_reading_position(self):
         pane = self.query_one('#log-pane')
         if self.read_position == 'end':
-            pane.anchor()
+            pane.anchor(pane.max_scroll_y > 0)
+            pane.scroll_end(animate=False)
         elif self.read_position == 'start':
             pane.anchor(False)
             pane.scroll_home(animate=False)

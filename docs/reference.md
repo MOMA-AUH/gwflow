@@ -234,6 +234,7 @@ run, cancellation, cleanup, or recovery commands.
 | `h` | Read the selected Task's saved history |
 | `l` | Choose stdout/stderr for the selected job or historical submission |
 | `u` | Reload the current log/history without inspecting status |
+| `F` | Toggle following of the selected log; initially off |
 | `?` | Show the keyboard reference and captured inspection diagnostics |
 | `q` | Quit status |
 | Ctrl+C | Interrupt using ordinary CLI behavior |
@@ -272,12 +273,30 @@ Paging preserves UTF-8 character boundaries and keeps every portion accessible.
 Each read has its own timestamp. `u` preserves the log's reading position where
 possible, or loads the latest output when already at the end. It reloads saved
 history without changing the status snapshot or its age. `r` leaves independently
-read text, history, and their positions intact. Log reads are manual. A missing or
+read text, history, and their positions intact. Following starts off. A missing or
 unreadable stream shows its failure and preserves any previously read portion.
-Detected replacement, truncation, or changes to the previous portion preserve
+While following is off, detected replacement, truncation, or changes to the previous portion preserve
 the displayed text and offer `u`; paging never joins old and replacement content.
 Tab focuses the read details, where arrows scroll complete notices and errors
 even at 40 × 12. Read failures do not change the latest inspection's exit result.
+
+Uppercase `F` enables live following of the selected exact-submission path,
+checking about once per second and keeping the latest bounded portion at the
+end. The visible following/paused state is independent of the status snapshot's
+age. Up, Page Up, Home, upward mouse-wheel scrolling, and upward scrollbar
+movement pause following; `F` resumes it. End jumps to latest without enabling
+following. `u` while following also reads the latest portion. Leaving the log,
+including opening Help, filters, or a terminal-size overlay, pauses following
+and stops its pending read and retries. Returning leaves it paused.
+
+Following reloads the latest portion after detected replacement, truncation, or
+rewriting, and retains a visible change notice. If output advances beyond the
+previous portion, a notice directs readers to Home/Page Up for earlier content.
+Missing or unreadable files preserve the displayed text, marked as previously
+read; retries continue only while following is enabled. A visible recovery notice
+appears when the path becomes readable. `r` preserves following and the exact
+selected submission, even when current work changes or the Task disappears.
+Following and recovery never import the workflow or query the scheduler.
 
 The reader uses at most 128 KiB + 16 bytes of log I/O per request, including
 the previous-window consistency check and a few bytes of UTF-8 context. A raw
@@ -286,6 +305,8 @@ each retain at most 196 KiB of log text, including visible replacements and
 continuation markers; these bounds exclude widget/style metadata and layout
 caches. Only one read per view is in flight. A separate, stoppable process owns
 blocking file I/O and releases its files on completion or when the view closes.
+The same read and retained-text bounds apply during following and recovery;
+each successful read replaces the previous portion rather than accumulating it.
 Ordinary ANSI colors and emphasis survive; cursor movement, screen clearing,
 and other terminal controls are omitted or shown visibly. Undecodable UTF-8
 bytes appear as `�` with a notice. Saved files and standalone raw-log commands

@@ -83,7 +83,7 @@ class ReadOperation:
         self.directory.cleanup()
 
 
-def read_log(path, *, direction='backward', offset=None, previous=None):
+def read_log(path, *, direction='backward', offset=None, previous=None, following=False):
     if path is None:
         return {'error': 'No recorded submission for this stream.'}
     fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK | os.O_CLOEXEC)
@@ -91,14 +91,18 @@ def read_log(path, *, direction='backward', offset=None, previous=None):
         metadata = os.fstat(fd)
         if not stat.S_ISREG(metadata.st_mode):
             return {'error': 'Log path is not a regular file: ' + path}
+        change = ''
         if previous is not None:
             if [metadata.st_dev, metadata.st_ino] != previous['identity']:
-                return {'error': 'Log replaced. Press u to reload the selected path.'}
-            if metadata.st_size < previous['size']:
-                return {'error': 'Log truncated. Press u to reload the selected path.'}
-            before = os.pread(fd, previous['end'] - previous['start'], previous['start'])
-            if hashlib.sha256(before).hexdigest() != previous['digest']:
-                return {'error': 'Log truncated or rewritten. Press u to reload the selected path.'}
+                change = 'Log replaced'
+            elif metadata.st_size < previous['size']:
+                change = 'Log truncated'
+            else:
+                before = os.pread(fd, previous['end'] - previous['start'], previous['start'])
+                if hashlib.sha256(before).hexdigest() != previous['digest']:
+                    change = 'Log truncated or rewritten'
+            if change and not following:
+                return {'error': change + '. Press u to reload the selected path.'}
         if direction == 'forward' and offset is not None and offset >= metadata.st_size:
             direction, offset = 'backward', None
         position = metadata.st_size if offset is None else min(max(0, offset), metadata.st_size)
@@ -133,8 +137,10 @@ def read_log(path, *, direction='backward', offset=None, previous=None):
         content, notices = display_text(data)
         if not line_limited and (start > 0 if direction == 'backward' else end < metadata.st_size):
             notices.insert(0, '64 KiB byte limit: showing a smaller portion.')
-        return dict(content=content, notices=notices, finished=time.time(),
-                    size=metadata.st_size, start=start, end=end,
+        return dict(content=content, notices=notices, finished=time.time(), change=change,
+                    gap=bool(following and previous and not change and start > previous['end']),
+                    # UTF-8 context can include bytes appended after fstat.
+                    size=max(metadata.st_size, end), start=start, end=end,
                     continued_before=bool(data and start > 0 and buffer[start - read_start - 1] != 10),
                     continued_after=bool(data and end < metadata.st_size and not data.endswith(b'\n')),
                     identity=[metadata.st_dev, metadata.st_ino], digest=hashlib.sha256(data).hexdigest())
