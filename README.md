@@ -95,8 +95,9 @@ For changes to packages or environments that leave tracked commands and inputs
 unchanged, preview and request fresh computation with `gwflow run TASK --force`.
 Status focuses on the selected tasks and explains relevant upstream blockers.
 In the browser, use arrows and Enter to open groups, Tasks, and jobs; Esc goes
-back, `?` shows keys, and `q` quits. Browsing uses one captured snapshot; close
-and reopen status for newer observations. Task details include full diagnostics
+back, `/` searches Task names, `f` filters states, and `q` quits. `r` refreshes
+observations while the previous snapshot remains browsable; `?` shows all keys.
+Task details include full diagnostics
 and buttons to copy ordinary commands for another terminal.
 Use `gwflow logs` for all current task log indexes, or `gwflow logs 'hello*'`
 for a selected group. Each index shows failures first and links to individual

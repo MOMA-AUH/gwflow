@@ -134,6 +134,11 @@ and regressions referenced by the combined acceptance record:
 
 ## Recording evidence
 
+The v0.8.0 interactive status work has [refresh/filter acceptance](status-browser/acceptance.json)
+and [captured browser measurements](status-browser/measurements.json). These record
+implementation checks for issue #229; release preparation and publication remain
+separate work.
+
 Keep raw logs, generated workflows, and machine-specific transcripts under the
 ignored `build/validation/` directory. The acceptance runner writes environment
 and summary JSON plus per-case command transcripts there. Commit selected

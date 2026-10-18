@@ -1,0 +1,103 @@
+{
+  "record_context": {
+    "scope": "Manual interactive status refresh, captured filters, and 100-Task/1,000-job browser workload",
+    "date": "2026-10-18",
+    "associated_release": "v0.8.0",
+    "status": "Implementation validation; does not authorize or record a release",
+    "issue": "https://github.com/MOMA-AUH/gwflow/issues/229"
+  },
+  "paths": {
+    "<PYTHON>": "Python 3.12 executable in the installed candidate environment on local temporary storage",
+    "relative_paths": "All paths are relative to the repository checkout unless explicitly described otherwise. Raw logs remain under ignored build/validation/."
+  },
+  "environment": {
+    "python": "3.12.14",
+    "gwflow": "0.7.0 (candidate source before release-version preparation)",
+    "gwf": "2.1.1",
+    "rich": "15.0.0",
+    "textual": "8.2.8",
+    "runtime": "A copy of the development Conda runtime on local temporary storage, with an editable installation of this branch. No external scheduler or cluster was accessed.",
+    "limitation": "Initial shared-storage runs timed out during worker startup or workflow import. The final focused checks used local runtime storage without changing their timeouts."
+  },
+  "functional_checks": [
+    {
+      "command": "<PYTHON> -m unittest discover -s tests -p 'test_status_refresh*.py'",
+      "result": "14 tests passed in 55.398 seconds",
+      "raw_log": "build/validation/issue-229-refresh-final.log",
+      "coverage": "Fresh imports including same-size edits with preserved mtime; original selectors and new glob matches; failed/recovered inspection; single in-flight refresh; navigation while busy; strict unmatched-glob failure; current job and stable row focus; renamed group labels; disappearing jobs; full error chains and exit results; UI failure during refresh; repeated real subprocess/file-descriptor cleanup; literal search and state filters; controlled Slurm state transitions, failures, recovery, and one squeue/sacct query per successful refresh.",
+      "source_commit": "9e15e665881607de48bca4a334f47639ad2f0590"
+    },
+    {
+      "command": "<PYTHON> -m unittest discover -s tests -p 'test_browser*.py'",
+      "result": "8 tests passed in 28.762 seconds",
+      "raw_log": "build/validation/issue-229-browser-regression.log",
+      "coverage": "Existing keyboard/clipboard layouts; captured 100-Task/1,000-job expanded lists at 40x12, 80x24 and 120x40; full 14/24 group progress with six failed matches; notices despite filtering; snapshot age on failure; compact error access; expanded diagnostics, focus and scroll restoration; bounded retained snapshots, file descriptors and async tasks.",
+      "source_commit": "9e15e665881607de48bca4a334f47639ad2f0590"
+    },
+    {
+      "command": "<PYTHON> -m unittest discover -s tests -p test_browser_workload.py -k removed_task",
+      "result": "1 test passed in 0.765 seconds",
+      "raw_log": "build/validation/issue-229-removed-parents.log",
+      "coverage": "Removal of the current Task and then its group returns to the nearest surviving parent with an explanation.",
+      "source_commit": "9e15e665881607de48bca4a334f47639ad2f0590"
+    },
+    {
+      "command": "<PYTHON> -m unittest discover -s tests -p test_status_refresh.py -k installs_blocked",
+      "result": "1 test passed in 3.172 seconds",
+      "raw_log": "build/validation/issue-229-blocked-refresh-green.log",
+      "coverage": "A refresh finding an unavailable image installs a blocked snapshot successfully, including notices when the state filter hides the Task.",
+      "source_commit": "9e15e665881607de48bca4a334f47639ad2f0590"
+    },
+    {
+      "command": "<PYTHON> -m unittest discover -s tests -p test_browser_workload.py",
+      "result": "9 tests passed in 23.377 seconds",
+      "raw_log": "build/validation/issue-229-workload-reviewed.log",
+      "coverage": "All captured workload checks plus review regressions for filtered-out Task/group/job fallback, latest failure updating open expanded error details, bounded filter/help menu navigation, and immediate fallback notices.",
+      "source_commit": "4eb5d667918dc5e40e38d4b12a0dfe4474d988c6"
+    },
+    {
+      "command": "<PYTHON> -",
+      "stdin_script": "Add tests/ to sys.path, then use unittest.defaultTestLoader.loadTestsFromNames and TextTestRunner to run test_status_refresh, test_status_refresh_interaction, test_browser_workload, test_browser_interaction, and test_interactive_status together.",
+      "result": "43 tests passed together in one unittest process in 160.283 seconds",
+      "raw_log": "build/validation/issue-229-browser-final.log",
+      "source_commit": "4eb5d667918dc5e40e38d4b12a0dfe4474d988c6",
+      "coverage": "All installed refresh/filter, captured workload, existing keyboard/clipboard, and interactive status CLI checks."
+    },
+    {
+      "command": "<PYTHON> -m unittest discover -s tests -p test_browser_workload.py",
+      "result": "10 tests passed in 23.988 seconds",
+      "raw_log": "build/validation/issue-229-workload-final.log",
+      "source": "Final candidate source identified by the source.sha256 mapping in this record.",
+      "coverage": "All captured workload and review regressions, including Enter opening focused error details from the state-filter menu without applying pending choices."
+    }
+  ],
+  "responsiveness": {
+    "command": "<PYTHON> tests/benchmark_status_browser.py --cycles 12 --output build/validation/status-browser/measurements.json",
+    "raw_record": "build/validation/status-browser/measurements.json",
+    "normalized_record": "docs/validation/status-browser/measurements.json",
+    "workload": "Synthetic captured observations: 100 Tasks, 1,000 jobs, groups of 24 and 76 Tasks, long names, mixed primary states and expanded job rows. Backend state interpretation is checked separately through real local execution and controlled Slurm commands.",
+    "result": "Across all three terminal sizes, median headless first/last-row interactions were 0.082-0.083 seconds; captured snapshot replacement was 0.200-0.247 seconds. Multi-key operations include Pilot key delivery and animation settling; complete samples are in measurements.json.",
+    "resources": "All 36 old snapshots were collected. Sampled async-task and file-descriptor counts did not increase across 12 cycles per size. Peak process RSS was 62,976 KiB.",
+    "limits": "Shared host, headless rendering, captured data, and overlapping local validation. These are reproducible observations, not terminal-emulator or scheduler latency guarantees. CI asserts functionality and bounded resources without wall-clock responsiveness thresholds."
+  },
+  "ongoing_checks": {
+    "full_suite": "<PYTHON> -m unittest discover -s tests -v",
+    "inspection_bounds": "Existing tests/test_planning_io.py, tests/test_planning_inputs.py, tests/test_planning_directories.py and tests/test_planning_workload.py remain part of the full suite. The controlled Slurm refresh test separately checks scheduler query counts.",
+    "ci": "Both installed-source and Conda-artifact CI suites must pass before merge. This record is not a substitute for those checks."
+  },
+  "normalization": "Measurements preserve every raw value and add only explanatory metadata about the base commit and shared-host limitations. Commands use <PYTHON>; no checkout, home, or user-specific storage paths are committed.",
+  "source": {
+    "base_commit": "1b8784da88920769c9f83c7ac7106d3c0bcf4727",
+    "note": "Final candidate including review corrections, identified by exact source digests. Earlier focused runs identify their original source commit separately.",
+    "sha256": {
+      "src/gwflow/browser.py": "ef1c6f1a43b0059a087149221d88d283d38dc21c74faa0c41bbd86d3d1447bf6",
+      "src/gwflow/status_snapshot.py": "871efdd99cbbe7ae4875a1323de5a32007558045658034c21a51988b369ae54e",
+      "tests/fixtures/browser_workload.py": "6105e614d160459a164c86d3a65b0809cb82863a33fcd329a804f7422012e09b",
+      "tests/fixtures/slurm_command.py": "2c07fd760434d781d2b2ccf38b54a409dd994560ad71bcbab36767dbc9892fcb",
+      "tests/test_browser_workload.py": "51aec444ae682cb5347ec9c64a25176ca6047d6f177e602e87deb2241f3dbf90",
+      "tests/test_status_refresh.py": "765d1cd68489affcbed8c8948e967685c2364c40cb020fd92c6602d850a534a0",
+      "tests/test_status_refresh_interaction.py": "a303758cfba166a883e77fdb829fd6a06e661fd509fc70a5274e0fe4209e6ec3",
+      "tests/benchmark_status_browser.py": "995df4ca994c4d35312ad8b210d457f2c1dc994edb7f1bc946f0a73af784548c"
+    }
+  }
+}

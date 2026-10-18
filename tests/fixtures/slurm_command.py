@@ -30,6 +30,8 @@ elif command in ("squeue", "sacct"):
     if os.environ.get("GWFLOW_TEST_RECORD_SLURM_QUERIES"):
         with (work / "slurm-queries.jsonl").open("a") as stream:
             stream.write(json.dumps({"command": command, "args": sys.argv[1:]}) + "\n")
+    if (work / "slurm-query-error").exists():
+        raise SystemExit("Controlled scheduler query failure")
     if not (work / "forgotten-slurm-history").exists():
         with Client.connect(port=port) as client:
             states = client.status()
