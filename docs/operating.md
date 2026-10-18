@@ -169,7 +169,9 @@ See [recovery details](reference.md#lifecycle-and-recovery) and
    declared Tasks; logs and cancellation can also address recorded Tasks removed
    from the declarations. Check those Tasks' admitted jobs too.
 2. Finish all affected work, or preview `gwflow cancel '*' --dry-run` and request
-   `gwflow cancel '*'`. Confirm through scheduler or worker observations that
+   `gwflow cancel '*' --details` to retain every per-job receipt from that
+   invocation. Default reports summarize routine outcomes and keep failure or
+   uncertainty identities visible. Confirm through scheduler or worker observations that
    **every affected queued or running computation and lifecycle job is inactive**.
    Cancellation requests alone are insufficient. Resolve uncertainty through
    investigation; do not infer inactivity from a failed Task, a missing ID, or a

@@ -131,6 +131,10 @@ explicitly addresses all tasks. Accepted requests may still be stopping, and
 partial failures return an error. Completed work and retained results stay
 protected. Once jobs are inactive, an ordinary `gwflow run hello` can retry or
 recover eligible work; there is no pause/resume step.
+Cancellation reports summarize identical outcomes under each task. Add
+`--details` to the cancellation invocation for every per-job receipt and full
+identities; failures and uncertain observations keep their identities by default.
+Use `--plain` for undecorated output. Redirected reports are automatically plain.
 
 If submission uncertainty keeps the Task blocked, investigate all of its
 computation and lifecycle jobs first. Only after establishing that none can still
