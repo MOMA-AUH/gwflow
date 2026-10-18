@@ -183,12 +183,14 @@ class InspectionStatus(Static):
 
 class BrowserView(Screen):
     AUTO_FOCUS = ""
+    pinned = False
     BINDINGS = [Binding("escape", "app.back", show=False)]
 
     def __init__(self, breadcrumb):
         super().__init__()
         self.breadcrumb = breadcrumb
         self.section_states = {}
+        self.available = True
 
     @property
     def snapshot(self) -> dict:
@@ -217,6 +219,9 @@ class BrowserView(Screen):
 
     def observe_snapshot(self):
         return True
+
+    def selection(self):
+        return None, None
 
     def on_mount(self):
         if self.focused is None and self.focus_chain:
@@ -332,6 +337,14 @@ class TasksView(BrowserView):
     def on_mount(self):
         self.set_focus(self.query_one(OptionList))
 
+    def footer(self):
+        return Static(Shortcuts('↑↓ Enter h history' + (' l logs' if self.expanded else ''),
+                                'Esc back g groups / f r ? q quit'), classes='shortcuts')
+
+    def selection(self):
+        index = self.query_one(OptionList).highlighted
+        return self.items[index] if index is not None and index < len(self.items) else (None, None)
+
     def observe_snapshot(self):
         if self.group is None:
             return True
@@ -379,6 +392,14 @@ class TaskView(BrowserView):
     def on_mount(self):
         self.set_focus(self.query_one(OptionList), scroll_visible=False)
 
+    def footer(self):
+        return Static(Shortcuts('↑↓ Enter h history l logs Tab', 'Esc back g groups / f r ? q quit'), classes='shortcuts')
+
+    def selection(self):
+        index = self.query_one(OptionList).highlighted
+        jobs = self.observation['jobs']
+        return self.observation, jobs[index] if index is not None and index < len(jobs) else None
+
     def on_option_list_option_selected(self, event):
         job = self.observation["jobs"][event.option_index]
         self.app.push_screen(JobView(job, [*self.breadcrumb, job["local"]]))
@@ -417,10 +438,17 @@ class JobView(BrowserView):
         yield self.footer()
 
     def footer(self):
-        return Static(Shortcuts("↑↓ scroll  PgUp/PgDn page", "Esc back  g groups  ? help  q quit"), classes="shortcuts")
+        return Static(Shortcuts('↑↓ scroll h history l logs Tab', 'Esc back g groups r refresh ? q quit'), classes='shortcuts')
+
+    def selection(self):
+        name = self.job['name'].removesuffix('__' + self.job['local'])
+        task = next((task for task in self.snapshot['tasks'] if task['name'] == name), None)
+        return task, self.job
 
     def observe_snapshot(self):
-        job = next((job for task in self.snapshot["tasks"] if cast(StatusBrowser, self.app).matches(task)
+        owner = self.job['name'].removesuffix('__' + self.job['local'])
+        job = next((job for task in self.snapshot["tasks"]
+                    if task['name'] == owner and cast(StatusBrowser, self.app).matches(task)
                     for job in task["jobs"]
                     if job["name"] == self.job["name"]), None)
         if job is None:
@@ -441,8 +469,14 @@ class HelpView(BrowserView):
                          "Home/End: first/last row or beginning/end of details\nPage Up/Page Down: page through rows or details\n"
                          "Tab/Shift+Tab: move between controls and expandable sections\n"
                          "g: grouped summary within the original selection\n?: keyboard reference\nq: quit\n"
+                         "h: read selected Task history (recorded evidence only)\n"
+                         "l: choose stdout/stderr for the selected job or historical submission\n"
+                         "u: reload the current log/history; status age stays unchanged\n"
+                         "In logs, Page Up/Down scroll then read adjacent bounded portions; Home/End jump to first/latest.\n"
+                         "Tab focuses read details; Up/Down scroll complete notices and errors.\n"
                          "/: literal Task-name search (ignores case)\nf: filter primary Task states\nr: inspect again\n"
-                         "Ctrl+C: interrupt\n\nBrowsing uses captured observations. No commands are executed here.")
+                         "Ctrl+C: interrupt\n\nTask/job details use captured observations. "
+                         "Logs/history read only the requested saved evidence. No workflow operations are executed here.")
             yield Static("Original Task selectors: " + ", ".join(cast(StatusBrowser, self.app).selectors or ("all Tasks",)),
                          markup=False)
             yield Static("Task state filter: " + ", ".join(cast(StatusBrowser, self.app).statuses or ("all",)),
@@ -607,10 +641,14 @@ class StatusBrowser(App[int]):
     .notice-pane { height: auto; min-height: 2; max-height: 25%; border-left: wide yellow; }
     .compact .notice-pane { height: 1; min-height: 1; max-height: 1; }
     .compact .task-list-label { display: none; }
+    .read-info { height: auto; min-height: 1; max-height: 25%; }
+    .compact .read-info { height: 2; max-height: 2; }
     #shortcuts, .shortcuts { height: auto; dock: bottom; }
     """
     BINDINGS = [Binding("q", "quit", "Quit"), Binding("ctrl+c", "interrupt", show=False, priority=True),
                 Binding("g", "groups", "Groups"), Binding("r", "refresh", "Refresh"),
+                Binding("l", "logs", "Logs"),
+                Binding("h", "history", "History"),
                 Binding("slash", "search", "Search"), Binding("f", "filter", "Filter"),
                 Binding("question_mark", "help", "Help")]
 
@@ -720,7 +758,8 @@ class StatusBrowser(App[int]):
         """Reconcile navigation with the current captured selection and filters."""
         with self.batch_update():
             renamed_paths = []
-            for screen in list(self.screen_stack)[1:]:
+            views = list(self.screen_stack)[1:]
+            for index, screen in enumerate(views):
                 if not isinstance(screen, BrowserView):
                     continue
                 for old, new in renamed_paths:
@@ -728,7 +767,10 @@ class StatusBrowser(App[int]):
                         screen.breadcrumb = [*new, *screen.breadcrumb[len(old):]]
                 old_path = list(screen.breadcrumb)
                 navigation = screen.capture_navigation()
-                if isinstance(screen, ErrorView) or not screen.observe_snapshot():
+                screen.available = not isinstance(screen, ErrorView) and screen.observe_snapshot()
+                if not screen.available:
+                    if any(isinstance(child, BrowserView) and child.pinned for child in views[index + 1:]):
+                        continue
                     while screen in self.screen_stack:
                         self.pop_screen()
                     if not isinstance(screen, ErrorView):
@@ -747,6 +789,20 @@ class StatusBrowser(App[int]):
         if not self.too_small and self.snapshot is not None and not isinstance(self.screen, SearchView):
             self.open_menu(SearchView())
 
+    def action_logs(self):
+        if not self.too_small and isinstance(self.screen, BrowserView):
+            task, job = self.screen.selection()
+            if task is not None and job is not None:
+                from .browser_evidence import StreamChooser
+                self.push_screen(StreamChooser(task, job, self.screen.breadcrumb))
+
+    def action_history(self):
+        if not self.too_small and isinstance(self.screen, BrowserView):
+            from .browser_evidence import HistoryView
+            task, _ = self.screen.selection()
+            if task is not None and not isinstance(self.screen, HistoryView):
+                self.push_screen(HistoryView(task, self.snapshot['storage'], self.screen.breadcrumb))
+
     def action_filter(self):
         if not self.too_small and self.snapshot is not None and not isinstance(self.screen, StateFilterView):
             self.open_menu(StateFilterView())
@@ -757,9 +813,11 @@ class StatusBrowser(App[int]):
         else:
             self.push_screen(view)
 
-    def action_back(self):
+    async def action_back(self):
         if not self.too_small and len(self.screen_stack) > 2:
-            self.pop_screen()
+            await self.pop_screen()
+            if isinstance(self.screen, BrowserView) and not self.screen.available:
+                await self.update_views()
 
     def action_groups(self):
         if not self.too_small and self.snapshot is not None:

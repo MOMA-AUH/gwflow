@@ -592,21 +592,22 @@ class Store:
             raise WorkflowError(f"Malformed selected attempt for Task {name!r}")
         return self.current(name, record["result_dir"])
 
-    def recorded_tasks(self):
+    def recorded_tasks(self, *, names=None):
         if self.owner is None:
             return []
         root = self.root / "owners" / self.owner["owner"] / "tasks"
         if not _files.exists(root):
             return []
         with _files.directory(root) as directory:
-            names = sorted(os.listdir(directory))
-        if any(not is_valid_name(name) for name in names):
+            recorded_names = sorted(os.listdir(directory))
+        if any(not is_valid_name(name) for name in recorded_names):
             raise WorkflowError("Malformed recorded Task name")
-        return [self.recorded_current(name) for name in names if not self.unselected_initialization(name)]
+        return [self.recorded_current(name) for name in recorded_names
+                if (names is None or name in names) and not self.unselected_initialization(name)]
 
-    def recorded_attempts(self):
+    def recorded_attempts(self, *, names=None):
         result = []
-        for current in self.recorded_tasks():
+        for current in self.recorded_tasks(names=names):
             root = self._task_dir(current["task"]) / "attempts"
             with _files.directory(root) as directory:
                 attempts = sorted(os.listdir(directory))

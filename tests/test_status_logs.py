@@ -1,0 +1,481 @@
+"""Lazy log and history reads through the browser's public keyboard interface."""
+
+from pathlib import Path
+import asyncio
+import fcntl
+import gc
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+import unittest
+import weakref
+from unittest.mock import patch
+
+from rich.console import Console
+from textual.widgets import OptionList, Static
+
+from fixtures.browser_workload import CapturedBrowser, captured_snapshot
+from gwflow.browser import StatusBrowser
+
+from support import FIXTURES, LocalBackendTestCase
+import test_browser_interaction
+import test_graphs
+
+
+class StatusLogInteractionTests(LocalBackendTestCase, unittest.IsolatedAsyncioTestCase):
+    configure_workflow = test_graphs.TaskGraphTests.configure_workflow
+    settle = test_graphs.TaskGraphTests.settle
+    inject = test_graphs.TaskGraphTests.inject
+    browser = test_browser_interaction.BrowserInteractionTests.browser
+    shown = test_browser_interaction.BrowserInteractionTests.shown
+
+    async def test_selected_job_opens_both_exact_streams_without_reinspection(self):
+        self.configure_workflow(left_command="echo selected-stdout; echo selected-stderr >&2; printf left > same.txt")
+        self.run_complete()
+        workflow = self.work / 'workflow.py'
+        workflow.write_text(workflow.read_text() +
+                            f"\nwith open({str(self.work / 'log-imports')!r}, 'a') as stream: stream.write('import\\n')\n")
+        app = self.browser(selectors=('sample',), details=True)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await self.shown(app, pilot, '5/5')
+            inspected = app.snapshot['finished']
+            await pilot.press('down', 'down', 'down', 'l')
+            await self.shown(app, pilot, 'Choose log stream', timeout=3)
+            await pilot.press('enter')
+            await self.shown(app, pilot, 'selected-stdout')
+            self.assertEqual(app.snapshot['finished'], inspected)
+            await pilot.press('escape', 'l', 'down', 'enter')
+            await self.shown(app, pilot, 'selected-stderr')
+            await pilot.press('u')
+            await self.shown(app, pilot, 'selected-stderr')
+            self.assertEqual(app.snapshot['finished'], inspected)
+            self.assertEqual((self.work / 'log-imports').read_text(), 'import\n')
+            await pilot.press('q')
+
+    async def test_task_history_distinguishes_retries_and_attempts_without_scheduler_observation(self):
+        failed = self.work / 'fail-right'
+        self.configure_workflow(right_command=(f'if test -f "{failed}"; then echo earlier-failed-log; exit 8; fi; '
+                                               'echo successful-right; printf right > same.txt'))
+        self.run_complete()
+        first = self.cli('logs', 'sample', '--details')
+        old_attempt = re.search(r'current attempt (\w+)', first).group(1)
+        failed.touch()
+        self.cli('run', '--force')
+        self.settle()
+        failed_index = self.cli('logs', 'sample', '--details')
+        earlier = re.search(r'sample__right: failed; submission (\S+)', failed_index).group(1)
+        failed.unlink()
+        self.cli('run')
+        self.settle()
+        workflow = self.work / 'workflow.py'
+        workflow.write_text(workflow.read_text() +
+                            f"\nwith open({str(self.work / 'history-imports')!r}, 'a') as stream: stream.write('import\\n')\n")
+        app = StatusBrowser((['--file', str(workflow), '--backend', 'recovery_fixture'], ('sample',)),
+                            selectors=('sample',))
+        self.addCleanup(app.close_inspection)
+        with patch.dict(os.environ, self.inject(record_status=True)):
+            async with app.run_test(size=(120, 40)) as pilot:
+                await self.shown(app, pilot, '5/5')
+                observed = (self.work / 'backend-observations.jsonl').read_bytes()
+                inspected = app.snapshot['finished']
+                await pilot.press('h')
+                await self.shown(app, pilot, 'History read at', timeout=3)
+                listing = app.screen.query_one(OptionList)
+                prompts = '\n'.join(str(option.prompt) for option in listing.options)
+                self.assertIn('Earlier retries in current attempt', prompts)
+                self.assertIn('Previous attempt ' + old_attempt, prompts)
+                self.assertIn(earlier, prompts)
+                self.assertIn('Recorded evidence', test_browser_interaction.visible_text(app))
+                for _ in range(20):
+                    if earlier in str(listing.highlighted_option.prompt):
+                        break
+                    await pilot.press('down')
+                self.assertIn(earlier, str(listing.highlighted_option.prompt))
+                await pilot.press('l', 'enter')
+                await self.shown(app, pilot, 'earlier-failed-log')
+                self.assertEqual(app.snapshot['finished'], inspected)
+                self.assertEqual((self.work / 'history-imports').read_text(), 'import\n')
+                self.assertEqual((self.work / 'backend-observations.jsonl').read_bytes(), observed)
+                await pilot.press('q')
+
+    async def test_history_reload_is_independent_of_refresh_and_survives_cleanup_and_removal(self):
+        app = self.browser()
+        async with app.run_test(size=(100, 30)) as pilot:
+            await self.shown(app, pilot, 'sample')
+            await pilot.press('enter', 'h')
+            await self.shown(app, pilot, 'No recorded work')
+            read_before = app.screen.query_one('#read-status', Static).content
+            self.run_complete()
+            self.cli('clean', '--delete')
+            await pilot.press('r')
+            await self.shown(app, pilot, 'Current attempt changed')
+            self.assertIn('No recorded work', test_browser_interaction.visible_text(app))
+            self.assertEqual(app.screen.query_one('#read-status', Static).content, read_before)
+            inspected = app.snapshot['finished']
+            await pilot.press('u')
+            await self.shown(app, pilot, 'Current recorded attempt')
+            self.assertNotIn('Current attempt changed', test_browser_interaction.visible_text(app))
+            self.assertEqual(app.snapshot['finished'], inspected)
+            listing = app.screen.query_one(OptionList)
+            prompts = [str(option.prompt) for option in listing.options]
+            owner = self.work / '.gwf/gwflow/owner.json'
+            saved = owner.read_bytes()
+            owner.unlink()
+            await pilot.press('u')
+            await self.shown(app, pilot, 'Missing or malformed managed ownership')
+            self.assertEqual([str(option.prompt) for option in listing.options], prompts)
+            owner.write_bytes(saved)
+            (self.work / 'workflow.py').write_text('from gwflow import Workflow\ngwf = Workflow()\n')
+            await pilot.press('r')
+            await self.shown(app, pilot, 'Task no longer in the refreshed selection')
+            self.assertEqual([str(option.prompt) for option in listing.options], prompts)
+            await pilot.press('u')
+            await self.shown(app, pilot, 'History read at')
+            self.assertEqual([str(option.prompt) for option in listing.options], prompts)
+            await pilot.press('escape')
+            await self.shown(app, pilot, 'Showing 0 of 0 selected Tasks')
+            await pilot.press('q')
+
+    async def test_closing_and_quitting_during_a_blocked_history_read_reaps_its_process(self):
+        app = self.browser(selectors=('sample',))
+        children = Path(f'/proc/{os.getpid()}/task/{os.getpid()}/children')
+        async with app.run_test(size=(80, 24)) as pilot:
+            await self.shown(app, pilot, '0/5')
+            baseline = set(children.read_text().split())
+            with (self.work / '.gwf/gwflow-submission.lock').open('a') as lock:
+                fcntl.flock(lock, fcntl.LOCK_EX)
+                for key in ('escape', 'q'):
+                    await pilot.press('h')
+                    await self.shown(app, pilot, 'Reading history...')
+                    self.assertGreater(len(set(children.read_text().split()) - baseline), 0)
+                    await pilot.press(key)
+                    await pilot.pause()
+                    if key == 'escape':
+                        await self.shown(app, pilot, '0/5')
+                        self.assertEqual(set(children.read_text().split()), baseline)
+        self.assertEqual(set(children.read_text().split()), baseline)
+        self.assertEqual(app.return_value, 0)
+
+    async def test_empty_previous_attempt_is_visible_without_any_recorded_submissions(self):
+        interrupted = subprocess.run([sys.executable, str(FIXTURES / 'frontend_fault.py'), str(self.work),
+                                      'after_ready', 'sample', 'run'], cwd=self.work,
+                                     capture_output=True, text=True, timeout=30)
+        self.assertEqual(interrupted.returncode, 93, interrupted.stdout + interrupted.stderr)
+        previous = re.search(r'current attempt (\w+)', self.cli('logs', 'sample', '--details')).group(1)
+        self.cli('run', '--force')
+        self.finish()
+        app = self.browser(selectors=('sample',))
+        async with app.run_test(size=(100, 30)) as pilot:
+            await self.shown(app, pilot, '5/5')
+            await pilot.press('h')
+            await self.shown(app, pilot, 'History read at')
+            prompts = '\n'.join(str(option.prompt) for option in app.screen.query_one(OptionList).options)
+            self.assertIn('Previous attempt ' + previous, prompts)
+            self.assertIn('No recorded submissions', prompts)
+            await pilot.press('q')
+
+
+class StatusLogWindowTests(unittest.IsolatedAsyncioTestCase):
+    shown = test_browser_interaction.BrowserInteractionTests.shown
+
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory(prefix='gwflow-log-view-')
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        self.stdout = self.root / 'exact.stdout'
+        self.stderr = self.root / 'exact.stderr'
+
+    def snapshot(self):
+        snapshot = captured_snapshot()
+        task = snapshot['tasks'][0]
+        job = task['jobs'][0]
+        job.update(local='compute', name='sample__compute', submission='sample__compute__' + '1' * 32 + '__' + '2' * 32,
+                   logs={'stdout': str(self.stdout), 'stderr': str(self.stderr)})
+        task.update(name='sample', attempt='3' * 32, jobs=[job], completed=1, total=1)
+        snapshot.update(tasks=[task], total=1, notices='',
+                        groups=[dict(key='sample@captured', label='sample', members=['sample'])])
+        return snapshot
+
+    def browser(self):
+        return CapturedBrowser(selectors=('*',), details=True, snapshot_factory=self.snapshot)
+
+    def content(self, app):
+        return app.screen.query_one('#log-text', Static).content.plain
+
+    async def test_tail_paging_jumps_and_reload_keep_status_and_reading_position(self):
+        self.stdout.write_text(''.join(f'row {index:06d} payload\n' for index in range(500000)))
+        app = self.browser()
+        async with app.run_test(size=(100, 30)) as pilot:
+            await self.shown(app, pilot, 'sample')
+            inspected = app.snapshot['finished']
+            await pilot.press('down', 'l', 'enter')
+            await self.shown(app, pilot, 'row 499999')
+            self.assertEqual(len(self.content(app).splitlines()), 200)
+            self.assertTrue(self.content(app).startswith('row 499800'))
+            await pilot.press('home')
+            await self.shown(app, pilot, 'row 000000', timeout=3)
+            self.assertEqual(len(self.content(app).splitlines()), 200)
+            for _ in range(22):
+                await pilot.press('pagedown')
+                await pilot.pause()
+                if self.content(app).startswith('row 000200'):
+                    break
+            self.assertTrue(self.content(app).startswith('row 000200'), self.content(app)[:100])
+            await pilot.press('pageup')
+            await self.shown(app, pilot, 'row 000199')
+            await pilot.press('end')
+            await self.shown(app, pilot, 'row 499999')
+            with self.stdout.open('a') as stream:
+                stream.write('row 500000 appended\n')
+            await pilot.press('u')
+            await self.shown(app, pilot, 'row 500000')
+            await pilot.press('home')
+            await self.shown(app, pilot, 'row 000000')
+            await pilot.press('pagedown', 'pagedown')
+            await pilot.wait_for_scheduled_animations()
+            position = app.screen.query_one('#log-pane').scroll_y
+            with self.stdout.open('a') as stream:
+                stream.write('row 500001 appended\n')
+            await pilot.press('u')
+            await self.shown(app, pilot, 'Log read at')
+            await pilot.wait_for_scheduled_animations()
+            self.assertEqual(app.screen.query_one('#log-pane').scroll_y, position)
+            self.assertTrue(self.content(app).startswith('row 000000'))
+            self.assertEqual(app.snapshot['finished'], inspected)
+            self.assertEqual(app.acquisitions, 1)
+            await pilot.press('q')
+
+    async def test_refresh_keeps_exact_log_and_position_then_esc_finds_surviving_parent(self):
+        self.stdout.write_text(''.join(f'pinned {index:04d}\n' for index in range(800)))
+        app = CapturedBrowser(snapshot_factory=self.snapshot)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await self.shown(app, pilot, 'sample')
+            await pilot.press('enter', 'enter', 'enter', 'l', 'enter')
+            await self.shown(app, pilot, 'pinned 0799')
+            await pilot.press('home')
+            await self.shown(app, pilot, 'pinned 0000')
+            await pilot.press('pagedown')
+            await pilot.wait_for_scheduled_animations()
+            content = self.content(app)
+            position = app.screen.query_one('#log-pane').scroll_y
+            read_status = app.screen.query_one('#read-status', Static).content
+            newer = self.snapshot()
+            newer['tasks'][0]['attempt'] = '4' * 32
+            newer['tasks'][0]['jobs'][0].update(submission='new-current-submission',
+                                               logs={'stdout': str(self.root / 'new.stdout')})
+            (self.root / 'new.stdout').write_text('NEW LOG MUST NOT REPLACE PINNED TEXT\n')
+            await app.accept_inspection(newer)
+            await self.shown(app, pilot, 'Current submission changed', timeout=3)
+            self.assertEqual(self.content(app), content)
+            self.assertEqual(app.screen.query_one('#log-pane').scroll_y, position)
+            self.assertEqual(app.screen.query_one('#read-status', Static).content, read_status)
+            removed = self.snapshot()
+            removed.update(tasks=[], groups=[], total=0)
+            await app.accept_inspection(removed)
+            await self.shown(app, pilot, 'Task no longer in the refreshed selection', timeout=3)
+            self.assertEqual(self.content(app), content)
+            self.assertEqual(app.screen.query_one('#log-pane').scroll_y, position)
+            await pilot.press('escape')
+            await self.shown(app, pilot, 'Showing 0 of 0 selected Tasks', timeout=3)
+            self.assertEqual(len(app.screen_stack), 2)
+            await pilot.press('q')
+
+    async def test_replacement_truncation_and_missing_file_keep_previous_portion_until_reload(self):
+        self.stdout.write_text(''.join(f'original {index:04d}\n' for index in range(800)))
+        app = self.browser()
+        async with app.run_test(size=(100, 30)) as pilot:
+            await self.shown(app, pilot, 'sample')
+            await pilot.press('down', 'l', 'enter')
+            await self.shown(app, pilot, 'original 0799')
+            original = self.content(app)
+            replacement = self.root / 'replacement'
+            replacement.write_text('replacement content\n' * 20)
+            replacement.replace(self.stdout)
+            await pilot.press('home')
+            await self.shown(app, pilot, 'Log replaced', timeout=3)
+            self.assertEqual(self.content(app), original)
+            await pilot.press('u')
+            await self.shown(app, pilot, 'replacement content')
+            self.assertNotIn('original', self.content(app))
+            previous = self.content(app)
+            self.stdout.write_text('truncated content\n')
+            await pilot.press('end')
+            await self.shown(app, pilot, 'Log truncated', timeout=3)
+            self.assertEqual(self.content(app), previous)
+            await pilot.press('u')
+            await self.shown(app, pilot, 'truncated content')
+            self.stdout.unlink()
+            await pilot.press('home')
+            await self.shown(app, pilot, 'No such file', timeout=3)
+            self.assertEqual(self.content(app), 'truncated content\n')
+            self.assertIn('previously read', test_browser_interaction.visible_text(app).casefold())
+            self.stdout.write_text('readable again\n')
+            await pilot.press('u')
+            await self.shown(app, pilot, 'readable again')
+            self.assertNotIn('No such file', test_browser_interaction.visible_text(app))
+            self.assertEqual(app.acquisitions, 1)
+            await pilot.press('q')
+
+    async def test_log_formatting_preserves_styles_and_text_but_neutralizes_terminal_controls(self):
+        original = (b'before\x1b[2J\x1b[Hafter\n\x1b[1;31mred bold\x1b[0m normal\n'
+                    b'progress-one\rprogress-two\ninvalid: \xff\nnull: \x00\n'
+                    b'\x1b]0;do not change title\x07visible end\n')
+        self.stdout.write_bytes(original)
+        app = self.browser()
+        async with app.run_test(size=(100, 30)) as pilot:
+            await self.shown(app, pilot, 'sample')
+            await pilot.press('down', 'l', 'enter')
+            await self.shown(app, pilot, 'visible end')
+            text = app.screen.query_one('#log-text', Static).content
+            for expected in ('beforeafter', 'red bold normal', 'progress-one', 'progress-two', 'invalid: �', 'null: ␀'):
+                self.assertIn(expected, text.plain)
+            self.assertNotIn('do not change title', text.plain)
+            style = text.get_style_at_offset(Console(), text.plain.index('red bold'))
+            self.assertTrue(style.bold)
+            self.assertEqual(style.color.number, 1)
+            self.assertIn('Undecodable UTF-8', test_browser_interaction.visible_text(app))
+            self.assertIn('Terminal controls', test_browser_interaction.visible_text(app))
+            self.assertEqual(self.stdout.read_bytes(), original)
+            await pilot.press('q')
+
+    async def test_huge_utf8_line_is_segmented_and_every_byte_remains_accessible(self):
+        original = 'BEGIN ' + ''.join(f' checkpoint_{index:03d} ' + '🚀' * 2045 + f' checkpoint_{index:03d} '
+                                    for index in range(80)) + ' END'
+        self.stdout.write_text(original)
+        self.assertGreater(self.stdout.stat().st_size, 650000)
+        app = self.browser()
+        async with app.run_test(size=(100, 30)) as pilot:
+            await self.shown(app, pilot, 'sample')
+            await pilot.press('down', 'l', 'enter')
+            await self.shown(app, pilot, 'END')
+            self.assertIn('byte limit', test_browser_interaction.visible_text(app))
+            self.assertIn('[continued line]', self.content(app))
+            await pilot.press('home')
+            await self.shown(app, pilot, 'BEGIN')
+            portions = []
+            for _ in range(20):
+                content = self.content(app)
+                self.assertLessEqual(len(content.encode('utf-8')), 200704)
+                self.assertNotIn('�', content)
+                portions.append(re.sub(r'\[(?:continued line|line continues in next portion)\]', '', content)
+                                .replace('\n', ''))
+                if ' END' in content:
+                    break
+                self.assertIn('[line continues in next portion]', content)
+                await pilot.wait_for_scheduled_animations()
+                pane = app.screen.query_one('#log-pane')
+                pane.scroll_to(y=pane.max_scroll_y, animate=False, immediate=True)
+                await pilot.pause()
+                positions = [(pane.scroll_y, pane.max_scroll_y)]
+                for _ in range(3):
+                    await pilot.press('pagedown')
+                    await self.shown(app, pilot, 'Log read at')
+                    await pilot.wait_for_scheduled_animations()
+                    positions.append((pane.scroll_y, pane.max_scroll_y))
+                    if self.content(app) != content:
+                        break
+                self.assertTrue(self.content(app) != content,
+                                f'Paging must reach the adjacent portion: {positions}; '
+                                f'{app.screen.query_one("#read-status", Static).content}')
+            self.assertEqual(''.join(portions), original)
+            self.assertEqual(app.acquisitions, 1)
+            await pilot.press('q')
+
+    async def test_repeated_log_open_close_releases_views_descriptors_processes_and_timers(self):
+        self.stdout.write_text('bounded reader\n')
+        app = self.browser()
+        children = Path(f'/proc/{os.getpid()}/task/{os.getpid()}/children')
+        async with app.run_test(size=(80, 24)) as pilot:
+            await self.shown(app, pilot, 'sample')
+            await pilot.press('down', 'l', 'enter')
+            await self.shown(app, pilot, 'bounded reader')
+            await pilot.press('escape')
+            await pilot.pause()
+            gc.collect()
+            baseline_tasks = len(asyncio.all_tasks())
+            baseline_fds = len(list(Path('/proc/self/fd').iterdir()))
+            baseline_children = set(children.read_text().split())
+            views = []
+            for _ in range(12):
+                await pilot.press('l', 'enter')
+                await self.shown(app, pilot, 'bounded reader')
+                views.append(weakref.ref(app.screen))
+                await pilot.press('escape')
+                await pilot.pause()
+            gc.collect()
+            self.assertTrue(all(view() is None for view in views))
+            self.assertLessEqual(len(asyncio.all_tasks()), baseline_tasks + 2)
+            self.assertLessEqual(len(list(Path('/proc/self/fd').iterdir())), baseline_fds + 1)
+            self.assertEqual(set(children.read_text().split()), baseline_children)
+            self.assertEqual(app.acquisitions, 1)
+            await pilot.press('q')
+
+
+    async def test_minimum_terminal_keeps_log_content_and_read_failure_navigation_visible(self):
+        self.stdout.write_text('wide-text-' * 10000 + '\nNARROW_LAST\n')
+        app = self.browser()
+        async with app.run_test(size=(40, 12)) as pilot:
+            await self.shown(app, pilot, 'sample')
+            await pilot.press('down', 'l', 'enter')
+            await self.shown(app, pilot, 'NARROW_LAST')
+            replacement = self.snapshot()
+            replacement['tasks'][0]['jobs'][0]['submission'] = 'different-submission'
+            await app.accept_inspection(replacement)
+            await self.shown(app, pilot, 'Current submission changed')
+            await self.shown(app, pilot, 'NARROW_LAST', timeout=3)
+            self.assertIn('q quit', test_browser_interaction.visible_text(app))
+            await pilot.press('escape', 'l', 'down', 'enter')
+            await self.shown(app, pilot, 'No such file')
+            self.assertIn('q quit', test_browser_interaction.visible_text(app))
+            await pilot.press('q')
+
+
+    async def test_unsubmitted_and_nonregular_streams_show_read_errors_without_tracebacks(self):
+        os.mkfifo(self.stdout)
+        for submitted, expected in ((False, 'No recorded submission'), (True, 'not a regular file')):
+            with self.subTest(submitted=submitted):
+                def snapshot():
+                    result = self.snapshot()
+                    if not submitted:
+                        result['tasks'][0]['jobs'][0].update(submission=None, logs={})
+                    return result
+                app = CapturedBrowser(selectors=('*',), details=True, snapshot_factory=snapshot)
+                async with app.run_test(size=(100, 30)) as pilot:
+                    await self.shown(app, pilot, 'sample')
+                    await pilot.press('down', 'l', 'enter')
+                    await self.shown(app, pilot, expected, timeout=3)
+                    self.assertNotIn('Traceback', str(app.screen.query_one('#read-status', Static).content))
+                    self.assertEqual(app.acquisitions, 1)
+                    await pilot.press('q')
+
+
+@unittest.skipUnless(sys.platform == 'linux', 'resource acceptance uses Linux file descriptors')
+class StatusLogReadBoundsTests(unittest.TestCase):
+    def test_large_file_and_long_line_reads_stay_within_each_request_budget(self):
+        with tempfile.TemporaryDirectory(prefix='gwflow-log-trace-') as temporary:
+            root = Path(temporary)
+            compiler = shutil.which('cc')
+            self.assertIsNotNone(compiler, 'A C compiler is required for the real file-I/O resource probe')
+            compiled = subprocess.run([compiler, '-shared', '-fPIC', '-O2', '-Wall', '-Wextra',
+                                       '-o', str(root / 'probe.so'),
+                                       str(Path(__file__).parent / 'fixtures/log_read_probe.c'), '-ldl'],
+                                      capture_output=True, text=True)
+            self.assertEqual(compiled.returncode, 0, compiled.stdout + compiled.stderr)
+            result = subprocess.run(
+                [sys.executable, '-m', 'unittest',
+                 'test_status_logs.StatusLogWindowTests.test_tail_paging_jumps_and_reload_keep_status_and_reading_position',
+                 'test_status_logs.StatusLogWindowTests.test_huge_utf8_line_is_segmented_and_every_byte_remains_accessible'],
+                cwd=root, env={**os.environ, 'PYTHONPATH': str(Path(__file__).resolve().parent),
+                               'LD_PRELOAD': str(root / 'probe.so') + ' ' + os.environ.get('LD_PRELOAD', ''),
+                               'GWFLOW_LOG_READ_REPORT': str(root / 'reads')},
+                capture_output=True, text=True, timeout=120)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            read_bytes = [int(line.split()[1]) for line in (root / 'reads').read_text().splitlines()]
+            self.assertGreaterEqual(len(read_bytes), 15, read_bytes)
+            # Every file read is a separate owned process. This includes the
+            # previous-window consistency check, UTF-8 context, and new window.
+            self.assertLessEqual(max(read_bytes), 131088, read_bytes)
+

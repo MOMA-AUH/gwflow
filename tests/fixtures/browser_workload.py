@@ -36,13 +36,14 @@ def captured_snapshot():
 class CapturedBrowser(StatusBrowser):
     """Feed captured observations through the same completed-inspection interface."""
 
-    def __init__(self, **options):
+    def __init__(self, *, snapshot_factory=captured_snapshot, **options):
         super().__init__(([], ()), **options)
         self.acquisitions = 0
+        self.snapshot_factory = snapshot_factory
 
     async def action_refresh(self):
         self.acquisitions += 1
-        await self.accept_inspection(captured_snapshot())
+        await self.accept_inspection(self.snapshot_factory())
 
     async def on_mount(self, event):
         event.prevent_default()

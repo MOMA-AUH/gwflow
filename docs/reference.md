@@ -231,6 +231,9 @@ run, cancellation, cleanup, or recovery commands.
 | `/` | Edit a literal, case-insensitive Task-name search; Enter applies, Esc cancels |
 | `f` | Edit primary Task states; Space toggles, Enter applies, Esc cancels, `c` clears choices |
 | `r` | Inspect again using the original workflow, backend, and Task selectors |
+| `h` | Read the selected Task's saved history |
+| `l` | Choose stdout/stderr for the selected job or historical submission |
+| `u` | Reload the current log/history without inspecting status |
 | `?` | Show the keyboard reference and captured inspection diagnostics |
 | `q` | Quit status |
 | Ctrl+C | Interrupt using ordinary CLI behavior |
@@ -246,6 +249,47 @@ any now-unmatched selector makes refresh fail. The old snapshot stays browsable
 while inspection runs. Success replaces the observations together, preserving
 the current view, filters, stable item focus, and scroll where possible. If an
 item disappears, status returns to the nearest surviving parent and explains why.
+Open log and history views remain pinned, with a notice when their Task leaves
+the refreshed selection or current work changes. Esc then finds the nearest
+surviving parent. A now-unmatched original selector still makes refresh fail.
+
+History reads only the selected Task's saved records, distinguishing current
+recorded submissions, earlier retries within the current attempt, and previous
+attempts. Empty attempts remain visible, including after work cleanup. The
+recorded states are evidence from disk, without new scheduler observations.
+Enter or `l` on a history submission opens its stream chooser. Choosers and logs
+show complete Task, attempt, public-job, and exact-submission identities; scroll
+their details to read long names and paths.
+
+Logs initially show up to the latest 200 newline-delimited lines. A 64 KiB byte
+window can contain fewer lines or only part of one exceptionally long line;
+the read notice identifies that limit. Page Up/Down scroll within the portion
+and read the adjacent portion at its edge. Home/End jump directly to the
+beginning/latest, without scanning the file for a total line count. Text wraps,
+and lines longer than 2,048 characters are segmented with continuation markers.
+Paging preserves UTF-8 character boundaries and keeps every portion accessible.
+
+Each read has its own timestamp. `u` preserves the log's reading position where
+possible, or loads the latest output when already at the end. It reloads saved
+history without changing the status snapshot or its age. `r` leaves independently
+read text, history, and their positions intact. Log reads are manual. A missing or
+unreadable stream shows its failure and preserves any previously read portion.
+Detected replacement, truncation, or changes to the previous portion preserve
+the displayed text and offer `u`; paging never joins old and replacement content.
+Tab focuses the read details, where arrows scroll complete notices and errors
+even at 40 × 12. Read failures do not change the latest inspection's exit result.
+
+The reader uses at most 128 KiB + 16 bytes of log I/O per request, including
+the previous-window consistency check and a few bytes of UTF-8 context. A raw
+window is at most 64 KiB + 6 bytes. The decoded and rendered representations
+each retain at most 196 KiB of log text, including visible replacements and
+continuation markers; these bounds exclude widget/style metadata and layout
+caches. Only one read per view is in flight. A separate, stoppable process owns
+blocking file I/O and releases its files on completion or when the view closes.
+Ordinary ANSI colors and emphasis survive; cursor movement, screen clearing,
+and other terminal controls are omitted or shown visibly. Undecodable UTF-8
+bytes appear as `�` with a notice. Saved files and standalone raw-log commands
+retain their original content.
 
 Search and state filters narrow the captured selected Tasks; clearing both
 restores the original selector scope. Search treats characters such as `*`

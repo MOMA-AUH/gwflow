@@ -134,6 +134,15 @@ and regressions referenced by the combined acceptance record:
 
 ## Recording evidence
 
+The interactive log resource tests also require a Linux `/proc` filesystem and
+a C compiler named `cc`. Their test-only libc probe counts bytes returned by real
+file reads and can hold a selected read to verify terminal responsiveness and
+reader cleanup. It is loaded only in the test subprocesses and does not replace
+gwflow modules or file contents. Captured-data paging checks measure retained
+text and reconstruct a line larger than the window across UTF-8 boundaries;
+installed-terminal checks cover streams, history, refresh, and cancellation of
+blocked reads. These checks use no production cluster access.
+
 The v0.8.0 interactive status work has [refresh/filter acceptance](status-browser/acceptance.json)
 and [captured browser measurements](status-browser/measurements.json). These record
 implementation checks for issue #229; release preparation and publication remain
