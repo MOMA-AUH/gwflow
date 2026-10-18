@@ -424,18 +424,23 @@ and files can change afterward, so run and cleanup recheck before acting.
 ```sh
 gwflow logs                         # all declared and recorded Tasks
 gwflow logs hello                   # current submissions in its current attempt
+gwflow logs hello --details         # full identities, paths, pinned commands
 gwflow logs hello other 'batch__*'   # grouped, deduplicated Task indexes
 gwflow logs hello --history         # include earlier retries and attempts
+gwflow logs hello --history --details # expand current and historical indexes
 gwflow logs hello__write --no-pager
 gwflow logs hello__write --stderr --no-pager
 gwflow run hello --dry-run --details # separate Next action and reason
 ```
 
 Task indexes show the current recorded attempt and current submissions of its
-computation, preparation, and completion jobs, with failures first. Each entry
-identifies the public job and submission, its observed state, and availability
-of stdout and stderr. Available streams have commands that read that specific
-submission; indexes never concatenate streams. Earlier retry submissions and
+computation, preparation, and completion jobs, with failures first. Compact rows
+identify each public job, its observed state, and availability of stdout and
+stderr. Guidance includes commands for both streams and a separate run preview.
+Add `--details` for the full attempt and submission names, backend identity and
+job ID, stream paths, and commands pinned to each available exact submission.
+Missing streams remain visible, including their expected paths when a submission
+is recorded. Indexes never concatenate streams. Earlier retry submissions and
 attempts are excluded from the current index.
 
 Add `--history` to include earlier submissions in the current attempt and all
@@ -447,7 +452,10 @@ streams use exact submission commands, so they remain readable after retries,
 fresh attempts, and managed work cleanup. `--history` supports the same exact,
 multiple, pattern, and bare all-Task selection, including removed Tasks.
 An earlier attempt interrupted before job admission is listed with no recorded
-submissions.
+submissions. The current rows stay compact; historical rows retain full attempt
+and submission identities and pinned stream commands. Combine `--history` with
+`--details` to expand both current and historical indexes with backend identifiers
+and paths.
 
 Task names and quoted patterns use the same selection language as other managed
 commands: every selector must match, and overlapping matches appear once. With
@@ -460,14 +468,19 @@ including names from previous attempts.
 
 One exact public job or submission name reads an individual stream: stdout by
 default, stderr with `-e`/`--stderr`, and direct output with `--no-pager`. Public
-names follow the selected execution generation. Multiple selectors always select
+names follow the current submission, whereas exact submission names keep pointing
+to the same log after a retry. Multiple selectors always select
 Task indexes. `--stderr` on an index is a usage error because indexes already show
 both streams. Missing streams are marked in indexes and are errors when requested
 individually. Logs remain in `.gwf/logs/` after work cleanup; exact earlier submission
 names continue to read their logs directly.
-`--history` is only for Task indexes; combining it with an individual job or
-submission request is a usage error. Reading an exact historical submission does
-not require `--history`.
+`--history` and `--details` are only for Task indexes; combining either with an
+individual job or submission request is a usage error. For example,
+`gwflow logs hello__write --details` points to `gwflow logs hello --details` for
+identifiers and paths and `gwflow logs hello__write` for stdout. Generated commands
+preserve explicit workflow and backend options. Reading an exact historical
+submission does not require `--history`. Individual streams retain their normal
+paging or `--no-pager` behavior without index headings.
 
 Log inspection neither acquires images nor invokes execution planning, and it
 preserves Task records, work, and retained outputs. If scheduler observation fails

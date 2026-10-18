@@ -97,7 +97,7 @@ class LifecycleInspectionTests(LocalBackendTestCase):
         self.assertRegex(preview, r"Task sample\s+Retry\s+")
         self.run_previewed(preview)
         self.settle()
-        index = self.cli("logs", "sample")
+        index = self.cli("logs", "sample", "--details")
         self.assertIn(first_attempt, index)
         self.assertNotIn(first, index)
         self.cli("run", "--force")
@@ -111,7 +111,7 @@ class LifecycleInspectionTests(LocalBackendTestCase):
         self.assertEqual(self.cli("logs", first, "--no-pager"), original_log)
         self.assertIn("job-error", self.cli("logs", first, "--stderr", "--no-pager"))
         for selector in ("sample", "sam*"):
-            index = self.cli("logs", selector, "--no-pager")
+            index = self.cli("logs", selector, "--no-pager", "--details")
             self.assertIn(latest, index)
             self.assertNotIn(first, index)
         self.cli("logs", "sample__*", "--no-pager", success=False)

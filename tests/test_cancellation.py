@@ -39,7 +39,7 @@ class CancellationTests(LocalBackendTestCase):
         self.cli("-b", "recovery_fixture", "run", env=environment)
         self.wait_for((self.work / "manifest-held").exists)
         try:
-            index = self.cli("logs", "sample")
+            index = self.cli("logs", "sample", "--details")
             attempt = re.search(r"attempt ([0-9a-f]{32})", index).group(1)
             output = self.cli("cancel", "sample")
             self.assertEqual(output.count("Cancellation requested"), 1, output)
@@ -50,7 +50,7 @@ class CancellationTests(LocalBackendTestCase):
         self.assertIn("Finish", self.cli("run", "sample", "--dry-run"))
         self.cli("run", "sample")
         self.settle()
-        self.assertIn(attempt, self.cli("logs", "sample"))
+        self.assertIn(attempt, self.cli("logs", "sample", "--details"))
         self.assertIn("Reuse", self.cli("run", "sample", "--dry-run"))
         self.assertEqual(Counter((self.work / "trace").read_text().splitlines()), {"left": 1, "right": 1, "join": 1})
         self.assertEqual((self.work / "results/sample/result.txt").read_text(), "leftright")
@@ -108,7 +108,7 @@ class CancellationTests(LocalBackendTestCase):
         self.wait_for(held.exists)
         try:
             self.wait_for(lambda: "sample__left: complete" in self.cli("logs", "sample"))
-            index = self.cli("logs", "sample")
+            index = self.cli("logs", "sample", "--details")
             attempt = re.search(r"attempt ([0-9a-f]{32})", index).group(1)
             submission = re.search(r"sample__right: running; submission (\S+)", index).group(1)
             # Model a lost tracking flush while retaining the durable acknowledgement.
@@ -124,14 +124,14 @@ class CancellationTests(LocalBackendTestCase):
         self.assertIn("Retry", self.cli("run", "sample", "--dry-run"))
         self.cli("run", "sample")
         self.settle()
-        self.assertIn(attempt, self.cli("logs", "sample"))
+        self.assertIn(attempt, self.cli("logs", "sample", "--details"))
         self.assertIn("Reuse", self.cli("run", "sample", "--dry-run"))
         self.assertEqual(Counter(trace.read_text().splitlines()), {"left": 1, "right": 2, "join": 1})
         self.assertEqual((self.work / "results/sample/result.txt").read_text(), "leftright")
 
     def test_unresolved_identity_and_rejected_request_do_not_stop_other_jobs(self):
         self.run_complete()
-        index = self.cli("logs", "sample")
+        index = self.cli("logs", "sample", "--details")
         submissions = dict(re.findall(r"(sample__\w+): complete; submission (\S+)", index))
         # A missing selected intent is a persistence fault, not a state lookup.
         for path in (self.work / ".gwf/gwflow").rglob("*-intent.json"):
@@ -168,7 +168,7 @@ class CancellationTests(LocalBackendTestCase):
         self.wait_for(held.exists)
         try:
             self.wait_for(lambda: "sample__left: complete" in self.cli("-b", "slurm", "logs", "sample", env=environment))
-            index = self.cli("-b", "slurm", "logs", "sample", env=environment)
+            index = self.cli("-b", "slurm", "logs", "sample", "--details", env=environment)
             attempt = re.search(r"attempt ([0-9a-f]{32})", index).group(1)
             submitted = [json.loads(line) for line in (self.work / "slurm-submitted.jsonl").read_text().splitlines()]
             expected = {item["id"] for item in submitted
@@ -244,10 +244,10 @@ class CancellationSelectionTests(LocalBackendTestCase):
 
     def test_exact_multiple_patterns_and_all_address_only_selected_current_attempts(self):
         self.run_complete()
-        previous = set(re.findall(r"; submission (\S+)", self.cli("logs")))
+        previous = set(re.findall(r"; submission (\S+)", self.cli("logs", "--details")))
         self.cli("run", "--force")
         self.finish()
-        current = set(re.findall(r"; submission (\S+)", self.cli("logs")))
+        current = set(re.findall(r"; submission (\S+)", self.cli("logs", "--details")))
         self.assertTrue(previous.isdisjoint(current))
         environment = self.inject(job_states={name: "RUNNING" for name in "abcde"},
                                   record_status=True, record_cancellations=True, accept_cancel_only=True)

@@ -98,8 +98,8 @@ history can leave work blocked. Start with the normal diagnostics:
 
 ```sh
 gwflow status hello --details
-gwflow logs hello
-gwflow logs hello --history
+gwflow logs hello --details
+gwflow logs hello --history --details
 gwflow run hello --dry-run --details
 ```
 
@@ -142,7 +142,7 @@ See [recovery details](reference.md#lifecycle-and-recovery) and
 
 1. Coordinate a stop to new submissions for every workflow using the environment
    being changed. In the old environment, record `gwflow --version` and inspect
-   `gwflow status '*' --details` and `gwflow logs '*' --history`. Status covers
+   `gwflow status '*' --details` and `gwflow logs '*' --history --details`. Status covers
    declared Tasks; logs and cancellation can also address recorded Tasks removed
    from the declarations. Check those Tasks' admitted jobs too.
 2. Finish all affected work, or preview `gwflow cancel '*' --dry-run` and request
