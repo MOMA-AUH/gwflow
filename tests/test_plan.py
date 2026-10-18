@@ -17,7 +17,14 @@ class TaskPlanTests(LocalBackendTestCase):
     def test_fresh_dry_run_and_run_share_the_same_compact_plan(self):
         explanation = self.cli_result("run", "--dry-run")
         actual = self.cli_result("run")
-        self.assertEqual(explanation.stdout, actual.stdout.split("Submitted 9 jobs", 1)[0])
+        preview_lines = explanation.stdout.splitlines()
+        execution_lines = actual.stdout.splitlines()
+        self.assertEqual(preview_lines[0], "Run preview — no jobs will be submitted")
+        self.assertEqual(execution_lines[0], "Execution plan")
+        self.assertEqual(preview_lines[-1], "Would submit 9 jobs across 3 Tasks.")
+        self.assertEqual(execution_lines[-2:], ["Planned submissions: 9 jobs across 3 Tasks.",
+                                               "Submitted 9 jobs across 3 Tasks."])
+        self.assertEqual(preview_lines[1:-1], execution_lines[1:-2])
         self.assertRegex(explanation.stdout, r"Task\s+Next action\s+Why")
         for name in ("a", "b", "c"):
             self.assertRegex(explanation.stdout, rf"Task {name}\s+Run\s+no completed managed attempt")

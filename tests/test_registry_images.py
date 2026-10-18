@@ -169,7 +169,7 @@ class RegistryImageTests(RegistryTestCase):
         for arguments in (("run", "--dry-run",), ("status", "--details"), ("run", "--dry-run"), ("run",)):
             output = self.cli(*arguments, env=environment)
             self.assertNotIn("blocked", output)
-            self.assertNotIn("Submitted target", output)
+            self.assertNoSubmissions(output)
             self.assertNotIn("Pulling image:", output)
             self.assertNotIn("Pulled image:", output)
             self.assertNotIn("Failed to pull image:", output)
@@ -192,7 +192,7 @@ class RegistryImageTests(RegistryTestCase):
                 self.assertIn(diagnostic, output)
             self.assertIn(f"Pulling image: {self.reference}", output)
             self.assertNotIn("Pulled image:", output)
-            self.assertNotIn("Submitted target", output)
+            self.assertNoSubmissions(output)
             self.assertFalse((self.work / ".gwf/gwflow").exists())
             self.assertFalse(self.cached_images())
         self.options()
@@ -207,7 +207,7 @@ class RegistryImageTests(RegistryTestCase):
         self.assertIn(self.reference, output)
         self.assertIn(f"Failed to pull image: {self.reference}", output)
         self.assertNotIn("Pulled image:", output)
-        self.assertNotIn("Submitted target", output)
+        self.assertNoSubmissions(output)
         self.assertFalse(self.cached_images())
 
     def test_state_filter_still_acquires_images_in_its_assessment_scope(self):
@@ -303,7 +303,7 @@ class RegistryImageTests(RegistryTestCase):
         info = image.stat()
         self.cli("clean", "--delete")
         self.assertEqual(image.stat(), info)
-        self.assertNotIn("Submitted target", self.cli("run"))
+        self.assertNoSubmissions(self.cli("run"))
         self.cli("run", "--force")
         self.settle()
         self.assertEqual(len(self.calls("pull")), 1)

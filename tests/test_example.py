@@ -25,7 +25,7 @@ class UppercaseExampleTests(LocalBackendTestCase):
             self.assertEqual((self.work / "results" / name / "text.txt").read_text(),
                              "HELLO FROM GWFLOW\n")
         self.cli("clean", "--delete")
-        self.assertNotIn("Submitted target", self.cli("run"))
+        self.assertNoSubmissions(self.cli("run"))
 
 
 class PackagedExampleTests(LocalBackendTestCase):
@@ -40,11 +40,11 @@ class PackagedExampleTests(LocalBackendTestCase):
         self.assertRegex(preview, r"Task A\s+Run\s+")
         self.assertRegex(preview, r"Task B\s+Run\s+")
         self.assertNotIn("Task C", preview)
-        first = self.cli("run", "A", "B", env=producers_only)
+        first = self.cli("run", "A", "B", "--details", env=producers_only)
         self.finish()
-        self.assertIn("Submitted target A__clean", first)
-        self.assertIn("Submitted target B__clean", first)
-        self.assertNotIn("Submitted target C__", first)
+        self.assertIn("A__clean: confirmed submitted", first)
+        self.assertIn("B__clean: confirmed submitted", first)
+        self.assertNotRegex(first, r"C__\w+: confirmed submitted")
         before = {path: (path.read_bytes(), path.stat().st_mtime_ns)
                   for root in (self.work / ".gwf/gwflow", self.work / "work", self.work / "results")
                   for path in root.rglob("*") if path.is_file()}
@@ -56,11 +56,10 @@ class PackagedExampleTests(LocalBackendTestCase):
         self.assertRegex(preview, r"Task A\s+Reuse\s+")
         self.assertRegex(preview, r"Task B\s+Reuse\s+")
         self.assertRegex(preview, r"Task C\s+Run\s+")
-        second = self.cli("run", "C")
+        second = self.cli("run", "C", "--details")
         self.finish()
-        self.assertIn("Submitted target C__join", second)
-        self.assertNotIn("Submitted target A__", second)
-        self.assertNotIn("Submitted target B__", second)
+        self.assertIn("C__join: confirmed submitted", second)
+        self.assertNotRegex(second, r"[AB]__\w+: confirmed submitted")
         self.assertEqual((self.work / "results/net/net.csv").read_text().splitlines(),
                          ["product,sales,returns,net", "apples,17,2,15", "pears,8,1,7"])
         self.assertEqual(sorted(str(path.relative_to(self.work / "results"))
@@ -68,7 +67,7 @@ class PackagedExampleTests(LocalBackendTestCase):
                          ["net/net.csv", "returns/summary.csv", "sales/summary.csv"])
         for name in ("A", "B"):
             self.assertFalse(list((self.work / "work" / name).iterdir()))
-        self.assertNotIn("Submitted target", self.cli("run"))
+        self.assertNoSubmissions(self.cli("run"))
 
     def test_packaged_slurm_dependencies_wait_for_both_complete_producers(self):
         self.cli("-b", "slurm", "run", env=self.slurm_environment())

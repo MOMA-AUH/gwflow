@@ -36,7 +36,7 @@ class RegistryConcurrencyTests(test_registry_images.RegistryTestCase):
             self.assertEqual(process.returncode, 0, output)
         else:
             self.assertNotEqual(process.returncode, 0, output)
-        self.assertNotIn("Submitted target", output)
+        self.assertNoSubmissions(output)
         return output
 
     def release(self, name):

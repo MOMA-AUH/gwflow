@@ -43,7 +43,7 @@ class ExternalInputTests(LocalBackendTestCase):
         self.assertEqual((result / "alias.txt").read_text(), str(alias) + "\n")
         self.assertEqual((self.work / "input.txt").read_bytes(), before)
         self.assertFalse(any(path.is_symlink() for path in (self.work / "work").rglob("*")))
-        self.assertNotIn("Submitted target", self.cli("run"))
+        self.assertNoSubmissions(self.cli("run"))
 
     def test_input_permission_change_does_not_change_metadata_baseline(self):
         self.run_complete()
@@ -51,7 +51,7 @@ class ExternalInputTests(LocalBackendTestCase):
         source.chmod(0)
         try:
             self.assertRegex(self.cli("run", "--dry-run"), r"Task sample\s+Reuse\s+")
-            self.assertNotIn("Submitted target", self.cli("run"))
+            self.assertNoSubmissions(self.cli("run"))
         finally:
             source.chmod(0o600)
 

@@ -27,7 +27,7 @@ class BrowserWorkloadTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(app.return_value, 1)
 
     async def test_task_and_group_that_stop_matching_filter_return_to_surviving_parent(self):
-        app = CapturedBrowser(statuses=('failed',))
+        app = CapturedBrowser(statuses=('failed',), status_interval=60)
         async with app.run_test(size=(80, 24)) as pilot:
             await pilot.pause()
             await pilot.press('enter', 'enter', 'enter')
@@ -82,7 +82,9 @@ class BrowserWorkloadTests(unittest.IsolatedAsyncioTestCase):
             await pilot.press('q')
 
     async def test_removed_task_and_group_return_to_nearest_surviving_parent(self):
-        app = CapturedBrowser()
+        # Layout must show the fallback immediately, without a later age tick
+        # repairing a notice formatted before the new heading acquired a width.
+        app = CapturedBrowser(status_interval=60)
         async with app.run_test(size=(80, 24)) as pilot:
             await pilot.pause()
             await pilot.press('enter', 'enter', 'enter')
@@ -96,6 +98,13 @@ class BrowserWorkloadTests(unittest.IsolatedAsyncioTestCase):
             self.assertIn('Tasks in mapping', text)
             self.assertIn('no longer available', text)
             self.assertIn('sample_001', text)
+            await pilot.resize_terminal(40, 24)
+            await pilot.pause()
+            self.assertIn('returned to mapping.', visible_text(app))
+            await pilot.resize_terminal(80, 24)
+            await pilot.pause()
+            self.assertIn('no longer available', visible_text(app))
+            self.assertEqual(app.acquisitions, 1)
             replacement = captured_snapshot()
             replacement['groups'].pop(0)
             await app.accept_inspection(replacement)

@@ -63,14 +63,14 @@ class StoragePlacementTests(LocalBackendTestCase):
         result = self.work / "results/samples/a/report"
         self.assertTrue(result.exists(), self.cli("logs", "a__gwflow_prepare", "--stderr", "--no-pager"))
         self.assert_results(result)
-        self.assertNotIn("Submitted target", self.cli("run"))
+        self.assertNoSubmissions(self.cli("run"))
         (result / "renamed.txt").unlink()
         self.cli("-b", "recovery_fixture", "run", env=env)
         self.finish()
         self.assert_results(result)
         self.assertEqual((self.work / "trace").read_text().splitlines(), ["compute"])
         self.cli("clean", "--delete")
-        self.assertNotIn("Submitted target", self.cli("run"))
+        self.assertNoSubmissions(self.cli("run"))
         shutil.rmtree(self.work / "work")
         self.cli("-b", "recovery_fixture", "run", "--force", env=env)
         self.finish()
@@ -102,7 +102,7 @@ class StoragePlacementTests(LocalBackendTestCase):
             with self.subTest(command=command):
                 output = self.cli(*command, success=False)
                 self.assertIn("ownership", output)
-                self.assertNotIn("Submitted target", output)
+                self.assertNoSubmissions(output)
                 self.assertEqual(self.storage_snapshot(), before)
         self.assert_results(self.work / "results/samples/a/report")
         self.assertEqual((self.work / "trace").read_text().splitlines(), ["compute"])
@@ -119,7 +119,7 @@ class StoragePlacementTests(LocalBackendTestCase):
             with self.subTest(command=command):
                 output = self.cli(*command, success=False)
                 self.assertIn("workspace ownership", output)
-                self.assertNotIn("Submitted target", output)
+                self.assertNoSubmissions(output)
                 self.assertEqual(self.storage_snapshot(), before)
         self.assertFalse((self.work / "trace").exists())
         self.assertFalse((self.work / "results/samples/a/report").exists())
@@ -132,7 +132,7 @@ class StoragePlacementTests(LocalBackendTestCase):
         for child in saved.iterdir():
             child.rename(root / child.name)
         self.assertNotEqual(root.stat().st_ino, saved.stat().st_ino)
-        self.assertNotIn("Submitted target", self.cli("run"))
+        self.assertNoSubmissions(self.cli("run"))
         self.cli("clean", "--delete")
         self.cli("run", "--force")
         self.finish()
@@ -151,7 +151,7 @@ class StoragePlacementTests(LocalBackendTestCase):
         self.assertEqual(source.read_text(), "first")
         shutil.rmtree(remote / "scratch")
         self.assertRegex(self.cli("run", "--dry-run"), r"Task a\s+Reuse\s+")
-        self.assertNotIn("Submitted target", self.cli("run"))
+        self.assertNoSubmissions(self.cli("run"))
         self.assert_results(result)
         self.assertEqual((self.work / "trace").read_text().splitlines(), ["compute"])
 
@@ -172,7 +172,7 @@ class StoragePlacementTests(LocalBackendTestCase):
         self.assertEqual(staging.stat().st_dev, result_root.stat().st_dev)
         self.assertEqual([p.relative_to(result_root).as_posix() for p in result_root.rglob('*') if p.is_file()],
                          ["samples/a/report/renamed.txt", "samples/a/report/nested/two.txt"])
-        self.assertNotIn("Submitted target", self.cli("run"))
+        self.assertNoSubmissions(self.cli("run"))
 
     def test_root_aliases_grouped_results_and_new_task_locations(self):
         roots = self.work / "roots with ' punctuation;"
@@ -184,7 +184,7 @@ class StoragePlacementTests(LocalBackendTestCase):
         result_root = roots / "retained"
         self.assert_results(result_root / "samples/a/report")
         self.configure_workflow(settings=f"work_root={str(roots / 'scratch')!r}, results_root={str(result_root)!r}")
-        self.assertNotIn("Submitted target", self.cli("run"))
+        self.assertNoSubmissions(self.cli("run"))
         with (self.work / "workflow.py").open('a') as stream:
             stream.write("gwf.task(task, alias='b', result_dir='samples/b/report')\n")
         self.run_complete()
@@ -220,7 +220,7 @@ class StoragePlacementTests(LocalBackendTestCase):
         try:
             self.work = second
             self.run_complete()
-            self.assertNotIn("Submitted target", self.cli("run"))
+            self.assertNoSubmissions(self.cli("run"))
         finally:
             self.work = first
         self.assert_results(first / "first durable/samples/a/report")
@@ -285,5 +285,5 @@ class StoragePlacementTests(LocalBackendTestCase):
         if option == "coarse_mtime":
             self.assertEqual((result / "renamed.txt").stat().st_mtime_ns, 946684800000000000)
         shutil.rmtree(self.work / "work")
-        self.assertNotIn("Submitted target", self.cli("run"))
+        self.assertNoSubmissions(self.cli("run"))
         self.assertRegex(self.cli("run", "--dry-run"), r"Task a\s+Reuse\s+")

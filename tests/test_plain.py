@@ -72,7 +72,7 @@ class PlainWorkflowTests(LocalBackendTestCase):
     def test_generic_clean_and_touch_still_work(self):
         self.cli("touch", "selected")
         self.assertTrue((self.work / "selected.txt").exists())
-        self.assertNotIn("Submitted target", self.cli("run", "selected"))
+        self.assertNoSubmissions(self.cli("run", "selected"))
         self.cli("clean", "--all", "--force", "selected")
         self.assertFalse((self.work / "selected.txt").exists())
 
@@ -88,7 +88,7 @@ class PlainWorkflowTests(LocalBackendTestCase):
         self.finish()
         workflow = self.work / "workflow.py"
         workflow.write_text(workflow.read_text().replace("echo log-message", "echo changed-command"))
-        self.assertNotIn("Submitted target", self.cli("run", "selected"))
+        self.assertNoSubmissions(self.cli("run", "selected"))
         self.configure(use_spec_hashes=False)
-        self.assertNotIn("Submitted target", self.cli("run", "selected"))
+        self.assertNoSubmissions(self.cli("run", "selected"))
         self.assertIn("log-message", self.cli("logs", "selected", "--no-pager"))

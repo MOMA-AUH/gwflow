@@ -51,7 +51,7 @@ def _log_aliases(working_dir, public_name, job_name):
         _files.sync_directory(logs)
 
 
-def submit_plan(plan, workflow, ctx, *, dry_run, outcomes):
+def submit_plan(plan, workflow, ctx, *, dry_run, outcomes, progress):
     if plan.blocked:
         raise WorkflowError("; ".join(f"Task {task.name}: {task.reason}" for task in plan.blocked))
     if dry_run:
@@ -102,7 +102,7 @@ def submit_plan(plan, workflow, ctx, *, dry_run, outcomes):
     if not selected:
         return
     submitted = {task.name: dict(task.submissions) for task in plan.tasks}
-    with report_activity("Waiting for scheduler..."), create_backend(ctx.backend, working_dir=ctx.working_dir, config=ctx.config) as backend:
+    with progress, create_backend(ctx.backend, working_dir=ctx.working_dir, config=ctx.config) as backend:
         with get_spec_hashes(working_dir=ctx.working_dir, config=ctx.config) as hashes:
             for task, attempt in selected:
                 if admission.superseded_activity(plan.store, attempt, backend, ctx.backend):
@@ -125,27 +125,34 @@ def submit_plan(plan, workflow, ctx, *, dry_run, outcomes):
                     if item.reconcile:
                         admission.acknowledge(plan.store, attempt, item.intent, item.job_id)
                 for local in task.pending:
-                    plan.store.validate_roots()
-                    dependencies, references = [], []
-                    if local == "gwflow_prepare":
-                        for name in attempt["producers"]:
-                            previous = submitted[name].get("gwflow_complete")
-                            if previous is None or previous.state in ("pending", "uncertain", "failed", "cancelled"):
-                                raise WorkflowError(f"Producer {name} has no available Completion submission")
-                            if previous.state != "complete":
-                                if previous.job_id is None:
-                                    raise WorkflowError(f"Unresolved producer Completion submission: {previous.submission}")
-                                admission.restore_tracking(backend, ctx.backend, {name: previous})
-                                dependencies.append(Target(previous.submission, [], [], {}))
-                    for previous in admission.predecessors(attempt, local):
-                        item = observed[previous]
-                        references.append({"local": previous, **admission.identity(item.intent)})
-                        if item.state != "complete":
-                            if item.job_id is None:
-                                raise WorkflowError(f"Unresolved dependency submission: {item.submission}")
-                            dependencies.append(Target(item.submission, [], [], {}))
-                    intent = admission.new_intent(plan.store, attempt, local, references, backend, ctx.backend)
-                    target = _job(plan.store, attempt, local, workflow, intent)
-                    _log_aliases(ctx.working_dir, f"{attempt['task']}__{local}", target.name)
-                    observed[local] = admission.submit(plan.store, attempt, intent, target, dependencies, backend, hashes,
-                                                       outcomes[task.name, local])
+                    outcome = outcomes[task.name, local]
+                    outcome.attempt = attempt["attempt"]
+                    try:
+                        plan.store.validate_roots()
+                        dependencies, references = [], []
+                        if local == "gwflow_prepare":
+                            for name in attempt["producers"]:
+                                previous = submitted[name].get("gwflow_complete")
+                                if previous is None or previous.state in ("pending", "uncertain", "failed", "cancelled"):
+                                    raise WorkflowError(f"Producer {name} has no available Completion submission")
+                                if previous.state != "complete":
+                                    if previous.job_id is None:
+                                        raise WorkflowError(f"Unresolved producer Completion submission: {previous.submission}")
+                                    admission.restore_tracking(backend, ctx.backend, {name: previous})
+                                    dependencies.append(Target(previous.submission, [], [], {}))
+                        for previous in admission.predecessors(attempt, local):
+                            item = observed[previous]
+                            references.append({"local": previous, **admission.identity(item.intent)})
+                            if item.state != "complete":
+                                if item.job_id is None:
+                                    raise WorkflowError(f"Unresolved dependency submission: {item.submission}")
+                                dependencies.append(Target(item.submission, [], [], {}))
+                        intent = admission.new_intent(plan.store, attempt, local, references, backend, ctx.backend)
+                        outcome.submission = intent["submission"]
+                        target = _job(plan.store, attempt, local, workflow, intent)
+                        _log_aliases(ctx.working_dir, f"{attempt['task']}__{local}", target.name)
+                        observed[local] = admission.submit(plan.store, attempt, intent, target, dependencies, backend, hashes,
+                                                           outcome)
+                    except BaseException:
+                        outcome.failed = True
+                        raise

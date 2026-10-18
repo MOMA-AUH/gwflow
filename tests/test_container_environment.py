@@ -51,7 +51,7 @@ class ContainerScratchTests(LocalBackendTestCase):
         self.assertEqual((self.external / "fixed-name").read_text(), "external\n")
         self.cli("clean", "--delete")
         self.assertEqual((self.external / "fixed-name").read_text(), "external\n")
-        self.assertNotIn("Submitted target", self.cli("run"))
+        self.assertNoSubmissions(self.cli("run"))
 
     def test_concurrent_managed_scratch_is_private_persistent_and_follows_work_placement(self):
         commands = []
@@ -81,7 +81,7 @@ class ContainerScratchTests(LocalBackendTestCase):
         self.assertTrue(all(path.exists() for path in scratch))
         self.cli("clean", "--delete")
         self.assertTrue(all(not path.exists() for path in scratch))
-        self.assertNotIn("Submitted target", self.cli("run"))
+        self.assertNoSubmissions(self.cli("run"))
 
     def test_image_settings_and_explicit_overrides_survive_clean_environment(self):
         command = ('printf "%s\\n" "$GWFLOW_IMAGE_VALUE" "$GWFLOW_TEST_OVERRIDE" '
@@ -120,7 +120,7 @@ class ContainerDefaultScratchTests(LocalBackendTestCase):
         self.assertEqual((self.work / "results/sample/result.txt").read_text(), "unset\n/tmp\n")
         self.cli("clean", "--delete")
         self.assertEqual((self.system / "fixed-name").read_text(), "defaults\n")
-        self.assertNotIn("Submitted target", self.cli("run"))
+        self.assertNoSubmissions(self.cli("run"))
 
     def test_hardcoded_system_temporary_files_are_outside_managed_cleanup(self):
         command = ('echo managed > "$TMPDIR/fixed-name"; printf "%s" "$TMPDIR" > out.txt; '
@@ -134,4 +134,4 @@ class ContainerDefaultScratchTests(LocalBackendTestCase):
         self.cli("clean", "--delete")
         self.assertFalse(scratch.exists())
         self.assertEqual((self.system / "fixed-name").read_text(), "system\n")
-        self.assertNotIn("Submitted target", self.cli("run"))
+        self.assertNoSubmissions(self.cli("run"))

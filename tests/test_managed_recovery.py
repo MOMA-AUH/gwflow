@@ -70,7 +70,7 @@ class ManagedCoordinationTests(LocalBackendTestCase):
         self.assertEqual(submitter.returncode, 0, submitted.read_text())
         self.assertEqual(inspector.returncode, 0, output.read_text())
         self.finish()
-        self.assertNotIn("Submitted target", self.cli("run"))
+        self.assertNoSubmissions(self.cli("run"))
 
     def test_interrupted_inspection_releases_guard_without_changing_records(self):
         self.run_complete()
@@ -81,7 +81,7 @@ class ManagedCoordinationTests(LocalBackendTestCase):
         inspector.wait(timeout=10)
         self.assertNotEqual(inspector.returncode, 0)
         self.assertEqual({p: p.read_bytes() for p in evidence}, evidence)
-        self.assertNotIn("Submitted target", self.cli("run"))
+        self.assertNoSubmissions(self.cli("run"))
 
     def test_completion_resources_overlay_workflow_defaults(self):
         self.write_task("touch out.txt", settings="defaults={'cores':3, 'memory':'8g'}, completion_defaults={'cores':1, 'memory':None}")
@@ -111,13 +111,13 @@ class ManagedCoordinationTests(LocalBackendTestCase):
         submitter.wait(timeout=10)
         try:
             self.assertIn("Wait", self.cli("run", "--dry-run"))
-            self.assertNotIn("Submitted target", self.cli("run"))
+            self.assertNoSubmissions(self.cli("run"))
             self.assertIn("active work", self.cli("run", "--force", success=False))
         finally:
             release.touch()
         self.finish()
         self.assertIn("Reuse", self.cli("run", "--dry-run"))
-        self.assertNotIn("Submitted target", self.cli("run"))
+        self.assertNoSubmissions(self.cli("run"))
         self.assertEqual(trace.read_text(), "executed\n")
 
     def test_interruption_after_intent_before_admission_stays_uncertain(self):
@@ -162,7 +162,7 @@ class ManagedCoordinationTests(LocalBackendTestCase):
         self.assertEqual((self.work / "results/sample/report.txt").read_text(), "hello")
         (self.work / "forgotten-slurm-history").touch()
         self.assertIn("Reuse", self.cli("-b", "slurm", "run", "--dry-run", env=env))
-        self.assertNotIn("Submitted target", self.cli("-b", "slurm", "run", env=env))
+        self.assertNoSubmissions(self.cli("-b", "slurm", "run", env=env))
 
     def test_slurm_wrapper_failure_cannot_publish_completion(self):
         self.write_task("printf unchecked > out.txt; exit 7")
@@ -188,9 +188,9 @@ class ManagedCoordinationTests(LocalBackendTestCase):
         try:
             self.assertEqual(submitter.returncode, 109, submitter.stdout + submitter.stderr)
             self.wait_for(held.exists)
-            output = self.cli("-b", "slurm", "run", env=env)
-            self.assertNotIn("Submitted target sample__write", output)
-            self.assertIn("Submitted target sample__gwflow_complete", output)
+            output = self.cli("-b", "slurm", "run", "--details", env=env)
+            self.assertNotIn("sample__write: confirmed submitted", output)
+            self.assertIn("sample__gwflow_complete: confirmed submitted", output)
             self.assertIn("active work", self.cli("-b", "slurm", "run", "--force", env=env, success=False))
         finally:
             release.touch()
@@ -256,9 +256,9 @@ class ManagedCoordinationTests(LocalBackendTestCase):
         self.cli("-b", "recovery_fixture", "run", env=env, success=False)
         self.wait_for(lambda: (self.work / "preparation-held").exists())
         try:
-            submitted = self.cli("run")
-            self.assertIn("Submitted target sample__write__", submitted)
-            self.assertNotIn("Submitted target sample__gwflow_prepare__", submitted)
+            submitted = self.cli("run", "--details")
+            self.assertIn("sample__write: confirmed submitted", submitted)
+            self.assertNotIn("sample__gwflow_prepare: confirmed submitted", submitted)
             self.assertFalse((self.work / "results/sample").exists())
         finally:
             (self.work / "preparation-release").touch()

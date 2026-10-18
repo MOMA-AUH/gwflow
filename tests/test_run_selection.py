@@ -51,14 +51,14 @@ class SelectedRunTests(LocalBackendTestCase):
         self.assertFalse((self.work / ".gwf/gwflow").exists())
         actual = self.cli("run", "c", "--details")
         self.assertEqual(self.actions(actual), self.actions(preview))
-        self.assertEqual(actual.count("Submitted target "), 9)
+        self.assertIn("Submitted 9 jobs across 3 Tasks.", actual)
         self.finish()
         self.assertEqual(self.trace(), Counter({"a": 1, "b": 1, "c": 1}))
         self.assertEqual((self.work / "results/c/value.txt").read_text(), "abac")
         for name in ("d", "e"):
             self.assertFalse((self.work / "work" / name).exists())
             self.assertFalse((self.work / "results" / name).exists())
-        self.assertNotIn("Submitted target", self.cli("run", "c"))
+        self.assertNoSubmissions(self.cli("run", "c"))
 
     def test_force_refreshes_selected_tasks_only_and_default_force_refreshes_all(self):
         self.run_complete()
@@ -70,7 +70,7 @@ class SelectedRunTests(LocalBackendTestCase):
         self.assertEqual(self.task_evidence("a", "b", "c", "d", "e"), before)
         actual = self.cli("run", "c", "--force")
         self.assertEqual(self.actions(actual), self.actions(preview))
-        self.assertEqual(actual.count("Submitted target "), 3)
+        self.assertIn("Submitted 3 jobs across 1 Task.", actual)
         self.finish()
         self.assertEqual(self.task_evidence("a", "b", "d", "e"), outside)
         current = self.task_attempts()
@@ -110,7 +110,7 @@ class SelectedRunTests(LocalBackendTestCase):
             self.assertIn("Unmatched Task selectors", output)
             for selector in unmatched:
                 self.assertIn(repr(selector), output)
-            self.assertNotIn("Submitted target", output)
+            self.assertNoSubmissions(output)
             self.assertEqual(self.task_evidence("a", "b", "c", "d", "e"), before)
 
     def test_invalid_upstream_is_refreshed_but_cleaned_valid_upstream_is_reused(self):
@@ -140,7 +140,7 @@ class SelectedRunTests(LocalBackendTestCase):
         before = self.task_evidence("a", "b", "c", "d", "e")
         for options in ((), ("--dry-run",)):
             output = self.cli("run", "c", "--force", *options, success=False)
-            self.assertNotIn("Submitted target", output)
+            self.assertNoSubmissions(output)
             self.assertEqual(self.task_evidence("a", "b", "c", "d", "e"), before)
             self.assertEqual(sentinel.read_text(), "unowned")
             self.assertTrue((self.work / "work").is_symlink())
@@ -162,7 +162,7 @@ class SelectedRunTests(LocalBackendTestCase):
         for options in ((), ("--dry-run",)):
             output = self.cli("-b", "recovery_fixture", "run", "a", "--force", *options, env=env, success=False)
             self.assertIn("injected backend observation failure", output)
-            self.assertNotIn("Submitted target", output)
+            self.assertNoSubmissions(output)
             self.assertEqual(self.task_evidence("a", "b", "d"), before)
 
     def test_reusable_upstream_does_not_require_unselected_consumer_observations(self):
@@ -196,7 +196,7 @@ class SelectedImageTests(RegistryTestCase):
         for options in (("--dry-run",), ()):
             output = self.cli("run", "sample", "independent", "--force", *options, success=False)
             self.assertIn("image unavailable", output)
-            self.assertNotIn("Submitted target", output)
+            self.assertNoSubmissions(output)
             self.assertEqual(self.snapshot(), before)
         self.assertEqual([call["reference"] for call in self.calls("pull")], [self.reference, self.reference])
         self.configure_workflow("missing-local-image.sif")
@@ -230,6 +230,6 @@ class SelectedImageTests(RegistryTestCase):
         self.assertEqual(self.actions(self.cli("run", "consumer", "--dry-run")), {"sample": "Reuse", "consumer": "Reuse"})
         self.assertEqual(len(self.calls("pull")), 2)
         self.assertEqual(self.snapshot(), before)
-        self.assertNotIn("Submitted target", self.cli("run", "consumer"))
+        self.assertNoSubmissions(self.cli("run", "consumer"))
         self.assertEqual(len(self.calls("pull")), 2)
         self.assertFalse((self.work / "results/independent").exists())

@@ -1,6 +1,7 @@
-"""Static Task views derived from planning observations, without backend access."""
+"""Task reports derived from observations and outcomes, without backend access."""
 
 from collections import Counter
+from contextlib import contextmanager
 from dataclasses import dataclass
 import os
 import shlex
@@ -10,12 +11,14 @@ import textwrap
 import click
 from gwf.backends import BackendStatus
 from rich import box
-from rich.console import Console
+from rich.console import Console, Group
 from rich.panel import Panel
+from rich.progress_bar import ProgressBar
 from rich.table import Table
 from rich.text import Text
 
 from .inspection import blockage_line, condition, task_details
+from .activity import activity, live_report
 from .lifecycle import TaskObservation, ordered_targets, producer_names
 from .workflow import lifecycle_jobs
 from .terminal import supports_decoration, supports_unicode
@@ -567,7 +570,10 @@ class Report:
             yield branch + f"{row.task.name}__{local}" + label, row.jobs[local]
 
     def plan(self, plan, rows, *, expand=False, preview=True):
-        self.line("Managed execution plan")
+        self.line("Run preview — no jobs will be submitted" if preview else "Execution plan", style="bold cyan")
+        count = len(plan.tasks)
+        self.line(f"Execution scope: {count} Task{'s' if count != 1 else ''} "
+                  "(selected Tasks and required upstream Tasks).")
         if plan.blocked:
             self.notice(blockage_line(plan))
         removal = [task.name for task in plan.tasks if task.removal is not None]
@@ -606,29 +612,66 @@ class Report:
                     for local in row.task.pending:
                         self.line(f"  Would submit {row.task.name}__{local}")
         self.recovery_notices(plan.tasks)
+        if not plan.blocked:
+            jobs = sum(len(task.pending) for task in plan.tasks)
+            tasks = sum(bool(task.pending) for task in plan.tasks)
+            label = "Would submit" if preview else "Planned submissions:"
+            self.line(f"{label} {jobs} job{'s' if jobs != 1 else ''} across {tasks} Task{'s' if tasks != 1 else ''}.")
+
+    @contextmanager
+    def submission_progress(self, outcomes):
+        outcomes = list(outcomes)
+        if self.plain or not self.terminal:
+            with activity("Waiting for scheduler..."):
+                yield
+            return
+
+        def render():
+            confirmed = sum(outcome.confirmed for outcome in outcomes)
+            count = f"{confirmed}/{len(outcomes)} confirmed"
+            row = Table.grid(padding=(0, 1))
+            width = max(3, min(30, self.console.width - len(count) - 2))
+            row.add_row(ProgressBar(total=len(outcomes), completed=confirmed, width=width), Text(count))
+            return Group(Text("Submitting jobs"), row)
+
+        with live_report(get_renderable=render, console=self.console, refresh_per_second=4,
+                         redirect_stdout=False, redirect_stderr=False, vertical_overflow="visible"):
+            yield
 
     def submissions(self, outcomes, *, interrupted=False, details=False):
+        outcomes = list(outcomes)
         confirmed = [outcome for outcome in outcomes if outcome.confirmed]
         jobs, tasks = len(confirmed), len({outcome.task for outcome in confirmed})
         if interrupted:
             unknown = sum(outcome.entered and not outcome.confirmed for outcome in outcomes)
             unattempted = sum(not outcome.entered for outcome in outcomes)
-            self.notice(f"Submission interrupted: {jobs} job{'s' if jobs != 1 else ''} confirmed submitted "
-                        f"across {tasks} Task{'s' if tasks != 1 else ''}; "
-                        f"{unknown} submission outcome{'s' if unknown != 1 else ''} unknown; "
-                        f"{unattempted} planned job{'s' if unattempted != 1 else ''} not attempted. "
-                        "Already submitted jobs may continue; submission was not rolled back.")
+            self.line("Submission interrupted", style="bold yellow")
+            self.status_line(f"  {jobs} job{'s' if jobs != 1 else ''} confirmed submitted "
+                             f"across {tasks} Task{'s' if tasks != 1 else ''}")
+            self.status_line(f"  {unknown} submission acceptance{'s' if unknown != 1 else ''} unconfirmed")
+            self.status_line(f"  {unattempted} planned job{'s' if unattempted != 1 else ''} not attempted")
+            self.status_line("Already submitted jobs may continue; submission was not rolled back.")
         elif confirmed:
             self.line(f"Submitted {jobs} job{'s' if jobs != 1 else ''} across {tasks} Task{'s' if tasks != 1 else ''}.",
                       style="bold green")
         else:
             self.line("No new jobs were submitted.")
-        if details and outcomes:
-            self.line("Submission outcomes:")
-            for outcome in outcomes:
+        receipts = outcomes if details else [outcome for outcome in outcomes
+                                            if outcome.failed or outcome.entered and not outcome.confirmed]
+        if interrupted and not receipts:
+            receipts = confirmed
+        if receipts:
+            self.line("Submission outcomes:" if details else "Submissions requiring attention:")
+            for outcome in receipts:
                 state = ("confirmed submitted" if outcome.confirmed else
-                         "outcome unknown" if outcome.entered else "not attempted")
+                         "acceptance unconfirmed" if outcome.entered else "not attempted")
+                if outcome.failed and outcome.confirmed:
+                    state += "; later submission step failed"
+                elif outcome.failed and not outcome.entered:
+                    state += "; pre-admission failed"
                 self.line(f"  {outcome.task}__{outcome.local}: {state}")
+                if outcome.attempt:
+                    self.line("    Attempt: " + outcome.attempt)
                 if outcome.submission:
                     self.line("    Submission: " + outcome.submission)
                 if outcome.job_id is not None:

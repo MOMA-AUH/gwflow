@@ -17,7 +17,13 @@ from .submission import submit_plan
 @click.option("-f", "--force", is_flag=True, help="Start fresh attempts for directly selected Tasks.")
 @pass_context
 def run(ctx, selectors, dry_run, force, details, plain):
-    """Run Task names or quoted globs with their required upstream Tasks."""
+    """Run Task names or quoted globs with their required upstream Tasks.
+
+    Show the execution plan, confirmed submission progress, and final outcome.
+    Counts describe new backend acceptances, not completed jobs. --details
+    includes every per-job receipt; failures keep diagnostic identities visible
+    in the default report.
+    """
     workflow = load_workflow(ctx)
     with _submission_guard(ctx.working_dir):
         plan = plan_workflow(workflow, ctx, selectors=selectors, force=force)
@@ -26,7 +32,8 @@ def run(ctx, selectors, dry_run, force, details, plain):
         outcomes = {(task.name, local): SubmissionOutcome(task.name, local)
                     for task in plan.tasks for local in task.pending}
         try:
-            submit_plan(plan, workflow, ctx, dry_run=dry_run, outcomes=outcomes)
+            submit_plan(plan, workflow, ctx, dry_run=dry_run, outcomes=outcomes,
+                        progress=report.submission_progress(outcomes.values()))
         except BaseException:
             if not dry_run and not plan.blocked:
                 report.submissions(outcomes.values(), interrupted=True, details=details)

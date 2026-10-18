@@ -108,16 +108,16 @@ class CompletedCompatibilityTests(InstalledCompatibilityTests):
         preview = self.cli("run", "--dry-run")
         for name in names:
             self.assertRegex(preview, rf"Task {name}\s+Reuse\s+")
-        self.assertNotIn("Submitted target", self.cli("run"))
+        self.assertNoSubmissions(self.cli("run"))
         self.assertIn("No unresolved submissions", self.cli("recover", "recovered"))
         self.assertEqual(self.task_attempts(), attempts)
         self.assertEqual(self.snapshot(), before)
         environment = {**self.environment, "GWFLOW_COMPAT_CONSUMER": "1"}
-        output = self.cli("run", "consumer", env=environment)
+        output = self.cli("run", "consumer", "--details", env=environment)
         self.finish()
-        self.assertIn("Submitted target consumer__join", output)
+        self.assertIn("consumer__join: confirmed submitted", output)
         for name in names:
-            self.assertNotIn(f"Submitted target {name}__", output)
+            self.assertNotRegex(output, rf"{name}__\w+: confirmed submitted")
         self.assertEqual((self.work / "results/consumer/text.txt").read_text(), "hello\nhello\nhello\n")
         self.assert_runtime("consumer", "candidate")
         self.assertEqual(self.trace(), Counter({**{name: 1 for name in names}, "consumer": 1}))
@@ -127,7 +127,7 @@ class CompletedCompatibilityTests(InstalledCompatibilityTests):
             self.assertEqual({"device": Path(path).stat().st_dev, "inode": Path(path).stat().st_ino}, expected)
         after = self.snapshot()
         self.assertEqual({path: after[path] for path in before}, before)
-        self.assertNotIn("Submitted target", self.cli("run", env=environment))
+        self.assertNoSubmissions(self.cli("run", env=environment))
         unowned = self.work / "results/unowned/text.txt"
         unowned.parent.mkdir()
         unowned.write_text("not managed")
@@ -202,7 +202,7 @@ class IncompleteCompatibilityTests(InstalledCompatibilityTests):
         observed_outputs = {str(path): path.read_text() for path in retained}
         self.assertEqual(observed_outputs, {str(path): content for path, content in retained.items()})
         self.assert_same_storage()
-        self.assertNotIn("Submitted target", self.cli("run"))
+        self.assertNoSubmissions(self.cli("run"))
         self.record({"preserved_attempts": attempts, "computation_counts": dict(observed_counts),
                      "retained_outputs": observed_outputs, "same_storage": self.storage_before,
                      "unchanged_workflow_sha256": hashlib.sha256(self.workflow_before).hexdigest()})

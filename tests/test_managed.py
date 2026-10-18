@@ -153,7 +153,7 @@ class ManagedCliTests(LocalBackendTestCase):
         self.run_complete()
         self.assertEqual(list((self.work / "results/sample").iterdir()), [])
         shutil.rmtree(self.work / "work")
-        self.assertNotIn("Submitted target", self.cli("run"))
+        self.assertNoSubmissions(self.cli("run"))
 
     def test_inspection_and_generic_mutation_commands_preserve_managed_evidence(self):
         self.run_complete()
@@ -172,7 +172,7 @@ class ManagedCliTests(LocalBackendTestCase):
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("use gwflow", result.stderr)
             self.assertEqual(evidence(), before)
-        self.assertNotIn("Submitted target", self.cli("run"))
+        self.assertNoSubmissions(self.cli("run"))
 
     def test_unowned_results_and_changed_recorded_roots_are_not_adopted(self):
         result = self.work / "results/sample/report.txt"
@@ -199,7 +199,7 @@ class ManagedCliTests(LocalBackendTestCase):
         self.assertIn("blocked", self.cli("run", "--dry-run", success=False))
         self.cli("run", success=False)
         manifest.write_bytes(original)
-        self.assertNotIn("Submitted target", self.cli("run"))
+        self.assertNoSubmissions(self.cli("run"))
 
     def test_runtime_work_root_substitution_cannot_redirect_managed_commit(self):
         started, release = self.work / "started", self.work / "release"
@@ -289,7 +289,7 @@ class ManagedCliTests(LocalBackendTestCase):
         self.write_task("echo log-message; touch out.txt")
         self.run_complete()
         self.write_task("echo log-message; touch out.txt", settings="work_root='./work/', results_root='results/.', defaults={'cores': 3}")
-        self.assertNotIn("Submitted target", self.cli("run"))
+        self.assertNoSubmissions(self.cli("run"))
         self.assertIn("log-message", self.cli("logs", "sample__write", "--no-pager"))
 
     def test_registered_factories_are_independent_snapshots(self):
@@ -331,7 +331,7 @@ class ManagedCliTests(LocalBackendTestCase):
         self.assertEqual(len(copies), 1)
         self.assertNotEqual(copies[0].stat().st_ino, result.stat().st_ino)
         shutil.rmtree(self.work / "work")
-        self.assertNotIn("Submitted target", self.cli("run"))
+        self.assertNoSubmissions(self.cli("run"))
         self.assertEqual(result.read_text(), "hello")
         self.assertFalse((self.work / "work").exists())
         self.assertRegex(self.cli("status", "*"), r"(?m)^sample\s+reusable\s+3/3\s+work cleaned")
