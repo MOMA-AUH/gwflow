@@ -58,15 +58,16 @@ class TaskGroup:
         return f"{self.prefix}@{self.factory}"
 
 
-def task_groups(workflow, plan):
+def task_groups(workflow, plan=None):
     """Resolve labels and group order from the entire current declaration."""
     groups = {}
-    for task in task_order(workflow, plan):
-        naming = workflow._task_naming[task.name]
+    names = (task.name for task in task_order(workflow, plan)) if plan is not None else workflow._task_declarations
+    for name in names:
+        naming = workflow._task_naming[name]
         key = naming.factory, naming.prefix
         if key not in groups:
             groups[key] = TaskGroup(naming.prefix, naming.factory, naming.prefix, [])
-        groups[key].members.append(task.name)
+        groups[key].members.append(name)
     prefixes = Counter(group.prefix for group in groups.values())
     for group in groups.values():
         if prefixes[group.prefix] > 1:
@@ -151,7 +152,10 @@ def task_row(task):
         detail.append("retry available")
     detail.extend(job_diagnostics(counts, state))
     if completed is None:
-        detail.append("progress unavailable")
+        if not task.observations_available:
+            detail.append("progress not assessed: " + (blocking_reason(task.reason) or task.reason))
+        else:
+            detail.append("progress unavailable: unresolved submission")
     return TaskRow(task, state, completed, len(jobs), "; ".join(detail), jobs)
 
 
@@ -347,6 +351,18 @@ class Report:
         symbol, style = _VISUALS[name]
         return Text(f"{symbol} {name}", style=style, no_wrap=True)
 
+    def progress(self, completed, total):
+        fraction = f"{'?' if completed is None else completed}/{total}"
+        if self.plain:
+            return fraction
+        width = max(3, min(18, self.console.width - len(fraction) - 22))
+        if completed is None:
+            bar = "/" * width
+        else:
+            filled = int(width * completed / total) if total else 0
+            bar = "━" * filled + "─" * (width - filled)
+        return f"{fraction} [{bar}]"
+
     def _state_counts(self, counts):
         labels = []
         for state, count in counts.items():
@@ -358,7 +374,7 @@ class Report:
                 labels.append(Text(f"{symbol} {label}", style=style))
         return Text(", ").join(labels)
 
-    def overview(self, groups, rows, total):
+    def overview(self, groups, rows, total, *, matching=None):
         def render(text):
             if self.plain:
                 self.status_line(text.plain)
@@ -366,24 +382,32 @@ class Report:
                 self.console.print(text)
 
         self.status_line(f"{len(rows)} of {total} Tasks selected", style="bold cyan")
+        if matching is not None:
+            self.status_line(f"Showing {len(matching)} of {len(rows)} selected Tasks")
         counts = overview_counts(rows)
         render(self._state_counts(counts))
         selected = {row.task.name: row for row in rows}
         visible = [(group, [selected[name] for name in group.members if name in selected]) for group in groups]
-        visible = [(group, members) for group, members in visible if members]
+        visible = [(group, members) for group, members in visible if members and (
+            matching is None or any(row.task.name in matching for row in members))]
         if not visible:
-            self.status_line("No Tasks selected.")
+            self.status_line("No Tasks match the filter." if rows else "No Tasks selected.")
             return
         width = max(5, *(Text(group.label).cell_len for group, _ in visible))
         self.status_line("")
         entries = []
         for group, members in visible:
             counts = overview_counts(members)
-            fraction = Text(f"{counts['reusable']}/{len(members)}")
+            fraction = Text(self.progress(counts['reusable'], len(members)))
             if not self.plain:
                 symbol, style = _VISUALS["reusable"]
                 fraction = Text(f"{symbol} {fraction.plain}", style=style if counts["reusable"] else "dim")
             other = self._state_counts({state: count for state, count in counts.items() if state != "reusable"})
+            if matching is not None:
+                count = sum(row.task.name in matching for row in members)
+                if other.plain:
+                    other += Text("; ")
+                other += Text(f"{count} Task{'s match' if count != 1 else ' matches'} the filter")
             entries.append((group.label, fraction, other))
         fraction_width = max(8, *(fraction.cell_len for _, fraction, _ in entries))
         heading = f"{'Group':<{width}}  {'Reusable':>{fraction_width}}  Other states"
@@ -510,7 +534,8 @@ class Report:
         headers = ["Task", *(["Target"] if expand else []), "State", "Jobs completed", "Detail"]
         entries = []
         for row in rows:
-            cells = [row.task.name, *([""] if expand else []), row.state, row.progress, row.detail]
+            cells = [row.task.name, *([""] if expand else []), row.state,
+                     self.progress(row.completed, row.total), row.detail]
             entries.append((cells, row.state))
             if expand:
                 for name, state in self._status_jobs(row):
@@ -530,7 +555,7 @@ class Report:
                 self.status_line("")
             self.status_line(row.task.name, style="bold")
             self.status_line("  State: " + row.state, style=_VISUALS[row.state][1])
-            self.status_line("  Jobs completed: " + row.progress)
+            self.status_line("  Jobs completed: " + self.progress(row.completed, row.total))
             if row.detail:
                 self.status_line("  " + row.detail)
             if expand:

@@ -187,7 +187,7 @@ class StatusAttentionTests(LocalBackendTestCase):
         output = self.cli("--file", "selected workflow.py:pipeline", "--backend", "recovery_fixture",
                           "--verbose", "warning", "--no-color", "status", "--plain", "--status", "failed",
                           "--status", "canceled", env=environment)
-        self.assertIn("12 of 13 Tasks selected", output)
+        self.assertIn("Showing 12 of 13 selected Tasks", output)
         commands = self.commands(output)
         self.assertEqual(set(commands), {"failed", "canceled"})
         for state, command in commands.items():

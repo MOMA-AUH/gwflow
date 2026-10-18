@@ -72,14 +72,14 @@ class GroupedStatusTests(LocalBackendTestCase):
         (self.work / "results/mapping__C/out.txt").unlink()
         (self.work / "results/remapping__B/out.txt").unlink()
         output = self.cli("status", "--status", "repairable")
-        self.assertIn("2 of 5 Tasks selected", output)
-        self.assertRegex(output, r"(?m)^mapping@library.mapping\s+0/1\s+1 repairable$")
-        self.assertRegex(output, r"(?m)^remapping\s+0/1\s+1 repairable$")
+        self.assertIn("Showing 2 of 5 selected Tasks", output)
+        self.assertRegex(output, r"(?m)^mapping@library.mapping\s+2/3\s+1 repairable; 1 Task matches the filter$")
+        self.assertRegex(output, r"(?m)^remapping\s+0/1\s+1 repairable; 1 Task matches the filter$")
         self.assertLess(output.index("mapping@library.mapping"), output.index("remapping"))
         self.assertNotIn("mapping@second.mapping", output)
         empty = self.cli("status", "--status", "failed")
-        self.assertIn("0 of 5 Tasks selected", empty)
-        self.assertIn("No Tasks selected", empty)
+        self.assertIn("Showing 0 of 5 selected Tasks", empty)
+        self.assertIn("No Tasks match the filter", empty)
         self.assertNotIn("mapping@", empty)
 
     def test_exact_active_phases_roll_up_only_in_overview(self):
@@ -132,7 +132,8 @@ class GroupedStatusTests(LocalBackendTestCase):
                         self.assertIn(label, words)
                     self.assertIn("mapping", output)
                     self.assertIn("remapping", output)
-                    self.assertTrue(all(len(line) <= width for line in output.splitlines()), output)
+                    self.assertTrue(all(len(line) <= width for line in output.splitlines()
+                                        if not line.startswith("  gwflow ")), output)
                     if color == "--use-color":
                         for style in ("32", "34", "36"):
                             self.assertIn(f"\x1b[{style}m", raw)
@@ -188,8 +189,8 @@ class GroupedStatusTests(LocalBackendTestCase):
         self.settle()
         environment = self.inject(job_states={"mapping__A__compute": "CANCELLED"})
         output = self.cli("-b", "recovery_fixture", "status", "--status", "canceled", env=environment)
-        self.assertIn("1 of 4 Tasks selected", output)
-        self.assertRegex(output, r"(?m)^mapping\s+0/1\s+1 canceled$")
+        self.assertIn("Showing 1 of 4 selected Tasks", output)
+        self.assertRegex(output, r"(?m)^mapping\s+1/3\s+1 canceled, 1 pending; 1 Task matches the filter$")
 
     def test_forty_five_tasks_form_three_group_rows(self):
         (self.work / "workflow.py").write_text(

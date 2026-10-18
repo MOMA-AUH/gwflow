@@ -111,7 +111,8 @@ class TaskPresentationTests(LocalBackendTestCase):
             narrow = self.terminal_cli("--no-color", *command, "--details", width=32).stdout
             self.assertIn("reusable", narrow)
             self.assertIn("5/5", narrow)
-            self.assertNotIn("━", narrow)
+            if command[0] == "status":
+                self.assertRegex(narrow, r"5/5 \[━+\]")
             for environment in ({"TERM": "dumb"}, {"PYTHONIOENCODING": "ascii"}, {"PYTHONIOENCODING": "shift_jis"}):
                 with self.subTest(command=command, environment=environment):
                     output = self.terminal_cli("--use-color", *command, "--details", width=40, env=environment).stdout

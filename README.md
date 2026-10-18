@@ -81,7 +81,7 @@ globs select whole tasks; every selector must match:
 ```sh
 gwflow run hello --dry-run
 gwflow run 'hello*'
-gwflow status                      # grouped overview
+gwflow status --static             # one grouped report; --plain removes decoration
 gwflow status hello                # selected task rows
 gwflow status hello --details      # include computation and lifecycle jobs
 gwflow run hello --dry-run --details
