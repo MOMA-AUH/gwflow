@@ -111,6 +111,9 @@ class RecoveryBackend(TrackingBackend):
             raise KeyboardInterrupt
 
     def get_tracked_id(self, target):
+        prefix = self.options.get("fail_tracking_prefix")
+        if prefix and target.name.startswith(prefix + "__"):
+            raise RuntimeError("injected tracking lookup failure")
         tracked = super().get_tracked_id(target)
         prefix = self.options.get("conflicting_tracking_prefix")
         if prefix and target.name.startswith(prefix + "__") and tracked is not None:

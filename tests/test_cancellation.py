@@ -139,7 +139,7 @@ class CancellationTests(LocalBackendTestCase):
         environment = self.inject(job_states={"sample": "RUNNING"}, record_cancellations=True,
                                   accept_cancel_only=True, fail_cancel_flush=True)
         before = self.snapshot()
-        result = self.cli_result("-b", "recovery_fixture", "cancel", "sample", "--details",
+        result = self.cli_result("-b", "recovery_fixture", "cancel", "sample",
                                  env=environment, success=False)
         self.assertIn("5 cancellation requests accepted; jobs may still be stopping", result.stdout)
         for submission in submissions:
@@ -147,6 +147,25 @@ class CancellationTests(LocalBackendTestCase):
         self.assertIn("injected cancellation tracking flush failure", result.stderr)
         self.assertIn("Traceback:", result.stderr)
         self.assertEqual(len((self.work / "cancellation-requests.jsonl").read_text().splitlines()), 5)
+        self.assertEqual(self.snapshot(), before)
+
+    def test_observation_failure_retains_saved_identity_without_requesting_that_job(self):
+        self.run_complete()
+        index = self.cli("logs", "sample", "--details")
+        left = re.search(r"sample__left: complete; submission (\S+)", index).group(1)
+        job_id = re.search(r"Backend job: (\S+)", index.split("sample__left:", 1)[1]).group(1)
+        environment = self.inject(job_states={"sample": "RUNNING"}, record_cancellations=True,
+                                  accept_cancel_only=True, fail_tracking_prefix="sample__left")
+        before = self.snapshot()
+        result = self.cli_result("-b", "recovery_fixture", "cancel", "sample", env=environment, success=False)
+        self.assertIn("1 unresolved job identity; no request", result.stdout)
+        self.assertIn("4 cancellation requests accepted", result.stdout)
+        self.assertIn(left, result.stdout)
+        self.assertIn("Backend job: " + job_id, result.stdout)
+        self.assertIn("injected tracking lookup failure", result.stderr)
+        requests = [json.loads(line) for line in (self.work / "cancellation-requests.jsonl").read_text().splitlines()]
+        self.assertEqual(len(requests), 4)
+        self.assertNotIn(left, requests)
         self.assertEqual(self.snapshot(), before)
 
     def test_unresolved_admission_retains_identity_and_blocks_replacement_and_cleanup(self):

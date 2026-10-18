@@ -235,6 +235,23 @@ def observe_cancellation(store, attempt, local, backend, name):
     return _observe(store, attempt, backend, name, {local: intent}, tolerate_state_errors=True)[local]
 
 
+def cancellation_diagnostic_identity(store, attempt, local):
+    """Retain valid saved identity after an observation fails, never authorize a request."""
+    item = JobObservation(local, "uncertain")
+    try:
+        item.intent = read_intent(store, attempt, local)
+        if item.intent is not None:
+            ack = store.read(attempt, f"admissions/{item.intent['admission']}/ack.json",
+                             "submission-ack", **identity(item.intent))
+            if ack is not None:
+                item.job_id = ack.get("job_id")
+    except Exception:
+        # The caller already reports the observation failure. Preserve only
+        # the records validated so far, without obscuring that original error.
+        pass
+    return item
+
+
 def superseded_activity(store, attempt, backend, name):
     """Recovery never overrides later activity, including after a retry."""
     archive = store.attempt_dir(attempt) / "recoveries"

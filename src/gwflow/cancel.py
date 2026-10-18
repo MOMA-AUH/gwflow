@@ -8,7 +8,7 @@ from gwf.backends import BackendStatus, create_backend
 from gwf.core import pass_context
 
 from . import admission
-from .activity import activity, pause_activity
+from .activity import activity
 from .diagnostics import report_error
 from ._frontend import _submission_guard, load_workflow
 from .lifecycle import Store, ordered_targets
@@ -62,24 +62,27 @@ def cancel(ctx, selectors, dry_run, details, plain):
             selected = task_selection(set(workflow._task_declarations) | set(attempts), selectors)
             connection = (create_backend(ctx.backend, working_dir=ctx.working_dir, config=ctx.config)
                           if selected & attempts.keys() else nullcontext())
-            with activity("Waiting for scheduler..."), connection as backend:
-                for name in sorted(selected):
-                    removed = "; no longer declared" if name not in workflow._task_declarations else ""
-                    attempt = attempts.get(name)
-                    outcomes = []
-                    interrupted = False
-                    try:
+            outcomes_by_task: dict[str, list[CancellationOutcome]] = {}
+            interrupted = False
+            try:
+                with activity("Waiting for scheduler..."), connection as backend:
+                    for name in sorted(selected):
+                        attempt = attempts.get(name)
+                        outcomes = outcomes_by_task[name] = []
                         if attempt is not None:
                             outcomes.extend(cancel_jobs(store, attempt, backend, ctx.backend, dry_run))
-                    except BaseException:
-                        interrupted = True
-                        raise
-                    finally:
-                        with pause_activity():
-                            Report(store, plain=plain).cancellations(name, attempt, outcomes,
-                                                                   removed=removed, details=details,
-                                                                   interrupted=interrupted)
-                    errors += sum(item.failed for item in outcomes)
+                        errors += sum(item.failed for item in outcomes)
+            except BaseException:
+                interrupted = True
+                raise
+            finally:
+                report = Report(store, plain=plain)
+                for name, outcomes in outcomes_by_task.items():
+                    attempt = attempts.get(name)
+                    removed = "; no longer declared" if name not in workflow._task_declarations else ""
+                    report.cancellations(name, attempt, outcomes, removed=removed,
+                                         details=details or interrupted,
+                                         interrupted=interrupted and attempt is not None)
     except OSError as error:
         raise click.ClickException(str(error)) from error
     if errors:
@@ -94,7 +97,8 @@ def cancel_jobs(store, attempt, backend, backend_name, dry_run):
             item = admission.observe_cancellation(store, attempt, local, backend, backend_name)
         except Exception as error:
             report_error(error, f"Observing {name}__{local}")
-            yield CancellationOutcome(local, "unresolved", reason=str(error))
+            yield CancellationOutcome(local, "unresolved",
+                                      admission.cancellation_diagnostic_identity(store, attempt, local), str(error))
             continue
         if item.state in ("complete", "failed", "cancelled", "pending"):
             if item.backend_state in (BackendStatus.COMPLETED, BackendStatus.FAILED, BackendStatus.CANCELLED):
