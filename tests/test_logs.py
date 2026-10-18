@@ -148,6 +148,35 @@ class TaskLogTests(LocalBackendTestCase):
                 if "--details" in options:
                     self.assertIn(str(self.work / ".gwf/logs"), narrow)
 
+    def test_current_public_job_owner_wins_over_historical_name_overlap(self):
+        self.configure_workflow(left_command="echo old-log; printf left > same.txt")
+        workflow = self.work / "workflow.py"
+        workflow.write_text(workflow.read_text().replace("alias='sample'", "alias='a__b'"))
+        self.run_complete()
+        old = self.cli("logs", "a__b", "--details")
+        submission = re.search(r"a__b__left: complete; submission (\S+)", old).group(1)
+        self.configure_workflow(left_command="echo new-log; printf left > same.txt")
+        workflow.write_text(workflow.read_text().replace("alias='sample'", "alias='a'")
+                            .replace("task.target('left'", "task.target('b__left'"))
+        self.run_complete()
+        for removed in (False, True):
+            if removed:
+                workflow.write_text("from gwflow import Workflow\ngwf = Workflow()\n")
+            for selector, owner, content in (("a__b__left", "a", "new-log"), (submission, "a__b", "old-log")):
+                with self.subTest(removed=removed, selector=selector):
+                    error = self.cli("logs", selector, "--details", success=False)
+                    self.assertIn(f"Use gwflow logs {owner} --details", error)
+                    self.assertIn(content, self.cli("logs", selector, "--no-pager"))
+
+    def test_combined_index_flags_keep_owner_and_raw_stream_guidance(self):
+        self.run_complete()
+        result = self.cli_result("logs", "sample__left", "--history", "--details", "--stderr",
+                                 "--no-pager", success=False)
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(result.stdout, "")
+        self.assertIn("Use gwflow logs sample --history --details", result.stderr)
+        self.assertIn("Read the stream with gwflow logs sample__left --stderr --no-pager", result.stderr)
+
     def test_individual_streams_keep_pager_and_no_pager_behavior(self):
         self.configure_workflow(left_command="echo pager-output; echo pager-error >&2; printf left > same.txt")
         self.run_complete()

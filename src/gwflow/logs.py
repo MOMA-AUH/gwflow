@@ -91,13 +91,14 @@ def _display_index(store, name, attempt, jobs, declared, unavailable=None, histo
 
 
 def _job_names(store, workflow):
-    names = {f"{name}__{local}": ("declared public job", name)
-             for name, task in workflow._task_declarations.items() for local in lifecycle_jobs(task.targets)}
+    names = {}
     for attempt in store.recorded_attempts():
         for local in lifecycle_jobs(attempt["structure"]["targets"]):
             names[f"{attempt['task']}__{local}"] = (f"recorded public job in Task {attempt['task']!r}", attempt["task"])
         for intent in admission.recorded_intents(store, attempt):
             names[intent["submission"]] = (f"recorded submission in Task {attempt['task']!r}", attempt["task"])
+    names.update({f"{name}__{local}": ("declared public job", name)
+                  for name, task in workflow._task_declarations.items() for local in lifecycle_jobs(task.targets)})
     return names
 
 
@@ -124,19 +125,32 @@ def logs(ctx, selectors, stderr, no_pager, history, details):
             names = set(workflow._task_declarations) | set(attempts)
             job_names = _job_names(store, workflow)
             if len(selectors) == 1 and selectors[0] in job_names and selectors[0] not in names:
-                if history:
-                    raise click.UsageError("--history requires a Task index, not an individual job or submission stream.")
                 target = selectors[0]
                 if details:
                     owner = job_names[target][1]
+                    if target not in workflow.targets:
+                        # A removed public name may have belonged to several Tasks;
+                        # its surviving stream alias identifies the recorded owner.
+                        suffix = ".stderr" if stderr else ".stdout"
+                        path = store.working_dir / ".gwf/logs" / (target + suffix)
+                        try:
+                            submission = path.readlink().name.removesuffix(suffix)
+                        except OSError:
+                            pass
+                        else:
+                            if submission in job_names:
+                                owner = job_names[submission][1]
                     options = ["--stderr"] if stderr else []
                     if no_pager:
                         options.append("--no-pager")
-                    index_command = shlex.join(inspection_command("logs", owner, "--details"))
+                    index_options = ["--history"] if history else []
+                    index_command = shlex.join(inspection_command("logs", owner, *index_options, "--details"))
                     stream_command = shlex.join(inspection_command("logs", target, *options))
                     raise click.UsageError("--details requires a Task index, not an individual job or submission stream.\n"
                                            f"Use {index_command} for identities and paths.\n"
                                            f"Read the stream with {stream_command}")
+                if history:
+                    raise click.UsageError("--history requires a Task index, not an individual job or submission stream.")
                 click.get_current_context().invoke(gwf_logs, target=target, stderr=stderr, no_pager=no_pager)
                 return
             selected = task_selection(names, selectors)
