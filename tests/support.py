@@ -129,15 +129,17 @@ class LocalBackendTestCase(unittest.TestCase):
                                   for line in details.splitlines() if line.startswith("  Attempt: "))
         return attempts
 
-    def terminal_cli(self, *args, width=100, env=None, success=True):
+    def terminal_cli(self, *args, width=100, env=None, success=True, no_color=None, merge_stderr=False):
         master, slave = pty.openpty()
         fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 24, width, 0, 0))
         environment = {**os.environ, "TERM": "xterm-256color", "COLUMNS": str(width),
-                       "PYTHONIOENCODING": "utf-8", **(env or {})}
+                       "PYTHONIOENCODING": "utf-8", "NO_COLOR": "", **(env or {})}
+        if no_color is not None:
+            environment["NO_COLOR"] = "1" if no_color else ""
         output = bytearray()
         with tempfile.TemporaryFile() as errors:
             process = subprocess.Popen([self.executable, *args], cwd=self.work, stdout=slave,
-                                       stderr=errors, env=environment)
+                                       stderr=slave if merge_stderr else errors, env=environment)
             os.close(slave)
             deadline = time.monotonic() + 30
             try:

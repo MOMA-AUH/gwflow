@@ -152,9 +152,9 @@ class StatusAttentionTests(LocalBackendTestCase):
         expanded = self.cli(*command[1:], env=environment)
         self.assertEqual(self.names(expanded), [f"duplex_mapping__sample_{index:02}" for index in range(7, 13)])
         for color, options in (("--no-color", ()), ("--use-color", ()), ("--no-color", ("--plain",))):
-            terminal = self.terminal_cli(color, "-b", "recovery_fixture", "status", *options,
+            terminal = self.terminal_cli("-b", "recovery_fixture", "status", *options,
                                          width=80, env={**environment, "TERM": "xterm-256color",
-                                                        "PYTHONIOENCODING": "utf-8"}).stdout
+                                                        "PYTHONIOENCODING": "utf-8"}, no_color=color == "--no-color").stdout
             terminal = re.sub(r"\x1b\[[0-9;]*m", "", terminal)
             summary = ("33 reusable, 4 active, 6 failed, 2 queued" if "--plain" in options else
                        "✓ 33 reusable, ▶ 4 active, ✗ 6 failed, ◷ 2 queued")
@@ -185,7 +185,7 @@ class StatusAttentionTests(LocalBackendTestCase):
         states.update({f"canceled__{index}__gwflow_complete": "SUBMITTED" for index in range(6)})
         environment = self.inject(job_states=states)
         output = self.cli("--file", "selected workflow.py:pipeline", "--backend", "recovery_fixture",
-                          "--verbose", "warning", "--no-color", "status", "--plain", "--status", "failed",
+                          "--verbose", "warning", "status", "--plain", "--status", "failed",
                           "--status", "canceled", env=environment)
         self.assertIn("Showing 12 of 13 selected Tasks", output)
         commands = self.commands(output)
@@ -193,7 +193,7 @@ class StatusAttentionTests(LocalBackendTestCase):
         for state, command in commands.items():
             self.assertIn("selected workflow.py:pipeline", command)
             self.assertIn("recovery_fixture", command)
-            self.assertIn("--no-color", command)
+            self.assertNotIn("--no-color", command)
             self.assertIn("--plain", command)
             self.assertIn("warning", command)
             self.assertIn("*", command)
@@ -220,7 +220,7 @@ class StatusAttentionTests(LocalBackendTestCase):
         expanded = self.cli(*command[1:])
         self.assertRegex(expanded, r"(?m)^mapping__A\s+blocked\s+\?/6")
         for options in ((), ("--plain",)):
-            output = self.terminal_cli("--no-color", "status", *options, width=40).stdout
+            output = self.terminal_cli("status", *options, width=40, no_color=True).stdout
             command = self.commands(output)["blocked"]
             self.assertIn("*", command)
             self.assertEqual(self.names(self.cli(*command[1:])), ["mapping__A"])

@@ -9,6 +9,8 @@ from gwf.core import pass_context
 from gwf.exceptions import WorkflowError
 
 from . import admission
+from .activity import activity
+from .diagnostics import report_error
 from ._frontend import _submission_guard, load_workflow, observation_deadline
 from .lifecycle import Store
 from .presentation import inspection_command
@@ -40,11 +42,12 @@ def recover(ctx, task):
         # through an inactivity assertion.
         for local in lifecycle_jobs(attempt["executions"]):
             admission.read_intent(store, attempt, local)
-        with ExitStack() as resources:
+        with activity("Waiting for scheduler..."), ExitStack() as resources:
             try:
                 with observation_deadline():
                     backend = resources.enter_context(create_backend(ctx.backend, working_dir=ctx.working_dir, config=ctx.config))
             except Exception as error:
+                report_error(error, f"Observing Task {task}")
                 click.echo(f"Backend observations unavailable: {error}; relying on the whole-Task inactivity assertion.")
                 backend = None
             observations = admission.observe_submissions(store, attempt, backend, ctx.backend,

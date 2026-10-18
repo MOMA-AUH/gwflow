@@ -6,6 +6,7 @@ from gwf.backends import BackendStatus, create_backend
 from gwf.exceptions import WorkflowError
 
 from . import _files, _observations, admission, images, inputs, transfer
+from .activity import activity as report_activity
 from .lifecycle import Store, TaskObservation, declarations, ordered_tasks, ordered_targets, producer_names, target_dependencies
 from .selection import task_selection
 from .workflow import lifecycle_jobs
@@ -190,6 +191,7 @@ def awaiting_producer_metadata(store, observation):
 
 
 @_observations.planning_pass()
+@report_activity("Inspecting Tasks...")
 def plan_workflow(workflow, ctx, *, selectors=(), force=False):
     selected_names = task_selection(workflow._task_declarations, selectors)
     expected = {f"{name}__{local}" for name, task in workflow._task_declarations.items()
@@ -207,7 +209,7 @@ def plan_workflow(workflow, ctx, *, selectors=(), force=False):
             scope.update(producer_names(declared[name][0]))
     tasks = []
     observations_by_name = {}
-    with create_backend(ctx.backend, working_dir=ctx.working_dir, config=ctx.config) as backend:
+    with report_activity("Waiting for scheduler..."), create_backend(ctx.backend, working_dir=ctx.working_dir, config=ctx.config) as backend:
         for name in order:
             if name not in scope:
                 continue

@@ -15,6 +15,7 @@ from gwf.exceptions import WorkflowError
 from gwf.executors import Bash
 
 from . import _observations, inputs
+from .activity import activity
 
 
 # Docker distribution reference grammar: repository, optional tag and digest.
@@ -87,8 +88,8 @@ def _acquire(reference, path, locations):
         try:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
-            print(f"Waiting for image acquisition: {reference}", file=sys.stderr, flush=True)
-            fcntl.flock(lock, fcntl.LOCK_EX)
+            with activity(f"Waiting for image acquisition: {reference}"):
+                fcntl.flock(lock, fcntl.LOCK_EX)
         if not os.path.lexists(path):
             try:
                 _pull(reference, path, locations)
@@ -103,9 +104,9 @@ def _acquire(reference, path, locations):
 def _pull(reference, path, locations):
     with tempfile.TemporaryDirectory(prefix=".pull-", dir=path.parent) as temporary:
         acquired = Path(temporary) / "image.sif"
-        print(f"Pulling image: {reference}", file=sys.stderr, flush=True)
-        result = subprocess.run(["apptainer", "pull", "--disable-cache", str(acquired), reference],
-                                capture_output=True, text=True)
+        with activity(f"Pulling image: {reference}"):
+            result = subprocess.run(["apptainer", "pull", "--disable-cache", str(acquired), reference],
+                                    capture_output=True, text=True)
         if result.returncode:
             raise WorkflowError(f"Apptainer pull failed (exit {result.returncode}): {result.stderr.strip()}")
         _readable(acquired, locations)

@@ -154,7 +154,7 @@ class TaskLogTests(LocalBackendTestCase):
         workflow = self.work / "workflow.py"
         workflow.write_text(workflow.read_text() + "custom = gwf\n")
         workflow.rename(self.work / "custom flow.py")
-        options = ("--file", "custom flow.py:custom", "--backend", "local", "--no-color")
+        options = ("--file", "custom flow.py:custom", "--backend", "local")
         output = self.cli(*options, "logs", "sample")
         command = shlex.split(next(line.strip() for line in output.splitlines()
                                   if line.strip().startswith("gwflow ")))

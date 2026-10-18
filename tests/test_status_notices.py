@@ -88,7 +88,7 @@ class StatusNoticeTests(LocalBackendTestCase):
         self.notice_workflow()
         for flags in ((), ("*",), ("--details",)):
             for options in ((), ("--plain",)):
-                output = self.terminal_cli("--no-color", "status", "--status", "queued", *flags, *options, width=40).stdout
+                output = self.terminal_cli("status", "--status", "queued", *flags, *options, width=40, no_color=True).stdout
                 compact = re.sub(r"[\s│]", "", output.split("Workflow notices", 1)[1])
                 for name in self.blockers:
                     self.assertIn(name + "(outsideselection)", compact)
@@ -118,8 +118,8 @@ class StatusNoticeTests(LocalBackendTestCase):
                     baseline = observed
                 self.assertEqual(observed, baseline)
                 self.assertEqual(self.snapshot(), before)
-        output = self.terminal_cli("--no-color", "-b", "recovery_fixture", "status", "sample", "--status", "reusable",
-                                   width=40, env=environment).stdout
+        output = self.terminal_cli("-b", "recovery_fixture", "status", "sample", "--status", "reusable",
+                                   width=40, env=environment, no_color=True).stdout
         self.assertIn(reminder, " ".join(output.split()))
         output = self.cli("-b", "recovery_fixture", "status", "sample", "--status", "reusable",
                           env=self.inject(running_prefix="sample__gwflow_complete"))

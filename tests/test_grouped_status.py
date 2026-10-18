@@ -118,14 +118,14 @@ class GroupedStatusTests(LocalBackendTestCase):
         before = self.snapshot()
         record = self.work / "backend-observations.jsonl"
         record.unlink(missing_ok=True)
-        redirected = self.cli("--use-color", "-b", "recovery_fixture", "status", env=environment)
+        redirected = self.cli("-b", "recovery_fixture", "status", env=environment)
         observations = record.read_text().splitlines()
         for width in (40, 100):
             for color in ("--use-color", "--no-color"):
                 with self.subTest(width=width, color=color):
                     record.unlink()
-                    raw = self.terminal_cli(color, "-b", "recovery_fixture", "status",
-                                            width=width, env=environment).stdout
+                    raw = self.terminal_cli("-b", "recovery_fixture", "status",
+                                            width=width, env=environment, no_color=color == "--no-color").stdout
                     output = re.sub(r"\x1b\[[0-9;]*m", "", raw)
                     words = " ".join(output.split())
                     for label in ("▶ 1 active", "◷ 1 queued", "✓ 2 reusable", "✓ 2/3"):
@@ -141,12 +141,12 @@ class GroupedStatusTests(LocalBackendTestCase):
                         self.assertNotIn("\x1b[", raw)
                     self.assertEqual(record.read_text().splitlines(), observations)
                     self.assertEqual(self.snapshot(), before)
-        plain = self.terminal_cli("--use-color", "-b", "recovery_fixture", "status", "--plain",
-                                  env=environment).stdout
-        ascii_output = self.terminal_cli("--use-color", "-b", "recovery_fixture", "status",
-                                         env={**environment, "PYTHONIOENCODING": "ascii"}).stdout
-        dumb = self.terminal_cli("--use-color", "-b", "recovery_fixture", "status",
-                                 env={**environment, "TERM": "dumb"}).stdout
+        plain = self.terminal_cli("-b", "recovery_fixture", "status", "--plain",
+                                  env=environment, no_color=False).stdout
+        ascii_output = self.terminal_cli("-b", "recovery_fixture", "status",
+                                         env={**environment, "PYTHONIOENCODING": "ascii"}, no_color=False).stdout
+        dumb = self.terminal_cli("-b", "recovery_fixture", "status",
+                                 env={**environment, "TERM": "dumb"}, no_color=False).stdout
         for output in (redirected, plain, ascii_output, dumb):
             self.assertNotRegex(output, "[✓▶◷]|\x1b\\[")
             self.assertIn("1 active", output)

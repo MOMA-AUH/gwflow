@@ -48,7 +48,7 @@ class StatusLayoutTests(LocalBackendTestCase):
                 for color, options in controls:
                     with self.subTest(width=width, view=view, color=color, options=options):
                         record.unlink(missing_ok=True)
-                        raw = self.terminal_cli(color, "-b", "recovery_fixture", "status", *view, *options, width=width, env=environment).stdout
+                        raw = self.terminal_cli("-b", "recovery_fixture", "status", *view, *options, width=width, env=environment, no_color=color == "--no-color").stdout
                         output = uncolored(raw)
                         self.assertIn("2 of 2 Tasks selected", " ".join(output.split()))
                         self.assertNotIn("…", output)
@@ -71,11 +71,11 @@ class StatusLayoutTests(LocalBackendTestCase):
                             baseline = observed
                         self.assertEqual(observed, baseline)
                         self.assertEqual(self.snapshot(), before)
-        redirected = self.cli("--use-color", "-b", "recovery_fixture", "status", "--details", env=environment)
+        redirected = self.cli("-b", "recovery_fixture", "status", "--details", env=environment)
         self.assertIn(f"{prefix}__A__{local}", redirected)
         self.assertNotIn("\x1b[", redirected)
         for view in ((), (selector,), ("--details",)):
-            output = self.terminal_cli("--no-color", "status", "--status", "failed", *view, width=40).stdout
+            output = self.terminal_cli("status", "--status", "failed", *view, width=40, no_color=True).stdout
             self.assertIn("No Tasks selected" if view else "No Tasks match the filter", output)
             self.assertIn(f"{prefix}__A", output)
             self.assertIn("(outside selection)", output)
@@ -127,7 +127,7 @@ class StatusLayoutTests(LocalBackendTestCase):
         selector = "duplex_mapping__sample_[AB]"
         before = self.snapshot()
         for color, options in (("--no-color", ()), ("--use-color", ()), ("--no-color", ("--plain",))):
-            raw = self.terminal_cli(color, "status", selector, *options, width=40).stdout
+            raw = self.terminal_cli("status", selector, *options, width=40, no_color=color == "--no-color").stdout
             output = uncolored(raw)
             self.assertIn("2 of 45 Tasks selected\n1 blocked, 1 failed", output)
             self.assertIn("State: blocked\n  Jobs completed: ?/5", output)
@@ -145,7 +145,7 @@ class StatusLayoutTests(LocalBackendTestCase):
             self.assertIn("no new jobs will be submitted", " ".join(notices.split()))
             self.assertNotIn("run again after upstream result recovery", " ".join(notices.split()))
             self.assertEqual(self.snapshot(), before)
-        grouped = self.terminal_cli("--no-color", "status", "--status", "failed", width=40).stdout
+        grouped = self.terminal_cli("status", "--status", "failed", width=40, no_color=True).stdout
         commands = re.findall(r"(?m)^  (gwflow [^\n]+)$", grouped)
         failed = next(shlex.split(command) for command in commands if "--status failed" in command)
         self.assertIn("*", failed)

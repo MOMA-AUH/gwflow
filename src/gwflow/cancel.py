@@ -7,6 +7,8 @@ from gwf.backends import BackendStatus, create_backend
 from gwf.core import pass_context
 
 from . import admission
+from .activity import activity
+from .diagnostics import report_error
 from ._frontend import _submission_guard, load_workflow
 from .lifecycle import Store, ordered_targets
 from .selection import task_selection
@@ -35,7 +37,7 @@ def cancel(ctx, selectors, dry_run):
             selected = task_selection(set(workflow._task_declarations) | set(attempts), selectors)
             connection = (create_backend(ctx.backend, working_dir=ctx.working_dir, config=ctx.config)
                           if selected & attempts.keys() else nullcontext())
-            with connection as backend:
+            with activity("Waiting for scheduler..."), connection as backend:
                 for name in sorted(selected):
                     removed = "; no longer declared" if name not in workflow._task_declarations else ""
                     attempt = attempts.get(name)
@@ -49,6 +51,7 @@ def cancel(ctx, selectors, dry_run):
                         try:
                             item = admission.observe_cancellation(store, attempt, local, backend, ctx.backend)
                         except Exception as error:
+                            report_error(error, f"Observing {name}__{local}")
                             click.echo(f"  {name}__{local}: Unresolved job identity: {error}; no request")
                             errors += 1
                             task_errors = True
@@ -68,6 +71,7 @@ def cancel(ctx, selectors, dry_run):
                             try:
                                 admission.require_cancellation_identity(backend, ctx.backend, item)
                             except Exception as error:
+                                report_error(error, f"Identifying {name}__{local}")
                                 click.echo(f"  {label}; Unresolved job identity: {error}; no request")
                                 errors += 1
                                 task_errors = True
@@ -79,6 +83,7 @@ def cancel(ctx, selectors, dry_run):
                             try:
                                 admission.request_cancellation(backend, ctx.backend, item)
                             except Exception as error:
+                                report_error(error, f"Canceling {name}__{local}")
                                 click.echo(f"  {label}; Cancellation request failed: {error}")
                                 errors += 1
                             else:

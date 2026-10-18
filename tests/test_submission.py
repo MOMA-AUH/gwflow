@@ -81,8 +81,8 @@ class SubmissionReportTests(LocalBackendTestCase):
 
     def test_partial_submission_counts_only_receiving_tasks_and_wraps_critical_summary(self):
         environment = self.inject(record_acceptances=True, reject_prefix="b__gwflow_prepare")
-        result = self.terminal_cli("--no-color", "-b", "recovery_fixture", "run",
-                                   env=environment, width=32, success=False)
+        result = self.terminal_cli("-b", "recovery_fixture", "run",
+                                   env=environment, width=32, success=False, no_color=True)
         output = " ".join(result.stdout.replace("│", "").split())
         self.assertIn("3 jobs confirmed submitted across 1 Task", output)
         self.assertIn("1 submission outcome unknown; 5 planned jobs not attempted", output)
@@ -109,8 +109,8 @@ class SubmissionReportTests(LocalBackendTestCase):
         workflow = self.work / "workflow.py"
         workflow.write_text(workflow.read_text().replace("alias='a'", f"alias={name!r}"))
         environment = self.inject(record_acceptances=True, lose_ack=name + "__compute")
-        result = self.terminal_cli("--no-color", "-b", "recovery_fixture", "run", "--details",
-                                   env=environment, width=32, success=False)
+        result = self.terminal_cli("-b", "recovery_fixture", "run", "--details",
+                                   env=environment, width=32, success=False, no_color=True)
         output = re.sub(r"[\s│]", "", result.stdout)
         self.assertNotIn("…", output)
         self.assertIn("Nextaction:Run", output)

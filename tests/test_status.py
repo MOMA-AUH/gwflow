@@ -39,7 +39,7 @@ class ManagedStatusTests(LocalBackendTestCase):
             for color, options, branch in (("--no-color", (), "├─"), ("--use-color", (), "├─"),
                                            ("--no-color", ("--plain",), "|-")):
                 with self.subTest(width=width, color=color, options=options):
-                    output = self.terminal_cli(color, "status", "--details", *options, width=width).stdout
+                    output = self.terminal_cli("status", "--details", *options, width=width, no_color=color == "--no-color").stdout
                     text = re.sub(r"\x1b\[[0-9;]*m", "", output)
                     if width >= 110 or (options and width >= 80):
                         self.assertRegex(text, r"Task\s+Target\s+State\s+Jobs completed")
@@ -61,7 +61,7 @@ class ManagedStatusTests(LocalBackendTestCase):
         workflow.write_text(workflow.read_text().replace("'left'", repr(name)))
         for options in ((), ("--plain",)):
             with self.subTest(options=options):
-                complete = self.terminal_cli("--no-color", "status", "--details", *options, width=100).stdout
+                complete = self.terminal_cli("status", "--details", *options, width=100, no_color=True).stdout
                 self.assertNotIn("…", complete)
                 self.assertIn("sample__" + name, complete)
                 self.assertIn("pending", complete)
@@ -129,15 +129,15 @@ class ManagedStatusTests(LocalBackendTestCase):
         self.finish()
 
     def test_terminal_color_and_plain_output_keep_the_same_status_information(self):
-        decorated = self.terminal_cli("--use-color", "status", "*").stdout
+        decorated = self.terminal_cli("status", "*", no_color=False).stdout
         self.assertIn("\x1b[", decorated)
         self.assertNotRegex(decorated, "[╭○━]")
         self.assertIn("0/5", decorated)
-        monochrome = self.terminal_cli("--no-color", "status", "*").stdout
+        monochrome = self.terminal_cli("status", "*", no_color=True).stdout
         self.assertNotIn("\x1b[", monochrome)
         self.assertNotRegex(monochrome, "[╭○━]")
-        plain = self.terminal_cli("--use-color", "status", "*", "--plain").stdout
-        redirected = self.cli_result("--use-color", "status", "*").stdout
+        plain = self.terminal_cli("status", "*", "--plain", no_color=False).stdout
+        redirected = self.cli_result("status", "*").stdout
         for output in (plain, redirected):
             self.assertNotIn("\x1b[", output)
             self.assertNotRegex(output, "[╭○━]")
