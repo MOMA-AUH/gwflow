@@ -93,6 +93,15 @@ together. See [cleanup](reference.md#cleanup).
 
 ## Resolve an unresolved submission
 
+In terminal status, select a Task and press `h` for its recorded history. Select
+a job or historical submission and press `l` for stdout/stderr. These reads do
+not query the scheduler or refresh workflow status. Use `u` to reload the open
+evidence and `r` to inspect the workflow again. The log remains tied to its exact
+submission after a retry; a notice identifies changes to current work. Missing
+logs and read failures stay visible, with previously read text preserved. See
+the [browser reference](reference.md#status-views-and-progress) for paging and
+read limits.
+
 An interrupted admission, missing acknowledgement, or unavailable scheduler
 history can leave work blocked. Start with the normal diagnostics:
 

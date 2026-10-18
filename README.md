@@ -99,6 +99,11 @@ Status focuses on the selected tasks and explains relevant upstream blockers.
 In the browser, use arrows and Enter to open groups, Tasks, and jobs; Esc goes
 back, `/` searches Task names, `f` filters states, and `q` quits. `r` refreshes
 observations while the previous snapshot remains browsable; `?` shows all keys.
+`h` reads the selected Task's saved history, and `l` chooses stdout/stderr for
+the selected job or historical submission. Logs open at a bounded tail; Page
+Up/Down page through content, Home/End jump to the beginning/latest, and `u`
+reloads the log or history without refreshing status. Open evidence stays pinned
+when `r` observes a retry or removes its Task from the selected workflow.
 Task details include full diagnostics
 and buttons to copy ordinary commands for another terminal.
 Use `gwflow logs` for all current task log indexes, or `gwflow logs 'hello*'`

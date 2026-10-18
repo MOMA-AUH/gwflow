@@ -46,7 +46,8 @@ def capture(ctx, destination, selectors):
                              "submission": submission, "backend_id": item.job_id if item else None,
                              "logs": {stream: str(plan.store.working_dir / ".gwf" / "logs" / f"{submission}.{stream}")
                                       for stream in ("stdout", "stderr")} if submission else {}})
-            tasks.append({"name": task.name, "state": row.state, "completed": row.completed,
+            tasks.append({"name": task.name, "attempt": task.attempt['attempt'] if task.attempt else None,
+                          "state": row.state, "completed": row.completed,
                           "total": row.total, "detail": row.detail, "jobs": jobs,
                           "next_action": NEXT_ACTIONS[task.action], "reason": task.reason,
                           "diagnostics": "\n".join(task_details(plan.store, task)),
@@ -56,6 +57,9 @@ def capture(ctx, destination, selectors):
             Report(plan.store, plain=True).workflow_notices(task_order(workflow, plan), rows, include_reasons=True)
         snapshot = {
             "finished": time.time(),
+            "storage": {"working_dir": str(plan.store.working_dir), "work_root": str(plan.store.locations['work']),
+                        "results_root": str(plan.store.locations['results']),
+                        "staging_root": str(plan.store.locations['staging'])},
             "total": len(workflow._task_declarations),
             "tasks": tasks,
             "notices": notices.getvalue().strip(),
