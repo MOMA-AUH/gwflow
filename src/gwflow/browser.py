@@ -168,6 +168,9 @@ class InspectionStatus(Static):
     def on_mount(self):
         self.update_status()
 
+    def on_resize(self):
+        self.update_status()
+
     def on_focus(self):
         self.update_status()
 
