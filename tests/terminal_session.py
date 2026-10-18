@@ -18,6 +18,41 @@ def _control_terminal():
     fcntl.ioctl(1, termios.TIOCSCTTY, 0)
 
 
+def rendered_lines(output):
+    """Apply line-oriented Rich cursor/erase controls, retaining scrollback.
+
+    Call with a terminal wide enough to avoid automatic line wrapping. This
+    deliberately rejects other controls rather than modeling a full TUI.
+    """
+    lines = [[]]
+    row = column = 0
+    for part in re.split(r'(\x1b\[[0-?]*[ -/]*[@-~]|\r|\n)', output):
+        if part == '\r':
+            column = 0
+        elif part == '\n':
+            row += 1
+            if row == len(lines):
+                lines.append([])
+        elif part.startswith('\x1b['):
+            if part.endswith('m') or part in ('\x1b[?25h', '\x1b[?25l'):
+                continue
+            if part.endswith('A'):
+                row = max(0, row - int(part[2:-1] or '1'))
+            elif part == '\x1b[2K':
+                lines[row] = []
+            elif part in ('\x1b[K', '\x1b[0K'):
+                del lines[row][column:]
+            else:
+                raise AssertionError(f'Unsupported terminal control: {part!r}')
+        else:
+            for character in part:
+                while len(lines[row]) <= column:
+                    lines[row].append(' ')
+                lines[row][column] = character
+                column += 1
+    return '\n'.join(''.join(line) for line in lines)
+
+
 class TerminalSession:
     def __init__(self, command, *, cwd, env=None, size=(80, 24), term='xterm-256color', encoding='utf-8',
                  input_mode='terminal'):

@@ -6,7 +6,7 @@ import subprocess
 import sys
 
 from support import FIXTURES, LocalBackendTestCase
-from terminal_session import TerminalSession
+from terminal_session import TerminalSession, rendered_lines
 import test_fresh
 
 
@@ -97,6 +97,19 @@ class SubmissionReportTests(LocalBackendTestCase):
         self.assertEqual(len(self.acceptances()), 9)
         self.finish()
         self.assertEqual((self.work / "trace").read_text().splitlines().count("a"), 1)
+
+    def test_terminal_refresh_preserves_every_backend_warning(self):
+        environment = self.inject(record_acceptances=True, submission_warnings=True)
+        terminal = TerminalSession([self.executable, "-b", "recovery_fixture", "run", "a"],
+                                   cwd=self.work, env=environment, size=(180, 24))
+        self.addCleanup(terminal.close)
+        self.assertEqual(terminal.finish(), 0, terminal.text)
+        visible = rendered_lines(terminal.output.decode())
+        for local in ("gwflow_prepare", "compute", "gwflow_complete"):
+            self.assertIn("Submission warning for " + local, visible)
+        self.assertIn("Submitted 3 jobs across 1 Task.", visible)
+        self.assertEqual(len(self.acceptances()), 3)
+        self.finish()
 
     def test_narrow_no_color_bar_never_counts_unconfirmed_acceptance(self):
         environment = self.inject(record_acceptances=True, hold_submission_prefix="a__compute", lose_ack="a__compute")
@@ -270,3 +283,20 @@ class SubmissionReportTests(LocalBackendTestCase):
         self.cli("-b", "recovery_fixture", "run", env=environment)
         self.assertEqual(len(self.acceptances()), 9)
         self.finish()
+
+    def test_backend_exit_failure_keeps_confirmed_identities_without_duplicate_retry(self):
+        result = self.cli_result("-b", "recovery_fixture", "run", success=False,
+                                 env=self.inject(record_acceptances=True, fail_tracking_flush=True))
+        self.assertIn("9 jobs confirmed submitted across 3 Tasks", result.stdout)
+        self.assertIn("0 submission acceptances unconfirmed", result.stdout)
+        self.assertIn("0 planned jobs not attempted", result.stdout)
+        accepted = self.acceptances()
+        self.assertEqual(len(accepted), 9)
+        for item in accepted:
+            self.assertIn(item["name"], result.stdout)
+            self.assertIn("Backend job: " + str(item["id"]), result.stdout)
+        self.assertIn("injected backend tracking flush failure", result.stderr)
+        self.finish()
+        retried = self.cli_result("-b", "recovery_fixture", "run", env=self.inject(record_acceptances=True))
+        self.assertIn("No new jobs were submitted.", retried.stdout)
+        self.assertEqual(self.acceptances(), accepted)

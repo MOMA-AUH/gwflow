@@ -1,4 +1,4 @@
-"""Static Task views derived from planning observations, without backend access."""
+"""Task reports derived from observations and outcomes, without backend access."""
 
 from collections import Counter
 from contextlib import contextmanager
@@ -12,14 +12,13 @@ import click
 from gwf.backends import BackendStatus
 from rich import box
 from rich.console import Console, Group
-from rich.live import Live
 from rich.panel import Panel
 from rich.progress_bar import ProgressBar
 from rich.table import Table
 from rich.text import Text
 
 from .inspection import blockage_line, condition, task_details
-from .activity import activity
+from .activity import activity, live_report
 from .lifecycle import TaskObservation, ordered_targets, producer_names
 from .workflow import lifecycle_jobs
 from .terminal import supports_decoration, supports_unicode
@@ -635,8 +634,8 @@ class Report:
             row.add_row(ProgressBar(total=len(outcomes), completed=confirmed, width=width), Text(count))
             return Group(Text("Submitting jobs"), row)
 
-        with Live(get_renderable=render, console=self.console, refresh_per_second=4,
-                  redirect_stdout=False, redirect_stderr=False, vertical_overflow="visible"):
+        with live_report(get_renderable=render, console=self.console, refresh_per_second=4,
+                         redirect_stdout=False, redirect_stderr=False, vertical_overflow="visible"):
             yield
 
     def submissions(self, outcomes, *, interrupted=False, details=False):
@@ -659,6 +658,8 @@ class Report:
             self.line("No new jobs were submitted.")
         receipts = outcomes if details else [outcome for outcome in outcomes
                                             if outcome.failed or outcome.entered and not outcome.confirmed]
+        if interrupted and not receipts:
+            receipts = confirmed
         if receipts:
             self.line("Submission outcomes:" if details else "Submissions requiring attention:")
             for outcome in receipts:

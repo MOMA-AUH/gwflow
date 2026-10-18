@@ -1,6 +1,6 @@
 """Elapsed activity for terminal frontends; one phase message for plain output."""
 
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from contextvars import ContextVar
 import logging
 import os
@@ -8,21 +8,51 @@ import sys
 
 import click
 from rich.console import Console
+from rich.live import Live
 from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 
 from .terminal import supports_decoration
 
 
 _current = ContextVar("gwflow_activity", default=None)
+_report = ContextVar("gwflow_live_report", default=None)
+
+
+@contextmanager
+def live_report(**options):
+    """Register a report display so diagnostics remain above later refreshes."""
+    display = Live(**options)
+
+    @contextmanager
+    def pause():
+        nonlocal display
+        display.stop()
+        try:
+            yield
+        finally:
+            # A stopped Live retains its cursor shape. Start a fresh display
+            # below the diagnostic so refresh cannot erase that static text.
+            display = Live(**options)
+            display.start(refresh=True)
+
+    token = _report.set(pause)
+    try:
+        display.start(refresh=True)
+        yield
+    finally:
+        _report.reset(token)
+        display.stop()
 
 
 @contextmanager
 def pause_activity():
     current = _current.get()
+    report = _report.get()
     if current is not None:
         current[0].stop()
     try:
-        yield
+        with report() if report is not None else nullcontext():
+            yield
     finally:
         if current is not None:
             current[0].start()

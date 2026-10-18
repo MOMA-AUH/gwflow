@@ -6,6 +6,7 @@ This fixture uses only gwf's existing backend plugin contract for those cases.
 """
 
 import json
+import logging
 import os
 from pathlib import Path
 import shlex
@@ -78,6 +79,9 @@ class RecoveryBackend(TrackingBackend):
         return super().status(target)
 
     def submit(self, target, dependencies):
+        if self.options.get("submission_warnings"):
+            logging.warning("Submission warning for %s", target.name.split("__")[1])
+            time.sleep(0.4)
         if self.options.get("capture_options"):
             with (self.work / "submitted-options.jsonl").open("a") as stream:
                 stream.write(json.dumps({"name": target.name, "options": target.options}) + "\n")
@@ -132,6 +136,8 @@ class RecoveryBackend(TrackingBackend):
                 (self.work / "tracking-held").touch()
                 wait_for(lambda: (self.work / "tracking-release").exists(),
                          timeout=self.options.get("tracking_timeout", 20))
+            if self.submitted and self.options.get("fail_tracking_flush"):
+                raise RuntimeError("injected backend tracking flush failure")
             transition = self.options.get("fail_after_observation")
             if transition and not (self.work / "transition-done").exists():
                 # Release an actually running job into failure after planning's
