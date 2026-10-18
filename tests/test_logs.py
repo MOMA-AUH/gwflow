@@ -177,6 +177,20 @@ class TaskLogTests(LocalBackendTestCase):
         self.assertIn("Use gwflow logs sample --history --details", result.stderr)
         self.assertIn("Read the stream with gwflow logs sample__left --stderr --no-pager", result.stderr)
 
+    def test_exact_submission_owner_survives_a_new_overlapping_public_declaration(self):
+        self.configure_workflow(left_command="echo original-log; printf left > same.txt")
+        workflow = self.work / "workflow.py"
+        workflow.write_text(workflow.read_text().replace("alias='sample'", "alias='a__b'"))
+        self.run_complete()
+        index = self.cli("logs", "a__b", "--details")
+        submission = re.search(r"a__b__left: complete; submission (\S+)", index).group(1)
+        self.configure_workflow()
+        workflow.write_text(workflow.read_text().replace("alias='sample'", "alias='a'")
+                            .replace("task.target('left'", f"task.target({submission.removeprefix('a__')!r}"))
+        error = self.cli("logs", submission, "--details", success=False)
+        self.assertIn("Use gwflow logs a__b --details", error)
+        self.assertIn("original-log", self.cli("logs", submission, "--no-pager"))
+
     def test_individual_streams_keep_pager_and_no_pager_behavior(self):
         self.configure_workflow(left_command="echo pager-output; echo pager-error >&2; printf left > same.txt")
         self.run_complete()

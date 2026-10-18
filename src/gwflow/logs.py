@@ -91,14 +91,14 @@ def _display_index(store, name, attempt, jobs, declared, unavailable=None, histo
 
 
 def _job_names(store, workflow):
-    names = {}
+    names = {f"{name}__{local}": ("declared public job", name)
+             for name, task in workflow._task_declarations.items() for local in lifecycle_jobs(task.targets)}
     for attempt in store.recorded_attempts():
         for local in lifecycle_jobs(attempt["structure"]["targets"]):
-            names[f"{attempt['task']}__{local}"] = (f"recorded public job in Task {attempt['task']!r}", attempt["task"])
+            names.setdefault(f"{attempt['task']}__{local}",
+                             (f"recorded public job in Task {attempt['task']!r}", attempt["task"]))
         for intent in admission.recorded_intents(store, attempt):
             names[intent["submission"]] = (f"recorded submission in Task {attempt['task']!r}", attempt["task"])
-    names.update({f"{name}__{local}": ("declared public job", name)
-                  for name, task in workflow._task_declarations.items() for local in lifecycle_jobs(task.targets)})
     return names
 
 
