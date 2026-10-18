@@ -91,6 +91,10 @@ gwflow run hello --dry-run --details
 ```
 
 A selected run includes its required upstream tasks and reuses valid results.
+The preview states how many jobs it would submit. Actual runs show confirmed
+backend acceptances and a final outcome; these counts do not mean computation
+has finished. Add `run --details` for all submission receipts. Interrupted runs
+keep failed or uncertain submissions visible by default.
 Managed Tasks always track command changes; no opt-in is needed. Editing a
 computation command requires a fresh whole-Task attempt, even after cleanup.
 For changes to packages or environments that leave tracked commands and inputs

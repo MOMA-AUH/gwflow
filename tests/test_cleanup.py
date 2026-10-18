@@ -41,12 +41,11 @@ class CompletedWorkCleanupTests(LocalBackendTestCase):
             self.assertEqual(list((self.work / "work" / name).iterdir()), [])
             self.assertEqual((self.work / "results" / name / "result.txt").read_text(), name)
         (self.work / "workflow.py").write_text(self.with_consumer)
-        submitted = self.run_complete()
-        self.assertIn("Submitted target c__compute", submitted)
-        self.assertNotIn("Submitted target a__", submitted)
-        self.assertNotIn("Submitted target b__", submitted)
+        submitted = self.run_complete("--details")
+        self.assertIn("c__compute: confirmed submitted", submitted)
+        self.assertNotRegex(submitted, r"[ab]__\w+: confirmed submitted")
         self.assertEqual(Counter((self.work / "trace").read_text().splitlines()), {"a": 1, "b": 1, "c": 1})
-        self.assertNotIn("Submitted target", self.cli("run"))
+        self.assertNoSubmissions(self.cli("run"))
         for name in ("a", "b"):
             self.assertEqual(list((self.work / "work" / name).iterdir()), [])
 
@@ -117,7 +116,7 @@ class CompletedWorkCleanupTests(LocalBackendTestCase):
         for name, expected in (("a", "a"), ("b", "b"), ("c", "a")):
             self.assertEqual((self.work / "results" / name / "result.txt").read_text(), expected)
         self.assertEqual(self.cli("logs", "a__compute", "--no-pager"), producer_logs)
-        self.assertNotIn("Submitted target", self.cli("run"))
+        self.assertNoSubmissions(self.cli("run"))
 
     def test_groups_jobs_and_namespaces_do_not_expand_to_tasks(self):
         workflow = self.work / "workflow.py"
@@ -302,7 +301,7 @@ class CompletedWorkCleanupTests(LocalBackendTestCase):
                                          cwd=self.work, capture_output=True, text=True, timeout=30)
                 self.assertIn(outcome.returncode, (102, 103, 104, 105), outcome.stdout + outcome.stderr)
                 self.assertEqual((self.work / "results/a/result.txt").read_text(), "a")
-                self.assertNotIn("Submitted target", self.cli("run"))
+                self.assertNoSubmissions(self.cli("run"))
                 self.cli("clean", "--delete", "a")
                 self.assertFalse(workspace.exists())
                 self.assertIn("already removed", self.cli("clean", "a"))
@@ -334,7 +333,7 @@ class TransferStagingCleanupTests(LocalBackendTestCase):
         self.cli("clean", "--delete")
         self.assertTrue(all(not path.exists() for path in leftover))
         self.assert_results(result)
-        self.assertNotIn("Submitted target", self.cli("run"))
+        self.assertNoSubmissions(self.cli("run"))
 
     def test_staging_directory_ownership_publication_interruptions_recover(self):
         for index, phase in enumerate(("crash_before_staging_ownership", "crash_after_staging_ownership", "crash_after_staging_directory_install")):
@@ -350,4 +349,4 @@ class TransferStagingCleanupTests(LocalBackendTestCase):
                 self.assertRegex(self.cli("run", "--dry-run"), r"Task a\s+Reuse\s+")
                 self.assertEqual((self.work / "trace").read_text().splitlines(), ["compute"] * (index + 1))
                 self.cli("clean", "--delete", "a")
-                self.assertNotIn("Submitted target", self.cli("run"))
+                self.assertNoSubmissions(self.cli("run"))

@@ -104,7 +104,7 @@ class ContainerStagingTests(LocalBackendTestCase):
         self.assertEqual((self.work / "input.txt").read_text(), "hello\n")
         self.assertEqual((self.work / "results/sample/result.txt").read_text(), "hello\neditable\n")
         self.assertEqual(len(list((self.work / "work").rglob("scratch"))), 1)
-        self.assertNotIn("Submitted target", self.cli("run"))
+        self.assertNoSubmissions(self.cli("run"))
 
     def test_alias_through_linked_parent_stages_basename_with_shell_punctuation(self):
         temporary = tempfile.TemporaryDirectory(prefix="gwflow source ',\"$: ")
@@ -124,7 +124,7 @@ class ContainerStagingTests(LocalBackendTestCase):
         self.run_complete()
         self.assertEqual((self.work / "results/sample/result.txt").read_text(), "external destination\n")
         self.assertEqual(actual.read_text(), "external destination\n")
-        self.assertNotIn("Submitted target", self.cli("run"))
+        self.assertNoSubmissions(self.cli("run"))
 
     def test_only_declared_inputs_are_staged_and_neighbors_are_not_dependencies(self):
         (self.work / "input.txt.fai").write_text("undeclared companion\n")
@@ -139,12 +139,12 @@ class ContainerStagingTests(LocalBackendTestCase):
         self.assertEqual(result.read_text(), "hello\ndeclared companion\nextra\n")
         (self.work / "extra.txt").write_text("neighbor changed\n")
         write_workflow(self.work, ["companion.txt", "input.txt", "input.txt"], command=command, bound=False)
-        self.assertNotIn("Submitted target", self.cli("run"))
+        self.assertNoSubmissions(self.cli("run"))
         (self.work / "companion.txt").write_text("companion changed\n")
         self.run_complete()
         self.assertEqual(result.read_text(), "hello\ncompanion changed\nneighbor changed\n")
         self.cli("clean", "--delete")
-        self.assertNotIn("Submitted target", self.cli("run"))
+        self.assertNoSubmissions(self.cli("run"))
 
     def test_custom_paths_disambiguate_basenames_and_place_declared_companions_together(self):
         sources = ["sales/summary.csv", "returns/summary.csv", "genome.fa", "genome.index", "extra.txt"]
@@ -162,7 +162,7 @@ class ContainerStagingTests(LocalBackendTestCase):
         ))
         self.run_complete()
         self.assertEqual((self.work / "results/sample/result.txt").read_text(), "sales\nreturns\nreference\nindex\nextra\n")
-        self.assertNotIn("Submitted target", self.cli("run"))
+        self.assertNoSubmissions(self.cli("run"))
 
     def test_effective_layout_changes_refresh_but_equivalent_mappings_reuse(self):
         self.configure(use_spec_hashes=True)
@@ -175,7 +175,7 @@ class ContainerStagingTests(LocalBackendTestCase):
                        {"./extra.txt": "./extra.txt", "./input.txt": "./input.txt"}):
             with self.subTest(equivalent=layout):
                 write_workflow(self.work, sources, command=command, stage_as=layout)
-                self.assertNotIn("Submitted target", self.cli("run"))
+                self.assertNoSubmissions(self.cli("run"))
                 self.assertEqual(self.attempt(), previous)
         write_workflow(self.work, sources, command=command, stage_as={"new dir/input.txt": "input.txt"})
         before = self.snapshot()
@@ -188,7 +188,7 @@ class ContainerStagingTests(LocalBackendTestCase):
         self.assertNotEqual(self.attempt(), previous)
         self.assertEqual((self.work / "results/sample/result.txt").read_text(), "hello\nextra\n")
         self.assertIn("/new dir/input.txt", self.cli("logs", "sample__read", "--no-pager"))
-        self.assertNotIn("Submitted target", self.cli("run"))
+        self.assertNoSubmissions(self.cli("run"))
 
     def test_layout_replacement_keeps_activity_and_ownership_guards(self):
         command = "cat {source0} > out.txt"

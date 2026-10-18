@@ -64,6 +64,14 @@ normal validity checks; downstream consumers are not selected automatically.
 `gwflow run --force` selects every declared Task. Force still respects unresolved
 submissions, activity, ownership, and consumer protections.
 
+The preview names the full Execution scope and planned job/receiving-Task counts.
+An actual run shows its plan, confirmed backend acceptances, and final outcome.
+The terminal submission bar includes preparation and completion jobs; it does
+not measure completed computation. If submission is interrupted, accepted jobs
+may continue. Use the failed or uncertain submission identities in that receipt
+to investigate; `run --details` requests all receipts for an invocation. Do not
+repeat a mutating run merely to obtain earlier diagnostic output.
+
 A fresh attempt removes the selected Task's previous retained results before
 replacement jobs are submitted. A later failure does not restore those results.
 When downstream consumers are considered by a later run, the changed producer

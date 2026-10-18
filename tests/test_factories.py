@@ -172,7 +172,7 @@ class FactoryReuseTests(LocalBackendTestCase):
             "gwf.task(definition, key='A')\ngwf.task(definition, key='B')",
             "gwf.task(definition, key='B')\ngwf.task(definition, key='A')"))
         self.assertEqual(self.cli("run", "--dry-run").count("Reuse"), 2)
-        self.assertNotIn("Submitted target", self.cli("run"))
+        self.assertNoSubmissions(self.cli("run"))
         for path, evidence in before.items():
             self.assertEqual((path.read_bytes(), path.stat().st_mtime_ns), evidence)
         workflow.write_text(workflow.read_text().replace("gwf.task(definition, key='A')",

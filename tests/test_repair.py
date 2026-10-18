@@ -46,7 +46,7 @@ class ResultsRepairTests(LocalBackendTestCase):
         self.assert_results(result)
         self.assertRegex(self.cli("run", "--dry-run"), r"Task a\s+Reuse\s+")
         self.assertRegex(self.cli("run", "--dry-run"), r"Task c\s+Reuse\s+")
-        self.assertNotIn("Submitted target", self.cli("run"))
+        self.assertNoSubmissions(self.cli("run"))
 
     def test_missing_result_directory_is_repaired_without_computation(self):
         self.run_complete()
@@ -368,7 +368,7 @@ class ResultsRepairTests(LocalBackendTestCase):
             self.assertRegex(preview, r"Task a\s+Wait\s+")
             self.assertRegex(preview, r"Task c\s+Defer\s+")
             self.assertIn("run again after upstream result recovery", preview)
-            self.assertIn("Submitted target b__compute", self.cli("run"))
+            self.assertIn("b__compute: confirmed submitted", self.cli("run", "--details"))
             self.wait_for((self.work / "results/b/renamed.txt").exists)
             self.assertFalse((self.work / "results/samples/a/report/renamed.txt").exists())
             self.assertEqual((self.work / "results/c/joined.txt").read_text(), "firstsecond")

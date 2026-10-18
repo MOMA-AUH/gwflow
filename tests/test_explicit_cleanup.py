@@ -42,7 +42,7 @@ class ExplicitCleanupTests(LocalBackendTestCase):
         self.assertFalse((self.work / "work/a" / older).exists())
         self.assertTrue((self.work / "work/a" / current).exists())
         self.assertEqual((self.work / "results/a/result.txt").read_text(), "a")
-        self.assertNotIn("Submitted target", self.cli("run"))
+        self.assertNoSubmissions(self.cli("run"))
         self.assertEqual(Counter((self.work / "trace").read_text().splitlines()), {"a": 2, "b": 1})
 
     def test_failed_attempt_cleanup_discards_successful_progress_but_preserves_logs(self):
@@ -84,7 +84,7 @@ class ExplicitCleanupTests(LocalBackendTestCase):
         for name, attempt in (("a", a), ("b", b)):
             self.assertFalse((self.work / "work" / name / attempt).exists())
             self.assertEqual((self.work / "results" / name / "result.txt").read_text(), name)
-        self.assertNotIn("Submitted target", self.cli("run"))
+        self.assertNoSubmissions(self.cli("run"))
 
     def test_active_attempt_refuses_explicit_deletion_without_cleaning_other_selections(self):
         held, release = self.work / "held", self.work / "release"

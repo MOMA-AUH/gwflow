@@ -38,7 +38,7 @@ class OperatorRecoveryTests(LocalBackendTestCase):
         self.assertIn("gwflow --file workflow.py --backend local run sample --dry-run", output)
         self.assertIn(intent["submission"], output)
         self.assertIn("Resolved", output)
-        self.assertNotIn("Submitted target", output)
+        self.assertNoSubmissions(output)
         self.assertFalse((self.work / "trace").exists())
         self.assertEqual({path: path.read_bytes() for path in evidence}, evidence)
         self.assertIn("No unresolved submissions", self.cli("recover", "sample"))

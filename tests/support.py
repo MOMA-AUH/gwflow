@@ -181,8 +181,12 @@ class LocalBackendTestCase(unittest.TestCase):
             return states and all(state == LocalStatus.COMPLETED for state in states.values())
         self.wait_for(done)
 
-    def run_complete(self):
-        output = self.cli("run")
+    def assertNoSubmissions(self, output):
+        # Cover both the installed bootstrap's gwf log and managed receipts.
+        self.assertNotRegex(output, r"Submitted target|Submitted [1-9]\d* jobs? across|[1-9]\d* jobs? confirmed submitted")
+
+    def run_complete(self, *options):
+        output = self.cli("run", *options)
         self.finish()
         return output
 

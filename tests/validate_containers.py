@@ -140,7 +140,7 @@ class RegistryDeploymentTests(LocalBackendTestCase):
         before = self.snapshot()
         for arguments in (("status", "--details"), ("run", "--dry-run"), ("run",)):
             output = self.cli(*arguments)
-            self.assertNotIn("Submitted target", output)
+            self.assertNoSubmissions(output)
             self.assertEqual(self.snapshot(), before)
         self.assertEqual(len(self.calls("pull")), 1)
         (self.work / "hold").touch()
@@ -166,7 +166,7 @@ class RegistryDeploymentTests(LocalBackendTestCase):
         final = self.image_observation()
         self.cli("clean", "--delete")
         self.assertEqual(self.image_observation(), final)
-        self.assertNotIn("Submitted target", self.cli("run"))
+        self.assertNoSubmissions(self.cli("run"))
         self.record({"registry_reference": self.reference, "probe_calls": self.calls("pull") + self.calls("exec"),
                      "cache_preserved": True, "frontend_image": final})
 
@@ -259,8 +259,8 @@ class RuntimeBackendCase(LocalBackendTestCase):
             self.assertEqual(result.returncode, 0, output)
         else:
             self.assertNotEqual(result.returncode, 0, output)
-        if "Submitted target" in output:
-            self.cli("status", "--details", env=env)
+        if re.search(r"Submitted [1-9]\d* jobs? across|[1-9]\d* jobs? confirmed submitted", output):
+            self.cli("logs", "--details", env=env)
         return output
 
     def wait_for(self, predicate):
@@ -326,7 +326,7 @@ class RuntimeBackendCase(LocalBackendTestCase):
         self.assertFalse(Path(selected.strip()).is_relative_to(self.work / "work"))
         self.assertEqual(host_content.read_text(), "external\n")
         self.cli("clean", "--delete")
-        self.assertNotIn("Submitted target", self.cli("run"))
+        self.assertNoSubmissions(self.cli("run"))
 
 
 def main():

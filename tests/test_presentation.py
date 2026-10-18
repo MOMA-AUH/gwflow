@@ -27,7 +27,7 @@ class TaskPresentationTests(LocalBackendTestCase):
                 self.assertNotIn(str(self.work), result.stdout)
                 self.assertIn("Workflow blocked — no new jobs will be submitted", result.stdout)
                 self.assertNotIn("Workflow blocked", result.stderr)
-                self.assertNotIn("Submitted target", result.stderr)
+                self.assertNoSubmissions(result.stderr)
                 details = self.cli_result(*command, "--details", success=success).stdout
                 if command[0] == "status":
                     self.assertRegex(details, r"(?m)^sample\s+blocked\s+\?/5")

@@ -37,10 +37,10 @@ class LifecycleInspectionTests(LocalBackendTestCase):
         actual = self.cli(*backend, "run", "--details", *options, success=success, env=env)
         for line in re.findall(r"Task [^\n]+", preview):
             self.assertIn(line, actual)
-        pending = re.findall(r"Would submit (\S+)", preview)
-        self.assertEqual(actual.count("Submitted target "), len(pending))
+        pending = re.findall(r"(?m)^  Would submit (\S+)", preview)
+        self.assertEqual(actual.count(": confirmed submitted"), len(pending))
         for public in pending:
-            self.assertIn("Submitted target " + public, actual)
+            self.assertIn(public + ": confirmed submitted", actual)
         return actual
 
     def test_fresh_reuse_and_selected_force_previews_match_actual_runs(self):

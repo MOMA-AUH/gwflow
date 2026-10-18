@@ -91,7 +91,7 @@ class ContainerGraphTests(LocalBackendTestCase):
         for target, image in (("first", self.first_image), ("second", self.second_image)):
             self.assertIn(f"IMAGE={image}", self.cli("logs", f"producer__{target}", "--no-pager"))
         self.assertEqual(self.counts(), {"host": 1, "first": 1, "second": 1, "last": 1, "independent": 1})
-        self.assertNotIn("Submitted target", self.cli("run"))
+        self.assertNoSubmissions(self.cli("run"))
 
     def test_new_container_consumer_uses_retained_results_after_producer_cleanup(self):
         self.run_complete()
@@ -100,11 +100,11 @@ class ContainerGraphTests(LocalBackendTestCase):
         self.assertFalse(workspace.exists())
         self.write_workflow()
         output = self.run_complete()
-        self.assertEqual(output.count("Submitted target"), 3)
+        self.assertIn("Submitted 3 jobs across 1 Task.", output)
         self.assertEqual((self.work / "results/consumer/result.txt").read_text(), "start:first:second")
         self.assertFalse(workspace.exists())
         self.assertEqual(self.counts(), {"host": 1, "first": 1, "second": 1, "last": 1, "independent": 1, "consumer": 1})
-        self.assertNotIn("Submitted target", self.cli("run"))
+        self.assertNoSubmissions(self.cli("run"))
 
     def test_image_change_refreshes_whole_task_and_consumers_with_equal_retained_metadata(self):
         self.write_workflow()
@@ -133,7 +133,7 @@ class ContainerGraphTests(LocalBackendTestCase):
         self.assertEqual(after["independent"], before["independent"])
         self.assertEqual((result.stat().st_size, result.stat().st_mtime_ns), (info.st_size, info.st_mtime_ns))
         self.assertEqual(self.counts(), {"host": 2, "first": 2, "second": 2, "last": 2, "independent": 1, "consumer": 2})
-        self.assertNotIn("Submitted target", self.cli("run"))
+        self.assertNoSubmissions(self.cli("run"))
 
     def test_changed_image_alias_and_adding_or_removing_image_refreshes(self):
         self.configure(use_spec_hashes=True)

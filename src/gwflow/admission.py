@@ -51,6 +51,8 @@ class SubmissionOutcome:
     entered: bool = False
     confirmed: bool = False
     job_id: str | int | None = None
+    attempt: str | None = None
+    failed: bool = False
 
 
 def backend_identity(backend, name):
@@ -428,7 +430,6 @@ class _AdmissionCall:
 
     def submit(self, target, dependencies):
         self.outcome.entered = True
-        self.outcome.submission = target.name
         result = self.backend.submit(target, dependencies)
         self.outcome.confirmed = True
         job_id = self.backend.get_tracked_id(target) if hasattr(self.backend, "get_tracked_id") else None

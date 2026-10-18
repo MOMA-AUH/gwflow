@@ -12,6 +12,7 @@ from gwflow.cli import main
 work, phase, task = Path(sys.argv[1]), sys.argv[2], sys.argv[3]
 sys.argv = ["gwflow", *sys.argv[4:]]
 original_replace, original_unlink, original_rename, original_rmdir = os.replace, os.unlink, os.rename, os.rmdir
+original_symlink = os.symlink
 
 
 def directory(kwargs, key):
@@ -104,5 +105,12 @@ def rmdir(path, **kwargs):
     return result
 
 
+def symlink(source, destination, **kwargs):
+    if phase == "submission_log_error" and destination == task + "__gwflow_prepare.stdout":
+        raise OSError("injected submission log alias failure")
+    return original_symlink(source, destination, **kwargs)
+
+
 os.replace, os.unlink, os.rename, os.rmdir = replace, unlink, rename, rmdir
+os.symlink = symlink
 main()

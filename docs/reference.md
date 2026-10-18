@@ -455,6 +455,12 @@ Repair, Reuse, Wait, Defer, or Blocked. A Task's current state is separate from
 its Next action: a failed completion job can need Finish, and a failed consumer
 can need Defer until upstream results recover.
 
+The preview is labeled **Run preview — no jobs will be submitted** and gives
+planned submission counts, for example `Would submit 9 jobs across 3 Tasks.`
+An actual run starts with **Execution plan**. Both show the full Execution scope,
+including required upstream Tasks. A blocked plan shows its blockers and omits
+submission counts that could be mistaken for an executable plan.
+
 Detailed run reports include the full reason, changed inputs and commands,
 attempt UUIDs, work/results/staging paths, expected producer attempts, active
 consumers, public job names, available backend IDs, log paths, and planned
@@ -470,12 +476,23 @@ at least one new job; that does not mean it is fully submitted or finished.
 Runs with no new submissions say so. Dry-run and blocked plans never claim
 submission.
 
-Interrupted submission separates confirmed jobs, unknown acceptance, and planned
+During formatted terminal submission, a bar shows confirmed new backend
+acceptances over planned submissions, including preparation and completion
+jobs. For example, `3/9 confirmed` counts acceptances, not finished computation.
+Unconfirmed acceptance never advances the bar. Plain, redirected, and unsupported
+terminal output retain the plan and outcome without animation. `NO_COLOR` keeps
+the bar while omitting its colors.
+
+Interrupted submission separately lists confirmed jobs, unconfirmed acceptance, and planned
 jobs not attempted. An exception after entering a backend can happen after
 acceptance; it proves neither rejection nor execution failure. Already submitted
-jobs may continue, and submission is not rolled back. `--details` includes
-individual outcomes and available submission names and backend IDs. Reports go
-to stdout; operational diagnostics and command errors go to stderr.
+jobs may continue, and submission is not rolled back. Failed or uncertain jobs
+keep available full attempt, submission, and backend identifiers in the default
+receipt, including failures after confirmed acceptance. `--details` includes all
+individual outcomes; routine per-job backend announcements are available through
+`--verbose debug`. Reports go to stdout; operational diagnostics and command errors
+go to stderr. These receipts come from the same invocation; do not repeat a run
+to obtain diagnostics for an earlier submission.
 
 Status, dry-run, logs, cancellation, and cleanup preview wait for frontend bookkeeping transitions
 and leave Task attempts, baselines, Completion records, work, and results intact.

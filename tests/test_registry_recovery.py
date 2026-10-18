@@ -39,7 +39,7 @@ class RegistryRecoveryTests(test_registry_images.RegistryTestCase):
         saved.rename(image)
         before = self.snapshot()
         self.assertRegex(self.cli("run", "--dry-run"), r"Task sample\s+Reuse\s+")
-        self.assertNotIn("Submitted target", self.cli("run"))
+        self.assertNoSubmissions(self.cli("run"))
         self.assertEqual(self.snapshot(), before)
         self.assertEqual(self.attempt(), attempt)
         self.assertEqual(len(self.calls("exec")), 1)
@@ -79,7 +79,7 @@ class RegistryRecoveryTests(test_registry_images.RegistryTestCase):
         self.options(content="changed image\n", mtime_ns=info.st_mtime_ns)
         self.assertRegex(self.cli("run", "--dry-run"), r"Task sample\s+Reuse\s+")
         self.assertEqual(self.snapshot(), before)
-        self.assertNotIn("Submitted target", self.cli("run"))
+        self.assertNoSubmissions(self.cli("run"))
         self.assertEqual(len(self.calls("pull")), 2)
         self.assertEqual(len(self.calls("exec")), 1)
         self.assertEqual((self.work / "results/sample/out.txt").read_text(), "fixture image\n")
@@ -170,7 +170,7 @@ class RegistryRecoveryTests(test_registry_images.RegistryTestCase):
         self.assertEqual(result.read_text(), "fixture image\n")
         self.assertEqual(result.stat().st_mtime_ns, info.st_mtime_ns)
         self.assertEqual(len(self.calls("exec")), 1)
-        self.assertNotIn("Submitted target", self.cli("run"))
+        self.assertNoSubmissions(self.cli("run"))
 
     def test_changed_image_cannot_replace_uncertain_submission_until_admitted(self):
         self.run_complete()

@@ -80,7 +80,7 @@ class ContainerPlanningTests(LocalBackendTestCase):
                     self.configure_workflow(reference)
                     output = self.cli("run", success=False)
                     self.assertIn("managed storage", output)
-                    self.assertNotIn("Submitted target", output)
+                    self.assertNoSubmissions(output)
             finally:
                 alias.unlink()
 
@@ -109,10 +109,10 @@ class ContainerRuntimeTests(LocalBackendTestCase):
         scratch = list((self.work / "work").rglob("temporary"))
         self.assertEqual(len(scratch), 1)
         self.assertEqual(scratch[0].read_text(), "scratch\n")
-        self.assertNotIn("Submitted target", self.cli("run"))
+        self.assertNoSubmissions(self.cli("run"))
         self.cli("clean", "--delete")
         self.assertFalse(scratch[0].exists())
-        self.assertNotIn("Submitted target", self.cli("run"))
+        self.assertNoSubmissions(self.cli("run"))
 
     def attempt(self, *, success=True):
         return self.task_attempts(success=success)["sample"]
@@ -149,7 +149,7 @@ class ContainerRuntimeTests(LocalBackendTestCase):
                 self.assertEqual(self.snapshot(), before)
                 self.run_complete()
                 self.assertNotEqual(self.attempt(), previous)
-                self.assertNotIn("Submitted target", self.cli("run"))
+                self.assertNoSubmissions(self.cli("run"))
 
     def test_changed_alias_refreshes_and_unavailable_image_preserves_results(self):
         self.configure(use_spec_hashes=True)
@@ -173,7 +173,7 @@ class ContainerRuntimeTests(LocalBackendTestCase):
             self.assertIn("compute", output)
             self.assertEqual(self.snapshot(), before)
         saved.rename(self.image)
-        self.assertNotIn("Submitted target", self.cli("run"))
+        self.assertNoSubmissions(self.cli("run"))
         self.assertEqual(self.attempt(), previous)
 
     def test_preparation_accepts_changed_image_and_launches_its_resolved_alias(self):

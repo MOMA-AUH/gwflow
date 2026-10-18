@@ -96,7 +96,7 @@ class ContainerRecoveryTests(LocalBackendTestCase):
         self.assertTrue(all(Path(path).exists() for path in old))
         self.assertEqual(self.counts(), {"left": 1, "right": 2, "join": 1})
         self.assertEqual((self.work / "results/sample/result.txt").read_text(), "leftright")
-        self.assertNotIn("Submitted target", self.cli("run"))
+        self.assertNoSubmissions(self.cli("run"))
 
     def test_matching_images_allow_interrupted_repair_without_repeating_commands(self):
         self.failure.unlink()
@@ -119,7 +119,7 @@ class ContainerRecoveryTests(LocalBackendTestCase):
         self.assertEqual(result.stat().st_mtime_ns, original.st_mtime_ns)
         self.assertEqual(self.counts(), {"left": 1, "right": 1, "join": 1})
         self.assertEqual(self.attempt(), attempt)
-        self.assertNotIn("Submitted target", self.cli("run"))
+        self.assertNoSubmissions(self.cli("run"))
 
     def test_unavailable_image_blocks_repair_and_changed_image_requires_fresh_computation(self):
         self.failure.unlink()
@@ -165,7 +165,7 @@ class ContainerRecoveryTests(LocalBackendTestCase):
         self.assertEqual((self.work / "results/sample/result.txt").read_text(), "leftright")
         self.assertEqual(self.attempt(), attempt)
         self.assertEqual(self.counts(), {"left": 1, "right": 1, "join": 1})
-        self.assertNotIn("Submitted target", self.cli("run"))
+        self.assertNoSubmissions(self.cli("run"))
 
     def test_protected_dependents_block_retry_and_image_changes_refresh_successful_siblings(self):
         self.cli("run")
@@ -204,7 +204,7 @@ class ContainerRecoveryTests(LocalBackendTestCase):
         for arguments in (("run", "--dry-run", "--details"), ("status", "--details"), ("run", "--dry-run", "--details"), ("run", "--details")):
             output = self.cli("-b", "recovery_fixture", *arguments, env=env)
             self.assertIn("running" if arguments[0] == "status" else "queued/running work", output)
-            self.assertNotIn("Submitted target", output)
+            self.assertNoSubmissions(output)
             self.assertEqual(self.snapshot(), before)
         self.assert_blocked_without_changes("Active consumers block replacement: consumer",
                                             backend=("-b", "recovery_fixture"),

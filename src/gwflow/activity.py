@@ -36,6 +36,12 @@ def message(value, *, err=False):
 
 class DiagnosticHandler(logging.StreamHandler):
     def emit(self, record):
+        # Managed run reports own routine receipts; keep gwf's duplicate
+        # per-target announcements available only in diagnostic debug output.
+        if (record.name == "gwf.scheduling" and record.levelno == logging.INFO
+                and str(record.msg).startswith("Submitted target ")
+                and logging.getLogger().getEffectiveLevel() > logging.DEBUG):
+            return
         with pause_activity():
             super().emit(record)
 
