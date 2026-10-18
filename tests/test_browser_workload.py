@@ -13,11 +13,16 @@ from test_browser_interaction import visible_text
 
 class BrowserWorkloadTests(unittest.IsolatedAsyncioTestCase):
     async def test_filter_error_control_opens_details_without_applying_pending_choices(self):
-        app = CapturedBrowser(statuses=('failed',))
+        app = CapturedBrowser(statuses=('failed',), status_interval=60)
         async with app.run_test(size=(80, 24)) as pilot:
             await pilot.pause()
             await app.accept_inspection(None, 'refresh failure\nTraceback:\ncomplete traceback')
             await pilot.press('f', 'c', 'tab')
+            self.assertIn('Press Enter for error details', visible_text(app))
+            await pilot.press('shift+tab')
+            self.assertIn('Tab then Enter: error details', visible_text(app))
+            self.assertNotIn('Press Enter for error details', visible_text(app))
+            await pilot.press('tab')
             self.assertIn('Press Enter for error details', visible_text(app))
             await pilot.press('enter', 'enter')
             self.assertIn('complete traceback', visible_text(app))

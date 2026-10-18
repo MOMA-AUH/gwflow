@@ -9,29 +9,23 @@ from . import cleanup
 from .activity import activity
 from ._frontend import _submission_guard, load_workflow
 from .lifecycle import Store, declarations
+from .presentation import Report
 from .selection import task_selection
-
-
-def display(store, observation):
-    attempt = observation.attempt
-    click.echo(f"Task {attempt['task']} attempt {attempt['attempt']}: {observation.action}; {observation.reason}")
-    click.echo(f"  Workspace: {store.workspace(attempt)}")
-    click.echo(f"  Staging group: {store.locations['staging'] / attempt['attempt']}")
-    if observation.explicit:
-        click.echo("  Consequences: removes successful intermediate progress, diagnostics within work, and repair sources; "
-                   "incomplete computation will need a fresh attempt. Current results and logs are preserved.")
-    for path in observation.directories:
-        if path != str(store.workspace(attempt)):
-            click.echo(f"  Staging: {path}")
 
 
 @click.command("clean")
 @click.argument("selectors", nargs=-1)
 @click.option("--delete", is_flag=True, help="Delete eligible owned work without an interactive prompt.")
 @click.option("--attempt", "attempt_ids", multiple=True, help="Select exact recorded inactive attempts, giving up retry progress and repair sources.")
+@click.option("--plain", is_flag=True, help="Use undecorated output.")
 @pass_context
-def clean_work(ctx, selectors, delete, attempt_ids):
-    """Preview work for Task names or quoted globs; omit selectors for all Tasks."""
+def clean_work(ctx, selectors, delete, attempt_ids, plain):
+    """Preview work for Task names or quoted globs; omit selectors for all Tasks.
+
+    Reports group attempts by Task and keep complete identities and paths.
+    --delete reports actual removals, kept work, and any incomplete removal.
+    Retained results and logs are preserved.
+    """
     if selectors and attempt_ids:
         raise WorkflowError("Cannot combine Task selectors and --attempt")
     workflow = load_workflow(ctx)
@@ -48,22 +42,28 @@ def clean_work(ctx, selectors, delete, attempt_ids):
             raise WorkflowError("Unknown attempts for --attempt: " + ", ".join(sorted(unknown)))
         selected = [attempt for attempt in attempts if attempt["attempt"] in attempt_ids] if attempt_ids else [
             attempt for attempt in attempts if attempt["task"] in selected_names]
-        with activity("Waiting for scheduler..."), create_backend(ctx.backend, working_dir=ctx.working_dir, config=ctx.config) as backend:
-            observations = [cleanup.observe(store, attempt, backend, ctx.backend, explicit=bool(attempt_ids)) for attempt in selected]
-        click.echo("Work cleanup" if delete else "Cleanup preview; use --delete to remove eligible work")
-        for name in sorted(selected_names - {attempt["task"] for attempt in selected}):
-            click.echo(f"Task {name}: no recorded work")
-        if not observations and not selected_names:
-            click.echo("No recorded attempts selected")
-        if delete and any(item.action == "blocked" for item in observations):
-            for item in observations:
-                display(store, item)
-            raise WorkflowError("Cleanup refused for ownership or activity")
-        if delete:
-            with activity("Rechecking scheduler before deletion..."), create_backend(ctx.backend, working_dir=ctx.working_dir, config=ctx.config) as backend:
-                observations = [cleanup.remove(store, item, backend, ctx.backend) if item.action == "eligible" else item
-                                for item in observations]
-        for item in observations:
-            display(store, item)
-        if delete and any(item.action == "blocked" for item in observations):
-            raise WorkflowError("Cleanup refused after rechecking ownership or activity")
+        observations = [cleanup.CleanupObservation(attempt, "unassessed", "inspection did not complete",
+                                                   explicit=bool(attempt_ids)) for attempt in selected]
+        interrupted = False
+        try:
+            with activity("Waiting for scheduler..."), create_backend(ctx.backend, working_dir=ctx.working_dir, config=ctx.config) as backend:
+                for index, attempt in enumerate(selected):
+                    observations[index] = cleanup.observe(store, attempt, backend, ctx.backend, explicit=bool(attempt_ids))
+            if delete and any(item.action == "blocked" for item in observations):
+                raise WorkflowError("Cleanup refused for ownership or activity")
+            if delete:
+                with activity("Rechecking scheduler before deletion..."), create_backend(ctx.backend, working_dir=ctx.working_dir, config=ctx.config) as backend:
+                    for item in observations:
+                        if item.action == "eligible":
+                            cleanup.remove(store, item, backend, ctx.backend)
+            if delete and any(item.action == "blocked" for item in observations):
+                raise WorkflowError("Cleanup refused after rechecking ownership or activity")
+        except BaseException:
+            interrupted = True
+            raise
+        finally:
+            if delete and interrupted:
+                for item in observations:
+                    if item.action == "eligible":
+                        item.action, item.reason = "not_processed", "eligible work was not processed"
+            Report(store, plain=plain).cleanup(observations, selected_names, delete=delete, interrupted=interrupted)

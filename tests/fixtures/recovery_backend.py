@@ -148,6 +148,8 @@ class RecoveryBackend(TrackingBackend):
                 raise RuntimeError("injected backend tracking flush failure")
             if self.cancelled and self.options.get("fail_cancel_flush"):
                 raise RuntimeError("injected cancellation tracking flush failure")
+            if self.options.get("fail_backend_close"):
+                raise RuntimeError("injected backend close failure")
             transition = self.options.get("fail_after_observation")
             if transition and not (self.work / "transition-done").exists():
                 # Release an actually running job into failure after planning's

@@ -513,16 +513,96 @@ class Report:
         self.recovery_notices(tasks)
 
     def recovery_notices(self, tasks):
+        affected = []
         for task in tasks:
             unresolved = [item.submission for item in task.submissions.values() if item.state == "uncertain"]
             if not unresolved:
                 continue
-            self.notice(f"Task {task.name}: unresolved submissions: " + ", ".join(unresolved))
-            self.status_line("Investigate the scheduler and job logs. Establish whole-Task inactivity, including "
-                             "computation, preparation, and completion jobs; cancellation requests alone are insufficient.")
-            self.status_line("Only then assert inactivity with:")
-            click.echo("  " + shlex.join(inspection_command("recover", task.name)), color=False)
-            self.status_line("Recovery records your assertion; it submits no jobs and does not establish success.")
+            affected.append(task.name)
+            self.status_line(f"Task {task.name}: unresolved submissions:", style="bold yellow")
+            for submission in unresolved:
+                self.status_line("  " + submission)
+        if not affected:
+            return
+        self.status_line("Investigate the scheduler and job logs. Establish whole-Task inactivity, including "
+                         "computation, preparation, and completion jobs; cancellation requests alone are insufficient.")
+        self.status_line("Only then assert inactivity for each Task with:")
+        for name in affected:
+            click.echo("  " + shlex.join(inspection_command("recover", name)), color=False)
+        self.status_line("Recovery records your assertion; it submits no jobs and does not establish success.")
+
+    def recovery(self, name, attempt, outcomes, *, declared=True, unavailable=None, interrupted=False):
+        resolved = [item for item in outcomes if item.confirmed]
+        self.status_line(f"Task {name}", style="bold cyan")
+        if resolved or interrupted:
+            self.status_line(f"  Resolved {len(resolved)} submission{'s' if len(resolved) != 1 else ''}.")
+        else:
+            self.status_line("  No unresolved submissions.")
+        self.status_line("  Whole-Task inactivity asserted by the operator.")
+        self.status_line(f"  Attempt: {attempt['attempt'] if attempt else 'no recorded attempt'}")
+        for item in outcomes:
+            label = "Resolved submission" if item.confirmed else "Resolution unconfirmed:"
+            self.status_line(f"  {label} {item.submission}")
+        if interrupted:
+            self.status_line("  Recovery interrupted; remaining resolutions were not confirmed by this invocation.")
+        if unavailable:
+            self.status_line(f"  Backend observations unavailable: {unavailable}; relying on the whole-Task inactivity assertion.")
+        self.status_line("  No jobs submitted or canceled.")
+        self.status_line("  Recovery does not establish successful computation.")
+        if interrupted:
+            self.status_line("Investigate the error and establish whole-Task inactivity before repeating recovery.")
+        elif declared:
+            self.status_line("Next: inspect the execution plan")
+            click.echo("  " + shlex.join(inspection_command("run", name, "--dry-run")), color=False)
+        else:
+            self.status_line("Restore this Task's declaration before using the run preview or ordinary run.")
+
+    def cleanup(self, observations, names, *, delete=False, interrupted=False):
+        labels = {"eligible": "Eligible", "removed": "Removed", "already_removed": "Already removed",
+                  "keep": "Kept", "blocked": "Blocked", "failed": "Failed", "partial": "Partly removed",
+                  "not_processed": "Not processed", "unassessed": "Not assessed"}
+        counts = Counter(item.outcome for item in observations)
+        summary = ", ".join(f"{counts[action]} {labels[action].lower()}"
+                            for action in labels if counts[action]) or "no recorded attempts"
+        removed = any(item.removed_paths for item in observations)
+        incomplete = any(item.outcome in ("failed", "blocked", "partial", "not_processed", "unassessed") for item in observations)
+        heading = ("Partial cleanup" if delete and removed and incomplete else
+                   "Cleanup interrupted" if interrupted else "Cleanup outcomes" if delete else "Cleanup preview")
+        self.status_line(heading + " — " + summary, style="bold cyan")
+        if not delete:
+            self.status_line("No files removed. Use --delete to remove eligible work.")
+        elif not removed and not any(item.removing_path for item in observations):
+            self.status_line("No files removed.")
+        if any(item.explicit for item in observations):
+            self.status_line("Explicit-attempt cleanup discards successful intermediate progress, diagnostics within work, "
+                             "and repair sources; incomplete computation will need a fresh attempt. "
+                             "Retained results and logs are preserved.")
+        for name in sorted(set(names) | {item.attempt["task"] for item in observations}):
+            attempts = [item for item in observations if item.attempt["task"] == name]
+            if not attempts:
+                self.status_line(f"Task {name}: no recorded work")
+                continue
+            self.status_line(f"Task {name}", style="bold")
+            for item in attempts:
+                attempt = item.attempt
+                workspace = self.store.workspace(attempt)
+                self.status_line(f"  {labels[item.outcome]} — {item.reason}")
+                self.status_line(f"    Attempt: {attempt['attempt']}")
+                self.status_line(f"    Workspace: {workspace}")
+                self.status_line(f"    Staging group: {self.store.locations['staging'] / attempt['attempt']}")
+                for path in item.directories:
+                    if path != str(workspace):
+                        self.status_line(f"    Staging: {path}")
+                if item.paths_error:
+                    self.status_line(f"    Staging paths unavailable: {item.paths_error}")
+                for path in item.removed_paths:
+                    self.status_line(f"    Known removed: {path}")
+                if item.removing_path:
+                    self.status_line(f"    Removal outcome unconfirmed: {item.removing_path}; may be partly removed")
+                if item.outcome in ("failed", "partial", "blocked") and (item.removed_paths or item.removing_path):
+                    for path in item.directories:
+                        if path not in item.removed_paths and path != item.removing_path:
+                            self.status_line(f"    Not confirmed removed here: {path}")
 
     def cancellations(self, name, attempt, outcomes, *, removed="", details=False, interrupted=False):
         descriptions = {

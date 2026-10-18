@@ -1,6 +1,7 @@
 """Owned work cleanup through the installed CLI and real local workers."""
 
 from collections import Counter
+import re
 import shlex
 import subprocess
 import sys
@@ -24,6 +25,31 @@ class CompletedWorkCleanupTests(LocalBackendTestCase):
         roots = [self.work / ".gwf/gwflow", self.work / "work", self.work / "results"]
         return {path: (path.read_bytes(), path.stat().st_mtime_ns)
                 for root in roots for path in root.rglob("*") if path.is_file()}
+
+    def test_preview_groups_current_and_older_attempts_with_complete_paths(self):
+        self.run_complete()
+        older = self.task_attempts()["a"]
+        staging = re.findall(r"(?m)^\s+Staging: (.+)$", self.cli("clean", "a"))
+        self.assertTrue(staging)
+        self.cli("run", "a", "--force")
+        self.finish()
+        current = self.task_attempts()
+        before = self.snapshot()
+        result = self.cli_result("clean")
+        self.assertIn("Cleanup preview — 2 eligible, 1 kept", result.stdout)
+        self.assertIn("No files removed. Use --delete to remove eligible work.", result.stdout)
+        self.assertEqual(result.stdout.count("Task a\n"), 1)
+        self.assertEqual(result.stdout.count("Task b\n"), 1)
+        for name, attempt in (("a", older), ("a", current["a"]), ("b", current["b"])):
+            self.assertIn("Attempt: " + attempt, result.stdout)
+            self.assertIn("Workspace: " + str(self.work / "work" / name / attempt), result.stdout)
+        self.assertRegex(result.stdout, r"Eligible — [^\n]+\n    Attempt:")
+        self.assertRegex(result.stdout, r"Kept — [^\n]+\n    Attempt:")
+        self.assertIn("Kept — superseded attempt", result.stdout)
+        for path in staging:
+            self.assertIn("Staging: " + path, result.stdout)
+        self.assertNotIn("Cleanup preview", result.stderr)
+        self.assertEqual(self.snapshot(), before)
 
     def test_preview_then_delete_preserves_results_and_only_new_consumer_computes(self):
         self.run_complete()
@@ -49,6 +75,94 @@ class CompletedWorkCleanupTests(LocalBackendTestCase):
         for name in ("a", "b"):
             self.assertEqual(list((self.work / "work" / name).iterdir()), [])
 
+    def test_deletion_distinguishes_new_removal_from_already_removed_and_kept_work(self):
+        self.run_complete()
+        older = self.task_attempts()["a"]
+        self.cli("run", "a", "--force")
+        self.finish()
+        current = self.task_attempts()["a"]
+        result = self.cli_result("clean", "a", "--delete")
+        self.assertIn("Cleanup outcomes — 1 removed, 1 kept", result.stdout)
+        self.assertIn("Removed —", result.stdout)
+        self.assertNotIn("Already removed —", result.stdout)
+        self.assertTrue((self.work / "work/a" / older).exists())
+        self.assertFalse((self.work / "work/a" / current).exists())
+        result = self.cli_result("clean", "a", "--delete")
+        self.assertIn("Cleanup outcomes — 1 already removed, 1 kept", result.stdout)
+        self.assertIn("No files removed.", result.stdout)
+        self.assertIn("Already removed —", result.stdout)
+        self.assertEqual((self.work / "results/a/result.txt").read_text(), "a")
+        self.assertNoSubmissions(self.cli("run"))
+        self.assertEqual(Counter((self.work / "trace").read_text().splitlines()), {"a": 2, "b": 1})
+
+    def test_partial_deletion_reports_known_removed_and_unconfirmed_work(self):
+        self.run_complete()
+        attempts = self.task_attempts()
+        a = self.work / "work/a" / attempts["a"]
+        b = self.work / "work/b" / attempts["b"]
+        before = {path for path in b.rglob("*") if path.is_file()}
+        result = subprocess.run([
+            sys.executable, str(FIXTURES / "frontend_fault.py"), str(self.work), "cleanup_remove_error", "b",
+            "clean", "--delete", "a", "b",
+        ], cwd=self.work, capture_output=True, text=True, timeout=30)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("Partial cleanup", result.stdout)
+        self.assertIn("1 removed, 1 failed", result.stdout)
+        self.assertIn("Known removed: " + str(a), result.stdout)
+        self.assertIn("Removal outcome unconfirmed: " + str(b), result.stdout)
+        self.assertIn("may be partly removed", result.stdout)
+        self.assertNotIn("No files removed", result.stdout)
+        self.assertIn("injected cleanup removal failure", result.stderr)
+        self.assertFalse(a.exists())
+        self.assertTrue(b.exists())
+        self.assertTrue(any(not path.exists() for path in before))
+        for name in ("a", "b"):
+            self.assertEqual((self.work / "results" / name / "result.txt").read_text(), name)
+        self.assertNoSubmissions(self.cli("run"))
+        self.cli("clean", "--delete")
+        self.assertFalse(b.exists())
+        self.assertNoSubmissions(self.cli("run"))
+
+    def test_interruption_inside_one_attempt_keeps_removal_uncertainty_visible(self):
+        self.run_complete()
+        attempt = self.task_attempts()["a"]
+        workspace = self.work / "work/a" / attempt
+        before = {path for path in workspace.rglob("*") if path.is_file()}
+        result = subprocess.run([
+            sys.executable, str(FIXTURES / "frontend_fault.py"), str(self.work), "cleanup_remove_interrupt", "a",
+            "clean", "--delete", "a",
+        ], cwd=self.work, capture_output=True, text=True, timeout=30)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("Cleanup interrupted — 1 failed", result.stdout)
+        self.assertIn("Removal outcome unconfirmed: " + str(workspace), result.stdout)
+        self.assertIn("may be partly removed", result.stdout)
+        self.assertNotIn("No files removed", result.stdout)
+        self.assertNotIn("Known removed:", result.stdout)
+        self.assertIn("Aborted", result.stderr)
+        self.assertTrue(any(not path.exists() for path in before))
+        self.assertEqual((self.work / "results/a/result.txt").read_text(), "a")
+        self.cli("clean", "--delete", "a")
+        self.assertFalse(workspace.exists())
+        self.assertNoSubmissions(self.cli("run"))
+
+    def test_narrow_plain_preview_preserves_complete_paths_and_shares_explicit_loss_notice(self):
+        self.run_complete()
+        attempts = self.task_attempts()
+        before = self.snapshot()
+        output = self.terminal_cli("clean", "--attempt", attempts["a"], "--attempt", attempts["b"],
+                                   "--plain", width=32, merge_stderr=True).stdout
+        self.assertNotIn("\x1b[", output)
+        compact = " ".join(output.split())
+        self.assertEqual(compact.count("Explicit-attempt cleanup"), 1)
+        for consequence in ("successful intermediate progress", "diagnostics within work", "repair sources",
+                            "Retained results and logs are preserved"):
+            self.assertIn(consequence, compact)
+        for name, attempt in attempts.items():
+            self.assertIn(attempt, output)
+            self.assertIn(str(self.work / "work" / name / attempt), compact)
+            self.assertIn(str(self.work / ".gwf/gwflow/staging" / attempt), compact)
+        self.assertEqual(self.snapshot(), before)
+
     def test_task_names_and_globs_deduplicate_and_reject_all_unmatched_before_deletion(self):
         self.run_complete()
         before = self.snapshot()
@@ -63,8 +177,8 @@ class CompletedWorkCleanupTests(LocalBackendTestCase):
         self.assertTrue(list((self.work / "work/a").iterdir()))
         self.assertTrue(list((self.work / "work/b").iterdir()))
         preview = self.cli("clean", "[ab]", "a", "b")
-        self.assertEqual(preview.count("Task a attempt"), 1)
-        self.assertEqual(preview.count("Task b attempt"), 1)
+        self.assertEqual(preview.count("Task a\n"), 1)
+        self.assertEqual(preview.count("Task b\n"), 1)
         self.assertEqual(self.snapshot(), before)
         self.cli("clean", "--delete", "a", "[a]", "a")
         self.assertFalse(list((self.work / "work/a").iterdir()))
@@ -82,8 +196,8 @@ class CompletedWorkCleanupTests(LocalBackendTestCase):
         for selectors in ((), ("*",), ("a", "b", "c", "[abc]")):
             with self.subTest(selectors=selectors):
                 preview = self.cli("clean", *selectors)
-                self.assertEqual(preview.count("Task a attempt"), 1)
-                self.assertEqual(preview.count("Task b attempt"), 1)
+                self.assertEqual(preview.count("Task a\n"), 1)
+                self.assertEqual(preview.count("Task b\n"), 1)
                 self.assertEqual(preview.count("Task c: no recorded work"), 1)
                 self.assertNotIn("stray", preview)
         error = self.cli("clean", "--delete", "b", "stray", success=False)
@@ -107,9 +221,9 @@ class CompletedWorkCleanupTests(LocalBackendTestCase):
         self.assertTrue(list((self.work / "work/b").iterdir()))
         self.assertTrue(list((self.work / "work/c").iterdir()))
         preview = self.cli("clean", "[c]")
-        self.assertIn("Task c attempt", preview)
-        self.assertNotIn("Task a attempt", preview)
-        self.assertNotIn("Task b attempt", preview)
+        self.assertIn("Task c\n", preview)
+        self.assertNotIn("Task a\n", preview)
+        self.assertNotIn("Task b\n", preview)
         self.cli("clean", "--delete", "[c]")
         self.assertFalse(list((self.work / "work/c").iterdir()))
         self.assertTrue(list((self.work / "work/b").iterdir()))
@@ -330,6 +444,21 @@ class TransferStagingCleanupTests(LocalBackendTestCase):
         self.assertIn("Staging: " + str(remote / "staging"), preview)
         leftover = [path for path in (remote / "staging").rglob('*') if path.is_dir() and len(path.relative_to(remote / 'staging').parts) >= 2]
         self.assertTrue(leftover)
+        workspace = self.work / "work/a" / self.task_attempts()["a"]
+        failure = subprocess.run([
+            sys.executable, str(FIXTURES / "frontend_fault.py"), str(self.work), "cleanup_staging_error", "a",
+            "clean", "--delete", "a",
+        ], cwd=self.work, capture_output=True, text=True, timeout=30)
+        self.assertEqual(failure.returncode, 1, failure.stdout + failure.stderr)
+        self.assertIn("Partial cleanup — 1 failed", failure.stdout)
+        self.assertIn("Known removed: " + str(workspace), failure.stdout)
+        self.assertIn("Removal outcome unconfirmed: " + str(remote / "staging"), failure.stdout)
+        self.assertNotIn("No files removed", failure.stdout)
+        self.assertIn("injected staging removal failure", failure.stderr)
+        self.assertFalse(workspace.exists())
+        self.assertTrue(any(path.exists() for path in leftover))
+        self.assert_results(result)
+        self.assertNoSubmissions(self.cli("run"))
         self.cli("clean", "--delete")
         self.assertTrue(all(not path.exists() for path in leftover))
         self.assert_results(result)

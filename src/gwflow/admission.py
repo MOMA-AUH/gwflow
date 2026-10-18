@@ -55,6 +55,14 @@ class SubmissionOutcome:
     failed: bool = False
 
 
+@dataclass
+class RecoveryOutcome:
+    """Invocation receipt retained before a resolution write can fail."""
+
+    submission: str
+    confirmed: bool = False
+
+
 def backend_identity(backend, name):
     if isinstance(backend, TrackingBackend):
         if isinstance(backend.ops, LocalOps):
@@ -163,11 +171,13 @@ def resolve_submissions(store, attempt, observations):
     unresolved = [item for item in observations if item.state == "uncertain"]
     recovery, asserted_at = uuid4().hex, time.time_ns()
     for item in unresolved:
+        outcome = RecoveryOutcome(item.submission)
+        yield outcome
         store.publish(attempt, f"recoveries/{item.intent['admission']}/recovery.json", "operator-recovery",
                       **identity(item.intent), recovery=recovery, asserted_at_ns=asserted_at,
                       assertion="whole-task-inactive", observed_job_id=item.job_id,
                       observed_backend_state=item.backend_state.name)
-    return unresolved
+        outcome.confirmed = True
 
 
 def success_evidence(store, attempt, local, intent):

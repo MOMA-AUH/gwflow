@@ -335,13 +335,13 @@ def commit_directory(source, destination, *, expected=None):
 
 
 def remove_directory(path, expected):
-    """Remove an owned directory by descriptor, never following child links."""
+    """Remove an owned directory without following links; return whether it was removed."""
     path = Path(path)
     with directory(path.parent) as parent:
         try:
             child = os.open(path.name, _DIRECTORY_FLAGS, dir_fd=parent)
         except FileNotFoundError:
-            return
+            return False
         except OSError as error:
             raise WorkflowError(f"Cannot remove managed directory {path}: {error}") from error
         try:
@@ -354,6 +354,7 @@ def remove_directory(path, expected):
                 raise WorkflowError(f"Managed directory changed during removal: {path}")
             os.rmdir(path.name, dir_fd=parent)
             sync_directory(parent)
+            return True
         finally:
             os.close(child)
 

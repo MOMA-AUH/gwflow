@@ -92,6 +92,13 @@ gwflow clean hello --delete
 gwflow run hello --dry-run
 ```
 
+The preview summarizes eligibility and says no files were removed. Under each
+Task, review the outcome/reason, full attempt UUID, workspace, staging group, and
+owned staging paths, including kept older work. Use `--plain` for an undecorated
+report. Deletion distinguishes newly removed work from already removed or kept
+work; interrupted deletion retains known removals and unconfirmed paths. Repeat
+the same deletion command only after investigating the error.
+
 Cleanup preserves retained results, logs, and the bookkeeping needed for Reuse.
 An unchanged Task can remain reusable and provide inputs to a newly added
 consumer after cleanup. Cleanup gives up intermediate files that could otherwise
@@ -151,7 +158,12 @@ or running computation or lifecycle job in that Task, even an unrelated sibling.
 It does not cancel jobs, submit jobs, or establish successful execution.
 
 Recovery preserves original submission evidence, durably records the operator
-intervention, and reports the submissions resolved. It addresses all unresolved
+intervention, and leads with the resolved count and your inactivity assertion,
+then the full current-attempt UUID and exact submission receipts. Nothing
+unresolved is an explicit no-op. If recovery is interrupted, confirmed receipts
+remain visible and incomplete writes are marked unconfirmed. Investigate before
+repeating recovery. For a Task removed from the workflow, restore its declaration
+before preview/run. Recovery addresses all unresolved
 submissions in the current recorded attempt, including earlier retries, while
 leaving historical attempts unchanged. A resolution applies only to those
 submissions; it cannot authorize later submissions or suppress newly observed
