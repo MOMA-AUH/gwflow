@@ -172,10 +172,11 @@ class InspectionStatus(Static):
         self.update_status()
 
     def on_focus(self):
-        self.update_status()
+        # Textual updates has_focus in its base event handler, after this one.
+        self.call_later(self.update_status)
 
     def on_blur(self):
-        self.update_status()
+        self.call_later(self.update_status)
 
     def on_key(self, event):
         browser = cast(StatusBrowser, self.app)
