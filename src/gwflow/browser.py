@@ -16,14 +16,15 @@ from rich.text import Text
 from rich.cells import cell_len
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import VerticalScroll
+from textual.containers import Vertical, VerticalScroll
 from textual.filter import Monochrome, NoColor
 from textual.screen import Screen
-from textual.widgets import Button, Collapsible, OptionList, Static
+from textual.widgets import Button, Collapsible, Input, OptionList, SelectionList, Static
 from textual.widgets._collapsible import CollapsibleTitle
+from textual.widgets.option_list import Option
 
 from .diagnostics import error_message
-from .presentation import ACTIVE, _VISUALS, progress_text
+from .presentation import ACTIVE, STATES, _VISUALS, progress_text
 
 
 def state_text(state):
@@ -56,7 +57,7 @@ class Breadcrumb:
 
 
 class Shortcuts:
-    def __init__(self, primary="↑↓ select  Enter open  Esc back", secondary="Tab controls  g groups  ? help  q quit"):
+    def __init__(self, primary="↑↓ Enter open  Esc back  Tab  g groups", secondary="/ find f filter r refresh ? help q quit"):
         self.primary, self.secondary = primary, secondary
 
     def __rich_console__(self, console, options):
@@ -65,21 +66,25 @@ class Shortcuts:
 
 
 class Scope:
-    def __init__(self, shown, selected, total, selectors, states):
+    def __init__(self, shown, selected, total, selectors, states, name_query):
         self.shown, self.selected, self.total = shown, selected, total
         self.selectors, self.states = selectors, states
+        self.name_query = name_query or "none"
 
     def __rich_console__(self, console, options):
         width = options.max_width
         if width < 60:
+            states = middle_name(self.states, max(4, (width - 16) // 2))
+            name_query = middle_name(self.name_query, width - cell_len(states) - 16)
             yield Text(f"Showing {self.shown}/{self.selected} selected; workflow {self.total}\n"
                        f"Scope: {middle_name(self.selectors, width - 7)}\n"
-                       f"State: {middle_name(self.states, width - 7)}")
+                       f"State: {states}; Name: {name_query}")
         else:
-            states = middle_name(self.states, max(8, width // 3))
-            selectors = middle_name(self.selectors, width - len(states) - 16)
+            states = middle_name(self.states, max(8, width // 4))
+            selectors = middle_name(self.selectors, (width - 24) // 3)
+            name_query = middle_name(self.name_query, width - cell_len(states) - cell_len(selectors) - 24)
             yield Text(f"Showing {self.shown} of {self.selected} selected Tasks ({self.total} in workflow)\n"
-                       f"Scope: {selectors}; State: {states}")
+                       f"Scope: {selectors}; State: {states}; Name: {name_query}")
 
 
 class GroupPrompt:
@@ -131,12 +136,59 @@ class JobPrompt:
             yield Text(middle_name(name, options.max_width) + "\n") + state
 
 
+def failure_summary(failure):
+    return (failure.partition("Error: ")[2] or failure).partition("Traceback:")[0].strip()
+
+
+class InspectionStatus(Static):
+    """Snapshot age and acquisition outcome, independent of the current view."""
+
+    def update_status(self):
+        browser = cast(StatusBrowser, self.app)
+        lines = []
+        if browser.snapshot is not None:
+            age = max(0, int(time.time() - browser.snapshot["finished"]))
+            prefix = "Showing previous snapshot;" if browser.failure else "Last inspection finished"
+            lines.append(f"{prefix} {age}s ago")
+        if browser.inspection is not None:
+            elapsed = int(time.monotonic() - browser.inspection.started)
+            lines.append(f"Refreshing... {elapsed}s elapsed")
+        if browser.failure:
+            summary = " ".join(failure_summary(browser.failure).split())
+            lines.append(middle_name("Refresh failed: " + summary, max(40, self.size.width)))
+            lines.append("Press Enter for error details" if self.has_focus else "Tab then Enter: error details")
+        if browser.navigation_notice:
+            lines.append(middle_name(browser.navigation_notice, max(40, self.size.width)))
+        self.can_focus = bool(browser.failure)
+        value = "\n".join(lines)
+        if value != getattr(self, "last_value", None):
+            self.update(Text(value))
+            self.last_value = value
+
+    def on_mount(self):
+        self.update_status()
+
+    def on_focus(self):
+        self.update_status()
+
+    def on_blur(self):
+        self.update_status()
+
+    def on_key(self, event):
+        browser = cast(StatusBrowser, self.app)
+        if event.key == "enter" and browser.failure:
+            self.app.push_screen(ErrorView(browser.failure, browser.captured_output, previous=True))
+            event.stop()
+
+
 class BrowserView(Screen):
+    AUTO_FOCUS = ""
     BINDINGS = [Binding("escape", "app.back", show=False)]
 
     def __init__(self, breadcrumb):
         super().__init__()
         self.breadcrumb = breadcrumb
+        self.section_states = {}
 
     @property
     def snapshot(self) -> dict:
@@ -145,14 +197,15 @@ class BrowserView(Screen):
         return snapshot
 
     def heading(self):
-        return Static(Breadcrumb(self.breadcrumb), classes="breadcrumb")
+        return Vertical(Static(Breadcrumb(self.breadcrumb), classes="breadcrumb"), InspectionStatus(), classes="view-heading")
 
     def scope(self):
         browser = cast(StatusBrowser, self.app)
         shown = sum(browser.matches(task) for task in self.snapshot["tasks"])
         selectors = ", ".join(browser.selectors) or "all Tasks"
         states = ", ".join(browser.statuses) or "all"
-        return Static(Scope(shown, len(self.snapshot["tasks"]), self.snapshot["total"], selectors, states))
+        return Static(Scope(shown, len(self.snapshot["tasks"]), self.snapshot["total"], selectors, states,
+                            browser.name_query))
 
     def footer(self):
         return Static(Shortcuts(), classes="shortcuts")
@@ -162,6 +215,47 @@ class BrowserView(Screen):
             with VerticalScroll(classes="notice-pane"):
                 yield Static(Text(self.snapshot["notices"], style="yellow"))
 
+    def observe_snapshot(self):
+        return True
+
+    def on_mount(self):
+        if self.focused is None and self.focus_chain:
+            self.set_focus(self.focus_chain[0])
+
+    def on_resize(self, event):
+        self.set_class(event.size.height < 18, "compact")
+
+    def section(self, title):
+        return Collapsible(title=title, collapsed=self.section_states.get(title, True))
+
+    def capture_navigation(self):
+        focused = self.focused
+        return dict(rows=[(listing.highlighted_option.id if listing.highlighted_option else None,
+                           listing.highlighted, listing.scroll_offset) for listing in self.query(OptionList)],
+                    scrolls=[pane.scroll_offset for pane in self.query(VerticalScroll)],
+                    collapsed={section.title: section.collapsed for section in self.query(Collapsible)},
+                    focus=(type(focused), focused.id, list(self.query(type(focused))).index(focused))
+                    if focused is not None else None)
+
+    def restore_navigation(self, saved):
+        for listing, (identifier, index, offset) in zip(self.query(OptionList), saved['rows']):
+            indices = {option.id: position for position, option in enumerate(listing.options)}
+            selected = indices.get(identifier, min(index or 0, listing.option_count - 1))
+            listing.highlighted = selected if listing.option_count else None
+            if selected == index:
+                listing.scroll_to(offset.x, offset.y, animate=False, immediate=True)
+            else:
+                listing.scroll_to_highlight()
+        if saved['focus'] is not None:
+            kind, identifier, index = saved['focus']
+            controls = list(self.query(kind))
+            focused = next((control for control in controls if identifier and control.id == identifier),
+                           controls[index] if index < len(controls) else None)
+            if focused is not None:
+                self.set_focus(focused, scroll_visible=False)
+        for pane, offset in zip(self.query(VerticalScroll), saved['scrolls']):
+            pane.scroll_to(offset.x, offset.y, animate=False, immediate=True)
+
 
 class GroupsView(BrowserView):
     def __init__(self):
@@ -169,6 +263,7 @@ class GroupsView(BrowserView):
         self.groups = []
 
     def compose(self) -> ComposeResult:
+        self.groups = []
         yield self.heading()
         yield self.scope()
         yield from self.notices()
@@ -181,47 +276,64 @@ class GroupsView(BrowserView):
                 continue
             self.groups.append(group)
             counts = Counter("active" if task["state"] in ACTIVE else task["state"] for task in members)
-            options.append(GroupPrompt(group["label"], counts, len(members),
-                                       matching if cast(StatusBrowser, self.app).statuses else None))
+            options.append(Option(GroupPrompt(group["label"], counts, len(members),
+                                              matching if (cast(StatusBrowser, self.app).statuses or
+                                                           cast(StatusBrowser, self.app).name_query) else None),
+                                  id="group:" + group["key"]))
         yield OptionList(*options, classes="listing")
         yield self.footer()
 
     def on_mount(self):
-        self.query_one(OptionList).focus()
+        self.set_focus(self.query_one(OptionList))
 
     def on_option_list_option_selected(self, event):
         group = self.groups[event.option_index]
-        self.app.push_screen(TasksView(group["members"], [*self.breadcrumb, group["label"]], group["label"]))
+        self.app.push_screen(TasksView(group["members"], [*self.breadcrumb, group["label"]], group["label"],
+                                       group_key=group["key"]))
 
 
 class TasksView(BrowserView):
-    def __init__(self, members=None, breadcrumb=None, group=None, *, expanded=False):
+    def __init__(self, members=None, breadcrumb=None, group=None, *, expanded=False, group_key=None):
         super().__init__(breadcrumb or ["Tasks"])
         self.members, self.group, self.expanded = members, group, expanded
+        self.group_key = group_key
         self.items = []
 
     def compose(self) -> ComposeResult:
+        self.items = []
         yield self.heading()
         yield self.scope()
         yield from self.notices()
-        yield Static(Breadcrumb(["Tasks in " + self.group if self.group else "Selected Tasks"]))
-        options: list[TaskPrompt | JobPrompt] = []
+        yield Static(Breadcrumb(["Tasks in " + self.group if self.group else "Selected Tasks"]),
+                     classes="task-list-label")
+        options = []
         for task in self.snapshot["tasks"]:
             if not cast(StatusBrowser, self.app).matches(task):
                 continue
             if self.members is not None and task["name"] not in self.members:
                 continue
-            options.append(TaskPrompt(task))
+            options.append(Option(TaskPrompt(task), id="task:" + task["name"]))
             self.items.append((task, None))
             if self.expanded:
                 for job in task["jobs"]:
-                    options.append(JobPrompt(job))
+                    options.append(Option(JobPrompt(job), id="job:" + job["name"]))
                     self.items.append((task, job))
         yield OptionList(*options, classes="listing")
         yield self.footer()
 
     def on_mount(self):
-        self.query_one(OptionList).focus()
+        self.set_focus(self.query_one(OptionList))
+
+    def observe_snapshot(self):
+        if self.group is None:
+            return True
+        group = next((group for group in self.snapshot["groups"] if group["key"] == self.group_key), None)
+        if group is None:
+            return False
+        self.members = group["members"]
+        self.group = group["label"]
+        self.breadcrumb = [*self.breadcrumb[:-1], self.group]
+        return True
 
     def on_option_list_option_selected(self, event):
         task, job = self.items[event.option_index]
@@ -244,9 +356,9 @@ class TaskView(BrowserView):
             lead.append(f"\nJobs completed: {progress_text(task['completed'], task['total'])}"
                         f"\nNext action: {task['next_action']}\nReason: {task['reason']}")
             yield Static(lead)
-            yield OptionList(*(JobPrompt(job) for job in task["jobs"]), classes="jobs")
+            yield OptionList(*(Option(JobPrompt(job), id="job:" + job["name"]) for job in task["jobs"]), classes="jobs")
             yield Static("Task: " + task["name"], markup=False)
-            with Collapsible(title="Attempt, paths, and diagnostics"):
+            with self.section("Attempt, paths, and diagnostics"):
                 yield Static(task["diagnostics"], markup=False)
             yield Static("Ordinary commands (run in another terminal):")
             for identifier, label in (("copy-preview", "Copy run preview"), ("copy-run", "Copy run command"),
@@ -256,7 +368,7 @@ class TaskView(BrowserView):
         yield self.footer()
 
     def on_mount(self):
-        self.query_one(OptionList).focus()
+        self.set_focus(self.query_one(OptionList), scroll_visible=False)
 
     def on_option_list_option_selected(self, event):
         job = self.observation["jobs"][event.option_index]
@@ -266,6 +378,14 @@ class TaskView(BrowserView):
         if event.button.id in self.copy_commands:
             self.app.copy_to_clipboard(self.copy_commands[event.button.id])
             event.stop()
+
+    def observe_snapshot(self):
+        task = next((task for task in self.snapshot["tasks"] if task["name"] == self.observation["name"]), None)
+        if task is None:
+            return False
+        self.observation = task
+        self.copy_commands = dict(zip(self.copy_commands, task["commands"]))
+        return True
 
 
 class JobView(BrowserView):
@@ -290,6 +410,14 @@ class JobView(BrowserView):
     def footer(self):
         return Static(Shortcuts("↑↓ scroll  PgUp/PgDn page", "Esc back  g groups  ? help  q quit"), classes="shortcuts")
 
+    def observe_snapshot(self):
+        job = next((job for task in self.snapshot["tasks"] for job in task["jobs"]
+                    if job["name"] == self.job["name"]), None)
+        if job is None:
+            return False
+        self.job = job
+        return True
+
 
 class HelpView(BrowserView):
     def __init__(self):
@@ -303,12 +431,16 @@ class HelpView(BrowserView):
                          "Home/End: first/last row or beginning/end of details\nPage Up/Page Down: page through rows or details\n"
                          "Tab/Shift+Tab: move between controls and expandable sections\n"
                          "g: grouped summary within the original selection\n?: keyboard reference\nq: quit\n"
+                         "/: literal Task-name search (ignores case)\nf: filter primary Task states\nr: inspect again\n"
                          "Ctrl+C: interrupt\n\nBrowsing uses captured observations. No commands are executed here.")
             yield Static("Original Task selectors: " + ", ".join(cast(StatusBrowser, self.app).selectors or ("all Tasks",)),
                          markup=False)
             yield Static("Task state filter: " + ", ".join(cast(StatusBrowser, self.app).statuses or ("all",)),
                          markup=False)
-            with Collapsible(title="Inspection output and diagnostics"):
+            yield Static("Task name search: " + (cast(StatusBrowser, self.app).name_query or "none"), markup=False)
+            if cast(StatusBrowser, self.app).navigation_notice:
+                yield Static(cast(StatusBrowser, self.app).navigation_notice, markup=False)
+            with self.section("Inspection output and diagnostics"):
                 yield Static(Text.from_ansi(self.snapshot.get("inspection_output", "") + "\n" +
                                            self.snapshot.get("inspection_diagnostics", "")))
         yield self.footer()
@@ -317,26 +449,75 @@ class HelpView(BrowserView):
         return Static(Shortcuts("↑↓ scroll  Tab controls  Enter expand", "Esc close  g groups  q quit"), classes="shortcuts")
 
 
+class SearchView(Screen):
+    BINDINGS = [Binding("escape", "cancel", show=False)]
+
+    def compose(self) -> ComposeResult:
+        yield Static("Search Task names", classes="breadcrumb")
+        yield Input(cast(StatusBrowser, self.app).name_query, placeholder="Literal text; ignores case")
+        yield Static("Enter: apply  Esc: cancel  Empty search: all selected Tasks", markup=False)
+
+    def on_mount(self):
+        self.query_one(Input).focus()
+
+    def action_cancel(self):
+        self.app.pop_screen()
+
+    async def on_input_submitted(self, event):
+        browser = cast(StatusBrowser, self.app)
+        browser.name_query = event.value
+        self.app.pop_screen()
+        await browser.update_views()
+        event.stop()
+
+
+class StateFilterView(Screen):
+    BINDINGS = [Binding("escape", "cancel", show=False),
+                Binding("enter", "apply", show=False, priority=True), Binding("c", "clear", show=False)]
+
+    def compose(self) -> ComposeResult:
+        yield Static("Filter Task states", classes="breadcrumb")
+        yield SelectionList(*((state_text(state), state, state in cast(StatusBrowser, self.app).statuses)
+                              for state in STATES), classes="listing")
+        yield Static("Space: toggle  Enter: apply  Esc: cancel\nc: clear; no choices means all states", classes="shortcuts")
+
+    def on_mount(self):
+        self.query_one(SelectionList).focus()
+
+    def action_cancel(self):
+        self.app.pop_screen()
+
+    def action_clear(self):
+        self.query_one(SelectionList).deselect_all()
+
+    async def action_apply(self):
+        browser = cast(StatusBrowser, self.app)
+        browser.statuses = tuple(self.query_one(SelectionList).selected)
+        self.app.pop_screen()
+        await browser.update_views()
+
+
 class ErrorView(BrowserView):
-    def __init__(self, failure, output):
-        super().__init__(["No snapshot available"])
+    def __init__(self, failure, output, *, previous=False):
+        super().__init__(["Refresh failed" if previous else "No snapshot available"])
         self.failure, self.output = failure, output
+
+    def heading(self):
+        return Static(Breadcrumb(self.breadcrumb), classes="breadcrumb")
 
     def compose(self) -> ComposeResult:
         yield self.heading()
-        summary = self.failure.partition("Error: ")[2] or self.failure
-        summary = summary.partition("Traceback:")[0].strip()
         with VerticalScroll():
-            yield Static(summary, markup=False)
-            with Collapsible(title="Error details"):
+            yield Static(failure_summary(self.failure), markup=False)
+            with self.section("Error details"):
                 yield Static(Text.from_ansi(self.failure))
             if self.output:
-                with Collapsible(title="Captured workflow output"):
+                with self.section("Captured workflow output"):
                     yield Static(Text.from_ansi(self.output))
-        yield Static("Tab: controls  Enter: expand details  q: quit", classes="shortcuts")
+        yield Static("Tab: controls  Enter: expand  r: retry  q: quit", classes="shortcuts")
 
     def on_mount(self):
-        self.query_one(CollapsibleTitle).focus()
+        self.set_focus(self.query_one(CollapsibleTitle))
 
 
 class ResizeView(Screen):
@@ -400,24 +581,32 @@ class Inspection:
 class StatusBrowser(App[int]):
     CSS = """
     Screen { layout: vertical; }
+    .view-heading { height: auto; }
     #breadcrumb, .breadcrumb { height: auto; text-style: bold; color: cyan; }
     #activity { height: auto; }
     #rows, .listing { height: 1fr; border: none; }
     .jobs { height: 8; min-height: 3; max-height: 50%; border: none; }
     .notice-pane { height: auto; min-height: 2; max-height: 25%; border-left: wide yellow; }
+    .compact .notice-pane { height: 1; min-height: 1; max-height: 1; }
+    .compact .task-list-label { display: none; }
     #shortcuts, .shortcuts { height: auto; dock: bottom; }
     """
     BINDINGS = [Binding("q", "quit", "Quit"), Binding("ctrl+c", "interrupt", show=False, priority=True),
-                Binding("g", "groups", "Groups"), Binding("question_mark", "help", "Help")]
+                Binding("g", "groups", "Groups"), Binding("r", "refresh", "Refresh"),
+                Binding("slash", "search", "Search"), Binding("f", "filter", "Filter"),
+                Binding("question_mark", "help", "Help")]
 
     def __init__(self, arguments, *, selectors=(), statuses=(), details=False):
         super().__init__()
         self.no_color = False
         self.arguments = arguments
         self.selectors, self.statuses, self.details = selectors, statuses, details
+        self.name_query = ""
         self.inspection = None
         self.snapshot: dict | None = None
         self.failure = ""
+        self.navigation_notice = ""
+        self.last_result = 1
         self.captured_output = ""
         self.interrupted = False
         self.too_small = False
@@ -426,7 +615,8 @@ class StatusBrowser(App[int]):
         return [item for item in super().get_line_filters() if not isinstance(item, (NoColor, Monochrome))]
 
     def matches(self, task):
-        return not self.statuses or task["state"] in self.statuses
+        return ((not self.statuses or task["state"] in self.statuses)
+                and self.name_query.casefold() in task["name"].casefold())
 
     def compose(self) -> ComposeResult:
         yield Static("Groups", id="breadcrumb")
@@ -435,8 +625,17 @@ class StatusBrowser(App[int]):
         yield Static("q: quit", id="shortcuts")
 
     def on_mount(self):
-        self.inspection = Inspection(self.arguments)
+        self.action_refresh()
         self.set_interval(0.1, self.inspect_progress)
+
+    def action_refresh(self):
+        if self.inspection is None:
+            if self.snapshot is None:
+                while len(self.screen_stack) > 1:
+                    self.pop_screen()
+                if self.too_small:
+                    self.push_screen(ResizeView())
+            self.inspection = Inspection(self.arguments)
 
     def on_resize(self, event):
         too_small = event.size.width < 40 or event.size.height < 12
@@ -455,7 +654,13 @@ class StatusBrowser(App[int]):
         if self.too_small:
             self.push_screen(ResizeView())
 
-    def inspect_progress(self):
+    def update_inspection_status(self):
+        for screen in self.screen_stack:
+            for status in screen.query(InspectionStatus):
+                status.update_status()
+
+    async def inspect_progress(self):
+        self.update_inspection_status()
         if self.inspection is None:
             return
         elapsed = int(time.monotonic() - self.inspection.started)
@@ -463,14 +668,70 @@ class StatusBrowser(App[int]):
         if not self.inspection.completed():
             return
         try:
-            self.snapshot, self.failure, self.captured_output = self.inspection.outcome()
+            snapshot, failure, output = self.inspection.outcome()
         finally:
             self.inspection.close()
             self.inspection = None
+        await self.accept_inspection(snapshot, failure, output)
+
+    async def accept_inspection(self, snapshot, failure="", output=""):
+        """Install one completed observation, retaining the previous one on failure."""
+        self.failure, self.captured_output = failure, output
+        self.last_result = 0 if snapshot is not None else 1
+        if snapshot is None and self.snapshot is not None:
+            self.update_inspection_status()
+            return
+        previous = self.snapshot
+        self.snapshot = snapshot
+        if previous is not None and snapshot is not None:
+            self.navigation_notice = ""
+            await self.update_views()
+            return
+        while len(self.screen_stack) > 1:
+            self.pop_screen()
         if self.snapshot is None:
             self.show_snapshot_view(ErrorView(self.failure, self.captured_output))
             return
         self.show_snapshot_view(TasksView(expanded=self.details) if self.selectors or self.details else GroupsView())
+
+    async def update_views(self):
+        """Reconcile navigation with the current captured selection and filters."""
+        with self.batch_update():
+            renamed_paths = []
+            for screen in list(self.screen_stack)[1:]:
+                if not isinstance(screen, BrowserView):
+                    continue
+                for old, new in renamed_paths:
+                    if screen.breadcrumb[:len(old)] == old:
+                        screen.breadcrumb = [*new, *screen.breadcrumb[len(old):]]
+                old_path = list(screen.breadcrumb)
+                navigation = screen.capture_navigation()
+                if isinstance(screen, ErrorView) or not screen.observe_snapshot():
+                    while screen in self.screen_stack:
+                        self.pop_screen()
+                    if not isinstance(screen, ErrorView):
+                        parent = cast(BrowserView, self.screen).breadcrumb[-1]
+                        self.navigation_notice = (f"Item no longer available: {screen.breadcrumb[-1]}; "
+                                                  f"returned to {parent}.")
+                    break
+                if screen.breadcrumb != old_path:
+                    renamed_paths.append((old_path, list(screen.breadcrumb)))
+                screen.section_states = navigation['collapsed']
+                # Keys arriving during replacement must not be sent to a
+                # removed widget before the saved focus is restored.
+                screen.set_focus(None, scroll_visible=False)
+                await screen.recompose()
+                self.call_after_refresh(screen.restore_navigation, navigation)
+        if self.too_small and not isinstance(self.screen, ResizeView):
+            self.push_screen(ResizeView())
+
+    def action_search(self):
+        if not self.too_small and self.snapshot is not None and not isinstance(self.screen, SearchView):
+            self.push_screen(SearchView())
+
+    def action_filter(self):
+        if not self.too_small and self.snapshot is not None and not isinstance(self.screen, StateFilterView):
+            self.push_screen(StateFilterView())
 
     def action_back(self):
         if not self.too_small and len(self.screen_stack) > 2:
@@ -487,7 +748,7 @@ class StatusBrowser(App[int]):
             self.push_screen(HelpView())
 
     def action_quit(self):
-        self.exit(0 if self.snapshot is not None else 1)
+        self.exit(self.last_result)
 
     def action_interrupt(self):
         self.interrupted = True
@@ -499,6 +760,7 @@ class StatusBrowser(App[int]):
             self.inspection = None
 
     def _handle_exception(self, error):
+        self.last_result = 1
         self.failure = error_message(error, "Interactive status")
         super()._handle_exception(error)
 

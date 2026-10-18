@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import shlex
 import signal
+import sys
 import time
 
 import click
@@ -23,6 +24,10 @@ from .status import status_selection
 @click.argument("selectors", nargs=-1)
 @pass_context
 def capture(ctx, destination, selectors):
+    # Fresh source must not reuse timestamp/size-valid bytecode after a rapid
+    # same-size edit. This private, empty cache namespace affects this child only.
+    sys.pycache_prefix = str(destination.parent / "pycache")
+    sys.dont_write_bytecode = True
     workflow = load_workflow(ctx)
     with _submission_guard(ctx.working_dir):
         names = status_selection(workflow, selectors)
@@ -54,7 +59,8 @@ def capture(ctx, destination, selectors):
             "total": len(workflow._task_declarations),
             "tasks": tasks,
             "notices": notices.getvalue().strip(),
-            "groups": [{"label": group.label, "members": [name for name in group.members if name in names]}
+            "groups": [{"label": group.label, "key": group.qualified,
+                        "members": [name for name in group.members if name in names]}
                        for group in task_groups(workflow, plan)],
         }
     destination.write_text(json.dumps(snapshot))

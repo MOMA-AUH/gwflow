@@ -228,6 +228,9 @@ run, cancellation, cleanup, or recovery commands.
 | Tab / Shift+Tab | Move between controls and expandable sections |
 | Home / End, Page Up / Page Down | Navigate longer lists and detail panes |
 | `g` | Return to groups within the original Task selection |
+| `/` | Edit a literal, case-insensitive Task-name search; Enter applies, Esc cancels |
+| `f` | Edit primary Task states; Space toggles, Enter applies, Esc cancels, `c` clears choices |
+| `r` | Inspect again using the original workflow, backend, and Task selectors |
 | `?` | Show the keyboard reference and captured inspection diagnostics |
 | `q` | Quit status |
 | Ctrl+C | Interrupt using ordinary CLI behavior |
@@ -235,15 +238,37 @@ run, cancellation, cleanup, or recovery commands.
 The browser captures one inspection in a separate, stoppable process. Loading
 shows the current phase and elapsed time. Workflow stdout and diagnostics are
 captured for inspection from help. The frontend lock is released after capture;
-navigation never imports the workflow again or queries the scheduler. Close and
-reopen status to get newer observations. An initial operational failure shows
+navigation and filters never import the workflow again or query the scheduler.
+Only `r` starts another inspection; repeated requests while busy are ignored.
+There is no timed refresh. A refresh imports current definitions in a fresh
+process and reapplies every original selector. Newly matching Tasks can enter;
+any now-unmatched selector makes refresh fail. The old snapshot stays browsable
+while inspection runs. Success replaces the observations together, preserving
+the current view, filters, stable item focus, and scroll where possible. If an
+item disappears, status returns to the nearest surviving parent and explains why.
+
+Search and state filters narrow the captured selected Tasks; clearing both
+restores the original selector scope. Search treats characters such as `*`
+literally. While typing, shortcut letters enter text. State choices start from
+`--status`; selecting no states shows all primary states. Scope, active filters,
+and matching/selected counts remain visible. Groups retain their full selected
+membership for progress and state counts, with a separate filter-match count.
+For example, a 24-Task group with 14 reusable, four active, and six failed Tasks
+still shows 14/24 and those counts when the failed filter exposes six matches.
+Required workflow notices remain visible when their affected Tasks are hidden.
+
+Snapshot age measures time since the last successful inspection. A failed
+refresh retains those observations and their age, with a visible error; Tab
+focuses the error banner and Enter opens complete error details. A later
+successful refresh clears the failure. An initial operational failure shows
 its concrete error and expandable complete traceback for unexpected failures;
-no snapshot is shown as successful. Observed blocked Tasks are a valid snapshot.
+no snapshot is shown as successful; `r` retries. Observed blocked Tasks are a valid snapshot.
 
 Quitting stops an unfinished inspection and its owned subprocesses, releases
 inspection resources, and restores the terminal. Already submitted workflow
-jobs continue. Exit status is zero after a completed inspection, or one after
-an initial failure or quitting before inspection completes. Unexpected UI
+jobs continue. Exit status follows the latest completed inspection: zero for
+success, one for failure or before any completion. Quitting during refresh uses
+the previous completed result. Final inspection errors remain on stderr. Unexpected UI
 failures restore the terminal and report the full exception chain on stderr.
 Shrinking below 40 × 12 shows a resize notice; enlarging restores the current
 view without another inspection. Long list names may use ellipses; full names
@@ -308,8 +333,8 @@ failures do not override valid Completion and Reuse.
 its row. Child rows show job names and states. In a static report, this does not
 add attempt paths or full planner diagnostics; use
 `gwflow run TASK --dry-run --details` for those. The interactive browser exposes
-them in Task and job details. Both modes use captured observations, without live
-refresh or extra scheduler polling introduced by presentation.
+them in Task and job details. Both modes use captured observations; only an
+explicit interactive refresh obtains newer observations.
 
 ### Attention, notices, and complete text
 
