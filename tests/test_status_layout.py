@@ -52,7 +52,7 @@ class StatusLayoutTests(LocalBackendTestCase):
                         output = uncolored(raw)
                         self.assertIn("2 of 2 Tasks selected", " ".join(output.split()))
                         self.assertNotIn("…", output)
-                        self.assertNotRegex(output, "[╭╮╰╯━]")
+                        self.assertNotRegex(output, "[╭╮╰╯]")
                         if not view:
                             for module in ("library", "second"):
                                 self.assertIn(f"{prefix}@{module}.mapping", output)
@@ -132,10 +132,10 @@ class StatusLayoutTests(LocalBackendTestCase):
             self.assertIn("2 of 45 Tasks selected\n1 blocked, 1 failed", output)
             self.assertIn("State: blocked\n  Jobs completed: ?/5", output)
             self.assertIn("State: failed\n  Jobs completed: 2/5", output)
-            self.assertIn("progress unavailable", " ".join(output.split()))
+            self.assertIn("progress not assessed", " ".join(output.split()))
             self.assertIn("1 job failed", output)
             self.assertNotIn("Needs attention", output)
-            self.assertNotRegex(output, "[╭╮╰╯━…]")
+            self.assertNotRegex(output, "[╭╮╰╯…]")
             self.assertTrue(all(len(line) <= 40 for line in output.splitlines()), output)
             notices = output.split("Workflow notices", 1)[1]
             self.assertIn("duplex_mapping__sample_A", notices)

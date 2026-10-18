@@ -194,6 +194,11 @@ from current declarations.
 
 ### Status views and progress
 
+`status --static` prints one formatted report on a capable terminal, with
+progress bars and numeric fractions. `--plain` prints an undecorated report
+and wins if both options are supplied. Redirected or piped output is always
+plain; unsupported terminals and encodings also fall back to plain output.
+
 | Request | View |
 | --- | --- |
 | `gwflow status` or a filter-only request | Grouped overview |
@@ -210,12 +215,21 @@ name prefix. A default use and an alias matching that default share a group;
 other aliases remain separate. Names are not split to infer groups. A unique
 prefix displays alone; shared prefixes display `prefix@module.qualified_factory`.
 These are display labels, not selectors, and are determined before filtering.
+Grouped reports include `gwflow status '*' --static` to list Task names.
+An unmatched group label shows up to five actual member names and, only when
+it selects exactly that group's members, a quoted Task-name pattern. A label
+that is also an actual Task name selects that single Task.
 Groups rank by their earliest member in dependency order, with declaration-order
 ties; filtering an early member does not reorder surviving groups.
 
 The header reports selected Tasks against all declared Tasks. A group's Reusable
 fraction counts reusable Tasks over its selected members. Overview summaries
 combine preparing, running, and finishing as `active`; queued work stays separate.
+State filters hide groups without matching Tasks, but each visible group's
+fraction and state counts cover its complete selected membership before filtering.
+The report identifies how many Tasks match separately. Filtering the group below
+to failed Tasks therefore keeps `14/24`, `4 active`, and `6 failed`, and adds
+`6 Tasks match the filter`.
 For example:
 
 ```text
@@ -234,7 +248,10 @@ output correctness, or eligibility for Reuse. Fresh attempts start at zero.
 Retries retain valid steps and exclude invalidated dependents; Repair reopens
 completion. Reusable Tasks stay fully complete after work cleanup. Deferred
 Tasks may retain full prior progress while awaiting upstream result recovery.
-Unknown completion appears as `?/N` with an explanation.
+Every Task state retains a progress bar in formatted reports. Unknown completion
+appears as `?/N` with a stationary hatched bar and a concrete explanation, such
+as image unavailability or an unresolved submission. It is distinct from known
+zero progress; plain reports retain the fraction and reason without a bar.
 
 The primary states are pending, queued, preparing, running, finishing, reusable,
 repairable, deferred, failed, canceled, and blocked. Blockage takes precedence

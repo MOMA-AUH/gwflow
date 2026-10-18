@@ -59,7 +59,8 @@ class StatusNoticeTests(LocalBackendTestCase):
                 with self.subTest(selectors=selectors, flags=flags):
                     record.unlink(missing_ok=True)
                     output = self.cli("-b", "recovery_fixture", "status", *selectors, *flags, env=environment)
-                    self.assertIn(f"{count} of 17 Tasks selected", output)
+                    self.assertIn(f"{count} of 17 Tasks selected" if flags else
+                                  f"Showing {count} of 17 selected Tasks", output)
                     if not count:
                         self.assertIn("No Tasks selected", output)
                     elif flags:
