@@ -1,7 +1,9 @@
 """Compact managed Task status."""
 
 from fnmatch import fnmatchcase
+import os
 import shlex
+import sys
 
 import click
 from gwf.core import pass_context
@@ -10,6 +12,7 @@ from ._frontend import _submission_guard, load_workflow
 from .planning import plan_workflow
 from .presentation import STATES, Report, inspection_command, output_options, selected_rows, task_groups, task_order
 from .selection import task_selection
+from .terminal import supports_decoration, supports_keyboard
 
 
 class _StatusChoice(click.Choice):
@@ -47,8 +50,19 @@ def status(ctx, selectors, statuses, details, plain, static_report):
     """Show a grouped overview or Task rows selected by names and quoted globs.
 
     Group labels summarize Tasks; selectors match Task names. Use '*' to list
-    Task rows. Redirected output is plain; --details expands jobs.
+    Task rows. A capable terminal opens a cached keyboard browser (minimum
+    40 x 12). Use --static for one report or --plain for undecorated output.
+    Redirected output is plain; --details expands jobs. Press ? for keys and
+    q to quit the browser. Inspect again to obtain newer observations.
     """
+    if not (plain or static_report) and supports_decoration(sys.stdout) and supports_keyboard(sys.stdin):
+        width, height = os.get_terminal_size(sys.stdout.fileno())
+        if width >= 40 and height >= 12:
+            from .browser import run_browser
+            raise click.exceptions.Exit(run_browser(ctx, selectors, statuses, details))
+        click.echo("Terminal too small for interactive status (minimum 40 × 12); using plain static output.", err=True)
+        plain = True
+        click.get_current_context().params["plain"] = True
     workflow = load_workflow(ctx)
     with _submission_guard(ctx.working_dir, waiting_message="Waiting for frontend submission bookkeeping..."):
         names = status_selection(workflow, selectors)

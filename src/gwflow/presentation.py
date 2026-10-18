@@ -86,20 +86,30 @@ def task_order(workflow, plan):
         yield remaining.pop(name)
 
 
+def progress_text(completed, total, width=10):
+    filled = int(width * completed / total) if completed is not None and total else 0
+    bar = "/" * width if completed is None else "━" * filled + "─" * (width - filled)
+    return f"{'?' if completed is None else completed}/{total} [{bar}]"
+
+
+def observed_job_state(task, local):
+    """Describe the captured job before applying Task repetition requirements."""
+    item = task.submissions.get(local)
+    if task.action == "reuse":
+        return "completed"
+    if item is not None and item.state == "active":
+        return "queued" if item.backend_state == BackendStatus.SUBMITTED else "running"
+    if item is None:
+        return "pending" if task.observations_available else "unknown"
+    return {"complete": "completed", "cancelled": "canceled", "uncertain": "unknown"}.get(item.state, item.state)
+
+
 def job_states(task):
     states = {}
     for local in lifecycle_jobs(task.structure["targets"]):
-        item = task.submissions.get(local)
-        if task.action == "reuse":
-            state = "completed"
-        elif item is not None and item.state == "active":
-            state = "queued" if item.backend_state == BackendStatus.SUBMITTED else "running"
-        elif task.restart_required:
+        state = observed_job_state(task, local)
+        if task.restart_required and task.action != "reuse" and state not in {"queued", "running"}:
             state = "pending"
-        elif item is None:
-            state = "pending" if task.observations_available else "unknown"
-        else:
-            state = {"complete": "completed", "cancelled": "canceled", "uncertain": "unknown"}.get(item.state, item.state)
         if state == "completed" and local in task.repeated_jobs:
             state = "pending"
         states[local] = state
@@ -346,12 +356,7 @@ class Report:
         if self.plain:
             return fraction
         width = max(3, min(18, self.console.width - len(fraction) - 22))
-        if completed is None:
-            bar = "/" * width
-        else:
-            filled = int(width * completed / total) if total else 0
-            bar = "━" * filled + "─" * (width - filled)
-        return f"{fraction} [{bar}]"
+        return progress_text(completed, total, width)
 
     def _state_counts(self, counts):
         labels = []
@@ -467,7 +472,7 @@ class Report:
             click.echo("  " + shlex.join([*command, "--status", state]), color=False)
             self.status_line("")
 
-    def workflow_notices(self, tasks, rows):
+    def workflow_notices(self, tasks, rows, *, include_reasons=False):
         tasks = list(tasks)
         blocked = [task for task in tasks if task.action == "blocked"]
         followups = [(task, reminder) for task in tasks if (reminder := required_followup(task))]
@@ -489,7 +494,7 @@ class Report:
                     self.status_line("      (outside selection)")
                 else:
                     self.status_line(line)
-                if task.name not in selected:
+                if include_reasons or task.name not in selected:
                     self.status_line("      " + blocking_detail(task.reason))
             self.status_line("  Already active jobs may still be running.")
         for task, reminder in followups:

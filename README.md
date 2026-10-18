@@ -61,10 +61,10 @@ Back in the first terminal:
 ```sh
 gwflow run --dry-run
 gwflow run
-gwflow status '*'
+gwflow status '*' --static
 ```
 
-Submission returns before the jobs finish. Repeat `gwflow status '*'` until
+Submission returns before the jobs finish. Repeat `gwflow status '*' --static` until
 `hello` is `reusable`, then inspect its retained result and individual job log:
 
 ```sh
@@ -81,8 +81,9 @@ globs select whole tasks; every selector must match:
 ```sh
 gwflow run hello --dry-run
 gwflow run 'hello*'
+gwflow status                      # interactive grouped browser on a capable terminal
 gwflow status --static             # one grouped report; --plain removes decoration
-gwflow status hello                # selected task rows
+gwflow status hello                # browse selected task rows
 gwflow status hello --details      # include computation and lifecycle jobs
 gwflow run hello --dry-run --details
 ```
@@ -93,6 +94,10 @@ computation command requires a fresh whole-Task attempt, even after cleanup.
 For changes to packages or environments that leave tracked commands and inputs
 unchanged, preview and request fresh computation with `gwflow run TASK --force`.
 Status focuses on the selected tasks and explains relevant upstream blockers.
+In the browser, use arrows and Enter to open groups, Tasks, and jobs; Esc goes
+back, `?` shows keys, and `q` quits. Browsing uses one captured snapshot; close
+and reopen status for newer observations. Task details include full diagnostics
+and buttons to copy ordinary commands for another terminal.
 Use `gwflow logs` for all current task log indexes, or `gwflow logs 'hello*'`
 for a selected group. Each index shows failures first and links to individual
 streams and the recovery preview. Add `--stderr` only when reading one job's log.

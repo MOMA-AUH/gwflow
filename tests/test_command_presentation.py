@@ -4,9 +4,9 @@ import os
 import re
 import fcntl
 import subprocess
-import threading
 
 from support import GWFLOW, LocalBackendTestCase
+from terminal_session import TerminalSession
 import test_graphs
 import test_fresh
 
@@ -108,15 +108,29 @@ class CommandPresentationTests(LocalBackendTestCase):
         for terminal in (False, True):
             with path.open('a') as lock:
                 fcntl.flock(lock, fcntl.LOCK_EX)
-                release = threading.Timer(1, fcntl.flock, args=(lock, fcntl.LOCK_UN))
-                release.start()
-                try:
-                    result = (self.terminal_cli('status', '*', merge_stderr=True) if terminal
-                              else self.cli_result('status', '*'))
-                finally:
-                    release.cancel()
-                    release.join()
-            output = result.stdout if terminal else result.stderr
+                # Release only after observed contention; imports can take more
+                # than a fixed one-second timer on a loaded machine.
+                if terminal:
+                    session = TerminalSession([GWFLOW, 'status', '*'], cwd=self.work, input_mode='unavailable')
+                    self.addCleanup(session.close)
+                    try:
+                        session.wait_for('Waiting for frontend submission bookkeeping')
+                    finally:
+                        fcntl.flock(lock, fcntl.LOCK_UN)
+                    self.assertEqual(session.finish(), 0, session.text)
+                    output = session.output.decode()
+                else:
+                    progress = self.work / 'lock-progress.log'
+                    with progress.open('w') as stream, subprocess.Popen(
+                        [GWFLOW, 'status', '*'], cwd=self.work, stdout=subprocess.PIPE, stderr=stream, text=True,
+                    ) as process:
+                        try:
+                            self.wait_for(lambda: 'Waiting for frontend submission bookkeeping' in progress.read_text())
+                        finally:
+                            fcntl.flock(lock, fcntl.LOCK_UN)
+                        stdout, _ = process.communicate(timeout=30)
+                    self.assertEqual(process.returncode, 0, stdout + progress.read_text())
+                    output = progress.read_text()
             self.assertIn('Waiting for frontend submission bookkeeping', output)
             if terminal:
                 self.assertRegex(output, r'\d+:\d{2}:\d{2}')
