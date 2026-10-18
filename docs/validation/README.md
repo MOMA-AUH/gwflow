@@ -148,6 +148,22 @@ and [captured browser measurements](status-browser/measurements.json). These rec
 implementation checks for issue #229; release preparation and publication remain
 separate work.
 
+The [live-follow measurements](status-browser/follow-measurements.json) record
+issue #232's actual log-read bytes and resource checks through rapid appends,
+replacement, incomplete UTF-8, and repeated follow/pause/close cycles. The record
+identifies the reviewed source commit and package versions; package metadata is
+still 0.7.0 until release preparation. Reproduce it in an installed candidate
+environment with:
+
+```sh
+python tests/benchmark_status_follow.py --output build/validation/status-follow/measurements.json
+```
+
+The follow and installed-terminal regression files separately cover missing and
+unreadable logs, pending retries, scrolling, refresh, exact-submission pinning,
+and blocked-reader cleanup. Both run in the ordinary full test suite. These
+implementation checks do not substitute for release-artifact validation.
+
 Keep raw logs, generated workflows, and machine-specific transcripts under the
 ignored `build/validation/` directory. The acceptance runner writes environment
 and summary JSON plus per-case command transcripts there. Commit selected
