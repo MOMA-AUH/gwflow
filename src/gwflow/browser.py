@@ -387,12 +387,13 @@ class Inspection:
         try:
             self.process.wait(timeout=2)
         except subprocess.TimeoutExpired:
-            pass
-        try:
-            os.killpg(self.process.pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
-        self.process.wait()
+            # The unreaped supervisor still owns this PID / process group.
+            # Never signal its numeric group after wait() has released it.
+            try:
+                os.killpg(self.process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            self.process.wait()
         self.directory.cleanup()
 
 
