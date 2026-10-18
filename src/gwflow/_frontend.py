@@ -10,8 +10,10 @@ from gwf import Workflow as GwfWorkflow
 from gwf.core import Context
 from gwf.exceptions import WorkflowError
 
+from .activity import activity
 
-class _ObservationTimeout(Exception):
+
+class _ObservationTimeout(click.ClickException):
     """Escape backend retries that catch OSError (including TimeoutError)."""
 
 
@@ -40,7 +42,8 @@ def load_workflow(ctx):
 
     if not ctx.workflow_file.is_file():
         raise WorkflowError(f"Could not find workflow file {ctx.workflow_file}; use --file PATH[:OBJECT] to select one.")
-    workflow = GwfWorkflow.from_context(ctx)
+    with activity("Inspecting workflow..."):
+        workflow = GwfWorkflow.from_context(ctx)
     if not isinstance(workflow, Workflow):
         raise WorkflowError("Managed commands require a gwflow.Workflow; use gwf for ordinary workflows.")
     if not ctx.config.get("use_spec_hashes"):
@@ -61,9 +64,11 @@ def _submission_guard(working_dir, *, waiting_message="Waiting for frontend subm
         try:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
-            if waiting_message is not None:
-                click.echo(waiting_message, err=True)
-            fcntl.flock(lock, fcntl.LOCK_EX)
+            if waiting_message is None:
+                fcntl.flock(lock, fcntl.LOCK_EX)
+            else:
+                with activity(waiting_message):
+                    fcntl.flock(lock, fcntl.LOCK_EX)
         try:
             yield
         finally:

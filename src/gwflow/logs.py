@@ -8,6 +8,9 @@ from gwf.backends import BackendStatus, create_backend
 from gwf.core import pass_context
 from gwf.plugins.logs import logs as gwf_logs
 
+from .activity import activity
+from .diagnostics import report_error
+
 from . import admission
 from ._frontend import _submission_guard, load_workflow, observation_deadline
 from .lifecycle import Store
@@ -115,10 +118,11 @@ def logs(ctx, selectors, stderr, no_pager, history):
 
                 try:
                     # Cancel the alarm before backend cleanup can save tracking.
-                    with ExitStack() as cleanup, observation_deadline():
+                    with activity("Waiting for scheduler..."), ExitStack() as cleanup, observation_deadline():
                         backend = cleanup.enter_context(create_backend(ctx.backend, working_dir=ctx.working_dir, config=ctx.config))
                         observations, historical = inspect(backend)
                 except Exception as error:
+                    report_error(error, "Log inspection")
                     # Disk evidence remains inspectable during a scheduler
                     # outage. UNKNOWN observations never establish inactivity.
                     unavailable = str(error)

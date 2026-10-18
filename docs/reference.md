@@ -293,9 +293,24 @@ Run and status keep all text included in the chosen view complete, wrapping or
 stacking it at narrow widths. Long status identifiers and copyable attention
 commands remain intact in the output stream and may wrap visually in the terminal.
 `--details` controls diagnostic depth. `--plain` removes report colors and
-decoration; global `--no-color` keeps formatted layout and appropriate symbols.
-Redirected reports are automatically plain and complete even with forced color.
+decoration; `NO_COLOR=1` keeps formatted layout, bars, and symbols without color.
+Global `--no-color` and `--use-color` have been removed. The project `no_color`
+setting is ignored, without rewriting configuration files.
+Redirected reports and diagnostic logging are automatically undecorated.
 Unsupported terminals use a plain fallback.
+
+Inspection, scheduler waits, frontend-lock waits, and image acquisition show
+their current phase and elapsed time on formatted terminals. Plain or redirected
+commands write concise phase messages to stderr without animation or timer spam.
+Cached images are reused without acquisition just to display activity.
+
+Expected command errors include relevant source or resource information and
+known next steps. Syntax errors identify the file and line. Unexpected failures
+include their full exception chain and traceback from the same invocation;
+neither `--details` nor `--verbose debug` is needed to obtain it. Partial-action
+receipts remain on stdout and errors/logging on stderr. Inspection still succeeds
+when it observes blocked or failed Tasks; operational failures exit with one and
+usage errors with two. Raw individual log content is preserved.
 
 ### Plans, submission outcomes, and inspection
 

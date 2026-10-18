@@ -43,7 +43,7 @@ class TaskPlanTests(LocalBackendTestCase):
                 self.assertNotIn(str(self.work), result.stdout)
                 self.assertNotIn("Would remove", result.stderr)
         for options in ((), ("--plain",)):
-            output = self.terminal_cli("--no-color", "run", "--dry-run", "--force", *options, width=32, success=False).stdout
+            output = self.terminal_cli("run", "--dry-run", "--force", *options, width=32, success=False, no_color=True).stdout
             compact = re.sub(r"[\s│]", "", output)
             self.assertIn("Workflowblocked—nonewjobswillbesubmitted", compact)
             self.assertIn("WouldremovepreviousretainedresultsforTasks:a,c", compact)
@@ -65,7 +65,7 @@ class TaskPlanTests(LocalBackendTestCase):
         self.assertIn("State: failed; Jobs completed: 1/3", details)
         self.assertIn("Next action: Defer", details)
         for width in (32, 100):
-            output = self.terminal_cli("--no-color", "run", "--dry-run", width=width).stdout
+            output = self.terminal_cli("run", "--dry-run", width=width, no_color=True).stdout
             self.assertIn("run again after upstream result recovery", " ".join(output.split()))
 
     def test_retry_keeps_queued_completion_followup_visible(self):
@@ -76,8 +76,8 @@ class TaskPlanTests(LocalBackendTestCase):
         output = self.cli_result("-b", "recovery_fixture", "run", "--dry-run", env=environment).stdout
         self.assertRegex(output, r"Task sample\s+Retry\s+")
         for width in (32, 100):
-            output = self.terminal_cli("--no-color", "-b", "recovery_fixture", "run", "--dry-run",
-                                       width=width, env=environment).stdout
+            output = self.terminal_cli("-b", "recovery_fixture", "run", "--dry-run",
+                                       width=width, env=environment, no_color=True).stdout
             self.assertIn("run again after the queued completion job settles", " ".join(output.split()))
 
     def test_repair_and_transfer_disclose_only_removal_still_needed(self):

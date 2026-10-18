@@ -8,13 +8,13 @@ import os
 from pathlib import Path
 import re
 import subprocess
-import sys
 import tempfile
 
 from gwf.exceptions import WorkflowError
 from gwf.executors import Bash
 
 from . import _observations, inputs
+from .activity import activity, message
 
 
 # Docker distribution reference grammar: repository, optional tag and digest.
@@ -87,13 +87,13 @@ def _acquire(reference, path, locations):
         try:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
-            print(f"Waiting for image acquisition: {reference}", file=sys.stderr, flush=True)
-            fcntl.flock(lock, fcntl.LOCK_EX)
+            with activity(f"Waiting for image acquisition: {reference}"):
+                fcntl.flock(lock, fcntl.LOCK_EX)
         if not os.path.lexists(path):
             try:
                 _pull(reference, path, locations)
             except (WorkflowError, OSError, RuntimeError) as error:
-                print(f"Failed to pull image: {reference}: {error}", file=sys.stderr, flush=True)
+                message(f"Failed to pull image: {reference}: {error}", err=True)
                 raise
         # This process or the lock's previous owner may have installed a new
         # image after an earlier successful observation of this same alias.
@@ -103,9 +103,9 @@ def _acquire(reference, path, locations):
 def _pull(reference, path, locations):
     with tempfile.TemporaryDirectory(prefix=".pull-", dir=path.parent) as temporary:
         acquired = Path(temporary) / "image.sif"
-        print(f"Pulling image: {reference}", file=sys.stderr, flush=True)
-        result = subprocess.run(["apptainer", "pull", "--disable-cache", str(acquired), reference],
-                                capture_output=True, text=True)
+        with activity(f"Pulling image: {reference}"):
+            result = subprocess.run(["apptainer", "pull", "--disable-cache", str(acquired), reference],
+                                    capture_output=True, text=True)
         if result.returncode:
             raise WorkflowError(f"Apptainer pull failed (exit {result.returncode}): {result.stderr.strip()}")
         _readable(acquired, locations)
@@ -114,7 +114,7 @@ def _pull(reference, path, locations):
         except FileExistsError:
             # Never overwrite an entry created outside acquisition coordination.
             pass
-    print(f"Pulled image: {reference}", file=sys.stderr, flush=True)
+    message(f"Pulled image: {reference}", err=True)
 
 
 def resolve(task, structure, locations):

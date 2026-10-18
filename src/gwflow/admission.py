@@ -22,6 +22,7 @@ from gwf.scheduling import submit_backend
 
 from . import _files, _observations
 from ._frontend import observation_deadline
+from .diagnostics import report_error
 from .lifecycle import _uuid, ordered_targets, target_dependencies
 from .workflow import lifecycle_jobs
 
@@ -282,11 +283,12 @@ def _observe(store, attempt, backend, name, intents, *, tolerate_state_errors=Fa
                 state = backend.status(target)
                 if tracked_id is None and job_id is not None and isinstance(backend, TrackingBackend):
                     state = backend.ops.get_job_states([job_id]).get(job_id, BackendStatus.UNKNOWN)
-            except Exception:
+            except Exception as error:
                 if not tolerate_state_errors:
                     recovery = read_recovery(store, attempt, intent)
                     if recovery is None:
                         raise
+                report_error(error, f"Observing submission {intent['submission']}")
                 state = BackendStatus.UNKNOWN
         if mismatch and recovery is None:
             recovery = read_recovery(store, attempt, intent)

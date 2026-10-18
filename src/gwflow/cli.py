@@ -1,19 +1,22 @@
 """The dedicated managed-workflow executable, using gwf's backend services."""
 
 from importlib.metadata import version
+import logging
 import os
 from pathlib import Path
 
 import click
 from gwf.backends import guess_backend, list_backends
-from gwf.cli import configure_logging
+from gwf.cli import LOGGING_FORMATS, get_level
 from gwf.conf import FileConfig
 from gwf.plugins.config import config
 from gwf.utils import find_workflow
 
 from ._frontend import ManagedContext
+from .activity import DiagnosticHandler
 from .cancel import cancel
 from .clean_work import clean_work
+from .diagnostics import CommandGroup
 from .logs import logs
 from .recover import recover
 from .run import run
@@ -21,16 +24,19 @@ from .status import status
 from .workers import workers
 
 
-@click.group()
+@click.group(cls=CommandGroup)
 @click.version_option(version=version("gwflow"), prog_name="gwflow")
 @click.option("-f", "--file", default="workflow.py:gwf", help="Workflow file and optional :OBJECT to load.")
 @click.option("-b", "--backend", type=click.Choice(list_backends()), help="Backend used to run workflow.")
 @click.option("-v", "--verbose", type=click.Choice(("warning", "debug", "info", "error")), default="info")
-@click.option("--no-color/--use-color", default=None, help="Enable or disable output colors.")
 @click.pass_context
-def main(ctx, file, backend, verbose, no_color):
-    """Run and inspect managed Tasks. Use COMMAND --help for command options."""
-    configure_logging(level_name=verbose)
+def main(ctx, file, backend, verbose):
+    """Run and inspect managed Tasks. Use COMMAND --help for command options.
+
+    NO_COLOR disables static colors while retaining layout and bars. --verbose
+    controls diagnostic logging; --details controls command report depth.
+    """
+    logging.basicConfig(level=get_level(verbose), format=LOGGING_FORMATS[verbose], handlers=[DiagnosticHandler()])
     try:
         path, obj_name = find_workflow(file)
     except FileNotFoundError:
@@ -40,11 +46,7 @@ def main(ctx, file, backend, verbose, no_color):
     settings = FileConfig.load(working_dir / ".gwfconf.json")
     # Keep explicit settings writable and leave ordinary gwf's defaults alone.
     settings.data.maps.insert(1, {"use_spec_hashes": True})
-    if no_color is None:
-        no_color = settings.get("no_color")
-    if no_color is None:
-        no_color = bool(os.getenv("NO_COLOR"))
-    if no_color:
+    if os.getenv("NO_COLOR"):
         ctx.color = False
     backend = backend or settings.get("backend") or guess_backend()[1]
     ctx.obj = ManagedContext(working_dir=str(working_dir), config=settings, backend=backend,

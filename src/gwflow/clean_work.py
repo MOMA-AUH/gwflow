@@ -6,6 +6,7 @@ from gwf.core import pass_context
 from gwf.exceptions import WorkflowError
 
 from . import cleanup
+from .activity import activity
 from ._frontend import _submission_guard, load_workflow
 from .lifecycle import Store, declarations
 from .selection import task_selection
@@ -47,7 +48,7 @@ def clean_work(ctx, selectors, delete, attempt_ids):
             raise WorkflowError("Unknown attempts for --attempt: " + ", ".join(sorted(unknown)))
         selected = [attempt for attempt in attempts if attempt["attempt"] in attempt_ids] if attempt_ids else [
             attempt for attempt in attempts if attempt["task"] in selected_names]
-        with create_backend(ctx.backend, working_dir=ctx.working_dir, config=ctx.config) as backend:
+        with activity("Waiting for scheduler..."), create_backend(ctx.backend, working_dir=ctx.working_dir, config=ctx.config) as backend:
             observations = [cleanup.observe(store, attempt, backend, ctx.backend, explicit=bool(attempt_ids)) for attempt in selected]
         click.echo("Work cleanup" if delete else "Cleanup preview; use --delete to remove eligible work")
         for name in sorted(selected_names - {attempt["task"] for attempt in selected}):
@@ -59,7 +60,7 @@ def clean_work(ctx, selectors, delete, attempt_ids):
                 display(store, item)
             raise WorkflowError("Cleanup refused for ownership or activity")
         if delete:
-            with create_backend(ctx.backend, working_dir=ctx.working_dir, config=ctx.config) as backend:
+            with activity("Rechecking scheduler before deletion..."), create_backend(ctx.backend, working_dir=ctx.working_dir, config=ctx.config) as backend:
                 observations = [cleanup.remove(store, item, backend, ctx.backend) if item.action == "eligible" else item
                                 for item in observations]
         for item in observations:

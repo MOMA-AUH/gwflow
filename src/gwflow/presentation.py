@@ -18,6 +18,7 @@ from rich.text import Text
 from .inspection import blockage_line, condition, task_details
 from .lifecycle import TaskObservation, ordered_targets, producer_names
 from .workflow import lifecycle_jobs
+from .terminal import supports_decoration, supports_unicode
 
 
 STATES = ("pending", "queued", "preparing", "running", "finishing", "reusable",
@@ -192,8 +193,6 @@ def inspection_command(*arguments):
     for name, option in (("file", "--file"), ("backend", "--backend"), ("verbose", "--verbose")):
         if root.get_parameter_source(name) == click.core.ParameterSource.COMMANDLINE:
             command.extend((option, str(root.params[name])))
-    if root.get_parameter_source("no_color") == click.core.ParameterSource.COMMANDLINE:
-        command.append("--no-color" if root.params["no_color"] else "--use-color")
     command.extend(arguments)
     if context.params.get("plain") and arguments[0] in ("run", "status"):
         command.append("--plain")
@@ -300,18 +299,9 @@ class Report:
         self.store = store
         stream = sys.stdout
         self.terminal = stream.isatty()
-        try:
-            ("╭╮╰╯│─━╸╺" + "".join(symbol for symbol, _ in _VISUALS.values())).encode(stream.encoding or "utf-8")
-            self.unicode = True
-        except UnicodeEncodeError:
-            self.unicode = False
-        self.plain = plain or not self.terminal or not self.unicode or os.environ.get("TERM", "").lower() in ("dumb", "unknown")
-        root = click.get_current_context().find_root()
-        no_color = root.params.get("no_color")
-        if no_color is None:
-            no_color = root.obj.config.get("no_color")
-        if no_color is None:
-            no_color = bool(os.environ.get("NO_COLOR"))
+        self.unicode = supports_unicode(stream)
+        self.plain = plain or not supports_decoration(stream)
+        no_color = bool(os.environ.get("NO_COLOR"))
         self.console = Console(file=stream, force_terminal=self.terminal and not self.plain,
                                color_system=None if self.plain or no_color else "auto",
                                no_color=self.plain or no_color, markup=False, highlight=False)

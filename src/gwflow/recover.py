@@ -9,6 +9,8 @@ from gwf.core import pass_context
 from gwf.exceptions import WorkflowError
 
 from . import admission
+from .activity import activity, message
+from .diagnostics import report_error
 from ._frontend import _submission_guard, load_workflow, observation_deadline
 from .lifecycle import Store
 from .presentation import inspection_command
@@ -34,26 +36,27 @@ def recover(ctx, task):
             raise WorkflowError(f"Unknown Task {task!r}; recover requires one exact Task name")
         attempt = attempts.get(task)
         if attempt is None:
-            click.echo(f"Task {task}: no recorded attempt; no unresolved submissions")
+            message(f"Task {task}: no recorded attempt; no unresolved submissions")
             return
         # Missing or malformed current intents require investigation, not repair
         # through an inactivity assertion.
         for local in lifecycle_jobs(attempt["executions"]):
             admission.read_intent(store, attempt, local)
-        with ExitStack() as resources:
+        with activity("Waiting for scheduler..."), ExitStack() as resources:
             try:
                 with observation_deadline():
                     backend = resources.enter_context(create_backend(ctx.backend, working_dir=ctx.working_dir, config=ctx.config))
             except Exception as error:
-                click.echo(f"Backend observations unavailable: {error}; relying on the whole-Task inactivity assertion.")
+                report_error(error, f"Observing Task {task}")
+                message(f"Backend observations unavailable: {error}; relying on the whole-Task inactivity assertion.")
                 backend = None
             observations = admission.observe_submissions(store, attempt, backend, ctx.backend,
                                                         tolerate_state_errors=True)
             resolved = admission.resolve_submissions(store, attempt, observations)
-        click.echo(f"Task {task}: current attempt {attempt['attempt']}")
+        message(f"Task {task}: current attempt {attempt['attempt']}")
         for item in resolved:
-            click.echo(f"  Resolved submission {item.submission}; whole-Task inactivity asserted")
+            message(f"  Resolved submission {item.submission}; whole-Task inactivity asserted")
         if not resolved:
-            click.echo("  No unresolved submissions")
+            message("  No unresolved submissions")
         preview = shlex.join(inspection_command("run", task, "--dry-run"))
-        click.echo(f"No jobs submitted. Inspect '{preview}' before ordinary run.")
+        message(f"No jobs submitted. Inspect '{preview}' before ordinary run.")

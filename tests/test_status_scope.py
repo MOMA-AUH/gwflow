@@ -48,7 +48,7 @@ class StatusScopeTests(LocalBackendTestCase):
         workflow.rename(self.work / "selected workflow.py")
         environment = self.state_backend({})
         options = ("--file", "selected workflow.py:pipeline", "--backend", "state_fixture",
-                   "--verbose", "warning", "--no-color")
+                   "--verbose", "warning")
         before = self.task_evidence("a", "b", "c", "d", "e")
         for selectors in (("c",), ("[bc]",)):
             with self.subTest(selectors=selectors):

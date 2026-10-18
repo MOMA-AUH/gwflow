@@ -97,25 +97,25 @@ class TaskPresentationTests(LocalBackendTestCase):
             for width in (32, 80, 140):
                 for options in ((), ("--plain",)):
                     with self.subTest(command=command, width=width, options=options):
-                        output = self.terminal_cli("--no-color", *command, *options, width=width).stdout
+                        output = self.terminal_cli(*command, *options, width=width, no_color=True).stdout
                         self.assertNotIn("…", output)
                         self.assertIn("_tail", re.sub(r"\s+", "", output))
                         self.assertEqual(output.count("Z"), 120)
-            redirected = self.cli_result("--use-color", *command).stdout
+            redirected = self.cli_result(*command).stdout
             self.assertIn(name, redirected)
             self.assertNotIn("\x1b[", redirected)
 
     def test_narrow_and_unsupported_terminals_keep_states_and_counts(self):
         self.run_complete()
         for command in (("status",), ("run", "--dry-run"), ("run",)):
-            narrow = self.terminal_cli("--no-color", *command, "--details", width=32).stdout
+            narrow = self.terminal_cli(*command, "--details", width=32, no_color=True).stdout
             self.assertIn("reusable", narrow)
             self.assertIn("5/5", narrow)
             if command[0] == "status":
                 self.assertRegex(narrow, r"5/5 \[━+\]")
             for environment in ({"TERM": "dumb"}, {"PYTHONIOENCODING": "ascii"}, {"PYTHONIOENCODING": "shift_jis"}):
                 with self.subTest(command=command, environment=environment):
-                    output = self.terminal_cli("--use-color", *command, "--details", width=40, env=environment).stdout
+                    output = self.terminal_cli(*command, "--details", width=40, env=environment, no_color=False).stdout
                     self.assertIn("reusable", output)
                     self.assertIn("5/5", output)
                     self.assertNotRegex(output, "[╭○━\\x1b]")
@@ -139,13 +139,13 @@ class TaskPresentationTests(LocalBackendTestCase):
                     ("--use-color", (), {"PYTHONIOENCODING": "ascii"}))
         for command in (("status",), ("run", "--dry-run"), ("run",)):
             success = command[0] == "status"
-            redirected = self.cli_result("--use-color", *command, "--details", success=success).stdout
+            redirected = self.cli_result(*command, "--details", success=success).stdout
             self.assertNotIn("\x1b[", redirected)
             for width in (32, 100):
                 for color, options, environment in controls:
                     with self.subTest(command=command, width=width, color=color, options=options, env=environment):
-                        raw = self.terminal_cli(color, *command, "--details", *options,
-                                                width=width, env=environment, success=success).stdout
+                        raw = self.terminal_cli(*command, "--details", *options,
+                                                width=width, env=environment, success=success, no_color=color == "--no-color").stdout
                         output = re.sub(r"\x1b\[[0-9;]*m", "", raw)
                         compact = re.sub(r"\s+", "", output)
                         self.assertNotIn("…", output)
@@ -170,10 +170,10 @@ class TaskPresentationTests(LocalBackendTestCase):
         self.run_complete()
         for command in (("run", "--dry-run"), ("run",)):
             with self.subTest(command=command):
-                decorated = self.terminal_cli("--use-color", *command).stdout
-                monochrome = self.terminal_cli("--no-color", *command).stdout
-                plain = self.terminal_cli("--use-color", *command, "--plain").stdout
-                redirected = self.cli_result("--use-color", *command).stdout
+                decorated = self.terminal_cli(*command, no_color=False).stdout
+                monochrome = self.terminal_cli(*command, no_color=True).stdout
+                plain = self.terminal_cli(*command, "--plain", no_color=False).stdout
+                redirected = self.cli_result(*command).stdout
                 self.assertIn("\x1b[", decorated)
                 self.assertIn("─", monochrome)
                 self.assertNotIn("\x1b[", monochrome)
@@ -190,7 +190,7 @@ class TaskPresentationTests(LocalBackendTestCase):
         workflow.write_text(workflow.read_text().replace("'left'", repr("job_" + "x" * 80)))
         for options, width in ((("--plain",), 32), ((), 20)):
             with self.subTest(options=options, width=width):
-                output = self.terminal_cli("--no-color", "status", "--details", *options, width=width).stdout
+                output = self.terminal_cli("status", "--details", *options, width=width, no_color=True).stdout
                 self.assertRegex(output, r"\[preparation\]\s+State: pending")
                 self.assertIn("sample__job_" + "x" * 80, output)
                 self.assertRegex(output, r"job_[^\n]*\n\s+State: pending")
@@ -224,7 +224,7 @@ class TaskPresentationTests(LocalBackendTestCase):
         workflow.write_text(workflow.read_text().replace("'sample'", repr(name)).replace(
             "outputs=['same.txt'])", "outputs=['same.txt'], image='missing.sif')", 1))
         for options in ((), ("--plain",)):
-            output = self.terminal_cli("--no-color", "status", "*", *options, width=32).stdout
+            output = self.terminal_cli("status", "*", *options, width=32, no_color=True).stdout
             compact = re.sub(r"[\s│]", "", output)
             self.assertIn("Workflowblocked—nonewjobswillbesubmitted.BlockedTasks:" + name, compact)
             self.assertIn("?/5", output)
@@ -235,7 +235,7 @@ class TaskPresentationTests(LocalBackendTestCase):
         self.run_complete()
         (self.work / "results/a/result.txt").unlink()
         for width in (40, 110):
-            output = self.terminal_cli("--no-color", "status", "*", width=width).stdout
+            output = self.terminal_cli("status", "*", width=width, no_color=True).stdout
             self.assertIn("run again after upstream result recovery", " ".join(output.split()))
 
     def test_presentation_options_do_not_add_backend_observations(self):
