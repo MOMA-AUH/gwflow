@@ -580,7 +580,8 @@ class Report:
             self.status_line(f"  {name}__{item.local}: {description}")
             if item.diagnostic or details:
                 if item.observation is not None:
-                    self.status_line(f"    Submission: {item.observation.submission or 'not submitted'}")
+                    missing = "not submitted" if item.state == "not_admitted" else "unavailable"
+                    self.status_line(f"    Submission: {item.observation.submission or missing}")
                     if item.observation.job_id is not None:
                         self.status_line(f"    Backend job: {item.observation.job_id}")
 

@@ -316,6 +316,7 @@ class CancellationTests(LocalBackendTestCase):
         output = self.cli("-b", "recovery_fixture", "cancel", "sample", env=environment, success=False)
         self.assertIn("sample__left", output)
         self.assertIn("Unresolved job identity", output)
+        self.assertNotIn("Submission: not submitted", output)
         self.assertIn("sample__right", output)
         self.assertIn("Cancellation request failed: injected cancellation rejection", output)
         self.assertEqual(output.count("Cancellation requested"), 3, output)
