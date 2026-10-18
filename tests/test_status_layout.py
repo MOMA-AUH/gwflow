@@ -76,7 +76,7 @@ class StatusLayoutTests(LocalBackendTestCase):
         self.assertNotIn("\x1b[", redirected)
         for view in ((), (selector,), ("--details",)):
             output = self.terminal_cli("--no-color", "status", "--status", "failed", *view, width=40).stdout
-            self.assertIn("No Tasks selected", output)
+            self.assertIn("No Tasks selected" if view else "No Tasks match the filter", output)
             self.assertIn(f"{prefix}__A", output)
             self.assertIn("(outside selection)", output)
 

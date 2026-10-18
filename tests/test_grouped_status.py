@@ -79,7 +79,7 @@ class GroupedStatusTests(LocalBackendTestCase):
         self.assertNotIn("mapping@second.mapping", output)
         empty = self.cli("status", "--status", "failed")
         self.assertIn("Showing 0 of 5 selected Tasks", empty)
-        self.assertIn("No Tasks selected", empty)
+        self.assertIn("No Tasks match the filter", empty)
         self.assertNotIn("mapping@", empty)
 
     def test_exact_active_phases_roll_up_only_in_overview(self):

@@ -206,7 +206,8 @@ plain; unsupported terminals and encodings also fall back to plain output.
 | `gwflow status --details` with or without selectors | Selected Tasks expanded with their jobs |
 
 Resolve Task selectors before `--status` filtering. A valid selection emptied by
-the filter succeeds with `No Tasks selected.`; an unmatched selector fails.
+the filter succeeds with an empty report (`No Tasks match the filter.` in the
+grouped overview); an unmatched selector fails.
 Filtering matches the primary Task state, so a blocked Task containing failed
 jobs matches `blocked`, not `failed`.
 

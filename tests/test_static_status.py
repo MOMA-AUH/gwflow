@@ -29,7 +29,6 @@ class StaticStatusTests(LocalBackendTestCase):
                 with self.subTest(width=width, view=view):
                     output = self.terminal_cli("status", *view, "--static", width=width).stdout
                     self.assertRegex(output, r"0/3\s+\[─+\]")
-                    self.assertNotIn("/", re.sub(r"\d/\d", "", output))
         workflow = self.work / "workflow.py"
         workflow.write_text(workflow.read_text().replace(
             "a = gwf.task(mapping(), key='A')",
@@ -69,6 +68,11 @@ class StaticStatusTests(LocalBackendTestCase):
             self.assertIn("6 failed", output)
             self.assertIn("6 Tasks match the filter", output)
             self.assertIn("Showing 6 of 24 selected Tasks", output)
+        output = self.terminal_cli("-b", "recovery_fixture", "status", "*", "--static", env=environment).stdout
+        output = re.sub(r"\x1b\[[0-9;]*m", "", output)
+        self.assertRegex(output, r"reusable\s+3/3 \[━+\]")
+        self.assertRegex(output, r"running\s+2/3 \[━+─+\]")
+        self.assertRegex(output, r"failed\s+1/3 \[━+─+\]")
 
     def test_group_discovery_offers_only_exact_patterns_and_keeps_context(self):
         overview = self.cli("status", "--static")

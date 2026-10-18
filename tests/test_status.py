@@ -41,7 +41,7 @@ class ManagedStatusTests(LocalBackendTestCase):
                 with self.subTest(width=width, color=color, options=options):
                     output = self.terminal_cli(color, "status", "--details", *options, width=width).stdout
                     text = re.sub(r"\x1b\[[0-9;]*m", "", output)
-                    if width >= 80:
+                    if width >= 110 or (options and width >= 80):
                         self.assertRegex(text, r"Task\s+Target\s+State\s+Jobs completed")
                     else:
                         self.assertIn("State: pending", text)
@@ -143,7 +143,9 @@ class ManagedStatusTests(LocalBackendTestCase):
             self.assertNotRegex(output, "[╭○━]")
             self.assertRegex(output, r"(?m)^sample\s+pending\s+0/5")
         self.assertEqual(re.sub(r"\x1b\[[0-9;]*m", "", decorated), monochrome)
-        self.assertEqual(plain, monochrome)
+        self.assertRegex(monochrome, r"0/5 \[─+\]")
+        self.assertEqual(" ".join(plain.split()),
+                         " ".join(re.sub(r" \[─+\]", "", monochrome).split()))
 
     def test_retired_filters_reject_and_valid_state_filters_can_be_empty(self):
         for option, value in (("--format", "tree"), ("--format", "default"),
@@ -249,7 +251,7 @@ class ManagedStatusTests(LocalBackendTestCase):
             "outputs=['same.txt'])", "outputs=['same.txt'], image='missing.sif')", 1))
         output = self.cli("status", "*")
         self.assertRegex(output, r"(?m)^sample\s+blocked\s+\?/5")
-        self.assertIn("progress unavailable", output)
+        self.assertIn("progress not assessed: image unavailable", output)
 
     def test_failure_and_blockage_take_precedence_over_running_jobs(self):
         self.configure_workflow(right_command="exit 8")

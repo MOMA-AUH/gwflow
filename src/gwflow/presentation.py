@@ -391,7 +391,7 @@ class Report:
         visible = [(group, members) for group, members in visible if members and (
             matching is None or any(row.task.name in matching for row in members))]
         if not visible:
-            self.status_line("No Tasks selected.")
+            self.status_line("No Tasks match the filter." if rows else "No Tasks selected.")
             return
         width = max(5, *(Text(group.label).cell_len for group, _ in visible))
         self.status_line("")
