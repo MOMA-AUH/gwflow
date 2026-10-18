@@ -177,7 +177,7 @@ class InspectionStatus(Static):
     def on_key(self, event):
         browser = cast(StatusBrowser, self.app)
         if event.key == "enter" and browser.failure:
-            self.app.push_screen(ErrorView(browser.failure, browser.captured_output, previous=True))
+            browser.open_menu(ErrorView(browser.failure, browser.captured_output, previous=True))
             event.stop()
 
 
@@ -256,6 +256,14 @@ class BrowserView(Screen):
         for pane, offset in zip(self.query(VerticalScroll), saved['scrolls']):
             pane.scroll_to(offset.x, offset.y, animate=False, immediate=True)
 
+    async def refresh_contents(self, navigation=None):
+        navigation = self.capture_navigation() if navigation is None else navigation
+        self.section_states = navigation['collapsed']
+        # Do not send keys to removed widgets while restoring the saved focus.
+        self.set_focus(None, scroll_visible=False)
+        await self.recompose()
+        self.app.call_after_refresh(self.restore_navigation, navigation)
+
 
 class GroupsView(BrowserView):
     def __init__(self):
@@ -328,7 +336,8 @@ class TasksView(BrowserView):
         if self.group is None:
             return True
         group = next((group for group in self.snapshot["groups"] if group["key"] == self.group_key), None)
-        if group is None:
+        if group is None or not any(cast(StatusBrowser, self.app).matches(task) for task in self.snapshot["tasks"]
+                                    if task['name'] in group['members']):
             return False
         self.members = group["members"]
         self.group = group["label"]
@@ -381,7 +390,7 @@ class TaskView(BrowserView):
 
     def observe_snapshot(self):
         task = next((task for task in self.snapshot["tasks"] if task["name"] == self.observation["name"]), None)
-        if task is None:
+        if task is None or not cast(StatusBrowser, self.app).matches(task):
             return False
         self.observation = task
         self.copy_commands = dict(zip(self.copy_commands, task["commands"]))
@@ -411,7 +420,8 @@ class JobView(BrowserView):
         return Static(Shortcuts("↑↓ scroll  PgUp/PgDn page", "Esc back  g groups  ? help  q quit"), classes="shortcuts")
 
     def observe_snapshot(self):
-        job = next((job for task in self.snapshot["tasks"] for job in task["jobs"]
+        job = next((job for task in self.snapshot["tasks"] if cast(StatusBrowser, self.app).matches(task)
+                    for job in task["jobs"]
                     if job["name"] == self.job["name"]), None)
         if job is None:
             return False
@@ -454,6 +464,7 @@ class SearchView(Screen):
 
     def compose(self) -> ComposeResult:
         yield Static("Search Task names", classes="breadcrumb")
+        yield InspectionStatus()
         yield Input(cast(StatusBrowser, self.app).name_query, placeholder="Literal text; ignores case")
         yield Static("Enter: apply  Esc: cancel  Empty search: all selected Tasks", markup=False)
 
@@ -477,6 +488,7 @@ class StateFilterView(Screen):
 
     def compose(self) -> ComposeResult:
         yield Static("Filter Task states", classes="breadcrumb")
+        yield InspectionStatus()
         yield SelectionList(*((state_text(state), state, state in cast(StatusBrowser, self.app).statuses)
                               for state in STATES), classes="listing")
         yield Static("Space: toggle  Enter: apply  Esc: cancel\nc: clear; no choices means all states", classes="shortcuts")
@@ -501,9 +513,10 @@ class ErrorView(BrowserView):
     def __init__(self, failure, output, *, previous=False):
         super().__init__(["Refresh failed" if previous else "No snapshot available"])
         self.failure, self.output = failure, output
+        self.previous = previous
 
     def heading(self):
-        return Static(Breadcrumb(self.breadcrumb), classes="breadcrumb")
+        return super().heading() if self.previous else Static(Breadcrumb(self.breadcrumb), classes="breadcrumb")
 
     def compose(self) -> ComposeResult:
         yield self.heading()
@@ -679,6 +692,10 @@ class StatusBrowser(App[int]):
         self.failure, self.captured_output = failure, output
         self.last_result = 0 if snapshot is not None else 1
         if snapshot is None and self.snapshot is not None:
+            for screen in self.screen_stack:
+                if isinstance(screen, ErrorView):
+                    screen.failure, screen.output = failure, output
+                    await screen.refresh_contents()
             self.update_inspection_status()
             return
         previous = self.snapshot
@@ -716,22 +733,24 @@ class StatusBrowser(App[int]):
                     break
                 if screen.breadcrumb != old_path:
                     renamed_paths.append((old_path, list(screen.breadcrumb)))
-                screen.section_states = navigation['collapsed']
-                # Keys arriving during replacement must not be sent to a
-                # removed widget before the saved focus is restored.
-                screen.set_focus(None, scroll_visible=False)
-                await screen.recompose()
-                self.call_after_refresh(screen.restore_navigation, navigation)
+                await screen.refresh_contents(navigation)
         if self.too_small and not isinstance(self.screen, ResizeView):
             self.push_screen(ResizeView())
+        self.update_inspection_status()
 
     def action_search(self):
         if not self.too_small and self.snapshot is not None and not isinstance(self.screen, SearchView):
-            self.push_screen(SearchView())
+            self.open_menu(SearchView())
 
     def action_filter(self):
         if not self.too_small and self.snapshot is not None and not isinstance(self.screen, StateFilterView):
-            self.push_screen(StateFilterView())
+            self.open_menu(StateFilterView())
+
+    def open_menu(self, view):
+        if isinstance(self.screen, (HelpView, SearchView, StateFilterView, ErrorView)):
+            self.switch_screen(view)
+        else:
+            self.push_screen(view)
 
     def action_back(self):
         if not self.too_small and len(self.screen_stack) > 2:
@@ -745,7 +764,7 @@ class StatusBrowser(App[int]):
 
     def action_help(self):
         if not self.too_small and self.snapshot is not None and not isinstance(self.screen, HelpView):
-            self.push_screen(HelpView())
+            self.open_menu(HelpView())
 
     def action_quit(self):
         self.exit(self.last_result)

@@ -12,6 +12,61 @@ from test_browser_interaction import visible_text
 
 
 class BrowserWorkloadTests(unittest.IsolatedAsyncioTestCase):
+    async def test_task_and_group_that_stop_matching_filter_return_to_surviving_parent(self):
+        app = CapturedBrowser(statuses=('failed',))
+        async with app.run_test(size=(80, 24)) as pilot:
+            await pilot.pause()
+            await pilot.press('enter', 'enter', 'enter')
+            replacement = captured_snapshot()
+            replacement['tasks'][18]['state'] = 'reusable'
+            await app.accept_inspection(replacement)
+            await pilot.pause()
+            text = visible_text(app)
+            self.assertIn('Tasks in mapping', text)
+            self.assertIn('no longer available', text)
+            self.assertIn('sample_019', text)
+            replacement = captured_snapshot()
+            for task in replacement['tasks']:
+                if task['state'] == 'failed':
+                    task['state'] = 'reusable'
+            await app.accept_inspection(replacement)
+            await pilot.pause()
+            text = visible_text(app)
+            self.assertIn('returned to Groups', text)
+            self.assertIn('Showing 0 of 100', text)
+            await pilot.press('q')
+
+    async def test_latest_failure_replaces_open_expanded_error_details(self):
+        app = CapturedBrowser()
+        async with app.run_test(size=(80, 24)) as pilot:
+            await pilot.pause()
+            await app.accept_inspection(None, 'first failure\nTraceback:\nfirst traceback')
+            await pilot.press('tab', 'enter', 'enter')
+            self.assertIn('first traceback', visible_text(app))
+            await app.accept_inspection(None, 'second failure\nTraceback:\nsecond traceback', 'second output')
+            await pilot.pause()
+            text = visible_text(app)
+            self.assertIn('second failure', text)
+            self.assertIn('second traceback', text)
+            self.assertNotIn('first traceback', text)
+            await pilot.press('q')
+        self.assertEqual(app.return_value, 1)
+
+    async def test_switching_help_and_filter_keeps_transient_menus_and_tasks_bounded(self):
+        app = CapturedBrowser()
+        async with app.run_test(size=(80, 24)) as pilot:
+            await pilot.pause()
+            await pilot.press('f', 'question_mark')
+            baseline = len(asyncio.all_tasks())
+            for _ in range(8):
+                await pilot.press('f', 'question_mark')
+            self.assertEqual(len(app.screen_stack), 3)
+            self.assertLessEqual(len(asyncio.all_tasks()), baseline + 2)
+            await pilot.press('escape')
+            self.assertIn('Showing 100 of 100', visible_text(app))
+            self.assertEqual(len(app.screen_stack), 2)
+            await pilot.press('q')
+
     async def test_removed_task_and_group_return_to_nearest_surviving_parent(self):
         app = CapturedBrowser()
         async with app.run_test(size=(80, 24)) as pilot:
