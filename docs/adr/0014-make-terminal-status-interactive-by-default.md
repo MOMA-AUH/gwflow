@@ -709,9 +709,10 @@ unchanged areas along with the implementation breakdown on 2026-10-18.
 The maintainer approved ten implementation slices and their validation criteria
 on 2026-10-18, including publication and updates to #213 and
 [release preparation #217](https://github.com/MOMA-AUH/gwflow/issues/217).
-All ten slices are required release blockers. This records the completed design
-review, not delivered features or completed release validation. The subsequent
-retargeting to v0.8.0 also updates parent #210. No parent issue is closed by
+All ten slices are required release blockers. That approval recorded the completed
+design review; implementation delivery is recorded below. Release validation
+remains separate. The subsequent retargeting to v0.8.0 updated parent #210.
+No parent issue is closed by
 the design review or release retargeting.
 
 The approved slices were published with native prerequisite links and as
@@ -729,3 +730,32 @@ sub-issues of #213. Each also directly blocks #217:
 | [#233 — Run reports](https://github.com/MOMA-AUH/gwflow/issues/233) | #227 |
 | [#234 — Cancellation reports](https://github.com/MOMA-AUH/gwflow/issues/234) | #227 |
 | [#235 — Cleanup and recovery reports](https://github.com/MOMA-AUH/gwflow/issues/235) | #227 |
+
+## Implementation delivery — 2026-10-18
+
+All ten approved implementation slices are now merged. Each PR passed the
+required `tests` and `conda` checks on its final head before its squash merge.
+The linked CI runs retain the installed-package validation for those exact
+changes:
+
+| Implementation ticket | Merged PR | Required CI |
+| --- | --- | --- |
+| [#226](https://github.com/MOMA-AUH/gwflow/issues/226) | [#237](https://github.com/MOMA-AUH/gwflow/pull/237) | [tests and conda](https://github.com/MOMA-AUH/gwflow/actions/runs/39109039542) |
+| [#227](https://github.com/MOMA-AUH/gwflow/issues/227) | [#238](https://github.com/MOMA-AUH/gwflow/pull/238) | [tests and conda](https://github.com/MOMA-AUH/gwflow/actions/runs/39111602975) |
+| [#228](https://github.com/MOMA-AUH/gwflow/issues/228) | [#239](https://github.com/MOMA-AUH/gwflow/pull/239) | [tests and conda](https://github.com/MOMA-AUH/gwflow/actions/runs/39118127567) |
+| [#229](https://github.com/MOMA-AUH/gwflow/issues/229) | [#240](https://github.com/MOMA-AUH/gwflow/pull/240) | [tests and conda](https://github.com/MOMA-AUH/gwflow/actions/runs/39124621725) |
+| [#230](https://github.com/MOMA-AUH/gwflow/issues/230) | [#241](https://github.com/MOMA-AUH/gwflow/pull/241) | [tests and conda](https://github.com/MOMA-AUH/gwflow/actions/runs/39128199511) |
+| [#231](https://github.com/MOMA-AUH/gwflow/issues/231) | [#242](https://github.com/MOMA-AUH/gwflow/pull/242) | [tests and conda](https://github.com/MOMA-AUH/gwflow/actions/runs/39133758482) |
+| [#232](https://github.com/MOMA-AUH/gwflow/issues/232) | [#243](https://github.com/MOMA-AUH/gwflow/pull/243) | [tests and conda](https://github.com/MOMA-AUH/gwflow/actions/runs/39138752645) |
+| [#233](https://github.com/MOMA-AUH/gwflow/issues/233) | [#244](https://github.com/MOMA-AUH/gwflow/pull/244) | [tests and conda](https://github.com/MOMA-AUH/gwflow/actions/runs/39147324370) |
+| [#234](https://github.com/MOMA-AUH/gwflow/issues/234) | [#245](https://github.com/MOMA-AUH/gwflow/pull/245) | [tests and conda](https://github.com/MOMA-AUH/gwflow/actions/runs/39150691839) |
+| [#235](https://github.com/MOMA-AUH/gwflow/issues/235) | [#246](https://github.com/MOMA-AUH/gwflow/pull/246) | [tests and conda](https://github.com/MOMA-AUH/gwflow/actions/runs/39157002633) |
+
+The ten tickets remain recorded as native sub-issues of
+[review milestone #213](https://github.com/MOMA-AUH/gwflow/issues/213) and blocking
+dependencies of [release preparation #217](https://github.com/MOMA-AUH/gwflow/issues/217).
+This completes the approved presentation work and preserves the decisions and
+acceptance examples above. Installable v0.8.0 candidate validation remains in
+#217; publication remains in [#218](https://github.com/MOMA-AUH/gwflow/issues/218).
+These implementation results do not establish release readiness or publication,
+or establish the future v1.0.0 stable compatibility baseline.
