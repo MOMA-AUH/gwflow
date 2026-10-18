@@ -121,7 +121,7 @@ class LogView(PinnedView):
         self.follow_mode = 'off'
         self.next_follow = 0.0
         self.follow_notice = ''
-        self.read_failed = False
+        self.read_error = ''
 
     def compose(self):
         yield self.heading()
@@ -166,9 +166,7 @@ class LogView(PinnedView):
             if self.operation is not None:
                 self.operation.close()
                 self.operation = None
-                previous = ('Previously read ' + time.strftime('%H:%M:%S', time.localtime(self.result['finished']))
-                            if self.result else 'Log read canceled')
-                self.query_one('#read-status', Static).update(previous + '; u: reload.')
+                self.query_one('#read-status', Static).update(Text(self.previous_read_status()))
         pane = self.query_one('#log-pane')
         pane.anchor(False)
         self.read_position = pane.scroll_y
@@ -228,7 +226,13 @@ class LogView(PinnedView):
             self.operation = ReadOperation({'path': self.job['logs'].get(self.stream),
                                             'direction': direction, 'offset': offset, 'previous': previous,
                                             'following': following})
-            self.query_one('#read-status', Static).update('Reading log...')
+            previous = self.previous_read_status() + '\n' if self.read_error else ''
+            self.query_one('#read-status', Static).update(Text(previous + 'Reading log...'))
+
+    def previous_read_status(self):
+        previous = ('Previously read ' + time.strftime('%H:%M:%S', time.localtime(self.result['finished']))
+                    if self.result else 'No log content read')
+        return previous + '; u: reload.' + ('\n' + self.read_error if self.read_error else '')
 
     def read_progress(self):
         if self.operation is None and self.follow_mode == 'following' and time.monotonic() >= self.next_follow:
@@ -241,23 +245,21 @@ class LogView(PinnedView):
             self.operation.close()
             self.operation = None
         if 'error' in result:
-            self.read_failed = True
-            prefix = ('Previously read ' + time.strftime('%H:%M:%S', time.localtime(self.result['finished'])) +
-                      '; u: reload.\n') if self.result else ''
-            self.query_one('#read-status', Static).update(Text(prefix + result['error']))
+            self.read_error = result['error']
+            self.query_one('#read-status', Static).update(Text(self.previous_read_status()))
             self.read_position = self.previous_position
             self.app.call_after_refresh(self.restore_reading_position)
             return
         notices = []
-        if self.read_failed:
-            notices.append('Log readable again; reloaded latest content.')
+        if self.read_error:
+            notices.append('Log readable again.')
         if result.get('change'):
             notices.append(result['change'] + '; reloaded latest content.')
         if result.get('gap'):
             notices.append('Output advanced beyond the previous portion; Home/PgUp access earlier content.')
         if notices:
             self.follow_notice = ' '.join(notices)
-        self.read_failed = False
+        self.read_error = ''
         self.result = result
         self.query_one('#log-text', Static).update(log_text(result))
         self.query_one('#read-status', Static).update(

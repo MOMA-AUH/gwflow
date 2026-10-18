@@ -180,6 +180,71 @@ class StatusFollowTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(app.acquisitions, 1)
             await pilot.press('q')
 
+    async def test_pending_and_canceled_retries_keep_the_last_failure_until_recovery(self):
+        self.stdout.write_text('retained after failure\n')
+        library = self.root / 'probe.so'
+        compiled = subprocess.run(['cc', '-shared', '-fPIC', '-O2', '-Wall', '-Wextra', '-o', str(library),
+                                   str(Path(__file__).parent / 'fixtures/log_read_probe.c'), '-ldl'],
+                                  capture_output=True, text=True)
+        self.assertEqual(compiled.returncode, 0, compiled.stdout + compiled.stderr)
+        gate, started = self.root / 'gate', self.root / 'started'
+        environment = {'LD_PRELOAD': str(library) + ' ' + os.environ.get('LD_PRELOAD', ''),
+                       'GWFLOW_LOG_READ_PATH': str(self.stdout), 'GWFLOW_LOG_READ_GATE': str(gate),
+                       'GWFLOW_LOG_READ_STARTED': str(started)}
+        with patch.dict(os.environ, environment):
+            app = self.browser()
+            async with app.run_test(size=(100, 30)) as pilot:
+                await self.shown(app, pilot, 'sample')
+                await pilot.press('down', 'l', 'enter')
+                await self.shown(app, pilot, 'retained after failure')
+                await pilot.press('F')
+                await self.shown(app, pilot, 'Log read at')
+                self.stdout.unlink()
+                await self.shown(app, pilot, 'No such file', timeout=4)
+                failed = str(app.screen.query_one('#read-status', Static).content)
+                started.unlink(missing_ok=True)
+                gate.touch()
+                self.stdout.write_text('recovered content\n')
+                for _ in range(80):
+                    if started.exists():
+                        break
+                    await pilot.pause(0.05)
+                self.assertTrue(started.exists())
+                self.assertIn(failed, str(app.screen.query_one('#read-status', Static).content))
+                self.assertIn('retained after failure', self.content(app))
+                await pilot.press('F')
+                self.assertIn('Live log: paused', visible_text(app))
+                self.assertEqual(str(app.screen.query_one('#read-status', Static).content), failed)
+                gate.unlink()
+                await pilot.press('F')
+                await self.shown(app, pilot, 'recovered content', timeout=4)
+                self.assertIn('Log readable again', visible_text(app))
+                self.assertNotIn('No such file', str(app.screen.query_one('#read-status', Static).content))
+                self.assertEqual(app.acquisitions, 1)
+                await pilot.press('q')
+
+    async def test_manual_recovery_preserves_older_portion_without_claiming_latest_content(self):
+        contents = ''.join(f'line {index:04d}\n' for index in range(500))
+        self.stdout.write_text(contents)
+        app = self.browser()
+        async with app.run_test(size=(100, 30)) as pilot:
+            await self.shown(app, pilot, 'sample')
+            await pilot.press('down', 'l', 'enter')
+            await self.shown(app, pilot, 'line 0499')
+            await pilot.press('home')
+            await self.shown(app, pilot, 'line 0000')
+            self.stdout.unlink()
+            await pilot.press('u')
+            await self.shown(app, pilot, 'No such file')
+            self.stdout.write_text(contents)
+            await pilot.press('u')
+            await self.shown(app, pilot, 'Log readable again')
+            self.assertIn('line 0000', self.content(app))
+            self.assertNotIn('line 0499', self.content(app))
+            self.assertNotIn('latest content', str(app.screen.query_one('#read-status', Static).content))
+            self.assertIn('Live log: off', visible_text(app))
+            await pilot.press('q')
+
     async def test_scrolling_up_with_the_scrollbar_pauses_following(self):
         self.stdout.write_text(''.join(f'scrollbar {index:04d}\n' for index in range(500)))
         app = self.browser()

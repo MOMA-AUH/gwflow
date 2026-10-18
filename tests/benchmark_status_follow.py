@@ -32,6 +32,7 @@ def main():
     record = dict(
         recorded_at=datetime.now(timezone.utc).isoformat(),
         scope='Issue #232 live log following; release preparation and publication remain separate.',
+        result='passed: bounded follow reads and repeated follow/pause/close resource checks',
         command='<PYTHON> tests/benchmark_status_follow.py --output build/validation/status-follow/measurements.json',
         placeholders={'<PYTHON>': 'Python executable of the installed candidate environment'},
         commit=subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, text=True).strip(),
