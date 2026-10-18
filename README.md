@@ -69,8 +69,10 @@ Submission returns before the jobs finish. Repeat `gwflow status '*' --static` u
 
 ```sh
 cat results/hello/message.txt       # hello
-gwflow logs hello                  # current jobs and log-reading commands
+gwflow logs hello                  # compact current jobs and stream availability
+gwflow logs hello --details        # full identities, paths, and pinned commands
 gwflow logs hello__write --no-pager
+gwflow logs hello__write --stderr --no-pager
 ```
 
 ## Everyday commands
@@ -100,10 +102,14 @@ observations while the previous snapshot remains browsable; `?` shows all keys.
 Task details include full diagnostics
 and buttons to copy ordinary commands for another terminal.
 Use `gwflow logs` for all current task log indexes, or `gwflow logs 'hello*'`
-for a selected group. Each index shows failures first and links to individual
-streams and the recovery preview. Add `--stderr` only when reading one job's log.
+for a selected group. Each index shows failures first, both streams' availability,
+and commands for reading stdout or stderr. Add `--details` for complete attempt,
+submission, and backend identities, paths, and commands pinned to exact submissions.
+Public job names follow the current submission; exact submission names keep the
+same log after a retry. Add `--stderr` only when reading one job's log.
 Use `gwflow logs hello --history` to include earlier retries and attempts, marked
 as historical; a retry can create new job submissions within the same attempt.
+Combine `--history --details` to expand current and historical indexes.
 Logs and cancellation also accept recorded tasks whose declarations have been
 removed, marking them "no longer declared".
 

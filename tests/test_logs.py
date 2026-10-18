@@ -8,6 +8,7 @@ import subprocess
 import sys
 
 from support import FIXTURES, LocalBackendTestCase
+from terminal_session import TerminalSession
 import test_graphs
 import test_inspection
 import test_registry_images
@@ -25,7 +26,10 @@ class TaskLogTests(LocalBackendTestCase):
         self.settle()
         before = self.snapshot()
         output = self.cli("logs", "sample")
-        self.assertRegex(output, r"Task sample.*attempt [0-9a-f]{32}")
+        self.assertIn("Task sample: current attempt", output)
+        self.assertNotRegex(output, r"[0-9a-f]{32}")
+        self.assertNotIn("Backend job:", output)
+        self.assertNotIn(str(self.work), output)
         self.assertLess(output.index("sample__right"), output.index("sample__left"))
         for name in ("right", "left", "join", "gwflow_prepare", "gwflow_complete"):
             self.assertIn(f"sample__{name}", output)
@@ -35,19 +39,37 @@ class TaskLogTests(LocalBackendTestCase):
         self.assertIn("stderr: available", output)
         self.assertIn("gwflow run sample --dry-run --details", output)
         self.assertNotIn("job-output", output)
-        commands = [shlex.split(line.strip()) for line in output.splitlines()
+        rows = [line for line in output.splitlines() if line.startswith("  sample__")]
+        self.assertEqual(len(rows), 5)
+        self.assertTrue(all("stdout:" in line and "stderr:" in line for line in rows), output)
+        self.assertIn("Public job names follow the current submission", output)
+        self.assertIn("exact submission names keep the same log after a retry", output)
+        public = [shlex.split(line.strip()) for line in output.splitlines()
+                  if line.strip().startswith("gwflow logs sample__right ")]
+        self.assertEqual(len(public), 2, output)
+        self.assertIn("gwflow logs sample --details", output)
+        details = self.cli("logs", "sample", "--details")
+        self.assertRegex(details, r"Task sample.*attempt [0-9a-f]{32}")
+        self.assertIn("Backend:", details)
+        self.assertIn("Backend job:", details)
+        commands = [shlex.split(line.strip()) for line in details.splitlines()
                     if line.strip().startswith("gwflow logs sample__right__")]
-        self.assertEqual(len(commands), 2, output)
+        self.assertEqual(len(commands), 2, details)
         for command in commands:
+            stream_name = "stderr" if "--stderr" in command else "stdout"
+            self.assertIn(str(self.work / ".gwf/logs" / (command[2] + "." + stream_name)), details)
             stream = self.cli(*command[1:])
             self.assertIn("job-error" if "--stderr" in command else "job-output", stream)
+            public_command = next(item for item in public if ("--stderr" in item) == ("--stderr" in command))
+            self.assertEqual(self.cli(*public_command[1:]), stream)
+            self.assertNotIn("Task sample:", stream)
         self.assertEqual(self.snapshot(), before)
 
     def test_scheduler_outage_and_missing_streams_preserve_recorded_evidence(self):
         self.configure_workflow(right_command="echo readable-output; echo readable-error >&2; exit 8")
         self.cli("run")
         self.settle()
-        index = self.cli("logs", "sample")
+        index = self.cli("logs", "sample", "--details")
         submission = re.search(r"gwflow logs (sample__right__\S+)", index).group(1)
         (self.work / ".gwf/logs" / (submission + ".stderr")).unlink()
         before = self.snapshot()
@@ -67,10 +89,93 @@ class TaskLogTests(LocalBackendTestCase):
         self.assertIn("No such file", self.cli("logs", submission, "--no-pager", success=False))
         # An unavailable backend connection also leaves disk evidence readable.
         self.configure(**{"backend.local.port": 0})
-        output = self.cli("logs", "sample")
+        output = self.cli("logs", "sample", "--details")
         self.assertIn("live state unavailable", output)
         self.assertIn(submission, output)
         self.assertEqual(self.snapshot(), before)
+
+    def test_details_requires_task_index_and_keeps_owner_and_command_context(self):
+        self.configure_workflow(left_command="echo exact-output; echo exact-error >&2; printf left > same.txt")
+        workflow = self.work / "workflow.py"
+        workflow.write_text(workflow.read_text().replace("alias='sample'", "alias='sample', key='two'")
+                            .replace("task.target('left'", "task.target('left__part'"))
+        self.run_complete()
+        workflow.write_text(workflow.read_text() + "custom = gwf\n")
+        workflow.rename(self.work / "custom flow.py")
+        options = ("--file", "custom flow.py:custom", "--backend", "local")
+        index = self.cli(*options, "logs", "sample__two", "--details")
+        submission = re.search(r"sample__two__left__part: complete; submission (\S+)", index).group(1)
+        self.cli(*options, "run", "sample__two", "--force")
+        self.finish()
+        for removed in (False, True):
+            if removed:
+                (self.work / "custom flow.py").write_text("from gwflow import Workflow\ncustom = Workflow()\n")
+            before = self.snapshot()
+            for selector in ("sample__two__left__part", submission):
+                for stream in ((), ("--stderr",)):
+                    with self.subTest(removed=removed, selector=selector, stream=stream):
+                        result = self.cli_result(*options, "logs", selector, "--details", *stream,
+                                                 "--no-pager", success=False)
+                        self.assertEqual(result.returncode, 2)
+                        self.assertEqual(result.stdout, "")
+                        self.assertIn("--details requires a Task index", result.stderr)
+                        self.assertIn(shlex.join(["gwflow", *options, "logs", "sample__two", "--details"]), result.stderr)
+                        self.assertIn(shlex.join(["gwflow", *options, "logs", selector, *stream, "--no-pager"]), result.stderr)
+                        raw = self.cli(*options, "logs", selector, *stream, "--no-pager")
+                        self.assertIn("exact-error" if stream else "exact-output", raw)
+                        self.assertNotIn("Task sample", raw)
+            self.assertEqual(self.snapshot(), before)
+
+    def test_narrow_terminal_and_redirected_indexes_preserve_complete_names_and_receipts(self):
+        name = "long_" + "sample_" * 14 + "last"
+        workflow = self.work / "workflow.py"
+        workflow.write_text(workflow.read_text().replace("alias='sample'", f"alias={name!r}"))
+        self.run_complete()
+        first = self.cli("logs", name, "--details")
+        submission = re.search(r"; submission (\S+)", first).group(1)
+        self.cli("run", name, "--force")
+        self.finish()
+        for options in ((), ("--details",), ("--history",), ("--history", "--details")):
+            with self.subTest(options=options):
+                redirected = self.cli_result("logs", name, *options).stdout
+                narrow = self.terminal_cli("logs", name, *options, width=40).stdout
+                self.assertEqual(narrow, redirected)
+                self.assertIn(name + "__gwflow_complete", narrow)
+                self.assertNotIn("\x1b", narrow)
+                self.assertNotIn("…", narrow)
+                if "--history" in options:
+                    self.assertIn(submission, narrow)
+                if "--details" in options:
+                    self.assertIn(str(self.work / ".gwf/logs"), narrow)
+
+    def test_individual_streams_keep_pager_and_no_pager_behavior(self):
+        self.configure_workflow(left_command="echo pager-output; echo pager-error >&2; printf left > same.txt")
+        self.run_complete()
+        pager = self.work / "capture pager.py"
+        pager.write_text("import sys\nfrom pathlib import Path\n"
+                         "Path('paged-stream.txt').write_text(sys.stdin.read())\n"
+                         "print('PAGER_FINISHED')\n")
+        environment = {"PAGER": shlex.join([sys.executable, str(pager)])}
+        capture = self.work / "paged-stream.txt"
+        for stream in ((), ("--stderr",)):
+            raw = self.cli_result("logs", "sample__left", *stream, "--no-pager").stdout
+            for no_pager in (False, True):
+                with self.subTest(stream=stream, no_pager=no_pager):
+                    capture.unlink(missing_ok=True)
+                    options = ("--no-pager",) if no_pager else ()
+                    session = TerminalSession([self.executable, "logs", "sample__left", *stream, *options],
+                                              cwd=self.work, env=environment)
+                    try:
+                        self.assertEqual(session.finish(), 0, session.text)
+                        if no_pager:
+                            self.assertFalse(capture.exists())
+                            self.assertIn("pager-error" if stream else "pager-output", session.text)
+                        else:
+                            self.assertEqual(capture.read_text(), raw)
+                            self.assertIn("PAGER_FINISHED", session.text)
+                        self.assertNotIn("Task sample:", session.text)
+                    finally:
+                        session.close()
 
     def test_indexes_select_declared_and_removed_tasks_and_validate_every_selector(self):
         self.run_complete()
@@ -121,7 +226,7 @@ class TaskLogTests(LocalBackendTestCase):
     def test_retained_public_and_historical_submission_names_cannot_ambiguously_select_a_task(self):
         self.configure_workflow(left_command="echo old-left-log; printf left > same.txt")
         self.run_complete()
-        first = self.cli("logs", "sample")
+        first = self.cli("logs", "sample", "--details")
         submission = re.search(r"gwflow logs (sample__left__\S+)", first).group(1)
         workflow = self.work / "workflow.py"
         workflow.write_text(workflow.read_text().replace("task.target('left'", "task.target('renamed'"))
@@ -193,7 +298,7 @@ class TaskLogTests(LocalBackendTestCase):
 class LogImageInspectionTests(test_registry_images.RegistryTestCase):
     def test_logs_do_not_acquire_images_or_plan_a_future_run(self):
         self.run_complete()
-        first = self.cli("logs", "sample")
+        first = self.cli("logs", "sample", "--details")
         old_submission = re.search(r"gwflow logs (sample__compute__\S+)", first).group(1)
         self.cli("run", "sample", "--force")
         self.finish()
@@ -201,7 +306,7 @@ class LogImageInspectionTests(test_registry_images.RegistryTestCase):
         pulls = self.calls("pull")
         self.configure_workflow("docker://example.org/tools/unavailable:new")
         self.options(fail=True)
-        index = self.cli("logs", "sample")
+        index = self.cli("logs", "sample", "--details")
         submission = re.search(r"gwflow logs (sample__compute__\S+)", index).group(1)
         self.cli("logs", submission, "--no-pager")
         self.cli("logs", "sample__compute", "--stderr", "--no-pager")
@@ -232,7 +337,7 @@ class TaskLogHistoryTests(LocalBackendTestCase):
             sys.executable, str(FIXTURES / "frontend_fault.py"), str(self.work), "after_ready", "sample", "run",
         ], cwd=self.work, capture_output=True, text=True, timeout=30)
         self.assertEqual(interrupted.returncode, 93, interrupted.stdout + interrupted.stderr)
-        current = self.cli("logs", "sample")
+        current = self.cli("logs", "sample", "--details")
         previous = re.search(r"attempt ([0-9a-f]{32})", current).group(1)
         self.assertIn("submission not submitted", current)
         self.cli("run", "sample", "--force")
@@ -246,7 +351,7 @@ class TaskLogHistoryTests(LocalBackendTestCase):
 
     def test_history_requires_task_index_mode(self):
         self.run_complete()
-        index = self.cli("logs", "sample")
+        index = self.cli("logs", "sample", "--details")
         submission = re.search(r"gwflow logs (sample__left__\S+)", index).group(1)
         self.cli("run", "sample", "--force")
         self.finish()
@@ -262,7 +367,7 @@ class TaskLogHistoryTests(LocalBackendTestCase):
 
     def test_history_selects_removed_and_unstarted_tasks_with_every_selector_validated(self):
         self.run_complete()
-        first = self.cli("logs", "sample")
+        first = self.cli("logs", "sample", "--details")
         previous = re.search(r"attempt ([0-9a-f]{32})", first).group(1)
         self.cli("run", "sample", "--force")
         self.finish()
@@ -306,14 +411,14 @@ class TaskLogHistoryTests(LocalBackendTestCase):
                 environment = self.inject(job_fault=f"sample__{local}")
                 self.cli("-b", "recovery_fixture", "run", "sample", "--force", env=environment)
                 self.settle()
-                failed = self.cli("logs", "sample")
+                failed = self.cli("logs", "sample", "--details")
                 previous = re.search(r"attempt ([0-9a-f]{32})", failed).group(1)
                 submission = re.search(rf"sample__{local}: failed; submission (\S+)", failed).group(1)
                 self.cli("run", "sample", "--force")
                 self.settle()
                 self.assertIn("Reuse", self.cli("run", "--dry-run"))
                 before = self.snapshot()
-                current = self.cli("logs", "sample")
+                current = self.cli("logs", "sample", "--details")
                 self.assertNotIn(submission, current)
                 self.assertNotIn(": failed", current)
                 history = self.cli("logs", "sample", "--history")
@@ -327,7 +432,7 @@ class TaskLogHistoryTests(LocalBackendTestCase):
     def test_expired_scheduler_history_and_missing_old_streams_remain_inspectable(self):
         self.configure_workflow(left_command="echo old-log; printf left > same.txt")
         self.run_complete()
-        first = self.cli("logs", "sample")
+        first = self.cli("logs", "sample", "--details")
         submission = re.search(r"gwflow logs (sample__left__\S+)", first).group(1)
         workflow = self.work / "workflow.py"
         workflow.write_text(workflow.read_text().replace("task.target('left'", "task.target('renamed'"))
@@ -362,7 +467,7 @@ class TaskLogHistoryTests(LocalBackendTestCase):
             f"if [ -e {shlex.quote(str(failing))} ]; then exit 8; fi; printf right > same.txt"))
         self.cli("run")
         self.settle()
-        first = self.cli("logs", "sample")
+        first = self.cli("logs", "sample", "--details")
         attempt = re.search(r"attempt ([0-9a-f]{32})", first).group(1)
         original = set(self.submissions(first))
         failed = re.search(r"sample__right: failed; submission (\S+)", first).group(1)
@@ -370,29 +475,36 @@ class TaskLogHistoryTests(LocalBackendTestCase):
         self.cli("run")
         self.settle()
         self.assertIn("Reuse", self.cli("run", "--dry-run"))
-        current = self.cli("logs", "sample")
+        current = self.cli("logs", "sample", "--details")
         retried = set(self.submissions(current))
         self.assertIn(attempt, current)
         self.assertNotIn(failed, current)
         before = self.snapshot()
-        history = self.cli("logs", "sample", "--history")
+        history = self.cli("logs", "sample", "--history", "--details")
         present, earlier = history.split("Historical submissions in current attempt " + attempt)
         self.assertEqual(set(self.submissions(present)), retried)
         self.assertEqual(set(self.submissions(earlier)), original - retried)
         self.assertIn("sample__right: failed (historical)", earlier)
+        compact = self.cli("logs", "sample", "--history")
+        compact_current, compact_earlier = compact.split("Historical submissions in current attempt " + attempt)
+        self.assertNotIn("; submission ", compact_current)
+        self.assertNotIn("Backend job:", compact)
+        self.assertNotIn("Path:", compact)
+        self.assertIn(failed, compact_earlier)
+        self.assertIn("gwflow logs sample --history --details", compact)
         self.assertEqual(self.snapshot(), before)
 
         self.cli("run", "sample", "--force")
         self.settle()
         self.assertIn("Reuse", self.cli("run", "--dry-run"))
-        latest = self.cli("logs", "sample")
+        latest = self.cli("logs", "sample", "--details")
         fresh = set(self.submissions(latest))
         self.assertNotIn(attempt, latest)
         self.assertTrue(fresh.isdisjoint(original | retried))
         self.cli("clean", "--attempt", attempt, "--delete")
         self.cli("clean", "sample", "--delete")
         before = self.snapshot()
-        history = self.cli("logs", "sample", "--history")
+        history = self.cli("logs", "sample", "--history", "--details")
         present, earlier = history.split("Historical attempt " + attempt)
         self.assertEqual(set(self.submissions(present)), fresh)
         self.assertCountEqual(self.submissions(earlier), original | retried)
