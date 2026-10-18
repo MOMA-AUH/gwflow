@@ -4,6 +4,8 @@ import traceback
 
 import click
 
+from .activity import message
+
 
 def error_message(error, summary):
     if isinstance(error, click.ClickException):
@@ -19,14 +21,14 @@ def error_message(error, summary):
 
 def report_error(error, summary):
     """Report a caught failure without changing a command's partial receipts."""
-    click.echo("Error: " + error_message(error, summary), err=True, color=False)
+    message("Error: " + error_message(error, summary), err=True)
 
 
 class CommandGroup(click.Group):
     def invoke(self, ctx):
         try:
             return super().invoke(ctx)
-        except (click.ClickException, click.Abort):
+        except (click.ClickException, click.Abort, click.exceptions.Exit):
             raise
         except Exception as error:
             raise click.ClickException(error_message(error, ctx.invoked_subcommand or "command")) from error

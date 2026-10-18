@@ -3,9 +3,10 @@
 import os
 import re
 import fcntl
+import subprocess
 import threading
 
-from support import LocalBackendTestCase
+from support import GWFLOW, LocalBackendTestCase
 import test_graphs
 import test_fresh
 
@@ -81,6 +82,25 @@ class CommandPresentationTests(LocalBackendTestCase):
         self.assertIn('Traceback:', result.stderr)
         self.assertIn('RuntimeError: injected cancellation rejection', result.stderr)
         self.assertEqual(len((self.work / 'cancellation-requests.jsonl').read_text().splitlines()), 2)
+
+    def test_submission_wait_remains_visible_after_planning_finishes(self):
+        environment = self.inject(hold_submission_prefix='sample__gwflow_prepare')
+        progress = self.work / 'submission-progress.log'
+        with progress.open('w') as stream, subprocess.Popen(
+            [GWFLOW, '-b', 'recovery_fixture', 'run'], cwd=self.work, env=environment,
+            stdout=subprocess.PIPE, stderr=stream, text=True,
+        ) as process:
+            try:
+                self.wait_for((self.work / 'submission-held').exists)
+                self.assertIsNone(process.poll())
+                phases = progress.read_text()
+                self.assertEqual(phases.count('Waiting for scheduler...'), 2, phases)
+                self.assertTrue(phases.endswith('Waiting for scheduler...\n'), phases)
+                self.assertNotIn('\x1b[', phases)
+            finally:
+                (self.work / 'submission-release').touch()
+            output, _ = process.communicate(timeout=30)
+        self.assertEqual(process.returncode, 0, output + progress.read_text())
 
     def test_frontend_lock_wait_reports_elapsed_time_and_restores_cursor(self):
         path = self.work / '.gwf/gwflow-submission.lock'

@@ -18,6 +18,7 @@ from rich.text import Text
 from .inspection import blockage_line, condition, task_details
 from .lifecycle import TaskObservation, ordered_targets, producer_names
 from .workflow import lifecycle_jobs
+from .terminal import supports_decoration, supports_unicode
 
 
 STATES = ("pending", "queued", "preparing", "running", "finishing", "reusable",
@@ -298,12 +299,8 @@ class Report:
         self.store = store
         stream = sys.stdout
         self.terminal = stream.isatty()
-        try:
-            ("╭╮╰╯│─━╸╺" + "".join(symbol for symbol, _ in _VISUALS.values())).encode(stream.encoding or "utf-8")
-            self.unicode = True
-        except UnicodeEncodeError:
-            self.unicode = False
-        self.plain = plain or not self.terminal or not self.unicode or os.environ.get("TERM", "").lower() in ("dumb", "unknown")
+        self.unicode = supports_unicode(stream)
+        self.plain = plain or not supports_decoration(stream)
         no_color = bool(os.environ.get("NO_COLOR"))
         self.console = Console(file=stream, force_terminal=self.terminal and not self.plain,
                                color_system=None if self.plain or no_color else "auto",

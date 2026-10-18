@@ -13,6 +13,7 @@ from gwf.plugins.config import config
 from gwf.utils import find_workflow
 
 from ._frontend import ManagedContext
+from .activity import DiagnosticHandler
 from .cancel import cancel
 from .clean_work import clean_work
 from .diagnostics import CommandGroup
@@ -35,7 +36,7 @@ def main(ctx, file, backend, verbose):
     NO_COLOR disables static colors while retaining layout and bars. --verbose
     controls diagnostic logging; --details controls command report depth.
     """
-    logging.basicConfig(level=get_level(verbose), format=LOGGING_FORMATS[verbose])
+    logging.basicConfig(level=get_level(verbose), format=LOGGING_FORMATS[verbose], handlers=[DiagnosticHandler()])
     try:
         path, obj_name = find_workflow(file)
     except FileNotFoundError:

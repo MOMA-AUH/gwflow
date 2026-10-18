@@ -90,8 +90,9 @@ class CancellationTests(LocalBackendTestCase):
             self.assertEqual(self.snapshot(), before)
             (self.work / "cancellation-requests.jsonl").unlink()
             environment = self.inject(identity_host="different-worker", record_cancellations=True, accept_cancel_only=True)
-            output = self.cli("-b", "recovery_fixture", "cancel", "sample", env=environment, success=False)
-            self.assertEqual(output.count("recorded backend does not match the selected backend"), 3, output)
+            result = self.cli_result("-b", "recovery_fixture", "cancel", "sample", env=environment, success=False)
+            self.assertEqual(result.stdout.count("recorded backend does not match the selected backend"), 3, result.stdout)
+            self.assertIn("recorded backend does not match the selected backend", result.stderr)
             self.assertFalse((self.work / "cancellation-requests.jsonl").exists())
             self.assertEqual(self.snapshot(), before)
         finally:
@@ -154,7 +155,7 @@ class CancellationTests(LocalBackendTestCase):
         self.assertEqual(output.count("Cancellation requested"), 3, output)
         requested = [json.loads(line) for line in (self.work / "cancellation-requests.jsonl").read_text().splitlines()]
         self.assertCountEqual(requested, [submission for public, submission in submissions.items() if public != "sample__left"])
-        self.assertNotIn("Traceback", output)
+        self.assertIn("Traceback", output)
         self.assertEqual(self.snapshot(), before)
 
     def test_slurm_requests_return_while_active_and_preserve_inactivity_safeguards(self):

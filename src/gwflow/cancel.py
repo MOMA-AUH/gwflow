@@ -7,7 +7,7 @@ from gwf.backends import BackendStatus, create_backend
 from gwf.core import pass_context
 
 from . import admission
-from .activity import activity
+from .activity import activity, message
 from .diagnostics import report_error
 from ._frontend import _submission_guard, load_workflow
 from .lifecycle import Store, ordered_targets
@@ -42,9 +42,9 @@ def cancel(ctx, selectors, dry_run):
                     removed = "; no longer declared" if name not in workflow._task_declarations else ""
                     attempt = attempts.get(name)
                     if attempt is None:
-                        click.echo(f"Task {name}: no admitted work to cancel{removed}")
+                        message(f"Task {name}: no admitted work to cancel{removed}")
                         continue
-                    click.echo(f"Task {name}: current attempt {attempt['attempt']}{removed}")
+                    message(f"Task {name}: current attempt {attempt['attempt']}{removed}")
                     has_requestable_jobs = False
                     task_errors = False
                     for local in lifecycle_jobs(ordered_targets(attempt["structure"])):
@@ -52,7 +52,7 @@ def cancel(ctx, selectors, dry_run):
                             item = admission.observe_cancellation(store, attempt, local, backend, ctx.backend)
                         except Exception as error:
                             report_error(error, f"Observing {name}__{local}")
-                            click.echo(f"  {name}__{local}: Unresolved job identity: {error}; no request")
+                            message(f"  {name}__{local}: Unresolved job identity: {error}; no request")
                             errors += 1
                             task_errors = True
                             continue
@@ -66,30 +66,30 @@ def cancel(ctx, selectors, dry_run):
                                 reason = "recorded failure; live state unavailable"
                             else:
                                 reason = "not admitted"
-                            click.echo(f"  {label}; {reason}; no request")
+                            message(f"  {label}; {reason}; no request")
                         else:
                             try:
                                 admission.require_cancellation_identity(backend, ctx.backend, item)
                             except Exception as error:
                                 report_error(error, f"Identifying {name}__{local}")
-                                click.echo(f"  {label}; Unresolved job identity: {error}; no request")
+                                message(f"  {label}; Unresolved job identity: {error}; no request")
                                 errors += 1
                                 task_errors = True
                                 continue
                             has_requestable_jobs = True
                             if dry_run:
-                                click.echo(f"  {label}; Would request cancellation (backend job {item.job_id})")
+                                message(f"  {label}; Would request cancellation (backend job {item.job_id})")
                                 continue
                             try:
                                 admission.request_cancellation(backend, ctx.backend, item)
                             except Exception as error:
                                 report_error(error, f"Canceling {name}__{local}")
-                                click.echo(f"  {label}; Cancellation request failed: {error}")
+                                message(f"  {label}; Cancellation request failed: {error}")
                                 errors += 1
                             else:
-                                click.echo(f"  {label}; Cancellation requested; job may still be stopping (backend job {item.job_id})")
+                                message(f"  {label}; Cancellation requested; job may still be stopping (backend job {item.job_id})")
                     if not has_requestable_jobs:
-                        click.echo("  No cancellation requests sent" if task_errors else "  No admitted work to cancel")
+                        message("  No cancellation requests sent" if task_errors else "  No admitted work to cancel")
     except OSError as error:
         raise click.ClickException(str(error)) from error
     if errors:

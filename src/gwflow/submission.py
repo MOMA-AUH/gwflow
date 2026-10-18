@@ -10,6 +10,7 @@ from gwf.core import get_spec_hashes
 from gwf.exceptions import WorkflowError
 
 from . import _files, admission, transfer
+from .activity import activity as report_activity
 from .lifecycle import producer_names
 
 from .workflow import lifecycle_jobs
@@ -62,7 +63,7 @@ def submit_plan(plan, workflow, ctx, *, dry_run, outcomes):
         needed_roots.add("work")
     recreate = sorted(key for key in needed_roots if plan.store.root_needs_recreation(key))
     if replacements or transfers or recreate:
-        with create_backend(ctx.backend, working_dir=ctx.working_dir, config=ctx.config) as backend:
+        with report_activity("Waiting for scheduler..."), create_backend(ctx.backend, working_dir=ctx.working_dir, config=ctx.config) as backend:
             producers = None if recreate else {task.name for task in [*replacements, *transfers]}
             consumers = admission.consumer_activity(plan.store, backend, ctx.backend, producers=producers)
             for task in [*replacements, *transfers]:
@@ -101,7 +102,7 @@ def submit_plan(plan, workflow, ctx, *, dry_run, outcomes):
     if not selected:
         return
     submitted = {task.name: dict(task.submissions) for task in plan.tasks}
-    with create_backend(ctx.backend, working_dir=ctx.working_dir, config=ctx.config) as backend:
+    with report_activity("Waiting for scheduler..."), create_backend(ctx.backend, working_dir=ctx.working_dir, config=ctx.config) as backend:
         with get_spec_hashes(working_dir=ctx.working_dir, config=ctx.config) as hashes:
             for task, attempt in selected:
                 if admission.superseded_activity(plan.store, attempt, backend, ctx.backend):

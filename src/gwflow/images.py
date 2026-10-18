@@ -8,14 +8,13 @@ import os
 from pathlib import Path
 import re
 import subprocess
-import sys
 import tempfile
 
 from gwf.exceptions import WorkflowError
 from gwf.executors import Bash
 
 from . import _observations, inputs
-from .activity import activity
+from .activity import activity, message
 
 
 # Docker distribution reference grammar: repository, optional tag and digest.
@@ -94,7 +93,7 @@ def _acquire(reference, path, locations):
             try:
                 _pull(reference, path, locations)
             except (WorkflowError, OSError, RuntimeError) as error:
-                print(f"Failed to pull image: {reference}: {error}", file=sys.stderr, flush=True)
+                message(f"Failed to pull image: {reference}: {error}", err=True)
                 raise
         # This process or the lock's previous owner may have installed a new
         # image after an earlier successful observation of this same alias.
@@ -115,7 +114,7 @@ def _pull(reference, path, locations):
         except FileExistsError:
             # Never overwrite an entry created outside acquisition coordination.
             pass
-    print(f"Pulled image: {reference}", file=sys.stderr, flush=True)
+    message(f"Pulled image: {reference}", err=True)
 
 
 def resolve(task, structure, locations):
