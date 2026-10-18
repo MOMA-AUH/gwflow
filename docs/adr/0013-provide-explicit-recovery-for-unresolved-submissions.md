@@ -1,6 +1,6 @@
 # Provide explicit operator recovery for unresolved submissions
 
-For v1.0.0, provide a supported, recorded operation through which an operator can
+For v0.8.0, provide a supported, recorded operation through which an operator can
 resolve an otherwise unresolved submission after independently establishing that
 the affected jobs cannot still run. This extends the current contract, which has
 no uncertainty override, because indefinite blockage without an operational

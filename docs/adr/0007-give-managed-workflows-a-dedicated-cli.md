@@ -21,6 +21,14 @@ Task-level log access extends the existing command: `gwflow logs TASK` shows a j
 
 The default log index shows current job submissions within the current Task attempt. `--history` also exposes earlier retry submissions and previous Task attempts, explicitly marked as historical so resolved failures do not appear to be current problems. Task attempt identity alone does not distinguish retries, since retries can preserve that identity.
 
+For v0.8.0, [ADR 0014](0014-make-terminal-status-interactive-by-default.md) makes
+the default current-job index compact, retaining observed states, both streams'
+availability, and explicit stdout/stderr discovery examples. Full attempt,
+submission, and backend identifiers, paths, and exact-submission commands are
+available with `logs --details`. `--history` retains explicit historical
+identities and pinned commands. Public job names continue to follow the current
+submission; exact submission names continue to identify the same log after retry.
+
 Task log indexes accept multiple exact Task names and quoted glob patterns, with results grouped by Task. Reading individual-job log contents continues to require one exact job name, keeping selection of multiple Tasks an index operation.
 
 The `-e`/`--stderr` option selects stderr only when reading an individual job's log contents. Task indexes always show availability of both stdout and stderr. Using `--stderr` in Task-index mode is a usage error with guidance to select an individual job.
@@ -51,11 +59,37 @@ Status displays Selected Tasks, checking upstream dependencies as needed and rep
 
 Status shows a grouped overview when no Task selectors or `--details` are supplied. Explicit Task selectors, whether exact names or globs, show flat Task rows; `--details` expands Selected Tasks with their computation targets and lifecycle jobs. The `--instances` option is removed, so `status '*'` provides all Task rows and selecting a subset no longer produces a grouped overview.
 
+For v0.8.0, [ADR 0014](0014-make-terminal-status-interactive-by-default.md) revises
+this static presentation: status becomes interactive by default in a terminal,
+retaining the entry shortcuts above: the default is a grouped summary, explicit
+Task selectors open Task rows, and `--details` expands jobs. The grouped summary
+remains accessible within the selected scope. `status --static` prints one formatted
+report, `status --plain` prints one undecorated report, and redirection or piping
+automatically produces a plain static report. Task-selection semantics remain
+unchanged. Interactive navigation and view-filter controls are recorded in
+ADR 0014; they reuse the captured selection without additional inspection.
+In both interactive and static summaries, view filters determine which groups
+appear, while each visible group's bar and state counts retain its full selected
+membership. A separate matching count explains which members are shown after
+filtering.
+
 Status retains `--status` filtering by primary Task state and omits `--endpoints`. The ordinary-workflow-only `--format` option also disappears from the managed-only CLI; the view rules above determine presentation. Task selectors are resolved before state filtering, so an unmatched selector fails while a valid selection emptied by the state filter succeeds with no matching Tasks.
 
 Run and status wrap long terminal text rather than truncating it, and `--no-truncate` is removed. Names and text within the chosen view remain complete; `--details` controls diagnostic depth. Redirected output remains complete as before.
 
+For v0.8.0, [ADR 0014](0014-make-terminal-status-interactive-by-default.md) permits
+ellipsis in interactive list rows, with complete names in detail views and
+copyable commands. Static and redirected reports retain the complete-text rule.
+
 Run and status retain `--plain` for explicitly requesting undecorated terminal output. Global `--no-color` disables color while preserving the formatted layout, and redirected reports become plain automatically. These controls serve distinct presentation preferences without changing the default view.
+
+For v0.8.0, [ADR 0014](0014-make-terminal-status-interactive-by-default.md) revises
+this color-control decision: the interactive view uses its full presentation and
+ignores `NO_COLOR`. Remove both `--no-color` and `--use-color` and stop consulting
+the project's `no_color` setting. Static output still honors `NO_COLOR` by
+omitting colors while retaining formatted layout and bars. Plain and redirected
+reports remain undecorated, and redirected diagnostic logging must contain no
+color escapes, including at debug verbosity.
 
 Cleanup uses positional Task selectors in place of `--task` and applies only to matched Tasks, without adding upstream dependencies. `clean` previews by default; `--delete` removes work eligible under the managed cleanup rules, preserving retained results.
 

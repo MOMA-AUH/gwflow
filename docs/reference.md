@@ -1037,8 +1037,12 @@ supported; these guarantees are not universal power-loss certification.
 
 ## Compatibility
 
-Starting with v1.0.0, forward upgrades within 1.x preserve the public authoring
-API and CLI, completed work after cleanup, and valid partial attempts without
+The current release work targets v0.8.0 and follows the pre-1.0 policy below.
+The installed compatibility checks do not establish a stable release baseline
+or a general guarantee across pre-1.0 versions.
+
+Starting with the future v1.0.0 baseline, forward upgrades within 1.x preserve
+the public authoring API and CLI, completed work after cleanup, and valid partial attempts without
 upgrade-induced recomputation or manual record conversion. All affected queued
 and running computation and lifecycle jobs must be confirmed inactive before
 changing environments; a cancellation request alone does not establish this.

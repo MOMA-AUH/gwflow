@@ -8,8 +8,12 @@ command options, storage requirements, and detailed lifecycle behavior.
 
 ## Compatibility boundary
 
-The stable compatibility baseline starts with **v1.0.0**. Across forward upgrades
-within 1.x, the public authoring API and CLI remain supported. An unchanged
+The current release work targets **v0.8.0**, which remains under the pre-1.0
+policy: there is no general cross-version compatibility guarantee. The existing
+installed compatibility journeys check specific baseline/candidate pairs.
+
+The future stable compatibility baseline starts with **v1.0.0**. Across forward
+upgrades within 1.x, the public authoring API and CLI remain supported. An unchanged
 workflow with valid records and retained results can reuse completed Tasks,
 including after internal work cleanup, without upgrade-induced recomputation or
 manual record conversion. With all affected jobs inactive before upgrading,
@@ -184,7 +188,7 @@ versions against unchanged storage, including completed and partial work.
 Current automated local/container checks and historical live-Slurm observations
 are identified separately in the [validation index](validation/README.md).
 Representative production-pipeline acceptance on the actual cluster remains
-follow-up work; these records do not claim it has been performed for a v1.0.0
+follow-up work; these records do not claim it has been performed for a v0.8.0
 candidate. The [final CLI presentation review (#213)](https://github.com/MOMA-AUH/gwflow/issues/213)
 and its resulting work remain a release milestone. See the
 [release acceptance plan](releasing.md#release-acceptance); this guide does not

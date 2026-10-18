@@ -1,5 +1,11 @@
 # Preserve public interfaces and recoverable work throughout 1.x
 
+The maintainer retargeted the current release work to v0.8.0 on 2026-10-18.
+That release remains under the pre-1.0 policy in ADR 0001. The compatibility
+guarantee below applies to the future v1.0.0 baseline and 1.x releases; v0.8.0
+does not establish that baseline. Existing compatibility journeys remain useful
+regression checks and preparation for the future stable release.
+
 Starting with v1.0.0, gwflow preserves its public authoring API and CLI and
 supports completed Task records across forward upgrades within 1.x: an unchanged
 workflow can still load and reuse valid retained results after its internal

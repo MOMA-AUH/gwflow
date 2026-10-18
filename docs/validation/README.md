@@ -104,7 +104,9 @@ uninstrumented command times measure different things.
 The [installed compatibility baseline](compatibility/README.md) describes the
 two-environment completed, cleaned, and incomplete Task journeys, the pinned bootstrap source,
 runtime provenance, and how to test a later installed candidate against it.
-Its same-source bootstrap is not evidence for all future 1.x upgrades.
+The current v0.8.0 release work retains these journeys as regression checks.
+Its same-source bootstrap is not evidence for all future upgrades, and v0.8.0
+does not establish the future v1.0.0/1.x compatibility baseline.
 
 The release column identifies the release associated with the feature. Tested
 package metadata can precede that release; for example, the registry runs used

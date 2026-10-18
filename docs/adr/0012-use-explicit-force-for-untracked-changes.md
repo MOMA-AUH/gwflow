@@ -1,6 +1,6 @@
 # Use explicit force for untracked computation changes
 
-For v1.0.0, users request fresh computation with `gwflow run TASK --force` when
+For v0.8.0, users request fresh computation with `gwflow run TASK --force` when
 package, tool, parameter, or environment changes have no effect on tracked
 declarations, commands, image dependencies, or file observations. Do not add a
 Task Reuse key: the existing explicit operation keeps the authoring API smaller,
