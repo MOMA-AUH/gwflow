@@ -104,6 +104,9 @@ the selected job or historical submission. Logs open at a bounded tail; Page
 Up/Down page through content, Home/End jump to the beginning/latest, and `u`
 reloads the log or history without refreshing status. Open evidence stays pinned
 when `r` observes a retry or removes its Task from the selected workflow.
+Uppercase `F` toggles live log following, initially off. Scrolling upward or
+Home pauses it; `F` resumes. Following reads only the selected submission's log,
+with visible recovery from file changes and no automatic status refresh.
 Task details include full diagnostics
 and buttons to copy ordinary commands for another terminal.
 Use `gwflow logs` for all current task log indexes, or `gwflow logs 'hello*'`
