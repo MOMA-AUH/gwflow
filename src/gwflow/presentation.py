@@ -86,20 +86,24 @@ def task_order(workflow, plan):
         yield remaining.pop(name)
 
 
+def observed_job_state(task, local):
+    """Describe the captured job before applying Task repetition requirements."""
+    item = task.submissions.get(local)
+    if task.action == "reuse":
+        return "completed"
+    if item is not None and item.state == "active":
+        return "queued" if item.backend_state == BackendStatus.SUBMITTED else "running"
+    if item is None:
+        return "pending" if task.observations_available else "unknown"
+    return {"complete": "completed", "cancelled": "canceled", "uncertain": "unknown"}.get(item.state, item.state)
+
+
 def job_states(task):
     states = {}
     for local in lifecycle_jobs(task.structure["targets"]):
-        item = task.submissions.get(local)
-        if task.action == "reuse":
-            state = "completed"
-        elif item is not None and item.state == "active":
-            state = "queued" if item.backend_state == BackendStatus.SUBMITTED else "running"
-        elif task.restart_required:
+        state = observed_job_state(task, local)
+        if task.restart_required and task.action != "reuse" and state not in {"queued", "running"}:
             state = "pending"
-        elif item is None:
-            state = "pending" if task.observations_available else "unknown"
-        else:
-            state = {"complete": "completed", "cancelled": "canceled", "uncertain": "unknown"}.get(item.state, item.state)
         if state == "completed" and local in task.repeated_jobs:
             state = "pending"
         states[local] = state

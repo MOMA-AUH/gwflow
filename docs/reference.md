@@ -194,16 +194,60 @@ from current declarations.
 
 ### Status views and progress
 
-`status --static` prints one formatted report on a capable terminal, with
-progress bars and numeric fractions. `--plain` prints an undecorated report
-and wins if both options are supplied. Redirected or piped output is always
-plain; unsupported terminals and encodings also fall back to plain output.
+`status` opens an interactive browser when stdout supports terminal decoration,
+keyboard input is available, and the terminal is at least 40 columns by 12 rows.
+The browser uses full color, including when `NO_COLOR` is set. `status --static`
+prints one formatted report with progress bars and numeric fractions. `--plain`
+prints an undecorated report and wins if both options are supplied. Redirected
+or piped output is always plain. Unavailable keyboard input selects a formatted
+static report; unsupported terminals and encodings select plain output. A
+terminal too small for automatic browser entry gets a brief stderr explanation
+and a plain static report.
 
 | Request | View |
 | --- | --- |
 | `gwflow status` or a filter-only request | Grouped overview |
 | `gwflow status '*'` or any explicit Task selectors | Flat selected Task rows |
 | `gwflow status --details` with or without selectors | Selected Tasks expanded with their jobs |
+
+In the browser, Enter opens the selected group, Task, or job on a full-width
+screen. Breadcrumbs show the current location. Task details lead with state,
+Jobs completed, Next action, and the concrete reason; expandable sections show
+attempt identities, paths, and diagnostics. Job details retain the captured
+submission state and identity even when that work must repeat for Task progress.
+Individual jobs have states, without computation percentages. Ordinary command
+hints include copy buttons, retaining full Task names and workflow/backend
+options; clipboard support depends on the terminal. The browser executes no
+run, cancellation, cleanup, or recovery commands.
+
+| Key | Action |
+| --- | --- |
+| Up / Down | Select a row or scroll details |
+| Enter | Open the selected row or activate a control |
+| Esc | Return with focus and scroll position preserved; stay at the root |
+| Tab / Shift+Tab | Move between controls and expandable sections |
+| Home / End, Page Up / Page Down | Navigate longer lists and detail panes |
+| `g` | Return to groups within the original Task selection |
+| `?` | Show the keyboard reference and captured inspection diagnostics |
+| `q` | Quit status |
+| Ctrl+C | Interrupt using ordinary CLI behavior |
+
+The browser captures one inspection in a separate, stoppable process. Loading
+shows the current phase and elapsed time. Workflow stdout and diagnostics are
+captured for inspection from help. The frontend lock is released after capture;
+navigation never imports the workflow again or queries the scheduler. Close and
+reopen status to get newer observations. An initial operational failure shows
+its concrete error and expandable complete traceback for unexpected failures;
+no snapshot is shown as successful. Observed blocked Tasks are a valid snapshot.
+
+Quitting stops an unfinished inspection and its owned subprocesses, releases
+inspection resources, and restores the terminal. Already submitted workflow
+jobs continue. Exit status is zero after a completed inspection, or one after
+an initial failure or quitting before inspection completes. Unexpected UI
+failures restore the terminal and report the full exception chain on stderr.
+Shrinking below 40 × 12 shows a resize notice; enlarging restores the current
+view without another inspection. Long list names may use ellipses; full names
+remain available in details and copied commands.
 
 Resolve Task selectors before `--status` filtering. A valid selection emptied by
 the filter succeeds with an empty report (`No Tasks match the filter.` in the
@@ -261,10 +305,11 @@ jobs running inside a failed, canceled, or blocked Task. Historical backend
 failures do not override valid Completion and Reuse.
 
 `--details` places each Task's preparation, computation, and completion jobs below
-its row. Child rows show public job names and job states. It does not add attempt
-paths or full planner diagnostics; use `gwflow run TASK --dry-run --details` for
-those. Status is a static snapshot, without live refresh or extra scheduler
-polling introduced by presentation.
+its row. Child rows show job names and states. In a static report, this does not
+add attempt paths or full planner diagnostics; use
+`gwflow run TASK --dry-run --details` for those. The interactive browser exposes
+them in Task and job details. Both modes use captured observations, without live
+refresh or extra scheduler polling introduced by presentation.
 
 ### Attention, notices, and complete text
 
@@ -289,11 +334,11 @@ unrelated runtime blockers do not enter a selected status report. Active jobs
 may continue even when no new work can be submitted. Routine work-directory
 details do not create notices, and notices use the same observations as the rows.
 
-Run and status keep all text included in the chosen view complete, wrapping or
-stacking it at narrow widths. Long status identifiers and copyable attention
+Run and static status keep all text included in the chosen view complete,
+wrapping or stacking it at narrow widths. Long static status identifiers and copyable attention
 commands remain intact in the output stream and may wrap visually in the terminal.
 `--details` controls diagnostic depth. `--plain` removes report colors and
-decoration; `NO_COLOR=1` keeps formatted layout, bars, and symbols without color.
+decoration; `NO_COLOR=1` keeps formatted static layout, bars, and symbols without color.
 Global `--no-color` and `--use-color` have been removed. The project `no_color`
 setting is ignored, without rewriting configuration files.
 Redirected reports and diagnostic logging are automatically undecorated.
