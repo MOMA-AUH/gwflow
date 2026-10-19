@@ -98,10 +98,10 @@ class GroupColumns:
 
     def __rich_console__(self, console, options):
         if options.max_width < 70:
-            yield Text("Group / Reusable / Other states", style="bold")
+            yield Text("Name / Reusable / Other states", style="bold")
         else:
             name, progress = self.widths(options.max_width)
-            yield Text(f"{'Group':<{name}}  {'Reusable':<{progress}}  Other states", style="bold")
+            yield Text(f"{'Name':<{name}}  {'Reusable':<{progress}}  Other states", style="bold")
 
 
 class GroupPrompt:
@@ -337,7 +337,7 @@ class GroupsView(BrowserView):
                                               columns),
                                   id="group:" + group["key"]))
         with Vertical(classes="group-panel") as panel:
-            panel.border_title = "Task groups"
+            panel.border_title = "Groups"
             yield Static(columns, classes="group-columns")
             yield OptionList(*options, classes="listing group-list")
         yield self.footer()
@@ -692,13 +692,14 @@ class StatusBrowser(App[int]):
     #activity { height: auto; }
     #rows, .listing { height: 1fr; border: none; }
     .group-panel { height: 1fr; margin-top: 1; border: round $foreground 25%; }
-    .group-columns { height: auto; margin: 0 1; padding-right: 2; border-bottom: solid $foreground 20%; }
-    .group-list { padding: 0 1; scrollbar-gutter: stable; scrollbar-size-vertical: 2; }
+    .group-columns { height: auto; margin: 0 1; padding: 0 2 0 1; border-bottom: solid $foreground 20%; }
+    .group-list { padding: 0 1 0 2; scrollbar-gutter: stable; scrollbar-size-vertical: 2; }
     .group-list > .option-list--option { padding: 0; }
     .group-list:focus > .option-list--option-highlighted { text-style: bold; }
     .compact .view-heading { margin-bottom: 0; }
     .compact .group-panel { margin-top: 0; border: none; }
     .compact .group-columns { display: none; }
+    .compact .group-list { padding: 0 1; }
     .jobs { height: 8; min-height: 3; max-height: 50%; border: none; }
     .notice-pane { height: auto; min-height: 2; max-height: 25%; border-left: wide yellow; }
     .compact .notice-pane { height: 1; min-height: 1; max-height: 1; }

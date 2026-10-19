@@ -32,8 +32,14 @@ class BrowserWorkloadTests(unittest.IsolatedAsyncioTestCase):
                 await pilot.pause()
                 svg = ET.fromstring(app.export_screenshot())
                 rows = {}
+                starts = {}
                 for node in svg.iter('{http://www.w3.org/2000/svg}text'):
-                    rows.setdefault(node.get('y'), []).append(''.join(node.itertext()).replace('\xa0', ' '))
+                    text = ''.join(node.itertext()).replace('\xa0', ' ')
+                    rows.setdefault(node.get('y'), []).append(text)
+                    for label in (' Groups ', 'Name ', 'mapping'):
+                        if text.startswith(label):
+                            cell_width = float(node.get('textLength')) / len(text)
+                            starts[label] = float(node.get('x')) + (len(text) - len(text.lstrip())) * cell_width
                 rows = [''.join(parts) for parts in rows.values()]
                 first = next(row for row in rows if 'mapping' in row)
                 second = next(row for row in rows if 'compare_mutect2_truth' in row)
@@ -45,7 +51,8 @@ class BrowserWorkloadTests(unittest.IsolatedAsyncioTestCase):
                 self.assertIn('queued 76', second)
                 self.assertEqual(first.index('['), second.index('['))
                 self.assertEqual(header.index('Reusable'), first.index('14/24'))
-                self.assertIn('Task groups', visible_text(app))
+                self.assertAlmostEqual(starts[' Groups '], starts['Name '])
+                self.assertAlmostEqual(starts['Name '], starts['mapping'])
 
             await pilot.press('down')
             selected = app.screen.query_one(OptionList).highlighted_option.id
