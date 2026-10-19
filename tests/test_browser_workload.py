@@ -5,6 +5,9 @@ import gc
 from pathlib import Path
 import unittest
 import weakref
+import xml.etree.ElementTree as ET
+
+from textual.widgets import OptionList
 
 from fixtures.browser_workload import CapturedBrowser, captured_snapshot
 from gwflow.diagnostics import error_message
@@ -12,6 +15,56 @@ from test_browser_interaction import visible_text
 
 
 class BrowserWorkloadTests(unittest.IsolatedAsyncioTestCase):
+    async def test_group_table_aligns_rows_and_preserves_selection_across_resize(self):
+        def snapshot():
+            result = captured_snapshot()
+            result['notices'] = ''
+            result['groups'][1]['label'] = 'compare_mutect2_truth'
+            for task in result['tasks'][24:]:
+                task['state'] = 'queued'
+            return result
+
+        app = CapturedBrowser(snapshot_factory=snapshot)
+        async with app.run_test(size=(80, 24)) as pilot:
+            await pilot.pause()
+            for size in ((80, 24), (120, 40)):
+                await pilot.resize_terminal(*size)
+                await pilot.pause()
+                svg = ET.fromstring(app.export_screenshot())
+                rows = {}
+                for node in svg.iter('{http://www.w3.org/2000/svg}text'):
+                    rows.setdefault(node.get('y'), []).append(''.join(node.itertext()).replace('\xa0', ' '))
+                rows = [''.join(parts) for parts in rows.values()]
+                first = next(row for row in rows if 'mapping' in row)
+                second = next(row for row in rows if 'compare_mutect2_truth' in row)
+                header = next(row for row in rows if 'Other states' in row)
+                self.assertIn('14/24', first)
+                self.assertIn('active 4', first)
+                self.assertIn('failed 6', first)
+                self.assertIn('0/76', second)
+                self.assertIn('queued 76', second)
+                self.assertEqual(first.index('['), second.index('['))
+                self.assertEqual(header.index('Reusable'), first.index('14/24'))
+                self.assertIn('Task groups', visible_text(app))
+
+            await pilot.press('down')
+            selected = app.screen.query_one(OptionList).highlighted_option.id
+            await pilot.resize_terminal(40, 12)
+            await pilot.pause()
+            text = visible_text(app)
+            self.assertIn('0/76', text)
+            self.assertIn('queued', text)
+            self.assertIn('q quit', text)
+            await pilot.resize_terminal(80, 24)
+            await pilot.pause()
+            self.assertEqual(app.screen.query_one(OptionList).highlighted_option.id, selected)
+            await pilot.press('enter')
+            self.assertIn('Tasks in compare_mutect2_truth', visible_text(app))
+            await pilot.press('escape')
+            self.assertEqual(app.screen.query_one(OptionList).highlighted_option.id, selected)
+            self.assertEqual(app.acquisitions, 1)
+            await pilot.press('q')
+
     async def test_filter_error_control_opens_details_without_applying_pending_choices(self):
         app = CapturedBrowser(statuses=('failed',), status_interval=60)
         async with app.run_test(size=(80, 24)) as pilot:

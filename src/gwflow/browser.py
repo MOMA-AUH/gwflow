@@ -87,18 +87,53 @@ class Scope:
                        f"Scope: {selectors}; State: {states}; Name: {name_query}")
 
 
-class GroupPrompt:
-    def __init__(self, label, counts, total, matching):
-        self.label, self.counts, self.total, self.matching = label, counts, total, matching
+class GroupColumns:
+    """Shared column widths for group headings and rows, recomputed on resize."""
+
+    def __init__(self, name_width, fraction_width):
+        self.name_width, self.fraction_width = max(8, name_width), fraction_width
+
+    def widths(self, width):
+        return min(self.name_width, max(8, width * 2 // 5)), 11 + self.fraction_width
 
     def __rich_console__(self, console, options):
-        line = Text(middle_name(self.label, options.max_width) + "\n")
-        width = max(3, min(18, options.max_width - len(f"{self.counts['reusable']}/{self.total}") - 5))
-        line.append("✓ " + progress_text(self.counts['reusable'], self.total, width), "green")
-        line.append("\n" if options.max_width < 60 else "  ")
+        if options.max_width < 70:
+            yield Text("Group / Reusable / Other states", style="bold")
+        else:
+            name, progress = self.widths(options.max_width)
+            yield Text(f"{'Group':<{name}}  {'Reusable':<{progress}}  Other states", style="bold")
+
+
+class GroupPrompt:
+    def __init__(self, label, counts, total, matching, columns):
+        self.label, self.counts, self.total, self.matching = label, counts, total, matching
+        self.columns = columns
+
+    def __rich_console__(self, console, options):
+        states = Text()
         for state, count in self.counts.items():
-            line.append_text(state_text(state))
-            line.append(f" {count}  ")
+            if state == "reusable":
+                continue
+            if states:
+                states.append("  ")
+            states.append_text(state_text(state))
+            states.append(f" {count}")
+        name_width, progress_width = self.columns.widths(options.max_width)
+        single_line = options.max_width >= 70 and name_width + progress_width + states.cell_len + 4 <= options.max_width
+        if single_line:
+            name = middle_name(self.label, name_width)
+            line = Text(name + " " * (name_width - cell_len(name)) + "  ")
+            fraction, _, bar = progress_text(self.counts['reusable'], self.total, 8).partition(" ")
+            line.append(fraction.rjust(self.columns.fraction_width) + " " + bar, "green")
+            line.append("  ")
+        else:
+            line = Text(middle_name(self.label, options.max_width) + "\n")
+            width = max(3, min(18, options.max_width - len(f"{self.counts['reusable']}/{self.total}") - 5))
+            progress = "✓ " + progress_text(self.counts['reusable'], self.total, width)
+            line.append(progress, "green")
+            if states:
+                line.append("\n" if cell_len(progress) + states.cell_len + 2 > options.max_width else "  ")
+        line.append_text(states)
         if self.matching is not None:
             line.append(f"\n{self.matching} Task{'s match' if self.matching != 1 else ' matches'} the filter")
         yield line
@@ -285,6 +320,9 @@ class GroupsView(BrowserView):
         yield self.scope()
         yield from self.notices()
         options = []
+        columns = GroupColumns(max((cell_len(group['label']) for group in self.snapshot['groups']), default=8),
+                               max((len(f"{len(group['members'])}/{len(group['members'])}")
+                                    for group in self.snapshot['groups']), default=3))
         tasks = {task["name"]: task for task in self.snapshot["tasks"]}
         for group in self.snapshot["groups"]:
             members = [tasks[name] for name in group["members"]]
@@ -295,13 +333,22 @@ class GroupsView(BrowserView):
             counts = Counter("active" if task["state"] in ACTIVE else task["state"] for task in members)
             options.append(Option(GroupPrompt(group["label"], counts, len(members),
                                               matching if (cast(StatusBrowser, self.app).statuses or
-                                                           cast(StatusBrowser, self.app).name_query) else None),
+                                                           cast(StatusBrowser, self.app).name_query) else None,
+                                              columns),
                                   id="group:" + group["key"]))
-        yield OptionList(*options, classes="listing")
+        with Vertical(classes="group-panel") as panel:
+            panel.border_title = "Task groups"
+            yield Static(columns, classes="group-columns")
+            yield OptionList(*options, classes="listing group-list")
         yield self.footer()
 
     def on_mount(self):
         self.set_focus(self.query_one(OptionList))
+
+    def on_resize(self, event):
+        super().on_resize(event)
+        # Stacking can make the selected row taller than its previous viewport.
+        self.call_after_refresh(self.query_one(OptionList).scroll_to_highlight)
 
     def on_option_list_option_selected(self, event):
         group = self.groups[event.option_index]
@@ -640,10 +687,18 @@ class Inspection:
 class StatusBrowser(App[int]):
     CSS = """
     Screen { layout: vertical; }
-    .view-heading { height: auto; }
+    .view-heading { height: auto; margin-bottom: 1; }
     #breadcrumb, .breadcrumb { height: auto; text-style: bold; color: cyan; }
     #activity { height: auto; }
     #rows, .listing { height: 1fr; border: none; }
+    .group-panel { height: 1fr; margin-top: 1; border: round $foreground 25%; }
+    .group-columns { height: auto; margin: 0 1; padding-right: 2; border-bottom: solid $foreground 20%; }
+    .group-list { padding: 0 1; scrollbar-gutter: stable; scrollbar-size-vertical: 2; }
+    .group-list > .option-list--option { padding: 0; }
+    .group-list:focus > .option-list--option-highlighted { text-style: bold; }
+    .compact .view-heading { margin-bottom: 0; }
+    .compact .group-panel { margin-top: 0; border: none; }
+    .compact .group-columns { display: none; }
     .jobs { height: 8; min-height: 3; max-height: 50%; border: none; }
     .notice-pane { height: auto; min-height: 2; max-height: 25%; border-left: wide yellow; }
     .compact .notice-pane { height: 1; min-height: 1; max-height: 1; }
@@ -651,6 +706,8 @@ class StatusBrowser(App[int]):
     .read-info { height: auto; min-height: 1; max-height: 25%; }
     .compact .read-info { height: 2; max-height: 2; }
     #shortcuts, .shortcuts { height: auto; dock: bottom; }
+    .shortcuts { margin-top: 1; border-top: solid $foreground 25%; }
+    .compact .shortcuts { margin-top: 0; border-top: none; }
     """
     BINDINGS = [Binding("q", "quit", "Quit"), Binding("ctrl+c", "interrupt", show=False, priority=True),
                 Binding("g", "groups", "Groups"), Binding("r", "refresh", "Refresh"),
