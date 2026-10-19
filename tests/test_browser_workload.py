@@ -15,6 +15,32 @@ from test_browser_interaction import visible_text
 
 
 class BrowserWorkloadTests(unittest.IsolatedAsyncioTestCase):
+    async def test_instance_rows_separate_tasks_and_indent_job_summaries(self):
+        def snapshot():
+            result = captured_snapshot()
+            result['notices'] = ''
+            for task in result['tasks']:
+                task['detail'] = '1 job running; 12 jobs queued'
+            return result
+
+        app = CapturedBrowser(snapshot_factory=snapshot)
+        async with app.run_test(size=(80, 24)) as pilot:
+            await pilot.pause()
+            await pilot.press('enter')
+            nodes = list(ET.fromstring(app.export_screenshot()).iter('{http://www.w3.org/2000/svg}text'))
+            first = next(node for node in nodes if ''.join(node.itertext()).startswith('sample_000'))
+            second = next(node for node in nodes if ''.join(node.itertext()).startswith('sample_001'))
+            detail = next(node for node in nodes if '1\xa0job\xa0running' in ''.join(node.itertext()))
+            self.assertGreater(float(second.get('y')) - float(first.get('y')),
+                               2 * (float(detail.get('y')) - float(first.get('y'))))
+            # The detail's leading whitespace is rendered in the same SVG node.
+            value = ''.join(detail.itertext()).replace('\xa0', ' ')
+            self.assertTrue(value.startswith('  '))
+            self.assertNotIn('mapping_long_', visible_text(app))
+            await pilot.press('slash', *'mapping_long_', 'enter')
+            self.assertIn('Showing 100 of 100 selected Tasks', visible_text(app))
+            await pilot.press('q')
+
     async def test_expanded_jobs_share_the_task_state_column(self):
         app = CapturedBrowser(details=True)
         async with app.run_test(size=(80, 24)) as pilot:
@@ -146,7 +172,7 @@ class BrowserWorkloadTests(unittest.IsolatedAsyncioTestCase):
             await pilot.pause()
             self.assertEqual(app.screen.query_one(OptionList).highlighted_option.id, selected)
             await pilot.press('enter')
-            self.assertIn('Tasks in compare_mutect2_truth', visible_text(app))
+            self.assertIn('Groups > compare_mutect2_truth', visible_text(app))
             await pilot.press('escape')
             self.assertEqual(app.screen.query_one(OptionList).highlighted_option.id, selected)
             self.assertEqual(app.acquisitions, 1)
@@ -181,7 +207,7 @@ class BrowserWorkloadTests(unittest.IsolatedAsyncioTestCase):
             await app.accept_inspection(replacement)
             await pilot.pause()
             text = visible_text(app)
-            self.assertIn('Tasks in mapping', text)
+            self.assertIn('Groups > mapping', text)
             self.assertIn('no longer available', text)
             self.assertIn('sample_019', text)
             replacement = captured_snapshot()
@@ -240,7 +266,7 @@ class BrowserWorkloadTests(unittest.IsolatedAsyncioTestCase):
             await app.accept_inspection(replacement)
             await pilot.pause()
             text = visible_text(app)
-            self.assertIn('Tasks in mapping', text)
+            self.assertIn('Groups > mapping', text)
             self.assertIn('no longer available', text)
             self.assertIn('sample_001', text)
             await pilot.resize_terminal(40, 24)

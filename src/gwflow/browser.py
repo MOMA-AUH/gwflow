@@ -90,10 +90,11 @@ class Scope:
 class ProgressColumns:
     """Shared headings and widths for a list of names, progress, and states."""
 
-    def __init__(self, name_width, fraction_width, *, progress_label="Reusable", state_width=None):
+    def __init__(self, name_width, fraction_width, *, progress_label="Reusable", state_width=None, name_label="Name"):
         self.name_width, self.fraction_width = max(8, name_width), fraction_width
         self.progress_label, self.state_width = progress_label, state_width
         self.state_label = "Other states" if state_width is None else "State"
+        self.name_label = name_label
 
     def widths(self, width):
         progress = 11 + self.fraction_width
@@ -106,10 +107,10 @@ class ProgressColumns:
 
     def __rich_console__(self, console, options):
         if options.max_width < 70:
-            yield Text(f"Name / {self.progress_label} / {self.state_label}", style="bold")
+            yield Text(f"{self.name_label} / {self.progress_label} / {self.state_label}", style="bold")
         else:
             name, progress = self.widths(options.max_width)
-            yield Text(f"{'Name':<{name}}  {self.progress_label:<{progress}}  {self.state_label}", style="bold")
+            yield Text(f"{self.name_label:<{name}}  {self.progress_label:<{progress}}  {self.state_label}", style="bold")
 
 
 class JobColumns:
@@ -166,26 +167,33 @@ class GroupPrompt:
 
 
 class TaskPrompt:
-    def __init__(self, task, columns):
+    def __init__(self, task, columns, display_name, spacious):
         self.task, self.columns = task, columns
+        self.display_name = display_name
+        self.spacious = spacious
 
     def __rich_console__(self, console, options):
         task = self.task
         state = state_text(task["state"])
         fraction = f"{task['completed']}/{task['total']}"
         name_width, progress_width = self.columns.widths(options.max_width)
+        detail_indent = 2
         if options.max_width >= 70 and name_width + progress_width + state.cell_len + 4 <= options.max_width:
-            name = middle_name(task['name'], name_width)
+            name = middle_name(self.display_name, name_width)
             line = Text(name + " " * (name_width - cell_len(name)) + "  ")
             line.append(self.columns.progress(task['completed'], task['total']) + "  ")
             line.append_text(state)
+            detail_indent = name_width + 2
         else:
             width = max(3, min(18, options.max_width - state.cell_len - len(fraction) - 5))
-            line = Text(middle_name(task["name"], options.max_width) + "\n")
+            line = Text(middle_name(self.display_name, options.max_width) + "\n")
             line.append_text(state)
             line.append("  " + progress_text(task["completed"], task["total"], width))
         if task["detail"]:
-            line.append("\n" + task["detail"])
+            for detail_line in Text(task['detail']).wrap(console, max(1, options.max_width - detail_indent)):
+                line.append("\n" + " " * detail_indent + detail_line.plain, "dim")
+        if self.spacious():
+            line.append("\n ")
         yield line
 
 
@@ -411,21 +419,27 @@ class TasksView(BrowserView):
         yield from self.notices()
         tasks = [task for task in self.snapshot['tasks'] if cast(StatusBrowser, self.app).matches(task)
                  and (self.members is None or task['name'] in self.members)]
+        # Instance keys are captured from naming metadata: neither a qualified
+        # group label nor splitting a name on '__' reliably identifies the key.
+        names = [(task.get('instance_key', task['name']) or '(no key)') if self.group is not None
+                 else task['name'] for task in tasks]
         states = [state_text(task['state']).cell_len for task in tasks]
         if self.expanded:
             states.extend(job_state_text(job).cell_len for task in tasks for job in task['jobs'])
-        columns = ProgressColumns(max((cell_len(task['name']) for task in tasks), default=8),
+        columns = ProgressColumns(max((cell_len(name) for name in names), default=8),
                                   max((len(f"{task['completed']}/{task['total']}") for task in tasks), default=3),
-                                  progress_label="Progress", state_width=max(states, default=5))
+                                  progress_label="Progress", state_width=max(states, default=5),
+                                  name_label="Instance" if self.group is not None else "Name")
         options = []
-        for task in tasks:
-            options.append(Option(TaskPrompt(task, columns), id="task:" + task["name"]))
+        spacious = lambda: not self.expanded and not self.has_class('compact')
+        for task, name in zip(tasks, names):
+            options.append(Option(TaskPrompt(task, columns, name, spacious), id="task:" + task["name"]))
             self.items.append((task, None))
             if self.expanded:
                 for job in task["jobs"]:
                     options.append(Option(JobPrompt(job, columns), id="job:" + job["name"]))
                     self.items.append((task, job))
-        yield self.listing(options, columns, "Tasks in " + self.group if self.group else "Selected Tasks")
+        yield self.listing(options, columns, self.group if self.group is not None else "Selected Tasks")
         yield self.footer()
 
     def on_mount(self):

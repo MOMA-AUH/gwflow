@@ -98,7 +98,7 @@ class StatusFollowTerminalTests(LocalBackendTestCase):
         path = (self.work / '.gwf/logs/sample__left.stdout').resolve()
         session = self.terminal('status', size=(100, 30))
         session.wait_for('sample')
-        for expected in ('Tasks in sample', 'Jobs completed:'):
+        for expected in ('Instance', 'Jobs completed:'):
             checkpoint = session.send('\r')
             session.wait_for(expected, after=checkpoint)
         checkpoint = session.send('\x1b[B' * 2 + 'l')

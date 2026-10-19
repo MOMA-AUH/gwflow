@@ -37,6 +37,37 @@ class BrowserInteractionTests(LocalBackendTestCase, unittest.IsolatedAsyncioTest
             await asyncio.sleep(0.05)
         self.fail(f'{expected!r} not visible:\n{text}')
 
+    async def test_group_instances_use_declared_keys_and_keep_full_task_identity(self):
+        test_grouped_status.GroupedStatusTests.configure_workflow(self)
+        (self.work / 'second.py').write_text((self.work / 'library.py').read_text())
+        (self.work / 'workflow.py').write_text(
+            'from gwflow import Workflow\nfrom library import mapping\n'
+            'from second import mapping as other\ngwf = Workflow()\n'
+            "gwf.task(mapping(), alias='reads__map', key='A__rep1')\n"
+            "gwf.task(mapping(), alias='reads__map', key='B')\n"
+            "gwf.task(mapping(), alias='reads__map')\n"
+            "gwf.task(other(), alias='reads__map', key='C')\n")
+        app = self.browser()
+        async with app.run_test(size=(80, 24)) as pilot:
+            await self.shown(app, pilot, 'reads__map@library.mapping')
+            await pilot.press('enter')
+            text = await self.shown(app, pilot, 'Instance')
+            self.assertIn('A__rep1', text)
+            self.assertIn('(no key)', text)
+            self.assertNotIn('reads__map__A__rep1', text)
+            self.assertEqual({task['name']: task['instance_key'] for task in app.snapshot['tasks']},
+                             {'reads__map__A__rep1': 'A__rep1', 'reads__map__B': 'B',
+                              'reads__map': None, 'reads__map__C': 'C'})
+            await pilot.press('end', 'enter')
+            await self.shown(app, pilot, 'Task: reads__map')
+            await pilot.press('escape', 'slash', *'reads__map__A__rep1', 'enter')
+            text = await self.shown(app, pilot, 'Showing 1 of 4 selected Tasks')
+            self.assertIn('A__rep1', text)
+            await pilot.press('enter')
+            await self.shown(app, pilot, 'reads__map__A__rep1')
+            self.assertEqual(shlex.split(app.screen.observation['commands'][1])[-2:], ['run', 'reads__map__A__rep1'])
+            await pilot.press('q')
+
     async def test_normal_compact_and_large_views_survive_resize_without_reinspection(self):
         workflow = self.work / 'workflow.py'
         workflow.write_text(workflow.read_text() +

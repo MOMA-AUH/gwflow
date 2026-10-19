@@ -322,6 +322,12 @@ For example, a 24-Task group with 14 reusable, four active, and six failed Tasks
 still shows 14/24 and those counts when the failed filter exposes six matches.
 Required workflow notices remain visible when their affected Tasks are hidden.
 
+Inside a Task group, the panel title identifies the group and the `Instance`
+column shows each Task's Instance key, or `(no key)` when none was supplied.
+Lists spanning groups retain full Task names. Search still matches full Task
+names, and details and copyable commands retain them. Job summaries appear
+indented beneath each Task, with space between Tasks when terminal height permits.
+
 Snapshot age measures time since the last successful inspection. A failed
 refresh retains those observations and their age, with a visible error; Tab
 focuses the error banner and Enter opens complete error details. A later

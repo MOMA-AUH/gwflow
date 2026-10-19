@@ -61,7 +61,7 @@ class StatusLogTerminalTests(LocalBackendTestCase):
         self.run_complete()
         session = self.terminal('status', size=(120, 40))
         session.wait_for('sample')
-        for expected in ('Tasks in sample', 'Jobs completed:'):
+        for expected in ('Instance', 'Jobs completed:'):
             checkpoint = session.send('\r')
             session.wait_for(expected, after=checkpoint)
         checkpoint = session.send('\x1b[B' * 2 + 'l')

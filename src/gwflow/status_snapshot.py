@@ -46,7 +46,8 @@ def capture(ctx, destination, selectors):
                              "submission": submission, "backend_id": item.job_id if item else None,
                              "logs": {stream: str(plan.store.working_dir / ".gwf" / "logs" / f"{submission}.{stream}")
                                       for stream in ("stdout", "stderr")} if submission else {}})
-            tasks.append({"name": task.name, "attempt": task.attempt['attempt'] if task.attempt else None,
+            tasks.append({"name": task.name, "instance_key": workflow._task_naming[task.name].key,
+                          "attempt": task.attempt['attempt'] if task.attempt else None,
                           "state": row.state, "completed": row.completed,
                           "total": row.total, "detail": row.detail, "jobs": jobs,
                           "next_action": NEXT_ACTIONS[task.action], "reason": task.reason,

@@ -260,7 +260,7 @@ class StatusRefreshTests(LocalBackendTestCase):
         session = self.terminal('status')
         session.wait_for('Showing 4 of 4 selected Tasks')
         session.send('\r')
-        session.wait_for('Tasks in mapping')
+        session.wait_for('Instance')
         session.send('\r')
         session.wait_for('Jobs completed: 0/3')
         session.send('\r')
@@ -274,7 +274,8 @@ class StatusRefreshTests(LocalBackendTestCase):
         checkpoint = session.send('\x1b')
         session.wait_for('Jobs completed: 0/3', after=checkpoint)
         checkpoint = session.send('\x1b')
-        session.wait_for('Tasks in mapping@library.mapping', after=checkpoint)
+        session.wait_for('Instance', after=checkpoint)
+        session.wait_for('mapping@library.mapping', after=checkpoint)
         session.send('q')
         self.assertEqual(session.finish(), 0, session.text)
 

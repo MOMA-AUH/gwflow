@@ -21,7 +21,8 @@ def captured_snapshot():
                      requires_repetition=False, submission=None, backend_id=None,
                      logs={'stdout': f'/captured/logs/{name}/{job}.stdout',
                            'stderr': f'/captured/logs/{name}/{job}.stderr'}) for job in range(10)]
-        tasks.append(dict(name=name, state=state, completed=10 if state == 'reusable' else 0, total=10,
+        tasks.append(dict(name=name, instance_key=f'sample_{index:03d}',
+                          state=state, completed=10 if state == 'reusable' else 0, total=10,
                           detail='', jobs=jobs, next_action='Reuse' if state == 'reusable' else 'Inspect',
                           reason='Captured workload', diagnostics='Captured attempt and paths\n' * 20,
                           commands=[f'gwflow run {name} --dry-run', f'gwflow run {name}', f'gwflow cancel {name}']))
