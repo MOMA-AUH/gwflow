@@ -1,0 +1,1838 @@
+{
+  "scope": "v0.8.0 installed candidate compatibility, Issues #210 and #217; no publication or stable-baseline claim",
+  "recorded_date": "2026-10-19",
+  "source": {
+    "base_commit": "a091c2eb288e72b01f9002dfc1c95579b6170f74",
+    "note": "Production Python source is unchanged from this base; version metadata is 0.8.0. The installed wheel identity and module-content digest identify the tested candidate.",
+    "files_sha256": {
+      "src/gwflow/__init__.py": "590b40b7561dfa1463ce8ab3eff3457cac06d5d49e1a03ba0b69d41c82b395f3",
+      "src/gwflow/_browser_read.py": "55d677f1634314d825bda941da037d28060717055577cdcea12e8c1f9f8232c6",
+      "src/gwflow/_files.py": "81d2613567152843f72e1ce667628d6f17b5afda91ae71c2be8661b4254cb9ba",
+      "src/gwflow/_frontend.py": "9e66c99ad30eaf95632eec831eff623519a5d6f876a6dd1a7874be7f3f0be597",
+      "src/gwflow/_inspection_process.py": "eb5b41b78165b1181ce58ba7b418e0394bf956f411ec273b3817a9b0cc304afe",
+      "src/gwflow/_observations.py": "b019ef63561b3d86d9f1799b131858df2361f1b58882151142478bf50121a9f4",
+      "src/gwflow/activity.py": "5e3cbbb12f5eb0a3cea151157b04def1d11e46640bdda75b0288bd8484528a0b",
+      "src/gwflow/admission.py": "154ee3f846c586fe0ddd764515ab6bbf641b54a4798933cb9fcd6bf4792601a4",
+      "src/gwflow/browser.py": "7c6c669aeb54372a592c516b4cfa3b6440fa7af51113837abb242424c22b55e0",
+      "src/gwflow/browser_evidence.py": "4d33eb4a174a1c8c25535bcc1a549e5199eb07647be79b0966875a62d7252829",
+      "src/gwflow/cancel.py": "a20151801883d7b631e5680fe40c452e3f6251d9bbac9840b986646c037184b8",
+      "src/gwflow/clean_work.py": "10ae9b3054fbe4a82ebebe09fca1da58c9579b92d8b5ffe691f40cfc9af6f820",
+      "src/gwflow/cleanup.py": "c67b863b750665d2d9ca42b62693c9eafc8036dc3f1a69ecec180962b3575597",
+      "src/gwflow/cli.py": "511b4f1c52aac63737977069505cfa5206c374dc40cc2b236c556b6a5dbdafe5",
+      "src/gwflow/commands.py": "2f60df3a05ca67a6be66a29c0353294876763841eda24a7ae06c0fd32be3588d",
+      "src/gwflow/diagnostics.py": "d733af996fa4518560df3889149476d1eb4f33d2d7bd02beadda866ea605a5a9",
+      "src/gwflow/execution.py": "97f421895aabdf2334625e1979b455b9a3c793d67c3032617ef99cd29cec45f0",
+      "src/gwflow/images.py": "f5c72401c59df5b1d4eaf1a9e36d5abba023a710300c30101d8e162274014ba3",
+      "src/gwflow/inputs.py": "2eb363eb763fae8022266f8b13d48cedf131729508ca053d5f4bf80a24da0ff0",
+      "src/gwflow/inspection.py": "06c6a992d9f9ca3e94673abfa8cd7dc3294d58ceb586f6e2cd57b55fa4a955bf",
+      "src/gwflow/lifecycle.py": "2bd3a80b586e711389dc8d3e4090c2ca9c7abad6df7bb04189d4a6cd0688d7f9",
+      "src/gwflow/logs.py": "0805bdd13678fa1a71f409207c9fcb12480defed7f6fe7833831e852c56d8996",
+      "src/gwflow/planning.py": "d78cea8377ae048a48a7a7ba3b7c80f40741caad7a2dbd5ae81be8753903e097",
+      "src/gwflow/presentation.py": "cb84ed64323a76fdefb6560afa2b55a1518d4e4063d7b39406743792a4b5246f",
+      "src/gwflow/recover.py": "35d2b55d910d907976fe2eb90669266a5ea31c8087785365e8ffeece9870ca9c",
+      "src/gwflow/run.py": "ddb2012dd857d6ba36cd9c463ee1e50ca7cc6544e37465eda9bc324d4c42b2cf",
+      "src/gwflow/selection.py": "bdcbe03d3d7fc7be3452c943bf88acac6194151cbcaa848b1eefe55fcb682629",
+      "src/gwflow/staging.py": "69a6d81afa683a62128d885472d0065b822f01ebbae9f7b4c2ce6583e8f2acff",
+      "src/gwflow/status.py": "9e6aba765c6fae3da5d71e8ff7436eaae8bbc97ede5d809917c42e61ea6ecb54",
+      "src/gwflow/status_snapshot.py": "d1a99b0922424153e37d9e47d73df3e9e014c66c0256fe76dc341bbbdc883590",
+      "src/gwflow/submission.py": "21ebc3f5aeba35cb5225d10abff1d7304aac282984e3c0ec4d558bcb69660b6d",
+      "src/gwflow/terminal.py": "7d64add80dc831c6c26bd87053d4160ef1279bbcdbf19affc9264bac65002a95",
+      "src/gwflow/transfer.py": "91d524a4a5e334f852d6282e9fcf74b679a36d4ec09a99577fa86eb25b5e1fa7",
+      "src/gwflow/workers.py": "b35c26c6d2e77ee5738ed18128fe55a8ba3503d14b1b04f6371e0965258773b4",
+      "src/gwflow/workflow.py": "666737b491e6695f033c5ef09db65aba07b0e697fdc6f9c7ff14eca02f3ecbc5"
+    },
+    "candidate_wheel_sha256": "16b4c058dd0c7b1ab4f1bb5e45277a7c03f0f9f4fc27d19c6dcdcd333d01efb6",
+    "baseline_wheel_sha256": "e84a353b3bb7ad35e5702888e4b7319b96fd39c897428c77b87664a2bda9c473"
+  },
+  "commands": [
+    "<PYTHON> -m pip wheel --no-build-isolation --no-deps --wheel-dir build/validation/v0.8.0/clean-wheels build/validation/v0.8.0/candidate-source",
+    "<PYTHON> -m pip install --no-deps --force-reinstall build/validation/v0.8.0/clean-wheels/gwflow-0.8.0-py3-none-any.whl",
+    "<PYTHON> tests/validate_compatibility.py --baseline-python <BASELINE>/bin/python --candidate-python <CANDIDATE>/bin/python --baseline-source 8bad5986278152d613f356282e75fe9f65085a4c --candidate-source wheel-sha256:16b4c058dd0c7b1ab4f1bb5e45277a7c03f0f9f4fc27d19c6dcdcd333d01efb6 --root build/validation/v0.8.0/compatibility-clean"
+  ],
+  "setup": "The candidate-source directory is a fresh copy of pyproject.toml, README.md, LICENSE, and src/gwflow/*.py. The baseline wheel is built from git archive of its pinned commit. A venv with system-site-packages shares the copied candidate runtime dependencies but contains its own independently installed baseline gwflow.",
+  "selection": "Preserve every CLI command and exit code and all handoff/outcome observations. Before path normalization, summarize per-file snapshots, accepted submissions, and exact-name history maps by counts/digests; preserve history state counts. Raw output and timestamps remain uncommitted.",
+  "environments": {
+    "baseline": {
+      "source": "8bad5986278152d613f356282e75fe9f65085a4c",
+      "executable": "<BASELINE>/bin/python",
+      "prefix": "<BASELINE>",
+      "python": "3.12.14 (main, Sep  2 2026, 23:27:36) [GCC 15.3.0]",
+      "platform": "Linux-5.14.0-687.48.1.el9_8.x86_64-x86_64-with-glibc2.34",
+      "package": "<BASELINE>/lib/python3.12/site-packages/gwflow",
+      "package_sha256": "09e2f0d68bb3b78cbadc3acae59d666d5f021c78ce88d1332b340dde81664fe6",
+      "versions": {
+        "gwflow": "0.7.0",
+        "gwf": "2.1.1",
+        "rich": "15.0.0"
+      },
+      "direct_url": {
+        "archive_info": {
+          "hash": "sha256=e84a353b3bb7ad35e5702888e4b7319b96fd39c897428c77b87664a2bda9c473",
+          "hashes": {
+            "sha256": "e84a353b3bb7ad35e5702888e4b7319b96fd39c897428c77b87664a2bda9c473"
+          }
+        },
+        "url": "file://<REPO>/build/validation/v0.8.0/baseline-wheels/gwflow-0.7.0-py3-none-any.whl"
+      }
+    },
+    "candidate": {
+      "source": "wheel-sha256:16b4c058dd0c7b1ab4f1bb5e45277a7c03f0f9f4fc27d19c6dcdcd333d01efb6",
+      "executable": "<CANDIDATE>/bin/python",
+      "prefix": "<CANDIDATE>",
+      "python": "3.12.14 (main, Sep  2 2026, 23:27:36) [GCC 15.3.0]",
+      "platform": "Linux-5.14.0-687.48.1.el9_8.x86_64-x86_64-with-glibc2.34",
+      "package": "<CANDIDATE>/lib/python3.12/site-packages/gwflow",
+      "package_sha256": "abc0419c0b333f6be5b7fe6267674220f72403edadc8a0b8f9cbb832454b1c72",
+      "versions": {
+        "gwflow": "0.8.0",
+        "gwf": "2.1.1",
+        "rich": "15.0.0"
+      },
+      "direct_url": {
+        "archive_info": {
+          "hash": "sha256=16b4c058dd0c7b1ab4f1bb5e45277a7c03f0f9f4fc27d19c6dcdcd333d01efb6",
+          "hashes": {
+            "sha256": "16b4c058dd0c7b1ab4f1bb5e45277a7c03f0f9f4fc27d19c6dcdcd333d01efb6"
+          }
+        },
+        "url": "file://<REPO>/build/validation/v0.8.0/clean-wheels/gwflow-0.8.0-py3-none-any.whl"
+      }
+    }
+  },
+  "result": {
+    "run": 15,
+    "failures": 0,
+    "errors": 0,
+    "skips": 0
+  },
+  "cases": {
+    "test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer": {
+      "commands": [
+        {
+          "phase": "baseline",
+          "command": "<BASELINE>/bin/gwflow -b recovery_fixture run recovered",
+          "exit": 1
+        },
+        {
+          "phase": "baseline",
+          "command": "<BASELINE>/bin/gwflow recover recovered",
+          "exit": 0
+        },
+        {
+          "phase": "baseline",
+          "command": "<BASELINE>/bin/gwflow run",
+          "exit": 0
+        },
+        {
+          "phase": "baseline",
+          "command": "<BASELINE>/bin/gwflow clean --delete cleaned",
+          "exit": 0
+        },
+        {
+          "phase": "baseline",
+          "command": "<BASELINE>/bin/gwflow run --dry-run --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow status --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow run --dry-run",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow run",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow recover recovered",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow run --dry-run --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow run consumer --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow run",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow run unowned",
+          "exit": 1
+        }
+      ],
+      "observations": [
+        {
+          "side": "baseline",
+          "task": "completed",
+          "runtime": {
+            "prefix": "<BASELINE>",
+            "package": "<BASELINE>/lib/python3.12/site-packages/gwflow/__init__.py"
+          }
+        },
+        {
+          "side": "baseline",
+          "task": "cleaned",
+          "runtime": {
+            "prefix": "<BASELINE>",
+            "package": "<BASELINE>/lib/python3.12/site-packages/gwflow/__init__.py"
+          }
+        },
+        {
+          "side": "baseline",
+          "task": "recovered",
+          "runtime": {
+            "prefix": "<BASELINE>",
+            "package": "<BASELINE>/lib/python3.12/site-packages/gwflow/__init__.py"
+          }
+        },
+        {
+          "side": "baseline",
+          "baseline_jobs_completed": true,
+          "worker_exit": -15,
+          "job_states": {
+            "0": "COMPLETED",
+            "1": "COMPLETED",
+            "2": "COMPLETED",
+            "3": "COMPLETED",
+            "4": "COMPLETED",
+            "5": "COMPLETED",
+            "6": "COMPLETED",
+            "7": "COMPLETED",
+            "8": "COMPLETED"
+          },
+          "attempts": {
+            "completed": "7ed141a37a5b487195321d02a058d754",
+            "cleaned": "1eb14a8779de4583a5583133cc141a28",
+            "recovered": "fb21d96e8f5248c59eb13b2f0dfcbaf0"
+          },
+          "storage": {
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer": {
+              "device": 48,
+              "inode": 18016133357083650237
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/work": {
+              "device": 48,
+              "inode": 11129455529999718191
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/results": {
+              "device": 48,
+              "inode": 13862432792414312947
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/.gwf/gwflow": {
+              "device": 48,
+              "inode": 10211754075607066704
+            }
+          },
+          "snapshot_count": 83,
+          "snapshot_sha256": "0156e4b4481da451e02f380551618eca9994798bf69699a8d5747d926a286d11"
+        },
+        {
+          "side": "candidate",
+          "task": "consumer",
+          "runtime": {
+            "prefix": "<CANDIDATE>",
+            "package": "<CANDIDATE>/lib/python3.12/site-packages/gwflow/__init__.py"
+          }
+        },
+        {
+          "side": "candidate",
+          "unchanged_workflow_sha256": "76f9f6754fb60e54453f91fe0e6d4e538330c77f04f4fabcfe4907223beef602",
+          "same_storage": {
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer": {
+              "device": 48,
+              "inode": 18016133357083650237
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/work": {
+              "device": 48,
+              "inode": 11129455529999718191
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/results": {
+              "device": 48,
+              "inode": 13862432792414312947
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_completed_cleaned_and_recovered_tasks_reuse_before_new_consumer/.gwf/gwflow": {
+              "device": 48,
+              "inode": 10211754075607066704
+            }
+          },
+          "preserved_baseline_files": 83,
+          "computation_counts": {
+            "cleaned": 1,
+            "completed": 1,
+            "recovered": 1,
+            "consumer": 1
+          },
+          "retained_consumer": "hello\nhello\nhello\n",
+          "unowned_results_preserved": true
+        }
+      ]
+    },
+    "test_failed_branch_preserves_successful_sibling_across_upgrade": {
+      "commands": [
+        {
+          "phase": "baseline",
+          "command": "<BASELINE>/bin/gwflow run",
+          "exit": 0
+        },
+        {
+          "phase": "baseline",
+          "command": "<BASELINE>/bin/gwflow run --dry-run --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow status --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow run --dry-run",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow run",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow run --dry-run --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow run",
+          "exit": 0
+        }
+      ],
+      "observations": [
+        {
+          "side": "baseline",
+          "all_jobs_inactive": true,
+          "worker_exit": -15,
+          "job_states": {
+            "0": "COMPLETED",
+            "1": "COMPLETED",
+            "2": "FAILED",
+            "3": "FAILED",
+            "4": "FAILED"
+          },
+          "storage": {
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_failed_branch_preserves_successful_sibling_across_upgrade": {
+              "device": 48,
+              "inode": 15280148273246978236
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_failed_branch_preserves_successful_sibling_across_upgrade/work": {
+              "device": 48,
+              "inode": 2403678880947454083
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_failed_branch_preserves_successful_sibling_across_upgrade/results": {
+              "device": 48,
+              "inode": 11537184968692909970
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_failed_branch_preserves_successful_sibling_across_upgrade/.gwf/gwflow": {
+              "device": 48,
+              "inode": 1370244908843857813
+            }
+          },
+          "snapshot_count": 28,
+          "snapshot_sha256": "25d2f4f98f61fb557590a10ca9deab6861f7e1a8e97bcf820bffb84457ca183b",
+          "accepted_submissions_count": 5,
+          "accepted_submissions_sha256": "d95325c35ef0036b6771a1a2913b35d7bed3a23bd95bc3f7cb977e64b3eb26be",
+          "replayed_terminal_states_count": 5,
+          "replayed_terminal_states_sha256": "a0eb219fea79406a6e3953454fd18838f6780809c0e6a9decf932b7983978032",
+          "replayed_terminal_states_states": {
+            "COMPLETED": 2,
+            "FAILED": 3
+          }
+        },
+        {
+          "side": "candidate",
+          "preserved_attempts": {
+            "sample": "fa735704dfc149f287f88383ca5c94f7"
+          },
+          "computation_counts": {
+            "left": 1,
+            "right": 2,
+            "join": 1
+          },
+          "retained_outputs": {
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_failed_branch_preserves_successful_sibling_across_upgrade/results/sample/result.txt": "leftright"
+          },
+          "same_storage": {
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_failed_branch_preserves_successful_sibling_across_upgrade": {
+              "device": 48,
+              "inode": 15280148273246978236
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_failed_branch_preserves_successful_sibling_across_upgrade/work": {
+              "device": 48,
+              "inode": 2403678880947454083
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_failed_branch_preserves_successful_sibling_across_upgrade/results": {
+              "device": 48,
+              "inode": 11537184968692909970
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_failed_branch_preserves_successful_sibling_across_upgrade/.gwf/gwflow": {
+              "device": 48,
+              "inode": 1370244908843857813
+            }
+          },
+          "unchanged_workflow_sha256": "b4b65f974a98734449974007fa3bbb1439379b8bad1b9b265abb20a0f3a90ccb"
+        }
+      ]
+    },
+    "test_recorded_recovery_survives_upgrade_and_does_not_resolve_new_admissions": {
+      "commands": [
+        {
+          "phase": "baseline",
+          "command": "<BASELINE>/bin/gwflow -b recovery_fixture run",
+          "exit": 0
+        },
+        {
+          "phase": "baseline",
+          "command": "<BASELINE>/bin/gwflow run --dry-run --details",
+          "exit": 0
+        },
+        {
+          "phase": "baseline",
+          "command": "<BASELINE>/bin/gwflow recover sample",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow status --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow recover sample",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow run --dry-run",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow run",
+          "exit": 1
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow run",
+          "exit": 1
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow recover sample",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow run",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow run --dry-run --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow run",
+          "exit": 0
+        }
+      ],
+      "observations": [
+        {
+          "side": "baseline",
+          "all_jobs_inactive": true,
+          "worker_exit": -15,
+          "job_states": {
+            "0": "COMPLETED",
+            "1": "COMPLETED",
+            "2": "FAILED",
+            "3": "FAILED",
+            "4": "FAILED"
+          },
+          "storage": {
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_recorded_recovery_survives_upgrade_and_does_not_resolve_new_admissions": {
+              "device": 48,
+              "inode": 7010540516304893921
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_recorded_recovery_survives_upgrade_and_does_not_resolve_new_admissions/work": {
+              "device": 48,
+              "inode": 6775057216925060325
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_recorded_recovery_survives_upgrade_and_does_not_resolve_new_admissions/results": {
+              "device": 48,
+              "inode": 12835371613598526268
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_recorded_recovery_survives_upgrade_and_does_not_resolve_new_admissions/.gwf/gwflow": {
+              "device": 48,
+              "inode": 9400005000417090154
+            }
+          },
+          "snapshot_count": 30,
+          "snapshot_sha256": "7cee11ba736c4d6bdc274d2cdbdcbc52d08472b3307e0494d7f9cdd218d2a927",
+          "accepted_submissions_count": 5,
+          "accepted_submissions_sha256": "a1625404f9e6e58490875a90911e0aeaf8679a25822f590ae8e057f0aa4b90e1",
+          "replayed_terminal_states_count": 5,
+          "replayed_terminal_states_sha256": "8aaa04bdcaacb057e26f06dc40b3f9a666a9486d815f3c5b2768dc22ce21ca44",
+          "replayed_terminal_states_states": {
+            "COMPLETED": 2,
+            "FAILED": 3
+          }
+        },
+        {
+          "side": "candidate",
+          "expired_scheduler_history_count": 5,
+          "expired_scheduler_history_sha256": "01739655ad8cc7f7d0295c61d8c2bedb7ea20756a69a66cad64c008fc508670f",
+          "expired_scheduler_history_states": {
+            "UNKNOWN": 5
+          }
+        },
+        {
+          "side": "candidate",
+          "preserved_attempts": {
+            "sample": "acb5308f1dd0416ab1d09800376e543a"
+          },
+          "computation_counts": {
+            "left": 1,
+            "right": 1,
+            "join": 1
+          },
+          "retained_outputs": {
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_recorded_recovery_survives_upgrade_and_does_not_resolve_new_admissions/results/sample/result.txt": "leftright"
+          },
+          "same_storage": {
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_recorded_recovery_survives_upgrade_and_does_not_resolve_new_admissions": {
+              "device": 48,
+              "inode": 7010540516304893921
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_recorded_recovery_survives_upgrade_and_does_not_resolve_new_admissions/work": {
+              "device": 48,
+              "inode": 6775057216925060325
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_recorded_recovery_survives_upgrade_and_does_not_resolve_new_admissions/results": {
+              "device": 48,
+              "inode": 12835371613598526268
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_recorded_recovery_survives_upgrade_and_does_not_resolve_new_admissions/.gwf/gwflow": {
+              "device": 48,
+              "inode": 9400005000417090154
+            }
+          },
+          "unchanged_workflow_sha256": "4f67963198a7dafb632bb07221d6386c664e8b950f0fa7c84a59b809051574a9"
+        },
+        {
+          "side": "candidate",
+          "preserved_recovery_records": 3,
+          "new_recovery_records": 1
+        }
+      ]
+    },
+    "test_upgrade_preserves_command_and_input_invalidation_after_recovery": {
+      "commands": [
+        {
+          "phase": "baseline",
+          "command": "<BASELINE>/bin/gwflow -b recovery_fixture run",
+          "exit": 0
+        },
+        {
+          "phase": "baseline",
+          "command": "<BASELINE>/bin/gwflow run --dry-run --details",
+          "exit": 0
+        },
+        {
+          "phase": "baseline",
+          "command": "<BASELINE>/bin/gwflow recover sample",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow status --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow run --dry-run --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow run --dry-run --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow run",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow run --dry-run --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow run --dry-run --details",
+          "exit": 0
+        }
+      ],
+      "observations": [
+        {
+          "side": "baseline",
+          "all_jobs_inactive": true,
+          "worker_exit": -15,
+          "job_states": {
+            "0": "COMPLETED",
+            "1": "COMPLETED",
+            "2": "FAILED",
+            "3": "FAILED",
+            "4": "FAILED"
+          },
+          "storage": {
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_upgrade_preserves_command_and_input_invalidation_after_recovery": {
+              "device": 48,
+              "inode": 11667930303127531542
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_upgrade_preserves_command_and_input_invalidation_after_recovery/work": {
+              "device": 48,
+              "inode": 11759075923395519373
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_upgrade_preserves_command_and_input_invalidation_after_recovery/results": {
+              "device": 48,
+              "inode": 13463554567906651377
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_upgrade_preserves_command_and_input_invalidation_after_recovery/.gwf/gwflow": {
+              "device": 48,
+              "inode": 9022231278877854417
+            }
+          },
+          "snapshot_count": 30,
+          "snapshot_sha256": "0d120b85ad669d3c7c2bf143f218643bc1fd4b016c2136d509612792dd9799c3",
+          "accepted_submissions_count": 5,
+          "accepted_submissions_sha256": "90aea0f098bdaa8228b671a773188a7cf0c6401ea304d31cb7a8fbe249bb6bf3",
+          "replayed_terminal_states_count": 5,
+          "replayed_terminal_states_sha256": "3ed8421d335d6b78a1ccb63a047de1af2c81dfcf6c016b6be8991884f11538d9",
+          "replayed_terminal_states_states": {
+            "COMPLETED": 2,
+            "FAILED": 3
+          }
+        },
+        {
+          "side": "candidate",
+          "changed_commands_require_fresh": true,
+          "changed_inputs_require_fresh": true,
+          "old_attempts": {
+            "sample": "06d0b82a8359416c909293ba0ec6256b"
+          },
+          "new_attempts": {
+            "sample": "d18a8c7cb1a144d3a97f9731d7c1bfd1"
+          },
+          "computation_counts": {
+            "left": 2,
+            "right": 1,
+            "join": 1
+          }
+        }
+      ]
+    },
+    "test_interrupted_preparation_before_input_baseline_survives_upgrade": {
+      "commands": [
+        {
+          "phase": "baseline",
+          "command": "<BASELINE>/bin/gwflow run",
+          "exit": 0
+        },
+        {
+          "phase": "baseline",
+          "command": "<BASELINE>/bin/gwflow run --dry-run --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow status --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow run --dry-run",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow run",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow run --dry-run --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow run",
+          "exit": 0
+        }
+      ],
+      "observations": [
+        {
+          "side": "baseline",
+          "all_jobs_inactive": true,
+          "worker_exit": -15,
+          "job_states": {
+            "0": "FAILED",
+            "1": "FAILED",
+            "2": "FAILED"
+          },
+          "storage": {
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_interrupted_preparation_before_input_baseline_survives_upgrade": {
+              "device": 48,
+              "inode": 15239410992078417259
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_interrupted_preparation_before_input_baseline_survives_upgrade/work": {
+              "device": 48,
+              "inode": 5377928148357079555
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_interrupted_preparation_before_input_baseline_survives_upgrade/results": {
+              "device": 48,
+              "inode": 12835596751519419049
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_interrupted_preparation_before_input_baseline_survives_upgrade/.gwf/gwflow": {
+              "device": 48,
+              "inode": 7572275206569572178
+            }
+          },
+          "snapshot_count": 16,
+          "snapshot_sha256": "534a8f6c03e9f34612bae053ab0ce752c5beac39fb63d2d2d48607e68db62444",
+          "accepted_submissions_count": 3,
+          "accepted_submissions_sha256": "620c37cc4f1745f95d91348b1a1b78d043653049bb4132e7469184a593513777",
+          "replayed_terminal_states_count": 3,
+          "replayed_terminal_states_sha256": "5e29f80f74c6fc7396d307123a1549835f6a010a5e8c5c3aba9e15f079064dce",
+          "replayed_terminal_states_states": {
+            "FAILED": 3
+          }
+        },
+        {
+          "side": "candidate",
+          "preserved_attempts": {
+            "sample": "646713771de8466595b8e1661fbde53e"
+          },
+          "computation_counts": {
+            "read": 1
+          },
+          "retained_outputs": {
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_interrupted_preparation_before_input_baseline_survives_upgrade/results/sample/result.txt": "hello\n",
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_interrupted_preparation_before_input_baseline_survives_upgrade/results/sample/alias.txt": "<REPO>/build/validation/v0.8.0/compatibility-clean/test_interrupted_preparation_before_input_baseline_survives_upgrade/input.txt\n"
+          },
+          "same_storage": {
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_interrupted_preparation_before_input_baseline_survives_upgrade": {
+              "device": 48,
+              "inode": 15239410992078417259
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_interrupted_preparation_before_input_baseline_survives_upgrade/work": {
+              "device": 48,
+              "inode": 5377928148357079555
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_interrupted_preparation_before_input_baseline_survives_upgrade/results": {
+              "device": 48,
+              "inode": 12835596751519419049
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_interrupted_preparation_before_input_baseline_survives_upgrade/.gwf/gwflow": {
+              "device": 48,
+              "inode": 7572275206569572178
+            }
+          },
+          "unchanged_workflow_sha256": "fcc40f7f94ab5a33e2a6de121d15a089bec61f6caf26b425bcdf5c8a70bf8435"
+        }
+      ]
+    },
+    "test_interrupted_preparation_preserves_accepted_input_baseline_across_upgrade": {
+      "commands": [
+        {
+          "phase": "baseline",
+          "command": "<BASELINE>/bin/gwflow run",
+          "exit": 0
+        },
+        {
+          "phase": "baseline",
+          "command": "<BASELINE>/bin/gwflow run --dry-run --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow status --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow run --dry-run",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow run",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow run --dry-run --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow run",
+          "exit": 0
+        }
+      ],
+      "observations": [
+        {
+          "side": "baseline",
+          "all_jobs_inactive": true,
+          "worker_exit": -15,
+          "job_states": {
+            "0": "FAILED",
+            "1": "FAILED",
+            "2": "FAILED"
+          },
+          "storage": {
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_interrupted_preparation_preserves_accepted_input_baseline_across_upgrade": {
+              "device": 48,
+              "inode": 2371373928559924870
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_interrupted_preparation_preserves_accepted_input_baseline_across_upgrade/work": {
+              "device": 48,
+              "inode": 3085112503758182843
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_interrupted_preparation_preserves_accepted_input_baseline_across_upgrade/results": {
+              "device": 48,
+              "inode": 11152338974693727948
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_interrupted_preparation_preserves_accepted_input_baseline_across_upgrade/.gwf/gwflow": {
+              "device": 48,
+              "inode": 918794142147055060
+            }
+          },
+          "snapshot_count": 17,
+          "snapshot_sha256": "613d8fb1a46792a5dd829365b18e4cbdad492433c733c2b0ed3ccb80fbe1225d",
+          "accepted_submissions_count": 3,
+          "accepted_submissions_sha256": "f49af4addbbfe3a84af7cb729bc69c6876c9126101cc20b0ae8d78c82b632fb7",
+          "replayed_terminal_states_count": 3,
+          "replayed_terminal_states_sha256": "50c8f90c36026cf2b0ceb5c29f0329d067f52540b50dc5543a4566e0207dbea5",
+          "replayed_terminal_states_states": {
+            "FAILED": 3
+          }
+        },
+        {
+          "side": "candidate",
+          "preserved_attempts": {
+            "sample": "1ef9a541d09a473d85a8963a9436b266"
+          },
+          "computation_counts": {
+            "read": 1
+          },
+          "retained_outputs": {
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_interrupted_preparation_preserves_accepted_input_baseline_across_upgrade/results/sample/result.txt": "hello\n",
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_interrupted_preparation_preserves_accepted_input_baseline_across_upgrade/results/sample/alias.txt": "<REPO>/build/validation/v0.8.0/compatibility-clean/test_interrupted_preparation_preserves_accepted_input_baseline_across_upgrade/input.txt\n"
+          },
+          "same_storage": {
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_interrupted_preparation_preserves_accepted_input_baseline_across_upgrade": {
+              "device": 48,
+              "inode": 2371373928559924870
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_interrupted_preparation_preserves_accepted_input_baseline_across_upgrade/work": {
+              "device": 48,
+              "inode": 3085112503758182843
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_interrupted_preparation_preserves_accepted_input_baseline_across_upgrade/results": {
+              "device": 48,
+              "inode": 11152338974693727948
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_interrupted_preparation_preserves_accepted_input_baseline_across_upgrade/.gwf/gwflow": {
+              "device": 48,
+              "inode": 918794142147055060
+            }
+          },
+          "unchanged_workflow_sha256": "34998d88a03b494f7aecad901cf55e641a50b398ae35d0578515041545f72e0a"
+        }
+      ]
+    },
+    "test_installed_results_finish_completion_after_upgrade": {
+      "commands": [
+        {
+          "phase": "baseline",
+          "command": "<BASELINE>/bin/gwflow run",
+          "exit": 0
+        },
+        {
+          "phase": "baseline",
+          "command": "<BASELINE>/bin/gwflow run --dry-run --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow status --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow run --dry-run",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow run",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow run --dry-run --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow run",
+          "exit": 0
+        }
+      ],
+      "observations": [
+        {
+          "side": "baseline",
+          "all_jobs_inactive": true,
+          "worker_exit": -15,
+          "job_states": {
+            "0": "COMPLETED",
+            "1": "COMPLETED",
+            "2": "FAILED"
+          },
+          "storage": {
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_installed_results_finish_completion_after_upgrade": {
+              "device": 48,
+              "inode": 5958235822503967856
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_installed_results_finish_completion_after_upgrade/work": {
+              "device": 48,
+              "inode": 4014076518065640610
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_installed_results_finish_completion_after_upgrade/results": {
+              "device": 48,
+              "inode": 17494522674810704635
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_installed_results_finish_completion_after_upgrade/.gwf/gwflow": {
+              "device": 48,
+              "inode": 4014614038889280029
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_installed_results_finish_completion_after_upgrade/results/samples/a/report": {
+              "device": 48,
+              "inode": 1608165061236395844
+            }
+          },
+          "snapshot_count": 24,
+          "snapshot_sha256": "c000f4c7a39c9459bf3719800821ffb92fe2c74dc2612dfaf79ef68c4d7208be",
+          "accepted_submissions_count": 3,
+          "accepted_submissions_sha256": "d70ed5667a91fa178f3b6f02677ad6568bc557256e5aaca5128db2b7e857be79",
+          "replayed_terminal_states_count": 3,
+          "replayed_terminal_states_sha256": "89f737ef2c82340241726b6333548b839fdb0d67c73716417a2f76f6e678e2ed",
+          "replayed_terminal_states_states": {
+            "COMPLETED": 2,
+            "FAILED": 1
+          }
+        },
+        {
+          "side": "candidate",
+          "preserved_attempts": {
+            "a": "f1a4c3c06b1d4e4daeb9860fb44e4cb1"
+          },
+          "computation_counts": {
+            "compute": 1
+          },
+          "retained_outputs": {
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_installed_results_finish_completion_after_upgrade/results/samples/a/report/renamed.txt": "first",
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_installed_results_finish_completion_after_upgrade/results/samples/a/report/nested/two.txt": "second"
+          },
+          "same_storage": {
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_installed_results_finish_completion_after_upgrade": {
+              "device": 48,
+              "inode": 5958235822503967856
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_installed_results_finish_completion_after_upgrade/work": {
+              "device": 48,
+              "inode": 4014076518065640610
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_installed_results_finish_completion_after_upgrade/results": {
+              "device": 48,
+              "inode": 17494522674810704635
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_installed_results_finish_completion_after_upgrade/.gwf/gwflow": {
+              "device": 48,
+              "inode": 4014614038889280029
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_installed_results_finish_completion_after_upgrade/results/samples/a/report": {
+              "device": 48,
+              "inode": 1608165061236395844
+            }
+          },
+          "unchanged_workflow_sha256": "d2641c22bd119546ba0c0489882971e7dffbbcf9cf4b122deb6567d51d586a23"
+        }
+      ]
+    },
+    "test_insufficient_result_ownership_still_blocks_repair_after_upgrade": {
+      "commands": [
+        {
+          "phase": "baseline",
+          "command": "<BASELINE>/bin/gwflow run",
+          "exit": 0
+        },
+        {
+          "phase": "baseline",
+          "command": "<BASELINE>/bin/gwflow run",
+          "exit": 1
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow status --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow run",
+          "exit": 1
+        }
+      ],
+      "observations": [
+        {
+          "side": "baseline",
+          "all_jobs_inactive": true,
+          "worker_exit": -15,
+          "job_states": {
+            "0": "COMPLETED",
+            "1": "COMPLETED",
+            "2": "COMPLETED"
+          },
+          "storage": {
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_insufficient_result_ownership_still_blocks_repair_after_upgrade": {
+              "device": 48,
+              "inode": 3737281956447277809
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_insufficient_result_ownership_still_blocks_repair_after_upgrade/work": {
+              "device": 48,
+              "inode": 14038145208316272998
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_insufficient_result_ownership_still_blocks_repair_after_upgrade/results": {
+              "device": 48,
+              "inode": 12518954655232200324
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_insufficient_result_ownership_still_blocks_repair_after_upgrade/.gwf/gwflow": {
+              "device": 48,
+              "inode": 13907932267463794209
+            }
+          },
+          "snapshot_count": 31,
+          "snapshot_sha256": "d005be9383375ef657e243ce7aaf77dd18bd82087baa8f5d82c4cfdcf0112dad",
+          "accepted_submissions_count": 3,
+          "accepted_submissions_sha256": "8bcbe5f2c37d2e900ec9ba069b2171aac6a48458a70df8a8b92b9f98a3c2b012",
+          "replayed_terminal_states_count": 3,
+          "replayed_terminal_states_sha256": "a1c11eacfa186e77ad680db964da5e1afbd64b85b8dece2b72acfca058e15ec9",
+          "replayed_terminal_states_states": {
+            "COMPLETED": 3
+          }
+        },
+        {
+          "side": "candidate",
+          "insufficient_ownership_blocks_repair": true,
+          "unowned_output": "unowned content",
+          "new_submissions": 0
+        }
+      ]
+    },
+    "test_interrupted_repair_preserves_computation_and_consumer_across_upgrade": {
+      "commands": [
+        {
+          "phase": "baseline",
+          "command": "<BASELINE>/bin/gwflow run",
+          "exit": 0
+        },
+        {
+          "phase": "baseline",
+          "command": "<BASELINE>/bin/gwflow run --dry-run --details",
+          "exit": 0
+        },
+        {
+          "phase": "baseline",
+          "command": "<BASELINE>/bin/gwflow run",
+          "exit": 0
+        },
+        {
+          "phase": "baseline",
+          "command": "<BASELINE>/bin/gwflow run --dry-run --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow status --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow run --dry-run",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow run",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow run --dry-run --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow run --dry-run --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow run",
+          "exit": 0
+        }
+      ],
+      "observations": [
+        {
+          "side": "baseline",
+          "all_jobs_inactive": true,
+          "worker_exit": -15,
+          "job_states": {
+            "0": "COMPLETED",
+            "1": "COMPLETED",
+            "2": "COMPLETED",
+            "3": "COMPLETED",
+            "4": "COMPLETED",
+            "5": "COMPLETED",
+            "6": "FAILED"
+          },
+          "storage": {
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_interrupted_repair_preserves_computation_and_consumer_across_upgrade": {
+              "device": 48,
+              "inode": 13200497399241693665
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_interrupted_repair_preserves_computation_and_consumer_across_upgrade/work": {
+              "device": 48,
+              "inode": 7386383254566893273
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_interrupted_repair_preserves_computation_and_consumer_across_upgrade/results": {
+              "device": 48,
+              "inode": 8111331546957376530
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_interrupted_repair_preserves_computation_and_consumer_across_upgrade/.gwf/gwflow": {
+              "device": 48,
+              "inode": 12688292943179282956
+            }
+          },
+          "snapshot_count": 59,
+          "snapshot_sha256": "0ae63a730d5c20fff9a2914c0c75ea1ce4f0651094f3431f8f89ace5a19439ec",
+          "accepted_submissions_count": 7,
+          "accepted_submissions_sha256": "631234aa05789020375046994b925162a6a37093fb42e8212fa64301627db394",
+          "replayed_terminal_states_count": 7,
+          "replayed_terminal_states_sha256": "0cc8414b05be63af11cec230a00204fcd7db1e49832f9cc5af34d995dc74b86e",
+          "replayed_terminal_states_states": {
+            "COMPLETED": 6,
+            "FAILED": 1
+          }
+        },
+        {
+          "side": "candidate",
+          "preserved_attempts": {
+            "a": "2865f73551e24ac7a0a69ea92f2280f3",
+            "c": "d50e71f378bf45a88137ee6ecfa27fb2"
+          },
+          "computation_counts": {
+            "compute": 1,
+            "consumer": 1
+          },
+          "retained_outputs": {
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_interrupted_repair_preserves_computation_and_consumer_across_upgrade/results/samples/a/report/renamed.txt": "first",
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_interrupted_repair_preserves_computation_and_consumer_across_upgrade/results/samples/a/report/nested/two.txt": "second",
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_interrupted_repair_preserves_computation_and_consumer_across_upgrade/results/c/joined.txt": "firstsecond"
+          },
+          "same_storage": {
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_interrupted_repair_preserves_computation_and_consumer_across_upgrade": {
+              "device": 48,
+              "inode": 13200497399241693665
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_interrupted_repair_preserves_computation_and_consumer_across_upgrade/work": {
+              "device": 48,
+              "inode": 7386383254566893273
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_interrupted_repair_preserves_computation_and_consumer_across_upgrade/results": {
+              "device": 48,
+              "inode": 8111331546957376530
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_interrupted_repair_preserves_computation_and_consumer_across_upgrade/.gwf/gwflow": {
+              "device": 48,
+              "inode": 12688292943179282956
+            }
+          },
+          "unchanged_workflow_sha256": "85c14eb89eff739d60ae7f429e947c8f73324165c41643935e85d03d55bbf1d9"
+        }
+      ]
+    },
+    "test_missing_retained_output_remains_repairable_after_upgrade": {
+      "commands": [
+        {
+          "phase": "baseline",
+          "command": "<BASELINE>/bin/gwflow run",
+          "exit": 0
+        },
+        {
+          "phase": "baseline",
+          "command": "<BASELINE>/bin/gwflow run --dry-run --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow status --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow run --dry-run",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow run",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow run --dry-run --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow run",
+          "exit": 0
+        }
+      ],
+      "observations": [
+        {
+          "side": "baseline",
+          "all_jobs_inactive": true,
+          "worker_exit": -15,
+          "job_states": {
+            "0": "COMPLETED",
+            "1": "COMPLETED",
+            "2": "COMPLETED"
+          },
+          "storage": {
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_missing_retained_output_remains_repairable_after_upgrade": {
+              "device": 48,
+              "inode": 12584405012396937885
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_missing_retained_output_remains_repairable_after_upgrade/work": {
+              "device": 48,
+              "inode": 10487285859205391058
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_missing_retained_output_remains_repairable_after_upgrade/results": {
+              "device": 48,
+              "inode": 6778499285910968862
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_missing_retained_output_remains_repairable_after_upgrade/.gwf/gwflow": {
+              "device": 48,
+              "inode": 3842671431726744813
+            }
+          },
+          "snapshot_count": 26,
+          "snapshot_sha256": "cf9bc4a4fb645fa2ff47cb5023e72e8ac4a06c3efe0908c7f6630ed696ea9d1c",
+          "accepted_submissions_count": 3,
+          "accepted_submissions_sha256": "796a65a87bf85c249ecfe81b0a7ada267bba5d69a0aaa3b7bd266e29d72ab028",
+          "replayed_terminal_states_count": 3,
+          "replayed_terminal_states_sha256": "31b50c042a8201b17a3ac8dde5dd27ad635d39636c8b3b1164c3b2e85c7b0ef2",
+          "replayed_terminal_states_states": {
+            "COMPLETED": 3
+          }
+        },
+        {
+          "side": "candidate",
+          "preserved_attempts": {
+            "a": "10cd6e27b4d14b05a08ddfa996388e1c"
+          },
+          "computation_counts": {
+            "compute": 1
+          },
+          "retained_outputs": {
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_missing_retained_output_remains_repairable_after_upgrade/results/samples/a/report/renamed.txt": "first",
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_missing_retained_output_remains_repairable_after_upgrade/results/samples/a/report/nested/two.txt": "second"
+          },
+          "same_storage": {
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_missing_retained_output_remains_repairable_after_upgrade": {
+              "device": 48,
+              "inode": 12584405012396937885
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_missing_retained_output_remains_repairable_after_upgrade/work": {
+              "device": 48,
+              "inode": 10487285859205391058
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_missing_retained_output_remains_repairable_after_upgrade/results": {
+              "device": 48,
+              "inode": 6778499285910968862
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_missing_retained_output_remains_repairable_after_upgrade/.gwf/gwflow": {
+              "device": 48,
+              "inode": 3842671431726744813
+            }
+          },
+          "unchanged_workflow_sha256": "25d21b086042735994bec276f5918cff8894a5531213c4ba9ef90dd385250086"
+        }
+      ]
+    },
+    "test_missing_source_evidence_still_requires_fresh_attempt_after_upgrade": {
+      "commands": [
+        {
+          "phase": "baseline",
+          "command": "<BASELINE>/bin/gwflow run",
+          "exit": 0
+        },
+        {
+          "phase": "baseline",
+          "command": "<BASELINE>/bin/gwflow run --dry-run --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow status --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow run --dry-run",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow run",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow run --dry-run --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow run --dry-run --details",
+          "exit": 0
+        }
+      ],
+      "observations": [
+        {
+          "side": "baseline",
+          "all_jobs_inactive": true,
+          "worker_exit": -15,
+          "job_states": {
+            "0": "COMPLETED",
+            "1": "COMPLETED",
+            "2": "COMPLETED"
+          },
+          "storage": {
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_missing_source_evidence_still_requires_fresh_attempt_after_upgrade": {
+              "device": 48,
+              "inode": 16678250350117225807
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_missing_source_evidence_still_requires_fresh_attempt_after_upgrade/work": {
+              "device": 48,
+              "inode": 7464816816429726869
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_missing_source_evidence_still_requires_fresh_attempt_after_upgrade/results": {
+              "device": 48,
+              "inode": 17382497007475037383
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_missing_source_evidence_still_requires_fresh_attempt_after_upgrade/.gwf/gwflow": {
+              "device": 48,
+              "inode": 6446484531519866066
+            }
+          },
+          "snapshot_count": 25,
+          "snapshot_sha256": "2e836ea84d7accadb5e2a34a1ebc3b26b147257ed860f37193a824cb119d448b",
+          "accepted_submissions_count": 3,
+          "accepted_submissions_sha256": "a88d1dd1c43da512cc7b924644bb8a32b1105c68877cd927b88852ce78be70fb",
+          "replayed_terminal_states_count": 3,
+          "replayed_terminal_states_sha256": "3916233403c7cd758622fcb00987e95e8dbea599e6d04c80aecb8500ba7a1659",
+          "replayed_terminal_states_states": {
+            "COMPLETED": 3
+          }
+        },
+        {
+          "side": "candidate",
+          "missing_source_evidence_requires_fresh": true,
+          "old_attempts": {
+            "a": "a301a58c06954ffa87d877394701b700"
+          },
+          "new_attempts": {
+            "a": "76bfd2abd84d483b9048f3e0b393b9de"
+          },
+          "computation_counts": {
+            "compute": 2
+          }
+        }
+      ]
+    },
+    "test_partial_copy_on_separate_filesystem_survives_upgrade": {
+      "commands": [
+        {
+          "phase": "baseline",
+          "command": "<BASELINE>/bin/gwflow run",
+          "exit": 0
+        },
+        {
+          "phase": "baseline",
+          "command": "<BASELINE>/bin/gwflow run --dry-run --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow status --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow run --dry-run",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow run",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow run --dry-run --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow run",
+          "exit": 0
+        }
+      ],
+      "observations": [
+        {
+          "side": "baseline",
+          "all_jobs_inactive": true,
+          "worker_exit": -15,
+          "job_states": {
+            "0": "COMPLETED",
+            "1": "COMPLETED",
+            "2": "FAILED"
+          },
+          "storage": {
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_partial_copy_on_separate_filesystem_survives_upgrade": {
+              "device": 48,
+              "inode": 3462541903159063923
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_partial_copy_on_separate_filesystem_survives_upgrade/work": {
+              "device": 48,
+              "inode": 2862759806031608276
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_partial_copy_on_separate_filesystem_survives_upgrade/.gwf/gwflow": {
+              "device": 48,
+              "inode": 3227777779417281377
+            },
+            "<SECOND_FS_1>": {
+              "device": 23,
+              "inode": 3758784
+            },
+            "<SECOND_FS_1>/results": {
+              "device": 23,
+              "inode": 3758785
+            },
+            "<SECOND_FS_1>/staging": {
+              "device": 23,
+              "inode": 3758786
+            }
+          },
+          "snapshot_count": 21,
+          "snapshot_sha256": "99d21f7df8ec01ef45a61cdb61ec9f33c481673d4442e40d4266f75c696eae7f",
+          "accepted_submissions_count": 3,
+          "accepted_submissions_sha256": "15615cc79f629c35ebae9bdaf6c2a22429d2b1d2e97e4f74f91e388c5aac5a7c",
+          "replayed_terminal_states_count": 3,
+          "replayed_terminal_states_sha256": "cd33f3fc53e1354e5f6def0e6b0305245b25d201ca17eba982d6eaa8f8fbfb36",
+          "replayed_terminal_states_states": {
+            "COMPLETED": 2,
+            "FAILED": 1
+          }
+        },
+        {
+          "side": "candidate",
+          "preserved_attempts": {
+            "a": "30095036e585467babad8cf26bd4a9c9"
+          },
+          "computation_counts": {
+            "compute": 1
+          },
+          "retained_outputs": {
+            "<SECOND_FS_1>/results/samples/a/report/renamed.txt": "first",
+            "<SECOND_FS_1>/results/samples/a/report/nested/two.txt": "second"
+          },
+          "same_storage": {
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_partial_copy_on_separate_filesystem_survives_upgrade": {
+              "device": 48,
+              "inode": 3462541903159063923
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_partial_copy_on_separate_filesystem_survives_upgrade/work": {
+              "device": 48,
+              "inode": 2862759806031608276
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_partial_copy_on_separate_filesystem_survives_upgrade/.gwf/gwflow": {
+              "device": 48,
+              "inode": 3227777779417281377
+            },
+            "<SECOND_FS_1>": {
+              "device": 23,
+              "inode": 3758784
+            },
+            "<SECOND_FS_1>/results": {
+              "device": 23,
+              "inode": 3758785
+            },
+            "<SECOND_FS_1>/staging": {
+              "device": 23,
+              "inode": 3758786
+            }
+          },
+          "unchanged_workflow_sha256": "2ca055c7742e95005c440991084d06e3acdebd5197125ce20d48de7706c8c53b"
+        }
+      ]
+    },
+    "test_partial_copy_survives_upgrade_without_computation": {
+      "commands": [
+        {
+          "phase": "baseline",
+          "command": "<BASELINE>/bin/gwflow run",
+          "exit": 0
+        },
+        {
+          "phase": "baseline",
+          "command": "<BASELINE>/bin/gwflow run --dry-run --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow status --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow run --dry-run",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow run",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow run --dry-run --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow run",
+          "exit": 0
+        }
+      ],
+      "observations": [
+        {
+          "side": "baseline",
+          "all_jobs_inactive": true,
+          "worker_exit": -15,
+          "job_states": {
+            "0": "COMPLETED",
+            "1": "COMPLETED",
+            "2": "FAILED"
+          },
+          "storage": {
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_partial_copy_survives_upgrade_without_computation": {
+              "device": 48,
+              "inode": 17314028912458036499
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_partial_copy_survives_upgrade_without_computation/work": {
+              "device": 48,
+              "inode": 18163024972780106773
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_partial_copy_survives_upgrade_without_computation/results": {
+              "device": 48,
+              "inode": 11604476608676537794
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_partial_copy_survives_upgrade_without_computation/.gwf/gwflow": {
+              "device": 48,
+              "inode": 33443736250006803
+            }
+          },
+          "snapshot_count": 22,
+          "snapshot_sha256": "6a6757fb16522ae60d8e817c3c8e9e8107b6182b735e745244e43a55663c5e24",
+          "accepted_submissions_count": 3,
+          "accepted_submissions_sha256": "f22f1c573bc783c0504cba63890268333911ff30161389ebb08dfd893fc3de04",
+          "replayed_terminal_states_count": 3,
+          "replayed_terminal_states_sha256": "110e0163c48a947007c8c4a6be017a3d87185f7479ce39b488367a7ba6685ce9",
+          "replayed_terminal_states_states": {
+            "COMPLETED": 2,
+            "FAILED": 1
+          }
+        },
+        {
+          "side": "candidate",
+          "preserved_attempts": {
+            "a": "e9f9649b1ff84ff5818670aa6ae06d91"
+          },
+          "computation_counts": {
+            "compute": 1
+          },
+          "retained_outputs": {
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_partial_copy_survives_upgrade_without_computation/results/samples/a/report/renamed.txt": "first",
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_partial_copy_survives_upgrade_without_computation/results/samples/a/report/nested/two.txt": "second"
+          },
+          "same_storage": {
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_partial_copy_survives_upgrade_without_computation": {
+              "device": 48,
+              "inode": 17314028912458036499
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_partial_copy_survives_upgrade_without_computation/work": {
+              "device": 48,
+              "inode": 18163024972780106773
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_partial_copy_survives_upgrade_without_computation/results": {
+              "device": 48,
+              "inode": 11604476608676537794
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_partial_copy_survives_upgrade_without_computation/.gwf/gwflow": {
+              "device": 48,
+              "inode": 33443736250006803
+            }
+          },
+          "unchanged_workflow_sha256": "2e55211c1d6adc5c34ba33ffd4cad179613d9f0450533ee5f40266199ad286a9"
+        }
+      ]
+    },
+    "test_prepared_installation_survives_upgrade_without_computation": {
+      "commands": [
+        {
+          "phase": "baseline",
+          "command": "<BASELINE>/bin/gwflow run",
+          "exit": 0
+        },
+        {
+          "phase": "baseline",
+          "command": "<BASELINE>/bin/gwflow run --dry-run --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow status --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow run --dry-run",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow run",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow run --dry-run --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow run",
+          "exit": 0
+        }
+      ],
+      "observations": [
+        {
+          "side": "baseline",
+          "all_jobs_inactive": true,
+          "worker_exit": -15,
+          "job_states": {
+            "0": "COMPLETED",
+            "1": "COMPLETED",
+            "2": "FAILED"
+          },
+          "storage": {
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_prepared_installation_survives_upgrade_without_computation": {
+              "device": 48,
+              "inode": 16836798761728580707
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_prepared_installation_survives_upgrade_without_computation/work": {
+              "device": 48,
+              "inode": 6345738499410951801
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_prepared_installation_survives_upgrade_without_computation/results": {
+              "device": 48,
+              "inode": 4859584118533757981
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_prepared_installation_survives_upgrade_without_computation/.gwf/gwflow": {
+              "device": 48,
+              "inode": 1736669802398981415
+            }
+          },
+          "snapshot_count": 24,
+          "snapshot_sha256": "d4bb8b172d72466854f1dfe262ffd94e65dd00b241a00a05a1f9ea67d3cb3024",
+          "accepted_submissions_count": 3,
+          "accepted_submissions_sha256": "dc98de0cc422ab4d9e8f71a9248824d621004e22941be933421b8b0532bcc540",
+          "replayed_terminal_states_count": 3,
+          "replayed_terminal_states_sha256": "35337b3ce7c97c91cd582168b0bf561cdc86d3a2e2cd1baaffe25dd0494cb807",
+          "replayed_terminal_states_states": {
+            "COMPLETED": 2,
+            "FAILED": 1
+          }
+        },
+        {
+          "side": "candidate",
+          "preserved_attempts": {
+            "a": "63042098821d496bb2f8929d6aec5412"
+          },
+          "computation_counts": {
+            "compute": 1
+          },
+          "retained_outputs": {
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_prepared_installation_survives_upgrade_without_computation/results/samples/a/report/renamed.txt": "first",
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_prepared_installation_survives_upgrade_without_computation/results/samples/a/report/nested/two.txt": "second"
+          },
+          "same_storage": {
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_prepared_installation_survives_upgrade_without_computation": {
+              "device": 48,
+              "inode": 16836798761728580707
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_prepared_installation_survives_upgrade_without_computation/work": {
+              "device": 48,
+              "inode": 6345738499410951801
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_prepared_installation_survives_upgrade_without_computation/results": {
+              "device": 48,
+              "inode": 4859584118533757981
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_prepared_installation_survives_upgrade_without_computation/.gwf/gwflow": {
+              "device": 48,
+              "inode": 1736669802398981415
+            }
+          },
+          "unchanged_workflow_sha256": "4241eaae50f6eced8b3ce762e40b0dc9eb72b62c50528c60d5a94a44cdc862e4"
+        }
+      ]
+    },
+    "test_uncertain_and_active_consumers_still_block_repair_after_upgrade": {
+      "commands": [
+        {
+          "phase": "baseline",
+          "command": "<BASELINE>/bin/gwflow run",
+          "exit": 0
+        },
+        {
+          "phase": "baseline",
+          "command": "<BASELINE>/bin/gwflow run",
+          "exit": 1
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow status --details",
+          "exit": 0
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow run a",
+          "exit": 1
+        },
+        {
+          "phase": "candidate",
+          "command": "<CANDIDATE>/bin/gwflow run a",
+          "exit": 1
+        }
+      ],
+      "observations": [
+        {
+          "side": "baseline",
+          "all_jobs_inactive": true,
+          "worker_exit": -15,
+          "job_states": {
+            "0": "COMPLETED",
+            "1": "COMPLETED",
+            "2": "COMPLETED"
+          },
+          "storage": {
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_uncertain_and_active_consumers_still_block_repair_after_upgrade": {
+              "device": 48,
+              "inode": 13905490113795955361
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_uncertain_and_active_consumers_still_block_repair_after_upgrade/work": {
+              "device": 48,
+              "inode": 17728250153955371075
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_uncertain_and_active_consumers_still_block_repair_after_upgrade/results": {
+              "device": 48,
+              "inode": 10988762817195423755
+            },
+            "<REPO>/build/validation/v0.8.0/compatibility-clean/test_uncertain_and_active_consumers_still_block_repair_after_upgrade/.gwf/gwflow": {
+              "device": 48,
+              "inode": 12657336283652009601
+            }
+          },
+          "snapshot_count": 34,
+          "snapshot_sha256": "b0ea76ed89f39cff78c440c9c190dd30c920fd60a490b311f06b4f7bae2419b8",
+          "accepted_submissions_count": 3,
+          "accepted_submissions_sha256": "0c55264e61a5eaaeaaefaa24b3d602ff5113f4589d3d32a87662eef7edc5ee0f",
+          "replayed_terminal_states_count": 3,
+          "replayed_terminal_states_sha256": "521b38c07ac839078dd3af3cab26649c639ec3ae101e7aede441ead34ddb151a",
+          "replayed_terminal_states_states": {
+            "COMPLETED": 3
+          }
+        },
+        {
+          "side": "candidate",
+          "uncertain_consumer_blocks_repair": true,
+          "active_consumer_blocks_repair": true,
+          "protected_output": "protected retained output",
+          "new_submissions": 0
+        }
+      ]
+    }
+  },
+  "limits": [
+    "Exactly this bootstrap/candidate pair; not a promise for other pre-1.0 records or future 1.x releases.",
+    "Real local jobs confirmed terminal before stopping baseline workers and starting candidate workers; no storage relocation or manual conversion.",
+    "Existing fixtures replay observed terminal states by exact Submission name because local scheduler history is lost on restart. Recovery and negative cases deliberately expire history or simulate active consumers.",
+    "No production Slurm jobs; no live upgrades, mixed-version workers, downgrade, or representative production-pipeline validation."
+  ],
+  "raw_evidence": "build/validation/v0.8.0/compatibility-clean",
+  "path_placeholders": {
+    "<REPO>": "Absolute checkout root; relative paths start here; file://<REPO>/... preserves pip artifact URL shape.",
+    "<PYTHON>": "Candidate Python 3.12 executable, <CANDIDATE>/bin/python.",
+    "<BASELINE>": "Independent baseline installation under local temporary storage.",
+    "<CANDIDATE>": "Copied Python 3.12 runtime with the independently installed candidate and example wheels on local temporary storage.",
+    "<SECOND_FS_N>": "Numbered temporary storage roots under /dev/shm. Each exact root and device/inode identity is preserved across the installation switch, then cleaned by the fixture."
+  }
+}

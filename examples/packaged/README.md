@@ -26,7 +26,7 @@ python -m pip install ./examples/packaged/packages/summary-task ./examples/packa
 cd examples/packaged
 ```
 
-The factory packages accept gwflow `>=0.5.3,<0.8`; the commands below use the
+The factory packages accept gwflow `>=0.5.3,<0.9`, including v0.8.0; the commands below use the
 current checkout's dedicated `gwflow` CLI. Editable installs with `-e` are also
 supported. Package implementation or version changes do not independently
 invalidate Reuse; use force for changes not reflected in tracked commands,

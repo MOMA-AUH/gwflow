@@ -6,6 +6,10 @@ source identifiers, commands, outcomes, and deployment limits. Their results
 apply to the recorded implementation and environment; release numbers and issue
 numbers identify that context inside each record.
 
+The [v0.8.0 candidate record](v0.8.0/acceptance.md) ties the combined regression
+journeys and interactive measurements to the installed release candidate and
+documents the separate publication verification procedure.
+
 ## Local checks
 
 Run from the repository root in a Python 3.12 environment. Installing the project
