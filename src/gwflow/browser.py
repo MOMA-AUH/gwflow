@@ -87,21 +87,48 @@ class Scope:
                        f"Scope: {selectors}; State: {states}; Name: {name_query}")
 
 
-class GroupColumns:
-    """Shared column widths for group headings and rows, recomputed on resize."""
+class ProgressColumns:
+    """Shared headings and widths for a list of names, progress, and states."""
 
-    def __init__(self, name_width, fraction_width):
+    def __init__(self, name_width, fraction_width, *, progress_label="Reusable", state_width=None):
         self.name_width, self.fraction_width = max(8, name_width), fraction_width
+        self.progress_label, self.state_width = progress_label, state_width
+        self.state_label = "Other states" if state_width is None else "State"
 
     def widths(self, width):
-        return min(self.name_width, max(8, width * 2 // 5)), 11 + self.fraction_width
+        progress = 11 + self.fraction_width
+        available = width * 2 // 5 if self.state_width is None else width - progress - self.state_width - 4
+        return min(self.name_width, max(8, available)), progress
+
+    def progress(self, completed, total):
+        fraction, _, bar = progress_text(completed, total, 8).partition(" ")
+        return fraction.rjust(self.fraction_width) + " " + bar
 
     def __rich_console__(self, console, options):
         if options.max_width < 70:
-            yield Text("Name / Reusable / Other states", style="bold")
+            yield Text(f"Name / {self.progress_label} / {self.state_label}", style="bold")
         else:
             name, progress = self.widths(options.max_width)
-            yield Text(f"{'Name':<{name}}  {'Reusable':<{progress}}  Other states", style="bold")
+            yield Text(f"{'Name':<{name}}  {self.progress_label:<{progress}}  {self.state_label}", style="bold")
+
+
+class JobColumns:
+    def __init__(self, jobs):
+        self.name_width = max((cell_len(job['local']) for job in jobs), default=8)
+        self.state_width = max((job_state_text(job).cell_len for job in jobs), default=5)
+
+    def width(self, width):
+        return max(8, min(self.name_width, width - self.state_width - 2))
+
+    def __rich_console__(self, console, options):
+        yield Text(f"{'Name':<{self.width(options.max_width)}}  State", style="bold")
+
+
+def job_state_text(job):
+    state = state_text(job["observed_state"])
+    if job["requires_repetition"]:
+        state.append("; repeat required")
+    return state
 
 
 class GroupPrompt:
@@ -123,8 +150,7 @@ class GroupPrompt:
         if single_line:
             name = middle_name(self.label, name_width)
             line = Text(name + " " * (name_width - cell_len(name)) + "  ")
-            fraction, _, bar = progress_text(self.counts['reusable'], self.total, 8).partition(" ")
-            line.append(fraction.rjust(self.columns.fraction_width) + " " + bar, "green")
+            line.append(self.columns.progress(self.counts['reusable'], self.total), "green")
             line.append("  ")
         else:
             line = Text(middle_name(self.label, options.max_width) + "\n")
@@ -140,35 +166,48 @@ class GroupPrompt:
 
 
 class TaskPrompt:
-    def __init__(self, task):
-        self.task = task
+    def __init__(self, task, columns):
+        self.task, self.columns = task, columns
 
     def __rich_console__(self, console, options):
         task = self.task
         state = state_text(task["state"])
         fraction = f"{task['completed']}/{task['total']}"
-        width = max(3, min(18, options.max_width - state.cell_len - len(fraction) - 5))
-        line = Text(middle_name(task["name"], options.max_width) + "\n")
-        line.append_text(state)
-        line.append("  " + progress_text(task["completed"], task["total"], width))
+        name_width, progress_width = self.columns.widths(options.max_width)
+        if options.max_width >= 70 and name_width + progress_width + state.cell_len + 4 <= options.max_width:
+            name = middle_name(task['name'], name_width)
+            line = Text(name + " " * (name_width - cell_len(name)) + "  ")
+            line.append(self.columns.progress(task['completed'], task['total']) + "  ")
+            line.append_text(state)
+        else:
+            width = max(3, min(18, options.max_width - state.cell_len - len(fraction) - 5))
+            line = Text(middle_name(task["name"], options.max_width) + "\n")
+            line.append_text(state)
+            line.append("  " + progress_text(task["completed"], task["total"], width))
         if task["detail"]:
             line.append("\n" + task["detail"])
         yield line
 
 
 class JobPrompt:
-    def __init__(self, job):
-        self.job = job
+    def __init__(self, job, columns):
+        self.job, self.columns = job, columns
 
     def __rich_console__(self, console, options):
-        state = state_text(self.job["observed_state"])
-        if self.job["requires_repetition"]:
-            state.append("; repeat required")
+        state = job_state_text(self.job)
         name = self.job["local"]
-        if cell_len(name) + state.cell_len + 2 <= options.max_width:
-            yield Text(name + "  ") + state
+        if isinstance(self.columns, ProgressColumns):
+            # Expanded jobs share their parent Task's state column.
+            name_width, progress_width = self.columns.widths(options.max_width)
+            indent, gap = "  ", progress_width + 4
         else:
-            yield Text(middle_name(name, options.max_width) + "\n") + state
+            name_width = self.columns.width(options.max_width)
+            indent, gap = "", 2
+        if name_width + gap + state.cell_len <= options.max_width:
+            name = indent + middle_name(name, name_width - len(indent))
+            yield Text(name + " " * (name_width - cell_len(name) + gap)) + state
+        else:
+            yield Text(indent + middle_name(name, options.max_width - len(indent)) + "\n") + state
 
 
 def failure_summary(failure):
@@ -251,6 +290,13 @@ class BrowserView(Screen):
     def footer(self):
         return Static(Shortcuts(), classes="shortcuts")
 
+    def listing(self, options, columns, title, *, classes=""):
+        panel = Vertical(Static(columns, classes="list-columns"),
+                         OptionList(*options, classes="listing table-list"),
+                         classes="listing-panel " + classes)
+        panel.border_title = title
+        return panel
+
     def notices(self):
         if self.snapshot.get("notices"):
             with VerticalScroll(classes="notice-pane"):
@@ -268,6 +314,9 @@ class BrowserView(Screen):
 
     def on_resize(self, event):
         self.set_class(event.size.height < 18, "compact")
+        # Stacking can make the selected row taller than its previous viewport.
+        for listing in self.query(OptionList):
+            self.call_after_refresh(listing.scroll_to_highlight)
 
     def section(self, title):
         return Collapsible(title=title, collapsed=self.section_states.get(title, True))
@@ -320,7 +369,7 @@ class GroupsView(BrowserView):
         yield self.scope()
         yield from self.notices()
         options = []
-        columns = GroupColumns(max((cell_len(group['label']) for group in self.snapshot['groups']), default=8),
+        columns = ProgressColumns(max((cell_len(group['label']) for group in self.snapshot['groups']), default=8),
                                max((len(f"{len(group['members'])}/{len(group['members'])}")
                                     for group in self.snapshot['groups']), default=3))
         tasks = {task["name"]: task for task in self.snapshot["tasks"]}
@@ -336,19 +385,11 @@ class GroupsView(BrowserView):
                                                            cast(StatusBrowser, self.app).name_query) else None,
                                               columns),
                                   id="group:" + group["key"]))
-        with Vertical(classes="group-panel") as panel:
-            panel.border_title = "Groups"
-            yield Static(columns, classes="group-columns")
-            yield OptionList(*options, classes="listing group-list")
+        yield self.listing(options, columns, "Groups")
         yield self.footer()
 
     def on_mount(self):
         self.set_focus(self.query_one(OptionList))
-
-    def on_resize(self, event):
-        super().on_resize(event)
-        # Stacking can make the selected row taller than its previous viewport.
-        self.call_after_refresh(self.query_one(OptionList).scroll_to_highlight)
 
     def on_option_list_option_selected(self, event):
         group = self.groups[event.option_index]
@@ -368,21 +409,23 @@ class TasksView(BrowserView):
         yield self.heading()
         yield self.scope()
         yield from self.notices()
-        yield Static(Breadcrumb(["Tasks in " + self.group if self.group else "Selected Tasks"]),
-                     classes="task-list-label")
+        tasks = [task for task in self.snapshot['tasks'] if cast(StatusBrowser, self.app).matches(task)
+                 and (self.members is None or task['name'] in self.members)]
+        states = [state_text(task['state']).cell_len for task in tasks]
+        if self.expanded:
+            states.extend(job_state_text(job).cell_len for task in tasks for job in task['jobs'])
+        columns = ProgressColumns(max((cell_len(task['name']) for task in tasks), default=8),
+                                  max((len(f"{task['completed']}/{task['total']}") for task in tasks), default=3),
+                                  progress_label="Progress", state_width=max(states, default=5))
         options = []
-        for task in self.snapshot["tasks"]:
-            if not cast(StatusBrowser, self.app).matches(task):
-                continue
-            if self.members is not None and task["name"] not in self.members:
-                continue
-            options.append(Option(TaskPrompt(task), id="task:" + task["name"]))
+        for task in tasks:
+            options.append(Option(TaskPrompt(task, columns), id="task:" + task["name"]))
             self.items.append((task, None))
             if self.expanded:
                 for job in task["jobs"]:
-                    options.append(Option(JobPrompt(job), id="job:" + job["name"]))
+                    options.append(Option(JobPrompt(job, columns), id="job:" + job["name"]))
                     self.items.append((task, job))
-        yield OptionList(*options, classes="listing")
+        yield self.listing(options, columns, "Tasks in " + self.group if self.group else "Selected Tasks")
         yield self.footer()
 
     def on_mount(self):
@@ -428,8 +471,12 @@ class TaskView(BrowserView):
             lead = Text("State: ") + state_text(task["state"])
             lead.append(f"\nJobs completed: {progress_text(task['completed'], task['total'])}"
                         f"\nNext action: {task['next_action']}\nReason: {task['reason']}")
-            yield Static(lead)
-            yield OptionList(*(Option(JobPrompt(job), id="job:" + job["name"]) for job in task["jobs"]), classes="jobs")
+            with Vertical(classes="detail-panel") as panel:
+                panel.border_title = "Task"
+                yield Static(lead)
+            columns = JobColumns(task['jobs'])
+            yield self.listing([Option(JobPrompt(job, columns), id="job:" + job["name"]) for job in task['jobs']],
+                               columns, "Jobs", classes="jobs-panel")
             yield Static("Task: " + task["name"], markup=False)
             with self.section("Attempt, paths, and diagnostics"):
                 yield Static(task["diagnostics"], markup=False)
@@ -479,13 +526,17 @@ class JobView(BrowserView):
         yield self.heading()
         yield from self.notices()
         with VerticalScroll():
-            yield Static(Text("Observed state: ") + state_text(job["observed_state"]))
-            if job["requires_repetition"]:
-                yield Static("Requires repetition for Task progress.")
-            yield Static(f"Public job: {job['name']}\nSubmission: {job['submission'] or 'not submitted'}\n"
-                         f"Backend job: {job['backend_id'] if job['backend_id'] is not None else 'unavailable'}", markup=False)
-            for stream, path in job["logs"].items():
-                yield Static(f"Log {stream}: {path}", markup=False)
+            with Vertical(classes="detail-panel") as panel:
+                panel.border_title = "Job"
+                yield Static(Text("Observed state: ") + state_text(job["observed_state"]))
+                if job["requires_repetition"]:
+                    yield Static("Requires repetition for Task progress.")
+                yield Static(f"Public job: {job['name']}\nSubmission: {job['submission'] or 'not submitted'}\n"
+                             f"Backend job: {job['backend_id'] if job['backend_id'] is not None else 'unavailable'}", markup=False)
+            with Vertical(classes="detail-panel") as panel:
+                panel.border_title = "Logs"
+                for stream, path in job["logs"].items():
+                    yield Static(f"Log {stream}: {path}", markup=False)
         yield self.footer()
 
     def footer(self):
@@ -691,19 +742,22 @@ class StatusBrowser(App[int]):
     #breadcrumb, .breadcrumb { height: auto; text-style: bold; color: cyan; }
     #activity { height: auto; }
     #rows, .listing { height: 1fr; border: none; }
-    .group-panel { height: 1fr; margin-top: 1; border: round $foreground 25%; }
-    .group-columns { height: auto; margin: 0 1; padding: 0 2 0 1; border-bottom: solid $foreground 20%; }
-    .group-list { padding: 0 1 0 2; scrollbar-gutter: stable; scrollbar-size-vertical: 2; }
-    .group-list > .option-list--option { padding: 0; }
-    .group-list:focus > .option-list--option-highlighted { text-style: bold; }
+    .listing-panel { height: 1fr; margin-top: 1; border: round $foreground 25%; }
+    .list-columns { height: auto; margin: 0 1; padding: 0 4 0 1; border-bottom: solid $foreground 20%; }
+    .table-list { padding: 0 1 0 2; scrollbar-gutter: stable; scrollbar-size-vertical: 2; }
+    .table-list > .option-list--option { padding: 0; }
+    .table-list:focus > .option-list--option-highlighted { text-style: bold; }
+    .detail-panel { height: auto; margin-bottom: 1; padding: 0 2; border: round $foreground 25%; }
+    .jobs-panel { height: 11; min-height: 3; max-height: 50%; }
     .compact .view-heading { margin-bottom: 0; }
-    .compact .group-panel { margin-top: 0; border: none; }
-    .compact .group-columns { display: none; }
-    .compact .group-list { padding: 0 1; }
+    .compact .listing-panel { margin-top: 0; border: none; }
+    .compact .list-columns { display: none; }
+    .compact .table-list { padding: 0 1; }
+    .compact .detail-panel { margin-bottom: 0; padding: 0; border: none; }
+    .compact .jobs-panel { height: 8; }
     .jobs { height: 8; min-height: 3; max-height: 50%; border: none; }
     .notice-pane { height: auto; min-height: 2; max-height: 25%; border-left: wide yellow; }
     .compact .notice-pane { height: 1; min-height: 1; max-height: 1; }
-    .compact .task-list-label { display: none; }
     .read-info { height: auto; min-height: 1; max-height: 25%; }
     .compact .read-info { height: 2; max-height: 2; }
     #shortcuts, .shortcuts { height: auto; dock: bottom; }

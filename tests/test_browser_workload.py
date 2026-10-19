@@ -15,6 +15,86 @@ from test_browser_interaction import visible_text
 
 
 class BrowserWorkloadTests(unittest.IsolatedAsyncioTestCase):
+    async def test_expanded_jobs_share_the_task_state_column(self):
+        app = CapturedBrowser(details=True)
+        async with app.run_test(size=(80, 24)) as pilot:
+            await pilot.pause()
+            rows = {}
+            for node in ET.fromstring(app.export_screenshot()).iter('{http://www.w3.org/2000/svg}text'):
+                rows.setdefault(node.get('y'), []).append(''.join(node.itertext()).replace('\xa0', ' '))
+            rows = [''.join(parts) for parts in rows.values()]
+            header = next(row for row in rows if 'Progress' in row)
+            task = next(row for row in rows if 'sample_000' in row)
+            job = next(row for row in rows if 'job_00' in row)
+            self.assertEqual(header.index('State'), task.index('✓ reusable'))
+            self.assertEqual(header.index('State'), job.index('✓ completed'))
+            self.assertEqual(job.index('job_00'), task.index('mapping') + 2)
+            await pilot.press('down', 'enter')
+            self.assertIn('Observed state:', visible_text(app))
+            self.assertIn('job_00', visible_text(app))
+            await pilot.press('q')
+
+    async def test_task_and_job_tables_align_columns_across_resize_and_drill_down(self):
+        def snapshot():
+            result = captured_snapshot()
+            result['tasks'] = result['tasks'][:3]
+            result['total'] = 3
+            result['groups'] = result['groups'][:1]
+            result['groups'][0]['members'] = [task['name'] for task in result['tasks']]
+            result['notices'] = ''
+            for task in result['tasks']:
+                task['jobs'][1]['local'] = 'align_reference_reads'
+                task['jobs'][1]['name'] = task['name'] + '__align_reference_reads'
+            return result
+
+        def rows(app):
+            result = {}
+            for node in ET.fromstring(app.export_screenshot()).iter('{http://www.w3.org/2000/svg}text'):
+                result.setdefault(node.get('y'), []).append(''.join(node.itertext()).replace('\xa0', ' '))
+            return [''.join(parts) for parts in result.values()]
+
+        app = CapturedBrowser(snapshot_factory=snapshot)
+        async with app.run_test(size=(80, 24)) as pilot:
+            await pilot.pause()
+            await pilot.press('enter')
+            for size in ((80, 24), (120, 40)):
+                await pilot.resize_terminal(*size)
+                await pilot.pause()
+                rendered = rows(app)
+                header = next(row for row in rendered if 'Progress' in row)
+                task = next(row for row in rendered if 'sample_000' in row)
+                self.assertIn('10/10', task)
+                self.assertIn('✓ reusable', task)
+                self.assertEqual(header.index('Progress'), task.index('10/10'))
+                self.assertEqual(header.index('State'), task.index('✓ reusable'))
+            await pilot.press('down')
+            selected = app.screen.query_one(OptionList).highlighted_option.id
+            await pilot.resize_terminal(40, 12)
+            await pilot.pause()
+            self.assertIn('sample_001', visible_text(app))
+            self.assertIn('10/10', visible_text(app))
+            await pilot.resize_terminal(80, 24)
+            await pilot.press('enter')
+            for size in ((80, 24), (120, 40)):
+                await pilot.resize_terminal(*size)
+                await pilot.pause()
+                rendered = rows(app)
+                header = next(row for row in rendered if 'Name' in row and 'State' in row)
+                for name in ('job_00', 'align_reference_reads'):
+                    job = next(row for row in rendered if name in row)
+                    self.assertIn('✓ completed', job)
+                    self.assertEqual(header.index('State'), job.index('✓ completed'))
+            await pilot.resize_terminal(40, 12)
+            await pilot.pause()
+            self.assertIn('completed', visible_text(app))
+            await pilot.resize_terminal(80, 24)
+            await pilot.press('enter')
+            self.assertIn('Observed state:', visible_text(app))
+            await pilot.press('escape', 'escape')
+            self.assertEqual(app.screen.query_one(OptionList).highlighted_option.id, selected)
+            self.assertEqual(app.acquisitions, 1)
+            await pilot.press('q')
+
     async def test_group_table_aligns_rows_and_preserves_selection_across_resize(self):
         def snapshot():
             result = captured_snapshot()
