@@ -39,6 +39,15 @@ upload the same artifact to the `MOMA-AUH` Anaconda.org channel. It creates
 another fresh environment from the published channel and repeats those smoke
 checks. A failed upload or published-package check fails the release
 workflow; do not claim publication from a successful build alone.
+The smoke runner includes unresolved submission, `recover`, preview, and retry,
+checking that successful siblings and original submission evidence survive.
+The workflow verifies the downloaded artifact's SHA256 before upload and matches
+the fresh installation's Conda metadata to that same artifact afterward.
+Download `gwflow-conda-release` and `gwflow-publication-evidence` from the successful
+tag run to retain the package, `SHA256SUMS`, and `publication.json`. Attach the
+provenance files to the GitHub release so its source commit, package URL, checksum,
+runtime versions, and workflow result remain discoverable after Actions artifacts
+expire. These identities describe the pre-1.0 release, not a stable baseline.
 
 After the tag workflow has successfully uploaded and installed the published
 package, create the GitHub release for that existing tag. Follow the previous
@@ -52,11 +61,14 @@ Store the token in GitHub Actions secrets, not in the repository. Until that
 secret is configured, the reviewable build and tests can run, but the tag
 workflow cannot complete publication.
 
-## Planned v0.8.0 acceptance scope
+## v0.8.0 acceptance scope
 
 The release plan below was agreed on 2026-10-16 and retargeted from v1.0.0 to
-v0.8.0 on 2026-10-18. It records intended work and release requirements, not
-completed implementation or validation. v0.8.0 remains a pre-1.0 release;
+v0.8.0 on 2026-10-18. It records the release requirements. Feature delivery is
+recorded in [ADR 0014](adr/0014-make-terminal-status-interactive-by-default.md),
+and candidate checks and limits in the [v0.8.0 validation record](validation/v0.8.0/acceptance.md).
+The [release notes](releases/v0.8.0.md) are prepared for publication after the tag
+workflow succeeds. v0.8.0 remains a pre-1.0 release;
 the future v1.0.0/1.x compatibility policy does not become a v0.8.0 guarantee.
 
 v0.8.0 targets the maintainer's production pipelines on the current
@@ -133,5 +145,5 @@ semantics and ordinary execution safeguards remain in force. The v0.8.0 TUI is f
 inspection, with manual status refresh, in-app logs and history, and optional
 live log following; run and cancel remain ordinary commands, exposed through
 copyable command hints. All ten approved implementation tickets are required
-blockers of release preparation #217. Design approval does not establish that
-the features have been implemented or the release validated.
+blockers of release preparation #217. All ten are now merged with required CI;
+candidate validation and publication remain separate from that feature delivery.

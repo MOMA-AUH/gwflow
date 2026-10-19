@@ -1,0 +1,132 @@
+{
+  "recorded_at": "2026-10-19T07:06:54.927465+00:00",
+  "scope": "Issue #232 live log following; release preparation and publication remain separate.",
+  "result": "passed: bounded follow reads and repeated follow/pause/close resource checks",
+  "command": "<PYTHON> tests/benchmark_status_follow.py --output build/validation/status-follow/measurements.json",
+  "placeholders": {
+    "<PYTHON>": "Python executable of the installed candidate environment"
+  },
+  "commit": "a091c2eb288e72b01f9002dfc1c95579b6170f74",
+  "source": {
+    "src/gwflow/browser.py": "7c6c669aeb54372a592c516b4cfa3b6440fa7af51113837abb242424c22b55e0",
+    "src/gwflow/browser_evidence.py": "4d33eb4a174a1c8c25535bcc1a549e5199eb07647be79b0966875a62d7252829",
+    "src/gwflow/_browser_read.py": "55d677f1634314d825bda941da037d28060717055577cdcea12e8c1f9f8232c6",
+    "tests/fixtures/browser_workload.py": "7215d4043667b7cf9ae1a305f3e3729ba88356197ef3daa84fd288e3f28f861f",
+    "tests/fixtures/log_read_probe.c": "b44197a16d9de204b43fcb54508b6ff00d6bd5a933b0886a709ba310ae984af5",
+    "tests/test_status_logs.py": "10ea466dc8a88426ce71abf20f98e2f449f69eb8a7209f4eea9c4844aea18622",
+    "tests/test_status_follow.py": "3d78643ed481fb6666d76667ba00d3dc0588f25986eb818e09e30aea78669d50",
+    "tests/benchmark_status_follow.py": "9cf9b99967c40922979507e1c3dadb2fdc79239e2e6f8460600dcc87a9963e88"
+  },
+  "versions": {
+    "python": "3.12.14",
+    "gwflow": "0.8.0",
+    "gwf": "2.1.1",
+    "textual": "8.2.8",
+    "rich": "15.0.0"
+  },
+  "machine": {
+    "system": "Linux",
+    "release": "5.14.0-687.48.1.el9_8.x86_64",
+    "machine": "x86_64",
+    "cpu": "AMD EPYC 9654 96-Core Processor",
+    "logical_cpus": 192,
+    "available_cpus": 192,
+    "load_average_end": [
+      12.03,
+      23.79,
+      69.59
+    ]
+  },
+  "workload": {
+    "selected_tasks": 1,
+    "selected_jobs": 1,
+    "initial_utf8_payload_bytes": 400000,
+    "replacement_count": 5,
+    "replacement_utf8_payload_bytes": 160000,
+    "rapid_appends": 30,
+    "bytes_per_rapid_append": 8192,
+    "split_utf8_sequence_bytes": 4,
+    "follow_pause_close_cycles": 12
+  },
+  "asserted_limits": {
+    "read_bytes_per_request": 131088,
+    "rendered_log_text_bytes": 200704,
+    "extra_async_tasks_after_cycles": 2,
+    "extra_descriptors_after_cycles": 1,
+    "remaining_reader_processes": 0,
+    "remaining_closed_views": 0
+  },
+  "measurements": {
+    "elapsed_seconds": 19.750436890870333,
+    "read_requests": 46,
+    "bytes_per_request": [
+      65540,
+      131077,
+      65540,
+      65540,
+      65540,
+      65540,
+      65540,
+      131079,
+      131076,
+      13,
+      13,
+      26,
+      26,
+      13,
+      26,
+      26,
+      13,
+      26,
+      26,
+      13,
+      26,
+      26,
+      13,
+      26,
+      26,
+      13,
+      26,
+      26,
+      13,
+      26,
+      26,
+      13,
+      26,
+      26,
+      13,
+      26,
+      26,
+      13,
+      26,
+      26,
+      13,
+      26,
+      26,
+      13,
+      26,
+      26
+    ],
+    "maximum_read_bytes": 131079,
+    "child_maximum_rss_kib": 49152
+  },
+  "limits": [
+    "Public Textual Pilot interactions with captured observations and controlled temporary files.",
+    "Test-only libc instrumentation counts returned bytes from actual selected-log reads.",
+    "Elapsed time includes file creation, keyboard delivery, rendering, and one-second follow checks.",
+    "Compiler setup is excluded from the measured child-workload elapsed time.",
+    "Child maximum RSS includes the controlled workload and Python/UI runtime; it is not a text-size bound.",
+    "Shared-host measurement; no tight wall-clock gate and no production-cluster performance claim."
+  ],
+  "release_context": {
+    "release": "v0.8.0",
+    "recorded_date": "2026-10-19",
+    "candidate_wheel_sha256": "16b4c058dd0c7b1ab4f1bb5e45277a7c03f0f9f4fc27d19c6dcdcd333d01efb6",
+    "source_note": "The recorded commit is the unchanged production-source base before release metadata changes. Source digests identify the measured implementation.",
+    "actual_command": "<PYTHON> tests/benchmark_status_follow.py --output build/validation/v0.8.0/follow-measurements.json",
+    "command_note": "The benchmark records its canonical output path in command; actual_command above preserves the release-specific output path used in this run.",
+    "paths": "All relative paths start at the checkout root. <PYTHON> is the installed candidate interpreter on local temporary storage. Raw records and logs remain under ignored build/validation/v0.8.0/.",
+    "normalization": "Raw measurement values are unchanged; only this explanatory release_context is added.",
+    "limitations": "Shared host, with other local validation running concurrently. Captured-data measurements do not establish real-workflow, scheduler, terminal-emulator, or production-cluster performance."
+  }
+}
