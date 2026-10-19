@@ -90,19 +90,32 @@ class Scope:
 class ProgressColumns:
     """Shared headings and widths for a list of names, progress, and states."""
 
-    def __init__(self, name_width, fraction_width, *, progress_label="Reusable", state_width=None, name_label="Name"):
+    def __init__(self, name_width, fraction_width, *, progress_label="Reusable", state_width=None, name_label="Name",
+                 detail_width=0):
         self.name_width, self.fraction_width = max(8, name_width), fraction_width
         self.progress_label, self.state_width = progress_label, state_width
         self.state_label = "Other states" if state_width is None else "State"
         self.name_label = name_label
+        self.detail_width = max(4, detail_width) if detail_width else 0
+
+    def inline_detail_width(self, width):
+        if not self.detail_width or self.state_width is None or width < 70:
+            return 0
+        name = min(self.name_width, max(12, width // 4))
+        available = width - (9 + self.fraction_width) - self.state_width - name - 6
+        return min(self.detail_width, available) if available >= 4 else 0
 
     def widths(self, width):
+        detail = self.inline_detail_width(width)
+        if detail:
+            progress = 9 + self.fraction_width
+            return min(self.name_width, width - progress - self.state_width - detail - 6), progress
         progress = 11 + self.fraction_width
         available = width * 2 // 5 if self.state_width is None else width - progress - self.state_width - 4
         return min(self.name_width, max(8, available)), progress
 
-    def progress(self, completed, total):
-        fraction, _, bar = progress_text(completed, total, 8).partition(" ")
+    def progress(self, completed, total, *, bar_width=8):
+        fraction, _, bar = progress_text(completed, total, bar_width).partition(" ")
         return fraction.rjust(self.fraction_width) + " " + bar
 
     def __rich_console__(self, console, options):
@@ -110,7 +123,8 @@ class ProgressColumns:
             yield Text(f"{self.name_label} / {self.progress_label} / {self.state_label}", style="bold")
         else:
             name, progress = self.widths(options.max_width)
-            yield Text(f"{self.name_label:<{name}}  {self.progress_label:<{progress}}  {self.state_label}", style="bold")
+            tail = f"{self.state_label:<{self.state_width}}  Jobs" if self.inline_detail_width(options.max_width) else self.state_label
+            yield Text(f"{self.name_label:<{name}}  {self.progress_label:<{progress}}  {tail}", style="bold")
 
 
 class JobColumns:
@@ -166,11 +180,21 @@ class GroupPrompt:
         yield line
 
 
+def task_summary(detail):
+    parts = []
+    for part in detail.split('; '):
+        words = part.split()
+        if len(words) == 3 and words[0].isdigit() and words[1] in ('job', 'jobs'):
+            part = f'{words[0]} {words[2]}'
+        parts.append(part)
+    return ' · '.join(parts)
+
+
 class TaskPrompt:
-    def __init__(self, task, columns, display_name, spacious):
+    def __init__(self, task, columns, display_name):
         self.task, self.columns = task, columns
         self.display_name = display_name
-        self.spacious = spacious
+        self.detail = task_summary(task['detail'])
 
     def __rich_console__(self, console, options):
         task = self.task
@@ -178,22 +202,27 @@ class TaskPrompt:
         fraction = f"{task['completed']}/{task['total']}"
         name_width, progress_width = self.columns.widths(options.max_width)
         detail_indent = 2
+        inline_detail = False
         if options.max_width >= 70 and name_width + progress_width + state.cell_len + 4 <= options.max_width:
             name = middle_name(self.display_name, name_width)
             line = Text(name + " " * (name_width - cell_len(name)) + "  ")
-            line.append(self.columns.progress(task['completed'], task['total']) + "  ")
+            detail_width = self.columns.inline_detail_width(options.max_width)
+            line.append(self.columns.progress(task['completed'], task['total'],
+                                             bar_width=6 if detail_width else 8) + "  ")
             line.append_text(state)
+            inline_detail = detail_width and cell_len(self.detail) <= detail_width and '\n' not in self.detail
+            if inline_detail and self.detail:
+                line.append(' ' * (self.columns.state_width - state.cell_len + 2))
+                line.append(self.detail, 'dim')
             detail_indent = name_width + 2
         else:
             width = max(3, min(18, options.max_width - state.cell_len - len(fraction) - 5))
             line = Text(middle_name(self.display_name, options.max_width) + "\n")
             line.append_text(state)
             line.append("  " + progress_text(task["completed"], task["total"], width))
-        if task["detail"]:
-            for detail_line in Text(task['detail']).wrap(console, max(1, options.max_width - detail_indent)):
+        if self.detail and not inline_detail:
+            for detail_line in Text(self.detail).wrap(console, max(1, options.max_width - detail_indent)):
                 line.append("\n" + " " * detail_indent + detail_line.plain, "dim")
-        if self.spacious():
-            line.append("\n ")
         yield line
 
 
@@ -429,11 +458,11 @@ class TasksView(BrowserView):
         columns = ProgressColumns(max((cell_len(name) for name in names), default=8),
                                   max((len(f"{task['completed']}/{task['total']}") for task in tasks), default=3),
                                   progress_label="Progress", state_width=max(states, default=5),
-                                  name_label="Instance" if self.group is not None else "Name")
+                                  name_label="Instance" if self.group is not None else "Name",
+                                  detail_width=max((cell_len(task_summary(task['detail'])) for task in tasks), default=0))
         options = []
-        spacious = lambda: not self.expanded and not self.has_class('compact')
         for task, name in zip(tasks, names):
-            options.append(Option(TaskPrompt(task, columns, name, spacious), id="task:" + task["name"]))
+            options.append(Option(TaskPrompt(task, columns, name), id="task:" + task["name"]))
             self.items.append((task, None))
             if self.expanded:
                 for job in task["jobs"]:

@@ -15,12 +15,14 @@ from test_browser_interaction import visible_text
 
 
 class BrowserWorkloadTests(unittest.IsolatedAsyncioTestCase):
-    async def test_instance_rows_separate_tasks_and_indent_job_summaries(self):
+    async def test_instance_summaries_share_rows_and_wrap_on_narrow_screens(self):
         def snapshot():
             result = captured_snapshot()
             result['notices'] = ''
             for task in result['tasks']:
                 task['detail'] = '1 job running; 12 jobs queued'
+            result['tasks'][1]['detail'] = 'work present'
+            result['tasks'][2]['detail'] = 'progress unavailable: unresolved submission'
             return result
 
         app = CapturedBrowser(snapshot_factory=snapshot)
@@ -30,13 +32,34 @@ class BrowserWorkloadTests(unittest.IsolatedAsyncioTestCase):
             nodes = list(ET.fromstring(app.export_screenshot()).iter('{http://www.w3.org/2000/svg}text'))
             first = next(node for node in nodes if ''.join(node.itertext()).startswith('sample_000'))
             second = next(node for node in nodes if ''.join(node.itertext()).startswith('sample_001'))
-            detail = next(node for node in nodes if '1\xa0job\xa0running' in ''.join(node.itertext()))
-            self.assertGreater(float(second.get('y')) - float(first.get('y')),
-                               2 * (float(detail.get('y')) - float(first.get('y'))))
-            # The detail's leading whitespace is rendered in the same SVG node.
-            value = ''.join(detail.itertext()).replace('\xa0', ' ')
-            self.assertTrue(value.startswith('  '))
+            detail = next(node for node in nodes if '1\xa0running' in ''.join(node.itertext()))
+            self.assertEqual(first.get('y'), detail.get('y'))
+            work = next(node for node in nodes if 'work\xa0present' in ''.join(node.itertext()))
+            self.assertEqual(second.get('y'), work.get('y'))
+            self.assertEqual(detail.get('x'), work.get('x'))
+            header = next(node for node in nodes if 'Jobs' in ''.join(node.itertext()))
+            heading = ''.join(header.itertext()).replace('\xa0', ' ')
+            cell_width = float(header.get('textLength')) / len(heading)
+            self.assertAlmostEqual(float(header.get('x')) + heading.index('Jobs') * cell_width, float(detail.get('x')))
+            self.assertIn('unresolved submission', visible_text(app))
+            between = [node for node in nodes if float(first.get('y')) < float(node.get('y')) < float(second.get('y'))]
+            self.assertFalse(between)
+            self.assertIn('Jobs', visible_text(app))
             self.assertNotIn('mapping_long_', visible_text(app))
+            await pilot.resize_terminal(120, 40)
+            await pilot.pause()
+            nodes = list(ET.fromstring(app.export_screenshot()).iter('{http://www.w3.org/2000/svg}text'))
+            third = next(node for node in nodes if ''.join(node.itertext()).startswith('sample_002'))
+            explanation = next(node for node in nodes if 'progress\xa0unavailable:' in ''.join(node.itertext()))
+            self.assertEqual(third.get('y'), explanation.get('y'))
+            await pilot.resize_terminal(40, 24)
+            await pilot.pause()
+            nodes = list(ET.fromstring(app.export_screenshot()).iter('{http://www.w3.org/2000/svg}text'))
+            first = next(node for node in nodes if ''.join(node.itertext()).startswith('sample_000'))
+            detail = next(node for node in nodes if '1\xa0running' in ''.join(node.itertext()))
+            self.assertGreater(float(detail.get('y')), float(first.get('y')))
+            self.assertTrue(''.join(detail.itertext()).replace('\xa0', ' ').startswith('  '))
+            await pilot.resize_terminal(80, 24)
             await pilot.press('slash', *'mapping_long_', 'enter')
             self.assertIn('Showing 100 of 100 selected Tasks', visible_text(app))
             await pilot.press('q')

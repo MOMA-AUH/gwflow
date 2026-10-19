@@ -325,8 +325,9 @@ Required workflow notices remain visible when their affected Tasks are hidden.
 Inside a Task group, the panel title identifies the group and the `Instance`
 column shows each Task's Instance key, or `(no key)` when none was supplied.
 Lists spanning groups retain full Task names. Search still matches full Task
-names, and details and copyable commands retain them. Job summaries appear
-indented beneath each Task, with space between Tasks when terminal height permits.
+names, and details and copyable commands retain them. Job summaries share the
+Task's row in a `Jobs` column when space permits; longer summaries and narrow
+terminals place them underneath.
 
 Snapshot age measures time since the last successful inspection. A failed
 refresh retains those observations and their age, with a visible error; Tab
