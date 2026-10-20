@@ -40,7 +40,10 @@ class BrowserWorkloadTests(unittest.IsolatedAsyncioTestCase):
             header = next(node for node in nodes if 'Jobs' in ''.join(node.itertext()))
             heading = ''.join(header.itertext()).replace('\xa0', ' ')
             cell_width = float(header.get('textLength')) / len(heading)
-            self.assertAlmostEqual(float(header.get('x')) + heading.index('Jobs') * cell_width, float(detail.get('x')))
+            detail_text = ''.join(detail.itertext()).replace('\xa0', ' ')
+            leading = len(detail_text) - len(detail_text.lstrip())
+            self.assertAlmostEqual(float(header.get('x')) + heading.index('Jobs') * cell_width,
+                                   float(detail.get('x')) + leading * cell_width)
             self.assertIn('unresolved submission', visible_text(app))
             between = [node for node in nodes if float(first.get('y')) < float(node.get('y')) < float(second.get('y'))]
             self.assertFalse(between)
@@ -99,8 +102,15 @@ class BrowserWorkloadTests(unittest.IsolatedAsyncioTestCase):
         def rows(app):
             result = {}
             for node in ET.fromstring(app.export_screenshot()).iter('{http://www.w3.org/2000/svg}text'):
-                result.setdefault(node.get('y'), []).append(''.join(node.itertext()).replace('\xa0', ' '))
-            return [''.join(parts) for parts in result.values()]
+                text = ''.join(node.itertext()).replace('\xa0', ' ')
+                if not text.strip() or node.get('textLength') is None:
+                    continue
+                cell_width = float(node.get('textLength')) / len(text)
+                column = round(float(node.get('x')) / cell_width)
+                # SVG omits blank spans between differently styled fields.
+                row = result.get(node.get('y'), '')
+                result[node.get('y')] = row.ljust(column) + text
+            return list(result.values())
 
         app = CapturedBrowser(snapshot_factory=snapshot)
         async with app.run_test(size=(80, 24)) as pilot:

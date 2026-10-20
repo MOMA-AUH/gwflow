@@ -242,7 +242,7 @@ class InteractiveStatusTests(LocalBackendTestCase):
                 if plain:
                     self.assertNotIn(b'\x1b[', session.output)
                 else:
-                    self.assertIn('─', session.text)
+                    self.assertIn('›', session.text)
                 if terminal.get('size'):
                     self.assertIn('Terminal too small', session.text)
 

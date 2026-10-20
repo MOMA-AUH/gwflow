@@ -24,7 +24,7 @@ from textual.widgets._collapsible import CollapsibleTitle
 from textual.widgets.option_list import Option
 
 from .diagnostics import error_message
-from .presentation import ACTIVE, STATES, _VISUALS, progress_text
+from .presentation import ACTIVE, STATES, _VISUALS, progress_display
 
 
 def state_text(state):
@@ -76,15 +76,20 @@ class Scope:
         if width < 60:
             states = middle_name(self.states, max(4, (width - 16) // 2))
             name_query = middle_name(self.name_query, width - cell_len(states) - 16)
-            yield Text(f"Showing {self.shown}/{self.selected} selected; workflow {self.total}\n"
-                       f"Scope: {middle_name(self.selectors, width - 7)}\n"
-                       f"State: {states}; Name: {name_query}")
+            yield Text.assemble(
+                f"Showing {self.shown}/{self.selected} selected; workflow {self.total}\n",
+                ("Scope:", "bold"), f" {middle_name(self.selectors, width - 7)}\n",
+                ("State:", "bold"), f" {states}; ", ("Name:", "bold"), f" {name_query}",
+            )
         else:
             states = middle_name(self.states, max(8, width // 4))
             selectors = middle_name(self.selectors, (width - 24) // 3)
             name_query = middle_name(self.name_query, width - cell_len(states) - cell_len(selectors) - 24)
-            yield Text(f"Showing {self.shown} of {self.selected} selected Tasks ({self.total} in workflow)\n"
-                       f"Scope: {selectors}; State: {states}; Name: {name_query}")
+            yield Text.assemble(
+                f"Showing {self.shown} of {self.selected} selected Tasks ({self.total} in workflow)\n",
+                ("Scope:", "bold"), f" {selectors}; ",
+                ("State:", "bold"), f" {states}; ", ("Name:", "bold"), f" {name_query}",
+            )
 
 
 class ProgressColumns:
@@ -98,25 +103,30 @@ class ProgressColumns:
         self.name_label = name_label
         self.detail_width = max(4, detail_width) if detail_width else 0
 
+    def bar_width(self, width):
+        if self.detail_width and self.state_width is not None and width >= 70:
+            name = min(self.name_width, max(12, width // 4))
+            available = width - name - self.state_width - self.fraction_width - 9 - min(self.detail_width, 20)
+            return max(6, min(14, available))
+        return 14
+
     def inline_detail_width(self, width):
         if not self.detail_width or self.state_width is None or width < 70:
             return 0
         name = min(self.name_width, max(12, width // 4))
-        available = width - (9 + self.fraction_width) - self.state_width - name - 6
+        available = width - (self.bar_width(width) + 3 + self.fraction_width) - self.state_width - name - 6
         return min(self.detail_width, available) if available >= 4 else 0
 
     def widths(self, width):
         detail = self.inline_detail_width(width)
+        progress = self.bar_width(width) + 3 + self.fraction_width
         if detail:
-            progress = 9 + self.fraction_width
             return min(self.name_width, width - progress - self.state_width - detail - 6), progress
-        progress = 11 + self.fraction_width
         available = width * 2 // 5 if self.state_width is None else width - progress - self.state_width - 4
         return min(self.name_width, max(8, available)), progress
 
-    def progress(self, completed, total, *, bar_width=8):
-        fraction, _, bar = progress_text(completed, total, bar_width).partition(" ")
-        return fraction.rjust(self.fraction_width) + " " + bar
+    def progress(self, completed, total, *, bar_width=14):
+        return progress_display(completed, total, bar_width, fraction_width=self.fraction_width)
 
     def __rich_console__(self, console, options):
         if options.max_width < 70:
@@ -165,15 +175,16 @@ class GroupPrompt:
         if single_line:
             name = middle_name(self.label, name_width)
             line = Text(name + " " * (name_width - cell_len(name)) + "  ")
-            line.append(self.columns.progress(self.counts['reusable'], self.total), "green")
+            line.append_text(self.columns.progress(self.counts['reusable'], self.total))
             line.append("  ")
         else:
             line = Text(middle_name(self.label, options.max_width) + "\n")
             width = max(3, min(18, options.max_width - len(f"{self.counts['reusable']}/{self.total}") - 5))
-            progress = "✓ " + progress_text(self.counts['reusable'], self.total, width)
-            line.append(progress, "green")
+            progress = Text.assemble(("✓ ", "green"))
+            progress.append_text(progress_display(self.counts['reusable'], self.total, width))
+            line.append_text(progress)
             if states:
-                line.append("\n" if cell_len(progress) + states.cell_len + 2 > options.max_width else "  ")
+                line.append("\n" if progress.cell_len + states.cell_len + 2 > options.max_width else "  ")
         line.append_text(states)
         if self.matching is not None:
             line.append(f"\n{self.matching} Task{'s match' if self.matching != 1 else ' matches'} the filter")
@@ -207,22 +218,24 @@ class TaskPrompt:
             name = middle_name(self.display_name, name_width)
             line = Text(name + " " * (name_width - cell_len(name)) + "  ")
             detail_width = self.columns.inline_detail_width(options.max_width)
-            line.append(self.columns.progress(task['completed'], task['total'],
-                                             bar_width=6 if detail_width else 8) + "  ")
+            line.append_text(self.columns.progress(task['completed'], task['total'],
+                                                  bar_width=self.columns.bar_width(options.max_width)))
+            line.append("  ")
             line.append_text(state)
             inline_detail = detail_width and cell_len(self.detail) <= detail_width and '\n' not in self.detail
             if inline_detail and self.detail:
                 line.append(' ' * (self.columns.state_width - state.cell_len + 2))
-                line.append(self.detail, 'dim')
+                line.append(self.detail)
             detail_indent = name_width + 2
         else:
             width = max(3, min(18, options.max_width - state.cell_len - len(fraction) - 5))
             line = Text(middle_name(self.display_name, options.max_width) + "\n")
             line.append_text(state)
-            line.append("  " + progress_text(task["completed"], task["total"], width))
+            line.append("  ")
+            line.append_text(progress_display(task["completed"], task["total"], width))
         if self.detail and not inline_detail:
             for detail_line in Text(self.detail).wrap(console, max(1, options.max_width - detail_indent)):
-                line.append("\n" + " " * detail_indent + detail_line.plain, "dim")
+                line.append("\n" + " " * detail_indent + detail_line.plain)
         yield line
 
 
@@ -512,8 +525,9 @@ class TaskView(BrowserView):
         yield from self.notices()
         with VerticalScroll():
             lead = Text("State: ") + state_text(task["state"])
-            lead.append(f"\nJobs completed: {progress_text(task['completed'], task['total'])}"
-                        f"\nNext action: {task['next_action']}\nReason: {task['reason']}")
+            lead.append("\nJobs completed: ")
+            lead.append_text(progress_display(task['completed'], task['total']))
+            lead.append(f"\nNext action: {task['next_action']}\nReason: {task['reason']}")
             with Vertical(classes="detail-panel") as panel:
                 panel.border_title = "Task"
                 yield Static(lead)

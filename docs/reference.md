@@ -394,6 +394,10 @@ Every Task state retains a progress bar in formatted reports. Unknown completion
 appears as `?/N` with a stationary hatched bar and a concrete explanation, such
 as image unavailability or an unresolved submission. It is distinct from known
 zero progress; plain reports retain the fraction and reason without a bar.
+Interactive views, static reports, and submission progress share the same
+heavy chevrons in slightly darker green, gray light chevrons for the remaining
+track, and yellow slashes for unknown counts. The terminal dim attribute is
+disabled. Completed and remaining progress remain distinct when color is disabled.
 
 The primary states are pending, queued, preparing, running, finishing, reusable,
 repairable, deferred, failed, canceled, and blocked. Blockage takes precedence

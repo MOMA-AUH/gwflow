@@ -6,7 +6,7 @@ import fcntl
 
 def supports_unicode(stream):
     try:
-        "╭╮╰╯│─━╸╺○◷↻▶↗✓◇…✗⊘".encode(stream.encoding or "utf-8")
+        "╭╮╰╯│─❯›○◷↻▶↗✓◇…✗⊘".encode(stream.encoding or "utf-8")
     except UnicodeEncodeError:
         return False
     return True

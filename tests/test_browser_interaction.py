@@ -80,7 +80,7 @@ class BrowserInteractionTests(LocalBackendTestCase, unittest.IsolatedAsyncioTest
                     await pilot.press('enter')
                     text = await self.shown(app, pilot, '0/5')
                     self.assertIn('pending', text)
-                    self.assertIn('─', text)
+                    self.assertIn('›', text)
                     self.assertIn('q quit', text)
                     await pilot.resize_terminal(30, 8)
                     await self.shown(app, pilot, 'Terminal too small', timeout=3)
