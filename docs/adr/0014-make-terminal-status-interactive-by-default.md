@@ -274,6 +274,16 @@ available. Opening these captured details requires no additional
 workflow inspection or scheduler queries; displaying a log path does not imply
 that its contents or availability have been read.
 
+Job identifiers and log paths use single-line fields with aligned bold labels.
+Shorten long values in the middle so both ends remain visible. The maintainer
+subsequently requested removal of the horizontal scrolling popups. Identifier
+fields are not focusable. The Logs panel uses `stdout` and `stderr` labels;
+Up/Down selects these streams regardless of pathname length, and Enter or a click
+opens the selected log directly. Tab remains available for focus navigation.
+Esc restores focus to the selected stream.
+Disable `l` in Job details while retaining `h` for Task history.
+Use the existing bounded log reader without re-inspecting the workflow.
+
 For example, `mapping__B` can show state Failed, Jobs completed 3/5, Next action
 Retry, and the reason "The index job failed." Its job list shows preparation,
 align, and sort completed, index failed, and completion pending. Blockers,

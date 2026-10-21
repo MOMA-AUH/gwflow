@@ -349,9 +349,9 @@ class BrowserView(Screen):
         panel.border_title = title
         return panel
 
-    def notices(self):
+    def notices(self, *, can_focus=True):
         if self.snapshot.get("notices"):
-            with VerticalScroll(classes="notice-pane"):
+            with VerticalScroll(classes="notice-pane", can_focus=can_focus):
                 yield Static(Text(self.snapshot["notices"], style="yellow"))
 
     def observe_snapshot(self):
@@ -525,10 +525,12 @@ class TaskView(BrowserView):
         yield self.heading()
         yield from self.notices()
         with VerticalScroll():
-            lead = Text("State: ") + state_text(task["state"])
-            lead.append("\nJobs completed: ")
-            lead.append_text(progress_display(task['completed'], task['total']))
-            lead.append(f"\nNext action: {task['next_action']}\nReason: {format_reason(task['reason'])}")
+            lead = Text.assemble(
+                ("State:", "bold"), " ", state_text(task["state"]),
+                ("\nJobs completed:", "bold"), " ", progress_display(task['completed'], task['total']),
+                ("\nNext action:", "bold"), f" {task['next_action']}",
+                ("\nReason:", "bold"), f" {format_reason(task['reason'])}",
+            )
             with Vertical(classes="detail-panel") as panel:
                 panel.border_title = "Task"
                 yield Static(lead)
@@ -560,6 +562,58 @@ class TaskView(BrowserView):
         return True
 
 
+class ValueField(Static):
+    """Show a literal field on one line, shortening long values in the middle."""
+
+    DEFAULT_CSS = """
+    ValueField { height: 1; }
+    """
+
+    def __init__(self, label, value, *, label_width, **kwargs):
+        super().__init__(**kwargs)
+        self.label, self.value, self.label_width = label, str(value), label_width
+
+    def render(self):
+        width = max(1, self.content_size.width - self.label_width - 1)
+        return Text.assemble((self.label.ljust(self.label_width), "bold"), " ",
+                             middle_name(self.value, width))
+
+    def on_resize(self):
+        self.refresh()
+
+
+class LogField(ValueField, can_focus=True):
+    """Select a log stream independently of whether its pathname is truncated."""
+
+    BINDINGS = [Binding("up", "select_stream('stdout')", show=False),
+                Binding("down", "select_stream('stderr')", show=False)]
+
+    DEFAULT_CSS = """
+    LogField:focus {
+        background: $block-cursor-background;
+        color: $block-cursor-foreground;
+        text-style: bold;
+    }
+    """
+
+    def __init__(self, stream, path):
+        super().__init__(stream + ':', path, label_width=len('stdout:'), id='log-' + stream)
+        self.stream = stream
+
+    def action_select_stream(self, stream):
+        self.screen.query_one('#log-' + stream, LogField).focus()
+
+    def on_key(self, event):
+        if event.key == "enter":
+            cast(JobView, self.screen).open_log(self.stream)
+            event.stop()
+
+    def on_click(self, event):
+        self.focus()
+        cast(JobView, self.screen).open_log(self.stream)
+        event.stop()
+
+
 class JobView(BrowserView):
     def __init__(self, job, breadcrumb):
         super().__init__(breadcrumb)
@@ -568,23 +622,34 @@ class JobView(BrowserView):
     def compose(self) -> ComposeResult:
         job = self.job
         yield self.heading()
-        yield from self.notices()
-        with VerticalScroll():
+        yield from self.notices(can_focus=False)
+        with VerticalScroll(can_focus=False):
             with Vertical(classes="detail-panel") as panel:
                 panel.border_title = "Job"
-                yield Static(Text("Observed state: ") + state_text(job["observed_state"]))
+                yield Static(Text.assemble(("Observed state:", "bold"), " ", state_text(job["observed_state"])))
                 if job["requires_repetition"]:
                     yield Static("Requires repetition for Task progress.")
-                yield Static(f"Public job: {job['name']}\nSubmission: {job['submission'] or 'not submitted'}\n"
-                             f"Backend job: {job['backend_id'] if job['backend_id'] is not None else 'unavailable'}", markup=False)
+                for label, value in (("Public job:", job['name']),
+                                     ("Submission:", job['submission'] or 'not submitted'),
+                                     ("Backend job:", job['backend_id'] if job['backend_id'] is not None else 'unavailable')):
+                    yield ValueField(label, value, label_width=len("Observed state:"))
             with Vertical(classes="detail-panel") as panel:
                 panel.border_title = "Logs"
-                for stream, path in job["logs"].items():
-                    yield Static(f"Log {stream}: {path}", markup=False)
+                for stream in ("stdout", "stderr"):
+                    yield LogField(stream, job["logs"].get(stream, "unavailable"))
         yield self.footer()
 
     def footer(self):
-        return Static(Shortcuts('↑↓ scroll h history l logs Tab', 'Esc back g groups r refresh ? q quit'), classes='shortcuts')
+        return Static(Shortcuts('↑↓ stdout/stderr Enter open h history', 'Esc back g groups r refresh ? q quit'), classes='shortcuts')
+
+    def on_mount(self):
+        self.set_focus(self.query_one(LogField))
+
+    def open_log(self, stream):
+        task, job = self.selection()
+        if task is not None:
+            from .browser_evidence import LogView
+            self.app.push_screen(LogView(task, job, stream, self.breadcrumb))
 
     def selection(self):
         name = self.job['name'].removesuffix('__' + self.job['local'])
@@ -617,6 +682,7 @@ class HelpView(BrowserView):
                          "g: grouped summary within the original selection\n?: keyboard reference\nq: quit\n"
                          "h: read selected Task history (recorded evidence only)\n"
                          "l: choose stdout/stderr for the selected job or historical submission\n"
+                         "In Job details, use Up/Down and Enter to open a log; l is disabled.\n"
                          "u: reload the current log/history; status age stays unchanged\n"
                          "F: toggle live log following (starts off; checks about once per second)\n"
                          "Scrolling upward or Home pauses following; F resumes. End does not enable it.\n"
@@ -971,6 +1037,8 @@ class StatusBrowser(App[int]):
             self.open_menu(SearchView())
 
     def action_logs(self):
+        if isinstance(self.screen, JobView):
+            return
         if not self.too_small and isinstance(self.screen, BrowserView):
             task, job = self.screen.selection()
             if task is not None and job is not None:

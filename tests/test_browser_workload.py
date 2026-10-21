@@ -10,11 +10,35 @@ import xml.etree.ElementTree as ET
 from textual.widgets import OptionList
 
 from fixtures.browser_workload import CapturedBrowser, captured_snapshot
+from gwflow.browser import LogField, ValueField
 from gwflow.diagnostics import error_message
 from test_browser_interaction import visible_text
 
 
 class BrowserWorkloadTests(unittest.IsolatedAsyncioTestCase):
+    async def test_job_fields_stay_compact_and_only_log_streams_receive_focus(self):
+        app = CapturedBrowser(selectors=('*',))
+        async with app.run_test(size=(80, 24)) as pilot:
+            await pilot.pause()
+            await pilot.press('enter', 'enter')
+            for size in ((80, 24), (40, 12), (400, 40)):
+                await pilot.resize_terminal(*size)
+                await pilot.pause()
+                fields = list(app.screen.query(ValueField))
+                streams = list(app.screen.query(LogField))
+                self.assertTrue(all(field.size.height == 1 for field in fields))
+                self.assertTrue(all(not field.can_focus for field in fields[:3]))
+                self.assertEqual([field.label for field in streams], ['stdout:', 'stderr:'])
+                self.assertEqual(app.screen.focus_chain, streams)
+                streams[0].focus()
+                await pilot.press('tab')
+                self.assertIs(app.screen.focused, streams[1])
+                self.assertEqual(streams[1].styles.background.a, 1)
+                await pilot.press('tab')
+                self.assertIs(app.screen.focused, streams[0])
+            self.assertEqual(app.acquisitions, 1)
+            await pilot.press('q')
+
     async def test_instance_summaries_share_rows_and_wrap_on_narrow_screens(self):
         def snapshot():
             result = captured_snapshot()
@@ -148,7 +172,7 @@ class BrowserWorkloadTests(unittest.IsolatedAsyncioTestCase):
                 header = next(row for row in rendered if 'Name' in row and 'State' in row)
                 self.assertFalse(app.screen.query('Button'))
                 if size == (120, 40):
-                    self.assertIn('Reason: Captured workload', visible_text(app))
+                    self.assertTrue(any('Reason: Captured workload' in row for row in rendered))
                     self.assertGreater(app.screen.query_one('.jobs-panel').size.height, 11)
                     self.assertIn('job_09', visible_text(app))
                 for name in ('job_00', 'align_reference_reads'):

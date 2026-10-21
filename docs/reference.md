@@ -216,6 +216,14 @@ Jobs completed, Next action, and the concrete reason, followed by the Jobs table
 Task details omit the former attempt, paths, and diagnostics panel.
 Job details retain the captured
 submission state and identity even when that work must repeat for Task progress.
+Job identifiers and log paths occupy one line with aligned bold labels. Long
+values are shortened in the middle without expandable or horizontally scrolling
+fields. The Logs panel labels its streams `stdout` and `stderr`. Up/Down selects
+a stream regardless of pathname length; Enter or a click opens that log directly.
+Tab and Shift+Tab also switch between streams.
+Esc returns to the selected stream. Opening a log reads its saved contents without
+inspecting the workflow again.
+In Job details, `l` is disabled; `h` still opens Task history.
 Individual jobs have states, without computation percentages. The Jobs table
 uses the available space; Task details omit command suggestions and copy buttons.
 The browser executes no
@@ -233,7 +241,7 @@ run, cancellation, cleanup, or recovery commands.
 | `f` | Edit primary Task states; Space toggles, Enter applies, Esc cancels, `c` clears choices |
 | `r` | Inspect again using the original workflow, backend, and Task selectors |
 | `h` | Read the selected Task's saved history |
-| `l` | Choose stdout/stderr for the selected job or historical submission |
+| `l` | Choose stdout/stderr for the selected job or historical submission; Job details use Up/Down and Enter instead |
 | `u` | Reload the current log/history without inspecting status |
 | `F` | Toggle following of the selected log; initially off |
 | `?` | Show the keyboard reference and captured inspection diagnostics |

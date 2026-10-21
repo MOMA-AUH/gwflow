@@ -18,7 +18,7 @@ from rich.console import Console
 from textual.widgets import OptionList, Static
 
 from fixtures.browser_workload import CapturedBrowser, captured_snapshot
-from gwflow.browser import StatusBrowser
+from gwflow.browser import JobView, LogField, StatusBrowser
 
 from support import FIXTURES, LocalBackendTestCase
 import test_browser_interaction
@@ -205,6 +205,42 @@ class StatusLogWindowTests(unittest.IsolatedAsyncioTestCase):
     def content(self, app):
         return app.screen.query_one('#log-text', Static).content.plain
 
+    async def test_job_log_fields_open_selected_stream_and_restore_focus(self):
+        self.stdout.write_text('DIRECT_STDOUT\n')
+        self.stderr.write_text('DIRECT_STDERR\n')
+        app = self.browser()
+        async with app.run_test(size=(80, 24)) as pilot:
+            await pilot.pause()
+            await pilot.press('down', 'enter')
+            self.assertIsInstance(app.screen, JobView)
+            job_view = app.screen
+            await pilot.press('l')
+            self.assertIs(app.screen, job_view)
+            for size in ((80, 24), (40, 12), (120, 40)):
+                await pilot.resize_terminal(*size)
+                await pilot.pause()
+                fields = list(app.screen.query(LogField))
+                self.assertEqual(app.screen.focus_chain, fields)
+                self.assertIs(app.screen.focused, fields[0])
+                await pilot.press('up')
+                self.assertIs(app.screen.focused, fields[0])
+                await pilot.press('down', 'down')
+                self.assertIs(app.screen.focused, fields[1])
+                await pilot.press('enter')
+                await self.shown(app, pilot, 'DIRECT_STDERR')
+                self.assertEqual(app.screen.stream, 'stderr')
+                await pilot.press('escape')
+                self.assertIs(app.screen.focused, fields[1])
+                await pilot.press('up')
+                self.assertIs(app.screen.focused, fields[0])
+                await pilot.press('enter')
+                await self.shown(app, pilot, 'DIRECT_STDOUT')
+                self.assertEqual(app.screen.stream, 'stdout')
+                await pilot.press('escape')
+                self.assertIs(app.screen.focused, fields[0])
+            self.assertEqual(app.acquisitions, 1)
+            await pilot.press('q')
+
     async def test_tail_paging_jumps_and_reload_keep_status_and_reading_position(self):
         self.stdout.write_text(''.join(f'row {index:06d} payload\n' for index in range(500000)))
         app = self.browser()
@@ -253,7 +289,7 @@ class StatusLogWindowTests(unittest.IsolatedAsyncioTestCase):
         app = CapturedBrowser(snapshot_factory=self.snapshot)
         async with app.run_test(size=(100, 30)) as pilot:
             await self.shown(app, pilot, 'sample')
-            await pilot.press('enter', 'enter', 'enter', 'l', 'enter')
+            await pilot.press('enter', 'enter', 'enter', 'enter')
             await self.shown(app, pilot, 'pinned 0799')
             await pilot.press('home')
             await self.shown(app, pilot, 'pinned 0000')
@@ -445,7 +481,7 @@ class StatusLogWindowTests(unittest.IsolatedAsyncioTestCase):
                 app = CapturedBrowser(selectors=('*',), details=True, snapshot_factory=snapshot)
                 async with app.run_test(size=(100, 30)) as pilot:
                     await self.shown(app, pilot, 'sample')
-                    await pilot.press('down', 'l', 'enter')
+                    await pilot.press('down', 'enter', 'enter')
                     await self.shown(app, pilot, expected, timeout=3)
                     self.assertNotIn('Traceback', str(app.screen.query_one('#read-status', Static).content))
                     self.assertEqual(app.acquisitions, 1)
