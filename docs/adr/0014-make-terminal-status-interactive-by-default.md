@@ -355,6 +355,19 @@ the status snapshot or reset its age. Show missing files and read failures in th
 relevant view. This keeps initial status acquisition focused on current
 observations while providing an in-app troubleshooting path.
 
+Use a bounded `Log information` panel with bold field labels. Show `Read at:`
+with the timestamp and a green `(live)` indicator only while following; leave
+manual mode implicit. Show attempt and path directly below it. Keep the Task and
+Public job in the breadcrumb instead of repeating them. The path identifies the
+submission; omit a separate Submission field and the Details section.
+Show a short portion notice only when some content lies outside the loaded portion;
+keep errors and file-change notices visible. Keep identifiers and paths
+on single lines. Open the selected log automatically in a separate panel below,
+giving its contents the remaining vertical space and initial keyboard focus.
+Keep metadata out of the scrolling log contents. Show an explicit empty-file
+message. Tab focuses the information panel to scroll its full notices and errors
+when the terminal is small.
+
 Open logs at their latest 200 lines, clearly indicating that only a portion is
 displayed. Page Up and Page Down navigate older and newer content, reading
 bounded portions and keeping memory use bounded. Provide direct jumps to the
@@ -382,14 +395,14 @@ An unmatched original exact Task selector still fails the refresh and retains
 the previous snapshot; it is not a successful removal from the selection.
 
 Use Home to jump to the first log line and End to jump to the latest lines.
-Provide opt-in live following, initially off, toggled with `F`. While following,
+Use `F` to toggle between manual mode (the initial state) and live following. While following,
 check the chosen log for appended output roughly once per second and keep the
-view at the end. Scrolling upward or pressing Home pauses following; `F` resumes
-it. End jumps to the latest output without enabling following. Leaving the log
-view stops following. Reads remain tied to that submission and bounded in memory.
+view at the end. Scrolling upward or pressing Home switches to manual mode; `F` enables
+live mode again. End jumps to the latest output without enabling following. Leaving the log
+view switches to manual mode. Reads remain tied to that submission and bounded in memory.
 Following a log does not inspect the workflow or query the scheduler. Make this
-distinction visible, for example "Live log: following; Status snapshot: 2 minutes
-old". Workflow-status refresh remains manual only.
+distinction visible with `(live)` beside the log timestamp and the independent
+inspection age above the panels. Workflow-status refresh remains manual only.
 
 Live log following recovers automatically from changes to the chosen submission's
 log path. Appended output keeps the view at the end. On detected truncation or
@@ -410,7 +423,11 @@ reading older output. Keep file changes and gaps visible rather than silently
 joining old and replacement content. All reads and retained display content
 remain bounded.
 
-The TUI log viewer wraps text to the available width. Read exceptionally large
+The TUI log viewer opens without wrapping, with Left/Right horizontal scrolling.
+Use `w` to toggle wrapping to the available width, showing the setting in the
+log panel border. Preserve the horizontal reading position during live reads.
+Keep the last completed read's details visible while the next read is pending,
+so live following does not repeatedly shift the panels. Read exceptionally large
 lines in bounded portions, with visible continuation markers and paging through
 the remaining content. The latest 200 lines are the initial display target,
 subject to a bounded read size: if the size limit is reached first, label the

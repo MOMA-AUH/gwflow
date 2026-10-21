@@ -36,7 +36,7 @@ class StatusLogTerminalTests(LocalBackendTestCase):
         checkpoint = session.send('u')
         session.wait_for('APPENDED_BY_TEST', after=checkpoint)
         checkpoint = session.send('\x1b[H')
-        session.wait_for('bytes 0–', after=checkpoint)
+        session.wait_for('Showing first 200 lines.', after=checkpoint)
         checkpoint = session.send('\x1b[F')
         session.wait_for('APPENDED_BY_TEST', after=checkpoint)
         checkpoint = session.send('\x1b')

@@ -10,6 +10,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 import weakref
 from unittest.mock import patch
@@ -18,7 +19,7 @@ from rich.console import Console
 from textual.widgets import OptionList, Static
 
 from fixtures.browser_workload import CapturedBrowser, captured_snapshot
-from gwflow.browser import JobView, LogField, StatusBrowser
+from gwflow.browser import JobView, LogField, StatusBrowser, ValueField
 
 from support import FIXTURES, LocalBackendTestCase
 import test_browser_interaction
@@ -205,6 +206,60 @@ class StatusLogWindowTests(unittest.IsolatedAsyncioTestCase):
     def content(self, app):
         return app.screen.query_one('#log-text', Static).content.plain
 
+    async def test_log_information_and_content_have_separate_panels(self):
+        self.stdout.write_text('PANEL_CONTENT\n')
+        app = self.browser()
+        async with app.run_test(size=(80, 24)) as pilot:
+            await pilot.pause()
+            await pilot.press('down', 'enter', 'enter')
+            await self.shown(app, pilot, 'PANEL_CONTENT')
+            information = app.screen.query_one('#log-info')
+            log = app.screen.query_one('#log-pane')
+            self.assertEqual(information.border_title, 'Log information')
+            self.assertEqual(log.border_title, 'stdout')
+            self.assertEqual(len(information.query(ValueField)), 2)
+            self.assertFalse(log.query(ValueField))
+            self.assertIs(app.screen.focused, log)
+            self.assertLessEqual(information.size.height, 5)
+            visible = test_browser_interaction.visible_text(app)
+            self.assertNotIn('(manual)', visible)
+            self.assertNotIn('(live)', visible)
+            self.assertIn('Attempt: ' + '3' * 32, visible)
+            self.assertIn('Path:', visible)
+            for label in ('Task:', 'Public job:', 'Submission:', 'Details', 'Portion:', 'Showing latest'):
+                self.assertNotIn(label, visible)
+            read_status = app.screen.query_one('#read-status', Static).content
+            await pilot.press('tab')
+            self.assertIs(app.screen.focused, information)
+            self.assertEqual(app.screen.query_one('#read-status', Static).content, read_status)
+            await pilot.press('tab')
+            self.assertIs(app.screen.focused, log)
+            for size in ((80, 24), (120, 40), (40, 12)):
+                await pilot.resize_terminal(*size)
+                await pilot.pause()
+                self.assertLessEqual(information.region.bottom, log.region.y)
+                self.assertGreaterEqual(log.content_size.height, 1)
+                self.assertIn('PANEL_CONTENT', test_browser_interaction.visible_text(app))
+                if size == (120, 40):
+                    self.assertGreater(log.size.height, information.size.height)
+            await pilot.press('tab')
+            self.assertIs(app.screen.focused, information)
+            await self.shown(app, pilot, 'Attempt:')
+            self.assertEqual(self.content(app), 'PANEL_CONTENT\n')
+            await pilot.press('tab')
+            self.assertIs(app.screen.focused, log)
+            self.stdout.write_text('')
+            await pilot.press('u')
+            await self.shown(app, pilot, 'Log is empty.')
+            self.assertEqual(self.content(app), '')
+            self.assertFalse(app.screen.query_one('#read-notice').display)
+            self.stdout.write_text('PANEL_CONTENT_AGAIN\n')
+            await pilot.press('u')
+            await self.shown(app, pilot, 'PANEL_CONTENT_AGAIN')
+            self.assertFalse(app.screen.query_one('#empty-log').display)
+            self.assertEqual(app.acquisitions, 1)
+            await pilot.press('q')
+
     async def test_job_log_fields_open_selected_stream_and_restore_focus(self):
         self.stdout.write_text('DIRECT_STDOUT\n')
         self.stderr.write_text('DIRECT_STDERR\n')
@@ -254,11 +309,15 @@ class StatusLogWindowTests(unittest.IsolatedAsyncioTestCase):
             await pilot.press('home')
             await self.shown(app, pilot, 'row 000000', timeout=3)
             self.assertEqual(len(self.content(app).splitlines()), 200)
-            for _ in range(22):
+            pane = app.screen.query_one('#log-pane')
+            for _ in range(200):
+                if pane.is_vertical_scroll_end:
+                    break
                 await pilot.press('pagedown')
                 await pilot.pause()
-                if self.content(app).startswith('row 000200'):
-                    break
+            self.assertTrue(pane.is_vertical_scroll_end)
+            await pilot.press('pagedown')
+            await self.shown(app, pilot, 'row 000200')
             self.assertTrue(self.content(app).startswith('row 000200'), self.content(app)[:100])
             await pilot.press('pageup')
             await self.shown(app, pilot, 'row 000199')
@@ -276,7 +335,7 @@ class StatusLogWindowTests(unittest.IsolatedAsyncioTestCase):
             with self.stdout.open('a') as stream:
                 stream.write('row 500001 appended\n')
             await pilot.press('u')
-            await self.shown(app, pilot, 'Log read at')
+            await self.shown(app, pilot, 'Read at:')
             await pilot.wait_for_scheduled_animations()
             self.assertEqual(app.screen.query_one('#log-pane').scroll_y, position)
             self.assertTrue(self.content(app).startswith('row 000000'))
@@ -377,6 +436,46 @@ class StatusLogWindowTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(self.stdout.read_bytes(), original)
             await pilot.press('q')
 
+    async def test_logs_open_unwrapped_and_toggle_without_rereading(self):
+        original = 'START ' + 'x' * 3000 + ' FINISH\n'
+        self.stdout.write_text(original)
+        app = self.browser()
+        async with app.run_test(size=(100, 30)) as pilot:
+            await self.shown(app, pilot, 'sample')
+            await pilot.press('down', 'l', 'enter')
+            await self.shown(app, pilot, 'START')
+            pane = app.screen.query_one('#log-pane')
+            text = app.screen.query_one('#log-text', Static)
+            self.assertEqual(self.content(app), original)
+            self.assertEqual(text.size.height, 2)
+            self.assertGreater(pane.max_scroll_x, 0)
+            self.assertNotIn('FINISH', test_browser_interaction.visible_text(app))
+            await pilot.press('right')
+            await pilot.wait_for_scheduled_animations()
+            self.assertGreater(pane.scroll_x, 0)
+            pane.scroll_to(x=pane.max_scroll_x, animate=False)
+            await self.shown(app, pilot, 'FINISH')
+            horizontal_position = pane.scroll_x
+            await pilot.press('F')
+            await pilot.pause(1.2)
+            self.assertEqual(pane.scroll_x, horizontal_position)
+            await pilot.press('F')
+            status = app.screen.query_one('#read-status', Static).content
+            self.stdout.unlink()  # Toggling only changes the already loaded portion.
+            await pilot.press('w')
+            await self.shown(app, pilot, 'wrap on')
+            self.assertEqual(pane.max_scroll_x, 0)
+            self.assertGreater(text.size.height, 2)
+            await self.shown(app, pilot, 'FINISH')
+            await pilot.press('w')
+            await self.shown(app, pilot, 'wrap off')
+            self.assertEqual(self.content(app), original)
+            self.assertEqual(text.size.height, 2)
+            self.assertGreater(pane.max_scroll_x, 0)
+            self.assertEqual(app.screen.query_one('#read-status', Static).content, status)
+            self.assertEqual(app.acquisitions, 1)
+            await pilot.press('q')
+
     async def test_huge_utf8_line_is_segmented_and_every_byte_remains_accessible(self):
         original = 'BEGIN ' + ''.join(f' checkpoint_{index:03d} ' + '🚀' * 2045 + f' checkpoint_{index:03d} '
                                     for index in range(80)) + ' END'
@@ -386,6 +485,7 @@ class StatusLogWindowTests(unittest.IsolatedAsyncioTestCase):
         async with app.run_test(size=(100, 30)) as pilot:
             await self.shown(app, pilot, 'sample')
             await pilot.press('down', 'l', 'enter')
+            await pilot.press('w')
             await self.shown(app, pilot, 'END')
             self.assertIn('byte limit', test_browser_interaction.visible_text(app))
             self.assertIn('[continued line]', self.content(app))
@@ -405,17 +505,11 @@ class StatusLogWindowTests(unittest.IsolatedAsyncioTestCase):
                 pane = app.screen.query_one('#log-pane')
                 pane.scroll_to(y=pane.max_scroll_y, animate=False, immediate=True)
                 await pilot.pause()
-                positions = [(pane.scroll_y, pane.max_scroll_y)]
-                for _ in range(3):
-                    await pilot.press('pagedown')
-                    await self.shown(app, pilot, 'Log read at')
-                    await pilot.wait_for_scheduled_animations()
-                    positions.append((pane.scroll_y, pane.max_scroll_y))
-                    if self.content(app) != content:
-                        break
-                self.assertTrue(self.content(app) != content,
-                                f'Paging must reach the adjacent portion: {positions}; '
-                                f'{app.screen.query_one("#read-status", Static).content}')
+                await pilot.press('pagedown')
+                deadline = time.monotonic() + 20
+                while self.content(app) == content and time.monotonic() < deadline:
+                    await pilot.pause(0.05)
+                self.assertNotEqual(self.content(app), content, 'Paging must reach the adjacent portion')
             self.assertEqual(''.join(portions), original)
             self.assertEqual(app.acquisitions, 1)
             await pilot.press('q')

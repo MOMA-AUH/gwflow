@@ -244,6 +244,7 @@ run, cancellation, cleanup, or recovery commands.
 | `l` | Choose stdout/stderr for the selected job or historical submission; Job details use Up/Down and Enter instead |
 | `u` | Reload the current log/history without inspecting status |
 | `F` | Toggle following of the selected log; initially off |
+| `w` | Toggle log wrapping; initially off. Left/Right scroll unwrapped lines |
 | `?` | Show the keyboard reference and captured inspection diagnostics |
 | `q` | Quit status |
 | Ctrl+C | Interrupt using ordinary CLI behavior |
@@ -275,28 +276,42 @@ Logs initially show up to the latest 200 newline-delimited lines. A 64 KiB byte
 window can contain fewer lines or only part of one exceptionally long line;
 the read notice identifies that limit. Page Up/Down scroll within the portion
 and read the adjacent portion at its edge. Home/End jump directly to the
-beginning/latest, without scanning the file for a total line count. Text wraps,
-and lines longer than 2,048 characters are segmented with continuation markers.
+beginning/latest, without scanning the file for a total line count. Logs open
+without wrapping; Left/Right scroll horizontally. Press `w` to toggle wrapping;
+the log panel border shows the current setting. When wrapping is enabled, lines
+longer than 2,048 characters are segmented with continuation markers.
 Paging preserves UTF-8 character boundaries and keeps every portion accessible.
 
-Each read has its own timestamp. `u` preserves the log's reading position where
+Each read has its own timestamp. The previous read details remain visible while
+the next read is pending, keeping live updates from shifting the panels.
+`u` preserves the log's reading position where
 possible, or loads the latest output when already at the end. It reloads saved
 history without changing the status snapshot or its age. `r` leaves independently
 read text, history, and their positions intact. Following starts off. A missing or
 unreadable stream shows its failure and preserves any previously read portion.
 While following is off, detected replacement, truncation, or changes to the previous portion preserve
 the displayed text and offer `u`; paging never joins old and replacement content.
-Tab focuses the read details, where arrows scroll complete notices and errors
-even at 40 × 12. Read failures do not change the latest inspection's exit result.
+The `Log information` panel shows **Read at:** with a timestamp, followed by
+**Attempt:** and **Path:**. A green `(live)` appears beside the timestamp only
+while following; manual mode has no indicator. Task and Public job names remain
+in the breadcrumb. The path identifies the submission, so there is no separate
+Submission field or Details section. Long identifiers and paths stay on one line.
+Partial reads show a short notice such as “Showing latest 200 lines”; complete
+and empty files omit this notice. Errors and file-change notices remain visible.
+The selected stream opens automatically in its own panel below, which uses
+the remaining space and receives initial keyboard focus. Empty files show
+`Log is empty.` Tab switches to the information panel, where arrows scroll
+complete notices and errors even at 40 × 12. Read failures do not change the
+latest inspection's exit result.
 
-Uppercase `F` enables live following of the selected exact-submission path,
-checking about once per second and keeping the latest bounded portion at the
-end. The visible following/paused state is independent of the status snapshot's
+Uppercase `F` toggles between manual mode and live following of the selected
+exact-submission path. Live mode checks about once per second and keeps the
+latest bounded portion at the end. The live indicator is independent of the status snapshot's
 age. Up, Page Up, Home, upward mouse-wheel scrolling, and upward scrollbar
-movement pause following; `F` resumes it. End jumps to latest without enabling
-following. `u` while following also reads the latest portion. Leaving the log,
-including opening Help, filters, or a terminal-size overlay, pauses following
-and stops its pending read and retries. Returning leaves it paused.
+movement switch to manual mode; `F` enables live mode again. End jumps to latest
+without enabling following. `u` while following also reads the latest portion. Leaving the log,
+including opening Help, filters, or a terminal-size overlay, switches to manual mode
+and stops its pending read and retries. Returning leaves it in manual mode.
 
 Following reloads the latest portion after detected replacement, truncation, or
 rewriting, and retains a visible change notice. If output advances beyond the

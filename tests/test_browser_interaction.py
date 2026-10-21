@@ -6,6 +6,7 @@ import unittest
 import xml.etree.ElementTree as ET
 
 from gwflow.browser import StatusBrowser
+from rich.cells import cell_len
 from support import LocalBackendTestCase
 import test_graphs
 import test_grouped_status
@@ -13,8 +14,17 @@ import test_grouped_status
 
 def visible_text(app):
     svg = ET.fromstring(app.export_screenshot())
-    return '\n'.join(''.join(node.itertext()).replace('\xa0', ' ')
-                     for node in svg.iter('{http://www.w3.org/2000/svg}text'))
+    rows = {}
+    for node in svg.iter('{http://www.w3.org/2000/svg}text'):
+        text = ''.join(node.itertext()).replace('\xa0', ' ')
+        if not text.strip() or node.get('textLength') is None:
+            continue
+        cell_width = float(node.get('textLength')) / cell_len(text)
+        column = round(float(node.get('x')) / cell_width)
+        row = rows.get(node.get('y'), '')
+        # Styled spans are separate SVG nodes; preserve their visual spacing.
+        rows[node.get('y')] = row + ' ' * max(0, column - cell_len(row)) + text
+    return '\n'.join(rows.values())
 
 
 class BrowserInteractionTests(LocalBackendTestCase, unittest.IsolatedAsyncioTestCase):

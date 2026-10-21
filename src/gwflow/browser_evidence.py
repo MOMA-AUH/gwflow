@@ -9,10 +9,10 @@ from textual.widgets import OptionList, Static
 from textual.widgets.option_list import Option
 
 from ._browser_read import ReadOperation
-from .browser import Breadcrumb, BrowserView, Shortcuts
+from .browser import Breadcrumb, BrowserView, Shortcuts, ValueField
 
 
-def log_text(result):
+def log_text(result, *, wrap=False):
     text = Text.from_ansi(result.get('content', ''))
     rendered = Text()
     if result.get('continued_before'):
@@ -20,10 +20,11 @@ def log_text(result):
     for index, line in enumerate(text.split('\n', allow_blank=True)):
         if index:
             rendered.append('\n')
-        for start in range(0, len(line), 2048):
+        segment_size = 2048 if wrap else max(1, len(line))
+        for start in range(0, len(line), segment_size):
             if start:
                 rendered.append('\n[continued line]\n', style='dim')
-            rendered.append(line[start:start + 2048])
+            rendered.append(line[start:start + segment_size])
     if result.get('continued_after'):
         rendered.append('\n[line continues in next portion]', style='dim')
     return rendered
@@ -55,11 +56,20 @@ class PinnedView(BrowserView):
         return ''
 
     def context(self):
-        return Static(Text(self.context_notice(), style='yellow'), id='pinned-context')
+        notice = self.context_notice()
+        widget = Static(Text(notice, style='yellow'), id='pinned-context')
+        widget.display = bool(notice)
+        return widget
 
     async def refresh_contents(self, navigation=None):
         self.query_one('.breadcrumb', Static).update(Breadcrumb(self.breadcrumb))
-        self.query_one('#pinned-context', Static).update(Text(self.context_notice(), style='yellow'))
+        self.update_context()
+
+    def update_context(self):
+        notice = self.context_notice()
+        context = self.query_one('#pinned-context', Static)
+        context.update(Text(notice, style='yellow'))
+        context.display = bool(notice)
 
 
 class StreamChooser(PinnedView):
@@ -106,7 +116,26 @@ class LogPane(VerticalScroll):
 
 
 class LogView(PinnedView):
+    DEFAULT_CSS = """
+    LogView #log-info {
+        height: auto; max-height: 45%; min-height: 4;
+        border: round $foreground 25%; padding: 0 1; margin-bottom: 1;
+    }
+    LogView #log-pane {
+        height: 1fr; min-height: 3; border: round $foreground 25%; padding: 0 1;
+        overflow-x: auto;
+    }
+    LogView #log-text { width: auto; text-wrap: nowrap; }
+    LogView #log-pane.wrapped #log-text { width: 1fr; text-wrap: wrap; }
+    LogView #read-status { height: 1; text-wrap: nowrap; }
+    LogView #log-info:focus, LogView #log-pane:focus { border: round $accent; }
+    LogView #pinned-context { text-wrap: nowrap; text-overflow: ellipsis; }
+    LogView.compact #log-info { height: 5; min-height: 5; max-height: 5; margin-bottom: 0; }
+    LogView.compact #log-pane { scrollbar-size-horizontal: 0; }
+    """
+
     BINDINGS = [Binding('u', 'reload', show=False), Binding('F', 'follow', show=False),
+                Binding('w', 'toggle_wrap', show=False),
                 Binding('home', 'beginning', show=False, priority=True),
                 Binding('end', 'latest', show=False, priority=True),
                 Binding('up', 'scroll_up', show=False, priority=True),
@@ -122,23 +151,59 @@ class LogView(PinnedView):
         self.next_follow = 0.0
         self.follow_notice = ''
         self.read_error = ''
+        self.wrap = False
 
     def compose(self):
         yield self.heading()
-        yield self.context()
-        yield Static('Live log: off; F: follow/pause', id='follow-status')
-        with VerticalScroll(classes='read-info'):
-            yield Static('Reading log...', id='read-status')
-        with LogPane(id='log-pane'):
-            yield Static(f"Task: {self.observation['name']}\nPublic job: {self.job['name']}\n"
-                         f"Attempt: {self.observation.get('attempt') or 'not recorded'}\n"
-                         f"Submission: {self.job['submission'] or 'not submitted'}\n"
-                         f"{self.stream}: {self.job['logs'].get(self.stream, 'unavailable')}", markup=False)
+        with VerticalScroll(id='log-info') as information:
+            information.border_title = 'Log information'
+            yield self.context()
+            yield Static(self.read_status(), id='read-status')
+            yield Static('Reading log...', id='read-notice')
+            yield ValueField('Attempt:', self.observation.get('attempt') or 'not recorded',
+                             label_width=len('Attempt:'))
+            yield ValueField('Path:', self.job['logs'].get(self.stream, 'unavailable'), label_width=len('Attempt:'))
+        with LogPane(id='log-pane') as content:
+            content.border_title = self.stream
+            content.border_subtitle = 'w: wrap off'
+            empty = Static('Log is empty.', id='empty-log')
+            empty.display = bool(self.result) and self.result['size'] == 0
+            yield empty
             yield Static(log_text(self.result), id='log-text')
         yield self.footer()
 
+    def read_status(self):
+        timestamp = time.strftime('%H:%M:%S', time.localtime(self.result['finished'])) if self.result else '—'
+        status = Text.assemble(('Read at:', 'bold'), f' {timestamp}')
+        if self.follow_mode == 'following':
+            status.append(' (live)', style='green')
+        return status
+
+    def update_read_information(self):
+        self.query_one('#read-status', Static).update(self.read_status())
+        notices = []
+        if self.read_error:
+            notices = [('Previously read content' if self.result else 'No log content read') + '; u: reload.',
+                       self.read_error]
+        elif self.result:
+            result = self.result
+            if self.follow_notice:
+                notices.append(self.follow_notice)
+            if result['start'] > 0 or result['end'] < result['size']:
+                location = 'latest' if result['end'] == result['size'] else 'first' if result['start'] == 0 else 'middle'
+                if any('byte limit' in notice for notice in result['notices']):
+                    notices.append(f'Showing {location} portion (64 KiB byte limit).')
+                else:
+                    notices.append(f"Showing {location} {len(result['content'].splitlines())} lines.")
+            notices.extend(notice for notice in result['notices'] if 'byte limit' not in notice)
+        else:
+            notices.append('Reading log...' if self.operation else 'No log content read; u: reload.')
+        notice = self.query_one('#read-notice', Static)
+        notice.update(Text('\n'.join(notices), style='yellow' if self.read_error else ''))
+        notice.display = bool(notices)
+
     def footer(self):
-        return Static(Shortcuts('PgUp/PgDn Home/End Tab details', 'F follow u reload r Esc ? q quit'),
+        return Static(Shortcuts('PgUp/Dn Home/End Tab', 'F u r Esc ? q quit'),
                       classes='shortcuts')
 
     def check_action(self, action, parameters):
@@ -156,17 +221,27 @@ class LogView(PinnedView):
             self.pause_follow()
             return
         self.follow_mode = 'following'
-        self.query_one('#follow-status', Static).update('Live log: ' + self.follow_mode + '; F: follow/pause')
+        self.update_read_information()
         self.follow_tick()
+
+    def action_toggle_wrap(self):
+        pane = self.query_one('#log-pane')
+        at_end = pane.is_vertical_scroll_end or pane.max_scroll_y == 0
+        pane.anchor(False)
+        self.wrap = not self.wrap
+        pane.set_class(self.wrap, 'wrapped')
+        pane.border_subtitle = 'w: wrap ' + ('on' if self.wrap else 'off')
+        self.query_one('#log-text', Static).update(log_text(self.result, wrap=self.wrap))
+        if at_end:
+            self.call_after_refresh(self.scroll_to_latest_display)
 
     def pause_follow(self):
         if self.follow_mode == 'following':
-            self.follow_mode = 'paused'
-            self.query_one('#follow-status', Static).update('Live log: paused; F: follow/pause')
+            self.follow_mode = 'off'
             if self.operation is not None:
                 self.operation.close()
                 self.operation = None
-                self.query_one('#read-status', Static).update(Text(self.previous_read_status()))
+            self.update_read_information()
         pane = self.query_one('#log-pane')
         pane.anchor(False)
         self.read_position = pane.scroll_y
@@ -226,13 +301,8 @@ class LogView(PinnedView):
             self.operation = ReadOperation({'path': self.job['logs'].get(self.stream),
                                             'direction': direction, 'offset': offset, 'previous': previous,
                                             'following': following})
-            previous = self.previous_read_status() + '\n' if self.read_error else ''
-            self.query_one('#read-status', Static).update(Text(previous + 'Reading log...'))
-
-    def previous_read_status(self):
-        previous = ('Previously read ' + time.strftime('%H:%M:%S', time.localtime(self.result['finished']))
-                    if self.result else 'No log content read')
-        return previous + '; u: reload.' + ('\n' + self.read_error if self.read_error else '')
+            if not self.result and not self.read_error:
+                self.update_read_information()
 
     def read_progress(self):
         if self.operation is None and self.follow_mode == 'following' and time.monotonic() >= self.next_follow:
@@ -246,7 +316,7 @@ class LogView(PinnedView):
             self.operation = None
         if 'error' in result:
             self.read_error = result['error']
-            self.query_one('#read-status', Static).update(Text(self.previous_read_status()))
+            self.update_read_information()
             self.read_position = self.previous_position
             self.app.call_after_refresh(self.restore_reading_position)
             return
@@ -261,26 +331,30 @@ class LogView(PinnedView):
             self.follow_notice = ' '.join(notices)
         self.read_error = ''
         self.result = result
-        self.query_one('#log-text', Static).update(log_text(result))
-        self.query_one('#read-status', Static).update(
-            (self.follow_notice + '\n' if self.follow_notice else '') +
-            'Log read at ' + time.strftime('%H:%M:%S', time.localtime(result['finished'])) +
-            ('; 64 KiB byte limit' if any('byte limit' in notice for notice in result['notices']) else '') +
-            f"; portion: bytes {result['start']}–{result['end']} of {result['size']}; up to 200 lines" +
-            ('\n' + ' '.join(result['notices']) if result['notices'] else ''))
+        self.query_one('#empty-log', Static).display = result['size'] == 0
+        self.query_one('#log-text', Static).update(log_text(result, wrap=self.wrap))
+        self.update_read_information()
         self.app.call_after_refresh(self.restore_reading_position)
 
     def restore_reading_position(self):
         pane = self.query_one('#log-pane')
         if self.read_position == 'end':
-            pane.anchor(pane.max_scroll_y > 0)
-            pane.scroll_end(animate=False)
+            self.scroll_to_latest_display()
         elif self.read_position == 'start':
             pane.anchor(False)
-            pane.scroll_home(animate=False)
+            pane.scroll_home(animate=False, x_axis=False)
         else:
             pane.anchor(False)
             pane.scroll_to(y=self.read_position, animate=False)
+
+    def scroll_to_latest_display(self):
+        pane = self.query_one('#log-pane')
+        horizontal_position = pane.scroll_x
+        # Anchor only overflowing text: scrollbar layout can temporarily report
+        # overflow even for short content. Anchoring also resets the X position.
+        pane.anchor(self.query_one('#log-text').size.height > pane.scrollable_content_region.height)
+        pane.scroll_to(x=horizontal_position, animate=False, release_anchor=False)
+        pane.scroll_end(animate=False, x_axis=False)
 
     def on_unmount(self):
         self.read_timer.stop()
@@ -336,7 +410,7 @@ class HistoryView(PinnedView):
             return
         self.result = result
         self.observation = {**self.observation, 'attempt': result['current_attempt']}
-        self.query_one('#pinned-context', Static).update(Text(self.context_notice(), style='yellow'))
+        self.update_context()
         navigation = self.capture_navigation()
         self.records = {}
         listing = self.query_one(OptionList)
