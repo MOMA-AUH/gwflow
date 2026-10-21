@@ -265,31 +265,30 @@ refresh applies to items absent from the resulting view, not to invalid
 selections that would fail an ordinary invocation.
 
 A Task detail screen leads with its state, Jobs completed fraction, the
-snapshot's Next action and reason, and its job list. Keep the full attempt
-identifier, storage paths, and detailed planning evidence in an expandable
-"Attempt, paths, and diagnostics" section. Opening a job exposes its full public
+snapshot's Next action and reason, and its job list. On 2026-10-21, the maintainer
+requested removal of the entire "Attempt, paths, and diagnostics" section,
+superseding the earlier requirement for that expandable panel and leaving more
+space for the Jobs table. Opening a job exposes its full public
 name, submission identifier, backend job ID, and log paths where those facts are
-available. Expanding or opening these captured details requires no additional
+available. Opening these captured details requires no additional
 workflow inspection or scheduler queries; displaying a log path does not imply
 that its contents or availability have been read.
 
 For example, `mapping__B` can show state Failed, Jobs completed 3/5, Next action
 Retry, and the reason "The index job failed." Its job list shows preparation,
-align, and sort completed, index failed, and completion pending. The identifiers
-and paths section starts collapsed. Blockers, uncertain activity, and required
-recovery guidance remain visible in the main Task view rather than being hidden
-in that section. The displayed Next action describes the captured snapshot and
+align, and sort completed, index failed, and completion pending. Blockers,
+uncertain activity, and required recovery guidance remain visible in the main
+Task view. The displayed Next action describes the captured snapshot and
 does not authorize execution.
 
-The v0.8.0 TUI is for inspection only. Provide copyable ordinary-command hints in
-Task details, including a run preview, ordinary run, and Cancellation, rather
-than controls that execute these operations within the TUI. For example, Task
-`mapping__B` exposes `gwflow run mapping__B --dry-run`,
-`gwflow run mapping__B`, and `gwflow cancel mapping__B`. Users can leave status
-open while issuing commands in another terminal and press `r` to inspect the
-resulting state. This keeps the first interactive release focused on status,
-diagnostics, logs, and history. The ordinary commands retain their current-state
-validation and execution safeguards.
+The v0.8.0 TUI is for inspection only. On 2026-10-21, the maintainer requested
+removal of the Task detail command suggestions and copy buttons, superseding
+the earlier requirement for copyable run-preview, run, and Cancellation hints.
+Give the Jobs table the available vertical space instead of a fixed height cap.
+Users can leave status open while issuing ordinary commands in another terminal
+and press `r` to inspect the resulting state. The browser remains focused on
+status, diagnostics, logs, and history; ordinary commands retain their
+current-state validation and execution safeguards.
 
 Use Textual for the interactive interface and retain Rich for static reports.
 Textual's [screen navigation](https://textual.textualize.io/guide/screens/),
@@ -440,14 +439,14 @@ An unresolved submission is another possible reason for an unavailable count.
 These representations preserve uncertainty rather than inventing a completion
 fraction.
 
-For v0.8.0, counted bars have three meanings only: reusable over selected Tasks in
-a group, completed over total jobs in a Task, and confirmed backend acceptances
-over planned submissions during run. Individual jobs display their observed
-state, such as queued, running, or completed; current observations do not provide
-a within-job completion fraction.
+Counted bars show reusable over selected Tasks in a group, completed over total
+jobs in a Task, confirmed backend acceptances over planned submissions during
+run, and inspected over in-scope Tasks during inspection. Individual jobs display
+their observed state, such as queued, running, or completed; current observations
+do not provide a within-job completion fraction.
 
-Inspection, frontend-lock waits, scheduler waits, and image acquisition use an
-activity indicator with the current phase and elapsed time when available. For
+Workflow loading, frontend-lock waits, scheduler waits, and image acquisition
+use an activity indicator with the current phase and elapsed time when available. For
 example, "Inspecting workflow… 8s", "Waiting for scheduler… 12s", or "Acquiring
 image <image reference>… 32s" identifies the ongoing operation. Formatted
 terminal commands show activity while waiting. Plain and redirected output use
@@ -455,6 +454,24 @@ concise phase messages on stderr without animation or repeated elapsed-time
 updates. Do not present estimated completion percentages or ETAs. Task bars
 remain present for every Task state as specified above; activity indicators do
 not change the meaning of a captured Task's progress.
+
+On 2026-10-21, the maintainer approved a counted Task-inspection phase, extending
+the original activity-only inspection design. Keep the scheduler spinner while
+opening the backend and obtaining its initial observations. Then show
+"Inspecting Tasks: 37/120" with the shared progress bar. The denominator is the
+planned inspection scope, including required upstream Tasks; state and name
+view filters do not change it. Advance once each Task's inspection finishes,
+including a Task classified as blocked. An aborted inspection does not advance
+the unfinished Task. This counts inspected Tasks, not completed workflow jobs,
+elapsed-time percentages, or scheduler-query completion.
+
+Show dependency checks as a separate uncounted phase after the Task loop.
+Nested waits temporarily replace the counter and restore its current value on
+return. Initial browser loads and refreshes receive structured phase/count
+updates while retaining the existing owned-process cancellation behavior.
+Plain and redirected output retain one message per phase rather than per-Task
+updates. Snapshot publication still happens only after the entire inspection
+succeeds; finishing the Task counter alone does not publish partial results.
 
 Across commands, make outcomes easy to find and reduce long identifiers and
 repeated routine prose without hiding differing outcomes or cases requiring

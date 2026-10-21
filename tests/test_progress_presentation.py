@@ -53,7 +53,7 @@ class ProgressPresentationTests(unittest.TestCase):
                         pass
         return report.console, stream.getvalue()
 
-    def test_fill_is_slightly_darker_green_without_dimming_in_every_view(self):
+    def test_fill_is_standard_green_without_dimming_in_every_view(self):
         for source in ("browser-task", "browser-group", "static-task", "static-group", "submission"):
             for width in (40, 100):
                 with self.subTest(source=source, width=width):
@@ -69,7 +69,7 @@ class ProgressPresentationTests(unittest.TestCase):
                             self.assertFalse(style.dim)
                             self.assertFalse(style.bold)
                             if char == "❯":
-                                self.assertEqual(style.color.triplet.hex, "#7db81e")
+                                self.assertEqual(style.color.number, 2, "Fill must use standard green")
 
     def test_unknown_progress_stays_yellow_and_distinct_from_zero(self):
         for source in ("browser-task", "static-task"):

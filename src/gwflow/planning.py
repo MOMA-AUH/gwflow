@@ -1,5 +1,6 @@
 """Shared observations and lifecycle decisions, with no attempt allocation."""
 
+from contextlib import ExitStack
 from dataclasses import dataclass
 
 from gwf.backends import BackendStatus, create_backend
@@ -155,7 +156,7 @@ def completed_observation(store, observation):
     except (WorkflowError, OSError):
         completed = False
     if completed:
-        observation.action, observation.reason = "reuse", "checked Completion and retained metadata match"
+        observation.action, observation.reason = "reuse", "checked completion and retained metadata match"
         return
     retained_changes = store.retained_changes(observation.attempt)
     if store.cleanup_record(observation.attempt) is not None:
@@ -191,7 +192,7 @@ def awaiting_producer_metadata(store, observation):
 
 
 @_observations.planning_pass()
-@report_activity("Inspecting Tasks...")
+@report_activity("Preparing Task inspection...")
 def plan_workflow(workflow, ctx, *, selectors=(), force=False):
     selected_names = task_selection(workflow._task_declarations, selectors)
     expected = {f"{name}__{local}" for name, task in workflow._task_declarations.items()
@@ -209,105 +210,111 @@ def plan_workflow(workflow, ctx, *, selectors=(), force=False):
             scope.update(producer_names(declared[name][0]))
     tasks = []
     observations_by_name = {}
-    with report_activity("Waiting for scheduler..."), create_backend(ctx.backend, working_dir=ctx.working_dir, config=ctx.config) as backend:
-        for name in order:
-            if name not in scope:
-                continue
-            structure, commands = declared[name]
-            attempt = store.current(name, workflow._result_dirs[name])
-            observation = TaskObservation(name, "fresh", "no completed managed attempt", structure, commands, attempt)
-            try:
-                images.resolve(workflow._task_declarations[name], structure, store.locations)
-            except WorkflowError as error:
-                observation.action, observation.reason = "blocked", str(error)
+    with ExitStack() as resources:
+        with report_activity("Waiting for scheduler..."):
+            backend = resources.enter_context(create_backend(ctx.backend, working_dir=ctx.working_dir, config=ctx.config))
+        with report_activity("Inspecting Tasks...", total=len(scope)) as inspected:
+            for name in order:
+                if name not in scope:
+                    continue
+                structure, commands = declared[name]
+                attempt = store.current(name, workflow._result_dirs[name])
+                observation = TaskObservation(name, "fresh", "no completed managed attempt", structure, commands, attempt)
+                try:
+                    images.resolve(workflow._task_declarations[name], structure, store.locations)
+                except WorkflowError as error:
+                    observation.action, observation.reason = "blocked", str(error)
+                    tasks.append(observation)
+                    observations_by_name[name] = observation
+                    inspected(len(tasks))
+                    continue
+                if attempt is not None:
+                    try:
+                        initializing = store.read(attempt, "ready.json", "ready") is None
+                        if initializing:
+                            store.initialization(attempt)
+                            if _files.exists(store.attempt_dir(attempt) / "admissions"):
+                                raise WorkflowError("Task initialization is not ready but has submission evidence")
+                        observation.work_present = _files.exists(store.workspace(attempt))
+                        jobs = admission.observe(store, attempt, backend, ctx.backend)
+                        finishing = jobs["gwflow_complete"]
+                        observation.submissions = jobs
+                        observation.observations_available = True
+                        superseded = admission.superseded_activity(store, attempt, backend, ctx.backend)
+                        uncertain = [item.submission for item in jobs.values() if item.state == "uncertain"]
+                        active = [item.submission for item in jobs.values() if item.state == "active"]
+                        pending = pending_submissions(attempt, jobs)
+                        failed = [local for local, item in jobs.items() if item.state in ("failed", "cancelled") and local not in pending]
+                        if superseded:
+                            observation.action, observation.reason = "blocked", "Unresolved or active recovered submissions: " + ", ".join(item.submission for item in superseded)
+                        elif uncertain:
+                            observation.action, observation.reason = "blocked", "unresolved submission: " + ", ".join(uncertain)
+                        elif change := definition_change(store, observation, observations_by_name,
+                                                          force_option="--force" if force and name in selected_names else None,
+                                                          initializing=initializing):
+                            fresh_observation(store, observation, change)
+                        elif initializing:
+                            observation.restart_required = True
+                            observation.removal = store.result_removal(attempt)
+                            observation.action, observation.reason = "initialize", "resume selected initialization; remove previous results before submission"
+                            observation.pending = lifecycle_jobs(ordered_targets(structure))
+                        elif not active and any(awaiting_producer_metadata(store, observations_by_name[producer])
+                                                for producer in producer_names(structure)) and _files.exists(store.attempt_dir(attempt) / "inputs.json"):
+                            observation.action, observation.reason = "deferred", "producer results need recovery; a later invocation must replan input validity after restored metadata is available"
+                        elif not active and store.cleanup_record(attempt) is not None:
+                            completed_observation(store, observation)
+                        elif changes := input_metadata_changes(store, attempt):
+                            fresh_observation(store, observation, "input metadata changed: " + "; ".join(changes))
+                        elif not active and store.read(attempt, "completion.json", "completion", operation=attempt["operation"]) is not None:
+                            completed_observation(store, observation)
+                        elif not active and store.repair_intent(attempt) is not None:
+                            recover_transfer(store, observation, jobs)
+                        elif ((jobs["gwflow_prepare"].state in ("failed", "cancelled")
+                               or jobs["gwflow_prepare"].backend_state in (BackendStatus.FAILED, BackendStatus.CANCELLED))
+                              and not active and observation.work_present
+                              and not any(_files.exists(store.execution_dir(attempt, local)) for local in attempt["executions"])):
+                            if _files.exists(store.attempt_dir(attempt) / "inputs.json"):
+                                store.check_inputs(attempt)
+                            observation.action, observation.reason = "prepare", "restart interrupted preparation in the same attempt"
+                            observation.repeated_jobs.update(lifecycle_jobs(structure["targets"]))
+                            observation.pending = lifecycle_jobs(ordered_targets(attempt["structure"]))
+                            observation.retry = ordered_targets(attempt["structure"])
+                        elif (not active and (finishing.state in ("failed", "cancelled")
+                                              or finishing.state == "pending" and finishing.intent is not None)
+                              and all(jobs[local].state == "complete" for local in attempt["executions"])
+                              and not _files.exists(store.record_path(attempt, "completion.json"))):
+                            recover_transfer(store, observation, jobs)
+                        elif retry_observation(store, observation, jobs):
+                            pass
+                        elif not failed and pending:
+                            if _files.exists(store.attempt_dir(attempt) / "inputs.json"):
+                                store.check_inputs(attempt)
+                            observation.action, observation.reason = "continue", "continue known submissions without repeating admitted work"
+                            observation.pending = pending
+                        elif active:
+                            observation.action, observation.reason = "active", "queued/running work: " + ", ".join(active)
+                        elif store.completed(attempt):
+                            observation.action, observation.reason = "reuse", "checked completion and retained metadata match"
+                        else:
+                            observation.action, observation.reason = "blocked", "incomplete attempt or damaged results; retry/recovery is not yet supported"
+                    except (WorkflowError, OSError) as error:
+                        observation.action, observation.reason = "blocked", str(error)
+                else:
+                    fresh_observation(store, observation, "no completed managed attempt")
                 tasks.append(observation)
                 observations_by_name[name] = observation
-                continue
-            if attempt is not None:
-                try:
-                    initializing = store.read(attempt, "ready.json", "ready") is None
-                    if initializing:
-                        store.initialization(attempt)
-                        if _files.exists(store.attempt_dir(attempt) / "admissions"):
-                            raise WorkflowError("Task initialization is not ready but has submission evidence")
-                    observation.work_present = _files.exists(store.workspace(attempt))
-                    jobs = admission.observe(store, attempt, backend, ctx.backend)
-                    finishing = jobs["gwflow_complete"]
-                    observation.submissions = jobs
-                    observation.observations_available = True
-                    superseded = admission.superseded_activity(store, attempt, backend, ctx.backend)
-                    uncertain = [item.submission for item in jobs.values() if item.state == "uncertain"]
-                    active = [item.submission for item in jobs.values() if item.state == "active"]
-                    pending = pending_submissions(attempt, jobs)
-                    failed = [local for local, item in jobs.items() if item.state in ("failed", "cancelled") and local not in pending]
-                    if superseded:
-                        observation.action, observation.reason = "blocked", "Unresolved or active recovered submissions: " + ", ".join(item.submission for item in superseded)
-                    elif uncertain:
-                        observation.action, observation.reason = "blocked", "unresolved submission: " + ", ".join(uncertain)
-                    elif change := definition_change(store, observation, observations_by_name,
-                                                      force_option="--force" if force and name in selected_names else None,
-                                                      initializing=initializing):
-                        fresh_observation(store, observation, change)
-                    elif initializing:
-                        observation.restart_required = True
-                        observation.removal = store.result_removal(attempt)
-                        observation.action, observation.reason = "initialize", "resume selected initialization; remove previous results before submission"
-                        observation.pending = lifecycle_jobs(ordered_targets(structure))
-                    elif not active and any(awaiting_producer_metadata(store, observations_by_name[producer])
-                                            for producer in producer_names(structure)) and _files.exists(store.attempt_dir(attempt) / "inputs.json"):
-                        observation.action, observation.reason = "deferred", "producer results need recovery; a later invocation must replan input validity after restored metadata is available"
-                    elif not active and store.cleanup_record(attempt) is not None:
-                        completed_observation(store, observation)
-                    elif changes := input_metadata_changes(store, attempt):
-                        fresh_observation(store, observation, "input metadata changed: " + "; ".join(changes))
-                    elif not active and store.read(attempt, "completion.json", "completion", operation=attempt["operation"]) is not None:
-                        completed_observation(store, observation)
-                    elif not active and store.repair_intent(attempt) is not None:
-                        recover_transfer(store, observation, jobs)
-                    elif ((jobs["gwflow_prepare"].state in ("failed", "cancelled")
-                           or jobs["gwflow_prepare"].backend_state in (BackendStatus.FAILED, BackendStatus.CANCELLED))
-                          and not active and observation.work_present
-                          and not any(_files.exists(store.execution_dir(attempt, local)) for local in attempt["executions"])):
-                        if _files.exists(store.attempt_dir(attempt) / "inputs.json"):
-                            store.check_inputs(attempt)
-                        observation.action, observation.reason = "prepare", "restart interrupted preparation in the same attempt"
-                        observation.repeated_jobs.update(lifecycle_jobs(structure["targets"]))
-                        observation.pending = lifecycle_jobs(ordered_targets(attempt["structure"]))
-                        observation.retry = ordered_targets(attempt["structure"])
-                    elif (not active and (finishing.state in ("failed", "cancelled")
-                                          or finishing.state == "pending" and finishing.intent is not None)
-                          and all(jobs[local].state == "complete" for local in attempt["executions"])
-                          and not _files.exists(store.record_path(attempt, "completion.json"))):
-                        recover_transfer(store, observation, jobs)
-                    elif retry_observation(store, observation, jobs):
-                        pass
-                    elif not failed and pending:
-                        if _files.exists(store.attempt_dir(attempt) / "inputs.json"):
-                            store.check_inputs(attempt)
-                        observation.action, observation.reason = "continue", "continue known submissions without repeating admitted work"
-                        observation.pending = pending
-                    elif active:
-                        observation.action, observation.reason = "active", "queued/running work: " + ", ".join(active)
-                    elif store.completed(attempt):
-                        observation.action, observation.reason = "reuse", "checked Completion and retained metadata match"
-                    else:
-                        observation.action, observation.reason = "blocked", "incomplete attempt or damaged results; retry/recovery is not yet supported"
-                except (WorkflowError, OSError) as error:
-                    observation.action, observation.reason = "blocked", str(error)
-            else:
-                fresh_observation(store, observation, "no completed managed attempt")
-            tasks.append(observation)
-            observations_by_name[name] = observation
-        changing_results = {task.name for task in tasks if task.attempt is not None
-                            and task.action in ("fresh", "initialize", "transfer", "repair")}
-        consumers = admission.consumer_activity(store, backend, ctx.backend, producers=changing_results)
-        for observation in tasks:
-            if observation.attempt is not None:
-                observation.consumers = consumers.get((observation.name, observation.attempt["attempt"]), {})
-                if observation.action in ("fresh", "initialize", "transfer", "repair"):
-                    activity = admission.replacement_activity(store, observation.attempt, backend, ctx.backend, consumers)
-                    observation.consumers = activity.consumers
-                    if activity.reason:
-                        observation.action, observation.reason = "blocked", activity.reason
-                        observation.pending = []
+                inspected(len(tasks))
+        with report_activity("Checking Task dependencies..."):
+            changing_results = {task.name for task in tasks if task.attempt is not None
+                                and task.action in ("fresh", "initialize", "transfer", "repair")}
+            consumers = admission.consumer_activity(store, backend, ctx.backend, producers=changing_results)
+            for observation in tasks:
+                if observation.attempt is not None:
+                    observation.consumers = consumers.get((observation.name, observation.attempt["attempt"]), {})
+                    if observation.action in ("fresh", "initialize", "transfer", "repair"):
+                        activity = admission.replacement_activity(store, observation.attempt, backend, ctx.backend, consumers)
+                        observation.consumers = activity.consumers
+                        if activity.reason:
+                            observation.action, observation.reason = "blocked", activity.reason
+                            observation.pending = []
     return Plan(store, tasks)

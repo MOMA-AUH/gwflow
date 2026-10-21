@@ -212,12 +212,13 @@ and a plain static report.
 
 In the browser, Enter opens the selected group, Task, or job on a full-width
 screen. Breadcrumbs show the current location. Task details lead with state,
-Jobs completed, Next action, and the concrete reason; expandable sections show
-attempt identities, paths, and diagnostics. Job details retain the captured
+Jobs completed, Next action, and the concrete reason, followed by the Jobs table.
+Task details omit the former attempt, paths, and diagnostics panel.
+Job details retain the captured
 submission state and identity even when that work must repeat for Task progress.
-Individual jobs have states, without computation percentages. Ordinary command
-hints include copy buttons, retaining full Task names and workflow/backend
-options; clipboard support depends on the terminal. The browser executes no
+Individual jobs have states, without computation percentages. The Jobs table
+uses the available space; Task details omit command suggestions and copy buttons.
+The browser executes no
 run, cancellation, cleanup, or recovery commands.
 
 | Key | Action |
@@ -325,8 +326,8 @@ Required workflow notices remain visible when their affected Tasks are hidden.
 Inside a Task group, the panel title identifies the group and the `Instance`
 column shows each Task's Instance key, or `(no key)` when none was supplied.
 Lists spanning groups retain full Task names. Search still matches full Task
-names, and details and copyable commands retain them. Job summaries share the
-Task's row in a `Jobs` column when space permits; longer summaries and narrow
+names, and details retain them. Job summaries and workspace notes share the
+Task's row in a `Details` column when space permits; longer summaries and narrow
 terminals place them underneath.
 
 Snapshot age measures time since the last successful inspection. A failed
@@ -344,7 +345,7 @@ the previous completed result. Final inspection errors remain on stderr. Unexpec
 failures restore the terminal and report the full exception chain on stderr.
 Shrinking below 40 × 12 shows a resize notice; enlarging restores the current
 view without another inspection. Long list names may use ellipses; full names
-remain available in details and copied commands.
+remain available in details.
 
 Resolve Task selectors before `--status` filtering. A valid selection emptied by
 the filter succeeds with an empty report (`No Tasks match the filter.` in the
@@ -395,9 +396,16 @@ appears as `?/N` with a stationary hatched bar and a concrete explanation, such
 as image unavailability or an unresolved submission. It is distinct from known
 zero progress; plain reports retain the fraction and reason without a bar.
 Interactive views, static reports, and submission progress share the same
-heavy chevrons in slightly darker green, gray light chevrons for the remaining
+heavy chevrons in standard green, gray light chevrons for the remaining
 track, and yellow slashes for unknown counts. The terminal dim attribute is
 disabled. Completed and remaining progress remain distinct when color is disabled.
+
+During initial inspection and refresh, a spinner marks the scheduler wait.
+Once its initial observations are available, `Inspecting Tasks: 37/120` counts
+finished Task inspections within the inspection scope, including required
+upstream Tasks and blocked Tasks. This is inspection progress, not completed
+jobs or an estimate of remaining time. Dependency checks follow as a separate
+phase. Plain and redirected output print phase messages without per-Task counts.
 
 The primary states are pending, queued, preparing, running, finishing, reusable,
 repairable, deferred, failed, canceled, and blocked. Blockage takes precedence

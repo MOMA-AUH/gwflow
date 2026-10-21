@@ -37,17 +37,17 @@ class BrowserWorkloadTests(unittest.IsolatedAsyncioTestCase):
             work = next(node for node in nodes if 'work\xa0present' in ''.join(node.itertext()))
             self.assertEqual(second.get('y'), work.get('y'))
             self.assertEqual(detail.get('x'), work.get('x'))
-            header = next(node for node in nodes if 'Jobs' in ''.join(node.itertext()))
+            header = next(node for node in nodes if 'Details' in ''.join(node.itertext()))
             heading = ''.join(header.itertext()).replace('\xa0', ' ')
             cell_width = float(header.get('textLength')) / len(heading)
             detail_text = ''.join(detail.itertext()).replace('\xa0', ' ')
             leading = len(detail_text) - len(detail_text.lstrip())
-            self.assertAlmostEqual(float(header.get('x')) + heading.index('Jobs') * cell_width,
+            self.assertAlmostEqual(float(header.get('x')) + heading.index('Details') * cell_width,
                                    float(detail.get('x')) + leading * cell_width)
             self.assertIn('unresolved submission', visible_text(app))
             between = [node for node in nodes if float(first.get('y')) < float(node.get('y')) < float(second.get('y'))]
             self.assertFalse(between)
-            self.assertIn('Jobs', visible_text(app))
+            self.assertIn('Details', visible_text(app))
             self.assertNotIn('mapping_long_', visible_text(app))
             await pilot.resize_terminal(120, 40)
             await pilot.pause()
@@ -73,8 +73,15 @@ class BrowserWorkloadTests(unittest.IsolatedAsyncioTestCase):
             await pilot.pause()
             rows = {}
             for node in ET.fromstring(app.export_screenshot()).iter('{http://www.w3.org/2000/svg}text'):
-                rows.setdefault(node.get('y'), []).append(''.join(node.itertext()).replace('\xa0', ' '))
-            rows = [''.join(parts) for parts in rows.values()]
+                text = ''.join(node.itertext()).replace('\xa0', ' ')
+                if not text.strip() or node.get('textLength') is None:
+                    continue
+                cell_width = float(node.get('textLength')) / len(text)
+                column = round(float(node.get('x')) / cell_width)
+                # SVG omits blank spans between differently styled fields.
+                row = rows.get(node.get('y'), '')
+                rows[node.get('y')] = row.ljust(column) + text
+            rows = list(rows.values())
             header = next(row for row in rows if 'Progress' in row)
             task = next(row for row in rows if 'sample_000' in row)
             job = next(row for row in rows if 'job_00' in row)
@@ -139,6 +146,11 @@ class BrowserWorkloadTests(unittest.IsolatedAsyncioTestCase):
                 await pilot.pause()
                 rendered = rows(app)
                 header = next(row for row in rendered if 'Name' in row and 'State' in row)
+                self.assertFalse(app.screen.query('Button'))
+                if size == (120, 40):
+                    self.assertIn('Reason: Captured workload', visible_text(app))
+                    self.assertGreater(app.screen.query_one('.jobs-panel').size.height, 11)
+                    self.assertIn('job_09', visible_text(app))
                 for name in ('job_00', 'align_reference_reads'):
                     job = next(row for row in rendered if name in row)
                     self.assertIn('✓ completed', job)
@@ -347,22 +359,23 @@ class BrowserWorkloadTests(unittest.IsolatedAsyncioTestCase):
             await pilot.press('q')
         self.assertEqual(app.return_value, 0)
 
-    async def test_refresh_retains_expanded_diagnostics_control_focus_and_scroll(self):
+    async def test_task_refresh_retains_job_selection_and_scroll(self):
         app = CapturedBrowser(selectors=('*',))
         async with app.run_test(size=(40, 12)) as pilot:
             await pilot.pause()
-            await pilot.press('enter', 'tab', 'enter')
-            self.assertIn('Captured attempt and paths', visible_text(app))
-            await pilot.press('tab')
-            await pilot.wait_for_scheduled_animations()
-            self.assertIn('Copy run preview', visible_text(app))
+            await pilot.press('enter', 'end')
+            self.assertFalse(app.screen.query('Collapsible'))
+            self.assertIn('job_09', visible_text(app))
+            selected = app.screen.query_one(OptionList).highlighted_option.id
             await pilot.press('r')
             await pilot.wait_for_scheduled_animations()
-            self.assertIn('Copy run preview', visible_text(app))
+            listing = app.screen.query_one(OptionList)
+            self.assertIs(app.screen.focused, listing)
+            self.assertEqual(listing.highlighted_option.id, selected)
+            self.assertIn('job_09', visible_text(app))
             await pilot.press('enter')
-            self.assertTrue(app.clipboard.endswith('--dry-run'))
-            await pilot.press('shift+tab')
-            self.assertIn('Captured attempt and paths', visible_text(app))
+            self.assertIn('Observed state:', visible_text(app))
+            self.assertIn('job_09', visible_text(app))
             await pilot.press('q')
 
     async def test_full_group_counts_and_required_notices_survive_state_and_name_filters(self):

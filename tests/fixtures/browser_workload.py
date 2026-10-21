@@ -24,8 +24,7 @@ def captured_snapshot():
         tasks.append(dict(name=name, instance_key=f'sample_{index:03d}',
                           state=state, completed=10 if state == 'reusable' else 0, total=10,
                           detail='', jobs=jobs, next_action='Reuse' if state == 'reusable' else 'Inspect',
-                          reason='Captured workload', diagnostics='Captured attempt and paths\n' * 20,
-                          commands=[f'gwflow run {name} --dry-run', f'gwflow run {name}', f'gwflow cancel {name}']))
+                          reason='captured workload'))
     return Snapshot(finished=time.time(), total=100, tasks=tasks,
                     groups=[dict(key='mapping@captured.main', label='mapping',
                                  members=[task['name'] for task in tasks[:24]]),

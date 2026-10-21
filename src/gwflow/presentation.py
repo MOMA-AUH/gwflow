@@ -95,8 +95,7 @@ def progress_bar(completed, total, width=14):
         bar.append("/" * width, "yellow not dim")
     else:
         filled = int(width * completed / total) if total else 0
-        # About 18% darker than the browser's default green, without terminal dimming.
-        bar.append("❯" * filled, "#7db81e not dim")
+        bar.append("❯" * filled, "green not dim")
         bar.append("›" * (width - filled))
     bar.append("]")
     return bar
@@ -185,6 +184,11 @@ def task_row(task):
         else:
             detail.append("progress unavailable: unresolved submission")
     return TaskRow(task, state, completed, len(jobs), "; ".join(detail), jobs)
+
+
+def format_reason(reason):
+    """Use sentence case without changing embedded identifiers or paths."""
+    return reason[:1].upper() + reason[1:]
 
 
 def blocking_reason(reason):
@@ -867,7 +871,7 @@ class Report:
                 table.add_row(self.text(name, style=style), self.state(state))
         if not self.plain and self.console.width >= 48:
             self.console.print(table)
-        for line in (f"Condition: {condition(task)}", f"Next action: {NEXT_ACTIONS[task.action]}", f"Reason: {task.reason}",
+        for line in (f"Condition: {condition(task)}", f"Next action: {NEXT_ACTIONS[task.action]}", f"Reason: {format_reason(task.reason)}",
                      *task_details(self.store, task)):
             self.line("  " + line)
 

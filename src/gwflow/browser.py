@@ -14,17 +14,18 @@ from typing import cast
 import click
 from rich.text import Text
 from rich.cells import cell_len
+from rich.spinner import Spinner
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Vertical, VerticalScroll
 from textual.filter import Monochrome, NoColor
 from textual.screen import Screen
-from textual.widgets import Button, Collapsible, Input, OptionList, SelectionList, Static
+from textual.widgets import Collapsible, Input, OptionList, SelectionList, Static
 from textual.widgets._collapsible import CollapsibleTitle
 from textual.widgets.option_list import Option
 
 from .diagnostics import error_message
-from .presentation import ACTIVE, STATES, _VISUALS, progress_display
+from .presentation import ACTIVE, STATES, _VISUALS, format_reason, progress_display
 
 
 def state_text(state):
@@ -101,7 +102,7 @@ class ProgressColumns:
         self.progress_label, self.state_width = progress_label, state_width
         self.state_label = "Other states" if state_width is None else "State"
         self.name_label = name_label
-        self.detail_width = max(4, detail_width) if detail_width else 0
+        self.detail_width = max(len("Details"), detail_width) if detail_width else 0
 
     def bar_width(self, width):
         if self.detail_width and self.state_width is not None and width >= 70:
@@ -115,7 +116,7 @@ class ProgressColumns:
             return 0
         name = min(self.name_width, max(12, width // 4))
         available = width - (self.bar_width(width) + 3 + self.fraction_width) - self.state_width - name - 6
-        return min(self.detail_width, available) if available >= 4 else 0
+        return min(self.detail_width, available) if available >= len("Details") else 0
 
     def widths(self, width):
         detail = self.inline_detail_width(width)
@@ -133,7 +134,7 @@ class ProgressColumns:
             yield Text(f"{self.name_label} / {self.progress_label} / {self.state_label}", style="bold")
         else:
             name, progress = self.widths(options.max_width)
-            tail = f"{self.state_label:<{self.state_width}}  Jobs" if self.inline_detail_width(options.max_width) else self.state_label
+            tail = f"{self.state_label:<{self.state_width}}  Details" if self.inline_detail_width(options.max_width) else self.state_label
             yield Text(f"{self.name_label:<{name}}  {self.progress_label:<{progress}}  {tail}", style="bold")
 
 
@@ -277,6 +278,7 @@ class InspectionStatus(Static):
         if browser.inspection is not None:
             elapsed = int(time.monotonic() - browser.inspection.started)
             lines.append(f"Refreshing... {elapsed}s elapsed")
+            lines.append(browser.inspection.progress(max(40, self.size.width)))
         if browser.failure:
             summary = " ".join(failure_summary(browser.failure).split())
             lines.append(middle_name("Refresh failed: " + summary, max(40, self.size.width)))
@@ -284,9 +286,9 @@ class InspectionStatus(Static):
         if browser.navigation_notice:
             lines.append(middle_name(browser.navigation_notice, max(40, self.size.width)))
         self.can_focus = bool(browser.failure)
-        value = "\n".join(lines)
+        value = Text("\n").join(line if isinstance(line, Text) else Text(line) for line in lines)
         if value != getattr(self, "last_value", None):
-            self.update(Text(value))
+            self.update(value)
             self.last_value = value
 
     def on_mount(self):
@@ -517,7 +519,6 @@ class TaskView(BrowserView):
     def __init__(self, task, breadcrumb):
         super().__init__(breadcrumb)
         self.observation = task
-        self.copy_commands = dict(zip(("copy-preview", "copy-run", "copy-cancel"), task["commands"]))
 
     def compose(self) -> ComposeResult:
         task = self.observation
@@ -527,21 +528,13 @@ class TaskView(BrowserView):
             lead = Text("State: ") + state_text(task["state"])
             lead.append("\nJobs completed: ")
             lead.append_text(progress_display(task['completed'], task['total']))
-            lead.append(f"\nNext action: {task['next_action']}\nReason: {task['reason']}")
+            lead.append(f"\nNext action: {task['next_action']}\nReason: {format_reason(task['reason'])}")
             with Vertical(classes="detail-panel") as panel:
                 panel.border_title = "Task"
                 yield Static(lead)
             columns = JobColumns(task['jobs'])
             yield self.listing([Option(JobPrompt(job, columns), id="job:" + job["name"]) for job in task['jobs']],
                                columns, "Jobs", classes="jobs-panel")
-            yield Static("Task: " + task["name"], markup=False)
-            with self.section("Attempt, paths, and diagnostics"):
-                yield Static(task["diagnostics"], markup=False)
-            yield Static("Ordinary commands (run in another terminal):")
-            for identifier, label in (("copy-preview", "Copy run preview"), ("copy-run", "Copy run command"),
-                                      ("copy-cancel", "Copy cancellation command")):
-                yield Static(self.copy_commands[identifier], markup=False)
-                yield Button(label, id=identifier)
         yield self.footer()
 
     def on_mount(self):
@@ -559,17 +552,11 @@ class TaskView(BrowserView):
         job = self.observation["jobs"][event.option_index]
         self.app.push_screen(JobView(job, [*self.breadcrumb, job["local"]]))
 
-    def on_button_pressed(self, event):
-        if event.button.id in self.copy_commands:
-            self.app.copy_to_clipboard(self.copy_commands[event.button.id])
-            event.stop()
-
     def observe_snapshot(self):
         task = next((task for task in self.snapshot["tasks"] if task["name"] == self.observation["name"]), None)
         if task is None or not cast(StatusBrowser, self.app).matches(task):
             return False
         self.observation = task
-        self.copy_commands = dict(zip(self.copy_commands, task["commands"]))
         return True
 
 
@@ -747,6 +734,7 @@ class Inspection:
         self.root = Path(self.directory.name)
         self.result = self.root / "snapshot.json"
         self.started = time.monotonic()
+        self.spinner = Spinner("dots")
         with (self.root / "stdout").open("wb") as output, (self.root / "stderr").open("wb") as errors:
             self.process = subprocess.Popen(
                 [sys.executable, "-m", "gwflow._inspection_process", *arguments[0],
@@ -759,7 +747,23 @@ class Inspection:
             stream.seek(max(0, os.fstat(stream.fileno()).st_size - 8192))
             lines = stream.read().decode(errors="replace").splitlines()
         return next((line for line in reversed(lines) if line.startswith(
-            ("Inspecting ", "Waiting ", "Pulling image:"))), "Loading workflow...")
+            ("Inspecting ", "Preparing ", "Checking ", "Waiting ", "Pulling image:"))), "Loading workflow...")
+
+    def progress(self, width):
+        try:
+            state = json.loads(self.result.with_suffix('.activity.json').read_text())
+        except FileNotFoundError:
+            state = dict(phase=self.phase(), total=None)
+        state = state or dict(phase="Finalizing inspection...", total=None)
+        if state['total'] is None:
+            self.spinner.update(text=state['phase'])
+            return self.spinner.render(time.monotonic())
+        label = state['phase'].rstrip('.') + ': '
+        fraction = f"{state['completed']}/{state['total']}"
+        available = width - cell_len(label) - len(fraction) - 3
+        separator = '' if available >= 3 else '\n'
+        bar_width = min(14, available if available >= 3 else width - len(fraction) - 3)
+        return Text(label + separator) + progress_display(state['completed'], state['total'], max(3, bar_width))
 
     def completed(self):
         return self.process.poll() is not None
@@ -805,13 +809,13 @@ class StatusBrowser(App[int]):
     .table-list > .option-list--option { padding: 0; }
     .table-list:focus > .option-list--option-highlighted { text-style: bold; }
     .detail-panel { height: auto; margin-bottom: 1; padding: 0 2; border: round $foreground 25%; }
-    .jobs-panel { height: 11; min-height: 3; max-height: 50%; }
+    .jobs-panel { height: 1fr; min-height: 8; }
     .compact .view-heading { margin-bottom: 0; }
     .compact .listing-panel { margin-top: 0; border: none; }
     .compact .list-columns { display: none; }
     .compact .table-list { padding: 0 1; }
     .compact .detail-panel { margin-bottom: 0; padding: 0; border: none; }
-    .compact .jobs-panel { height: 8; }
+    .compact .jobs-panel { min-height: 3; }
     .jobs { height: 8; min-height: 3; max-height: 50%; border: none; }
     .notice-pane { height: auto; min-height: 2; max-height: 25%; border-left: wide yellow; }
     .compact .notice-pane { height: 1; min-height: 1; max-height: 1; }
@@ -896,7 +900,8 @@ class StatusBrowser(App[int]):
         if self.inspection is None:
             return
         elapsed = int(time.monotonic() - self.inspection.started)
-        self.screen_stack[0].query_one("#activity", Static).update(f"{self.inspection.phase()}  {elapsed}s elapsed")
+        self.screen_stack[0].query_one("#activity", Static).update(
+            self.inspection.progress(self.size.width) + f"\n{elapsed}s elapsed")
         if not self.inspection.completed():
             return
         try:
