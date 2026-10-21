@@ -139,10 +139,10 @@ class LifecycleInspectionTests(LocalBackendTestCase):
         original = workflow.read_text()
         workflow.write_text(original.replace("a = gwf.task",
                                              "task.retain('extra', source=target.output('private.txt'), path='extra.txt')\na = gwf.task"))
-        self.assertIn("changed declared structure: retained mappings", self.preview())
+        self.assertIn("Reason: Changed declared structure: retained mappings", self.preview())
         workflow.write_text(original.replace("printf a", "printf UPDATED_A"))
         preview = self.preview()
-        self.assertIn("changed commands: compute", preview)
+        self.assertIn("Reason: Changed commands: compute", preview)
         self.assertIn("producer a will start a fresh attempt", preview)
         self.run_previewed(preview)
         self.finish()

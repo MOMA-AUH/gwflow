@@ -153,7 +153,7 @@ class StatusRefreshTests(LocalBackendTestCase):
         session.send('\r')
         session.wait_for('Jobs completed: 0/3')
         session.send('\r')
-        session.wait_for('Public job: mapping__A__gwflow_prepare')
+        session.wait_for('Public job:     mapping__A__gwflow_prepare')
         session.send('\x1b\x1b')
         (self.work / 'refresh-release').touch()
         session.wait_for('Showing 4 of 4 selected Tasks', after=checkpoint)
@@ -245,12 +245,12 @@ class StatusRefreshTests(LocalBackendTestCase):
         session.send('\r')
         session.wait_for('Jobs completed: 3/3')
         session.send('\x1b[B\r')
-        session.wait_for('Public job: mapping__A__compute')
+        session.wait_for('Public job:     mapping__A__compute')
         library = self.work / 'library.py'
         library.write_text(library.read_text().replace('printf result > out.txt', 'printf changed_result > out.txt'))
         checkpoint = session.send('r')
         session.wait_for('Requires repetition', after=checkpoint, timeout=5)
-        session.wait_for('Public job: mapping__A__compute', after=checkpoint)
+        session.wait_for('Public job:     mapping__A__compute', after=checkpoint)
         checkpoint = session.send('\x1b')
         session.wait_for('Jobs completed: 0/3', after=checkpoint)
         session.send('q')
@@ -264,7 +264,7 @@ class StatusRefreshTests(LocalBackendTestCase):
         session.send('\r')
         session.wait_for('Jobs completed: 0/3')
         session.send('\r')
-        session.wait_for('Public job: mapping__A__gwflow_prepare')
+        session.wait_for('Public job:     mapping__A__gwflow_prepare')
         (self.work / 'second.py').write_text((self.work / 'library.py').read_text())
         workflow = self.work / 'workflow.py'
         workflow.write_text(workflow.read_text() +
@@ -285,7 +285,7 @@ class StatusRefreshTests(LocalBackendTestCase):
         session.send('\r')
         session.wait_for('Jobs completed: 0/3')
         session.send('\x1b[B\r')
-        session.wait_for('Public job: mapping__A__compute')
+        session.wait_for('Public job:     mapping__A__compute')
         library = self.work / 'library.py'
         library.write_text(library.read_text().replace("target('compute'", "target('replacement'"))
         checkpoint = session.send('r')

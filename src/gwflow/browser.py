@@ -492,7 +492,10 @@ class TasksView(BrowserView):
         states = [state_text(task['state']).cell_len for task in tasks]
         if self.expanded:
             states.extend(job_state_text(job).cell_len for task in tasks for job in task['jobs'])
-        columns = ProgressColumns(max((cell_len(name) for name in names), default=8),
+        name_widths = [cell_len(name) for name in names]
+        if self.expanded:
+            name_widths.extend(cell_len(job['local']) + 2 for task in tasks for job in task['jobs'])
+        columns = ProgressColumns(max(name_widths, default=8),
                                   max((len(f"{task['completed']}/{task['total']}") for task in tasks), default=3),
                                   progress_label="Progress", state_width=max(states, default=5),
                                   name_label="Instance" if self.group is not None else "Name",
@@ -656,8 +659,8 @@ class ValueField(Static):
 class LogField(ValueField, can_focus=True):
     """Select a log stream independently of whether its pathname is truncated."""
 
-    BINDINGS = [Binding("up", "select_stream('stdout')", show=False),
-                Binding("down", "select_stream('stderr')", show=False)]
+    BINDINGS = [Binding("up", "select_stream('stdout')", show=False, priority=True),
+                Binding("down", "select_stream('stderr')", show=False, priority=True)]
 
     DEFAULT_CSS = """
     LogField:focus {
@@ -672,7 +675,7 @@ class LogField(ValueField, can_focus=True):
         self.stream = stream
 
     def action_select_stream(self, stream):
-        self.screen.query_one('#log-' + stream, LogField).focus()
+        self.screen.set_focus(self.screen.query_one('#log-' + stream, LogField))
 
     def on_key(self, event):
         if event.key == "enter":
@@ -708,6 +711,10 @@ class LogsPanel(Vertical):
 class JobDetailsView(BrowserView):
     """Shared Job and Logs panels for current and historical submissions."""
 
+    DEFAULT_CSS = """
+    JobDetailsView .job-information { height: 1fr; max-height: 9; }
+    """
+
     def compose(self) -> ComposeResult:
         yield self.heading()
         yield from self.notices(can_focus=False)
@@ -723,7 +730,7 @@ class JobDetailsView(BrowserView):
             state = Text(f"{symbol} {job['recorded_state']}", style=style)
         else:
             state = state_text(job['observed_state'])
-        with VerticalScroll(can_focus=False):
+        with VerticalScroll(can_focus=False, classes='job-information'):
             with Vertical(classes="detail-panel") as panel:
                 panel.border_title = "Job"
                 yield Static(Text.assemble((label, "bold"), " ", state))
@@ -736,7 +743,7 @@ class JobDetailsView(BrowserView):
                 task, _ = self.selection()
                 yield ValueField('Attempt:', (task or {}).get('attempt') or 'not recorded',
                                  label_width=len('Observed state:'))
-            yield LogsPanel(job['logs'])
+        yield LogsPanel(job['logs'])
 
     def footer(self):
         return self.shortcut_bar(('Enter', 'Open'), ('↑↓', 'Select stream'), ('Tab', 'Switch stream'),

@@ -181,7 +181,7 @@ class ContainerStagingTests(LocalBackendTestCase):
         before = self.snapshot()
         for arguments in (("run", "--dry-run", "--details"), ("status", "--details"), ("run", "--dry-run", "--details")):
             reason = ("fresh attempt required" if arguments[0] == "status" else
-                      "changed declared structure: target membership or file declarations")
+                      "Reason: Changed declared structure: target membership or file declarations")
             self.assertIn(reason, self.cli(*arguments))
             self.assertEqual(self.snapshot(), before)
         self.run_complete()

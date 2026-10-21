@@ -21,7 +21,7 @@ class RegistryRecoveryTests(test_registry_images.RegistryTestCase):
         for arguments in (("run", "--dry-run", "--details"), ("status", "--details"), ("run", "--dry-run", "--details")):
             output = self.cli(*arguments)
             expected = reason if reason in ("retry", "repair", "transfer") else "fresh attempt required"
-            self.assertIn(expected if arguments[0] == "status" else reason, output)
+            self.assertIn(expected if arguments[0] == "status" else reason, output.lower())
             self.assertEqual(self.snapshot(), before)
 
     def test_failed_reacquisition_preserves_cleaned_results_and_restoration_reuses(self):

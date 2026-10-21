@@ -377,13 +377,15 @@ class StatusFollowTests(unittest.IsolatedAsyncioTestCase):
             views = []
             for index in range(12):
                 await pilot.press('l', 'enter')
-                await self.shown(app, pilot, 'cycle reader')
+                await self.shown(app, pilot, f'follow cycle {index - 1}' if index else 'cycle reader')
+                with self.stdout.open('a') as stream:
+                    stream.write(f'follow cycle {index}\n')
                 await pilot.press('F')
-                await self.shown(app, pilot, 'Read at:')
+                await self.shown(app, pilot, f'follow cycle {index}')
                 await pilot.press('up')
                 self.assertNotIn('(live)', visible_text(app))
                 await pilot.press('F')
-                await self.shown(app, pilot, 'Read at:')
+                await self.shown(app, pilot, '(live)')
                 views.append(weakref.ref(app.screen))
                 await pilot.press('escape')
                 await pilot.pause()

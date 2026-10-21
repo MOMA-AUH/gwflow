@@ -611,9 +611,13 @@ class StatusLogWindowTests(unittest.IsolatedAsyncioTestCase):
                     break
                 self.assertIn('[line continues in next portion]', content)
                 await pilot.wait_for_scheduled_animations()
+                # A completed read schedules viewport restoration after render.
+                # Let that finish before positioning at the portion's end.
+                await pilot.pause()
                 pane = app.screen.query_one('#log-pane')
                 pane.scroll_to(y=pane.max_scroll_y, animate=False, immediate=True)
                 await pilot.pause()
+                self.assertTrue(pane.is_vertical_scroll_end)
                 await pilot.press('pagedown')
                 deadline = time.monotonic() + 20
                 while self.content(app) == content and time.monotonic() < deadline:
