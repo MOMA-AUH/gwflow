@@ -19,6 +19,7 @@ from rich.console import Console
 from textual.widgets import DataTable, OptionList, Static
 
 from fixtures.browser_workload import CapturedBrowser, captured_snapshot
+from gwflow._browser_read import ReadOperation
 from gwflow.browser import JobView, LogField, StatusBrowser, ValueField
 
 from support import FIXTURES, LocalBackendTestCase
@@ -93,7 +94,9 @@ class StatusLogInteractionTests(LocalBackendTestCase, unittest.IsolatedAsyncioTe
                 observed = (self.work / 'backend-observations.jsonl').read_bytes()
                 inspected = app.snapshot['finished']
                 await pilot.press('enter')
-                await self.history_loaded(app, pilot)
+                history = await self.history_loaded(app, pilot)
+                current_submissions = {job['submission'] for job in app.snapshot['tasks'][0]['jobs']}
+                self.assertTrue(current_submissions.isdisjoint(history.records))
                 self.assertNotIn('History read at', test_browser_interaction.visible_text(app))
                 task_view = app.screen
                 jobs = task_view.query_one('#task-jobs', OptionList)
@@ -163,6 +166,10 @@ class StatusLogInteractionTests(LocalBackendTestCase, unittest.IsolatedAsyncioTe
                 self.assertIs(app.screen, task_view)
                 self.assertIs(task_view.focused, listing)
                 self.assertEqual(listing.get_row_at(listing.cursor_row)[-1].plain, earlier)
+                await pilot.press('l')
+                self.assertIsInstance(app.screen, type(historical))
+                self.assertEqual(app.screen.selection()[1]['submission'], earlier)
+                await pilot.press('escape')
                 self.assertEqual(app.snapshot['finished'], inspected)
                 self.assertEqual((self.work / 'history-imports').read_text(), 'import\n')
                 self.assertEqual((self.work / 'backend-observations.jsonl').read_bytes(), observed)
@@ -175,18 +182,21 @@ class StatusLogInteractionTests(LocalBackendTestCase, unittest.IsolatedAsyncioTe
             await pilot.press('enter', 'enter')
             await self.shown(app, pilot, 'No earlier submissions.')
             panel = app.screen.query_one('#history-panel')
-            read_before = panel.result['finished']
+            read_before = panel.result
             self.run_complete()
             self.cli('run', '--force')
             self.finish()
             self.cli('clean', '--delete')
-            await pilot.press('r')
-            await self.shown(app, pilot, 'reusable')
-            self.assertIs(app.screen.query_one('#history-panel'), panel)
-            self.assertEqual(panel.result['finished'], read_before)
-            inspected = app.snapshot['finished']
-            await pilot.press('u')
-            await self.shown(app, pilot, 'Previous attempt')
+            with patch('gwflow.browser_evidence.ReadOperation', wraps=ReadOperation) as read:
+                await pilot.press('r')
+                await self.shown(app, pilot, 'reusable')
+                self.assertIs(app.screen.query_one('#history-panel'), panel)
+                self.assertIs(panel.result, read_before)
+                read.assert_not_called()
+                inspected = app.snapshot['finished']
+                await pilot.press('u')
+                await self.shown(app, pilot, 'Previous attempt')
+                read.assert_called_once_with({'kind': 'history', 'storage': panel.storage, 'task': panel.task_name})
             self.assertEqual(app.snapshot['finished'], inspected)
             listing = panel.query_one(DataTable)
             prompts = [listing.get_row_at(row) for row in range(listing.row_count)]

@@ -1013,11 +1013,8 @@ class StatusBrowser(App[int]):
     .compact .table-list { padding: 0 1; }
     .compact .detail-panel { margin-bottom: 0; padding: 0; border: none; }
     .compact .jobs-panel { min-height: 3; }
-    .jobs { height: 8; min-height: 3; max-height: 50%; border: none; }
     .notice-pane { height: auto; min-height: 2; max-height: 25%; border-left: wide yellow; }
     .compact .notice-pane { height: 1; min-height: 1; max-height: 1; }
-    .read-info { height: auto; min-height: 1; max-height: 25%; }
-    .compact .read-info { height: 2; max-height: 2; }
     #shortcuts, .shortcuts { height: 1; dock: bottom; }
     """
     BINDINGS = [Binding("q", "quit", "Quit"), Binding("ctrl+c", "interrupt", show=False, priority=True),

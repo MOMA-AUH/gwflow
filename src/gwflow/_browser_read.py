@@ -166,26 +166,21 @@ def read_history(storage, task):
         groups = []
         for attempt in attempts:
             observations = admission.observe_submissions(store, attempt, None, 'recorded')
+            is_current = attempt['attempt'] == current_id
+            if is_current:
+                current_submissions = {item.submission for item in admission.observe(store, attempt, None, 'recorded').values()}
+                observations = [item for item in observations if item.submission not in current_submissions]
             jobs = []
             for item in observations:
                 state = {'complete': 'completed', 'cancelled': 'canceled', 'uncertain': 'unknown'}.get(item.state, item.state)
                 jobs.append(dict(local=item.local, name=f'{task}__{item.local}', submission=item.submission,
                                  state=state, observed_state=state, recorded_state=item.state,
-                                 requires_repetition=False, backend_id=item.job_id, backend=item.intent['backend'],
+                                 requires_repetition=False, backend_id=item.job_id,
                                  logs={stream: str(store.working_dir / '.gwf' / 'logs' / f'{item.submission}.{stream}')
                                        for stream in ('stdout', 'stderr')}))
-            if attempt['attempt'] == current_id:
-                current_submissions = {item.submission for item in admission.observe(store, attempt, None, 'recorded').values()}
-                groups.append(dict(kind='current', label='Current recorded attempt ' + current_id, attempt=current_id,
-                                   jobs=[job for job in jobs if job['submission'] in current_submissions]))
-                earlier = [job for job in jobs if job['submission'] not in current_submissions]
-                if earlier:
-                    groups.append(dict(kind='retries', label='Earlier retries in current attempt ' + current_id,
-                                       attempt=current_id, jobs=earlier))
-            else:
-                groups.append(dict(kind='previous', label='Previous attempt ' + attempt['attempt'],
-                                   attempt=attempt['attempt'], jobs=jobs))
-    return dict(groups=groups, current_attempt=current_id, finished=time.time())
+            if jobs or not is_current:
+                groups.append(dict(kind='retries' if is_current else 'previous', attempt=attempt['attempt'], jobs=jobs))
+    return dict(groups=groups)
 
 
 if __name__ == '__main__':

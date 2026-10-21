@@ -102,8 +102,7 @@ class StreamChooser(PinnedView):
             yield Static(f"Task: {self.observation['name']}\nPublic job: {self.job['name']}\n"
                          f"Attempt: {self.observation.get('attempt') or 'not recorded'}\n"
                          f"Submission: {self.job['submission'] or 'not submitted'}\n"
-                         f"{'Recorded' if 'recorded_state' in self.job else 'Captured'} state: "
-                         f"{self.job.get('recorded_state', self.job['observed_state'])}\n"
+                         f"Captured state: {self.job['observed_state']}\n"
                          f"Backend job: {self.job['backend_id'] if self.job['backend_id'] is not None else 'unavailable'}",
                          markup=False)
         yield LogsPanel(self.job['logs'])
@@ -470,8 +469,6 @@ class HistoryPanel(Vertical):
         self.records = {}
         table.clear()
         for group in result['groups']:
-            if group['kind'] == 'current':
-                continue
             category = Text('Earlier submission', style='cyan') if group['kind'] == 'retries' else Text('Previous attempt', style='magenta')
             if not group['jobs']:
                 table.add_row(Text('No recorded submissions'), '', category, Text(group['attempt']), '',
