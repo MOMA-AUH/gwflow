@@ -342,9 +342,9 @@ class BrowserView(Screen):
     def footer(self):
         return Static(Shortcuts(), classes="shortcuts")
 
-    def listing(self, options, columns, title, *, classes=""):
+    def listing(self, options, columns, title, *, classes="", list_id=None):
         panel = Vertical(Static(columns, classes="list-columns"),
-                         OptionList(*options, classes="listing table-list"),
+                         OptionList(*options, classes="listing table-list", id=list_id),
                          classes="listing-panel " + classes)
         panel.border_title = title
         return panel
@@ -490,7 +490,7 @@ class TasksView(BrowserView):
         self.set_focus(self.query_one(OptionList))
 
     def footer(self):
-        return Static(Shortcuts('↑↓ Enter h history' + (' l logs' if self.expanded else ''),
+        return Static(Shortcuts('↑↓ Enter' + (' l logs' if self.expanded else ''),
                                 'Esc back g groups / f r ? q quit'), classes='shortcuts')
 
     def selection(self):
@@ -516,43 +516,89 @@ class TasksView(BrowserView):
 
 
 class TaskView(BrowserView):
+    BINDINGS = [Binding('u', 'reload_history', show=False)]
+    DEFAULT_CSS = """
+    TaskView .jobs-panel { min-height: 3; max-height: 50%; }
+    TaskView .jobs-panel:focus-within { border: round $accent; }
+    """
+
     def __init__(self, task, breadcrumb):
         super().__init__(breadcrumb)
         self.observation = task
 
+    def summary(self):
+        task = self.observation
+        return Text.assemble(
+            ("State:", "bold"), " ", state_text(task["state"]),
+            ("\nJobs completed:", "bold"), " ", progress_display(task['completed'], task['total']),
+            ("\nNext action:", "bold"), f" {task['next_action']}",
+            ("\nReason:", "bold"), f" {format_reason(task['reason'])}",
+        )
+
     def compose(self) -> ComposeResult:
+        from .browser_evidence import HistoryPanel
         task = self.observation
         yield self.heading()
-        yield from self.notices()
-        with VerticalScroll():
-            lead = Text.assemble(
-                ("State:", "bold"), " ", state_text(task["state"]),
-                ("\nJobs completed:", "bold"), " ", progress_display(task['completed'], task['total']),
-                ("\nNext action:", "bold"), f" {task['next_action']}",
-                ("\nReason:", "bold"), f" {format_reason(task['reason'])}",
-            )
+        with VerticalScroll(id='task-notices', classes='notice-pane', can_focus=False) as notices:
+            notices.display = bool(self.snapshot.get('notices'))
+            yield Static(Text(self.snapshot.get('notices', ''), style='yellow'))
+        with VerticalScroll(can_focus=False):
             with Vertical(classes="detail-panel") as panel:
                 panel.border_title = "Task"
-                yield Static(lead)
+                yield Static(self.summary(), id='task-summary')
             columns = JobColumns(task['jobs'])
-            yield self.listing([Option(JobPrompt(job, columns), id="job:" + job["name"]) for job in task['jobs']],
-                               columns, "Jobs", classes="jobs-panel")
+            jobs = self.listing([Option(JobPrompt(job, columns), id="job:" + job["name"]) for job in task['jobs']],
+                                columns, "Jobs", classes="jobs-panel", list_id='task-jobs')
+            jobs.styles.height = len(task['jobs']) + 4
+            yield jobs
+            self.history = HistoryPanel(task, self.snapshot.get('storage'))
+            yield self.history
         yield self.footer()
 
     def on_mount(self):
-        self.set_focus(self.query_one(OptionList), scroll_visible=False)
+        self.set_focus(self.query_one('#task-jobs', OptionList), scroll_visible=False)
+
+    def on_resize(self, event):
+        super().on_resize(event)
+        self.call_after_refresh(self.scroll_focused_panel)
+
+    def scroll_focused_panel(self):
+        if isinstance(self.focused, OptionList):
+            self.focused.parent.scroll_visible(animate=False)
 
     def footer(self):
-        return Static(Shortcuts('↑↓ Enter h history l logs Tab', 'Esc back g groups / f r ? q quit'), classes='shortcuts')
+        return Static(Shortcuts('↑↓ Enter Tab u history', 'l r Esc ? q quit'), classes='shortcuts')
 
     def selection(self):
-        index = self.query_one(OptionList).highlighted
+        if self.focused is self.history.query_one(OptionList):
+            return self.history.selection()
+        index = self.query_one('#task-jobs', OptionList).highlighted
         jobs = self.observation['jobs']
         return self.observation, jobs[index] if index is not None and index < len(jobs) else None
 
     def on_option_list_option_selected(self, event):
-        job = self.observation["jobs"][event.option_index]
-        self.app.push_screen(JobView(job, [*self.breadcrumb, job["local"]]))
+        if event.option_list.id == 'task-jobs':
+            job = self.observation["jobs"][event.option_index]
+            self.app.push_screen(JobView(job, [*self.breadcrumb, job["local"]]))
+
+    def action_reload_history(self):
+        self.history.reload()
+
+    async def refresh_contents(self, navigation=None):
+        navigation = self.capture_navigation() if navigation is None else navigation
+        self.query_one('.breadcrumb', Static).update(Breadcrumb(self.breadcrumb))
+        self.query_one('#task-summary', Static).update(self.summary())
+        notices = self.query_one('#task-notices')
+        notices.display = bool(self.snapshot.get('notices'))
+        notices.query_one(Static).update(Text(self.snapshot.get('notices', ''), style='yellow'))
+        jobs = self.observation['jobs']
+        columns = JobColumns(jobs)
+        self.query_one('.jobs-panel .list-columns', Static).update(columns)
+        self.query_one('.jobs-panel').styles.height = len(jobs) + 4
+        listing = self.query_one('#task-jobs', OptionList)
+        listing.clear_options()
+        listing.add_options(Option(JobPrompt(job, columns), id='job:' + job['name']) for job in jobs)
+        self.app.call_after_refresh(self.restore_navigation, navigation)
 
     def observe_snapshot(self):
         task = next((task for task in self.snapshot["tasks"] if task["name"] == self.observation["name"]), None)
@@ -640,7 +686,7 @@ class JobView(BrowserView):
         yield self.footer()
 
     def footer(self):
-        return Static(Shortcuts('↑↓ stdout/stderr Enter open h history', 'Esc back g groups r refresh ? q quit'), classes='shortcuts')
+        return Static(Shortcuts('↑↓ stdout/stderr Enter open', 'Esc back g groups r refresh ? q quit'), classes='shortcuts')
 
     def on_mount(self):
         self.set_focus(self.query_one(LogField))
@@ -680,7 +726,7 @@ class HelpView(BrowserView):
                          "Home/End: first/last row or beginning/end of details\nPage Up/Page Down: page through rows or details\n"
                          "Tab/Shift+Tab: move between controls and expandable sections\n"
                          "g: grouped summary within the original selection\n?: keyboard reference\nq: quit\n"
-                         "h: read selected Task history (recorded evidence only)\n"
+                         "In Task details, Tab switches Jobs/History; Enter opens a job or historical logs.\n"
                          "l: choose stdout/stderr for the selected job or historical submission\n"
                          "In Job details, use Up/Down and Enter to open a log; l is disabled.\n"
                          "u: reload the current log/history; status age stays unchanged\n"
@@ -896,7 +942,6 @@ class StatusBrowser(App[int]):
     BINDINGS = [Binding("q", "quit", "Quit"), Binding("ctrl+c", "interrupt", show=False, priority=True),
                 Binding("g", "groups", "Groups"), Binding("r", "refresh", "Refresh"),
                 Binding("l", "logs", "Logs"),
-                Binding("h", "history", "History"),
                 Binding("slash", "search", "Search"), Binding("f", "filter", "Filter"),
                 Binding("question_mark", "help", "Help")]
 
@@ -1046,13 +1091,6 @@ class StatusBrowser(App[int]):
             if task is not None and job is not None:
                 from .browser_evidence import StreamChooser
                 self.push_screen(StreamChooser(task, job, self.screen.breadcrumb))
-
-    def action_history(self):
-        if not self.too_small and isinstance(self.screen, BrowserView):
-            from .browser_evidence import HistoryView
-            task, _ = self.screen.selection()
-            if task is not None and not isinstance(self.screen, HistoryView):
-                self.push_screen(HistoryView(task, self.snapshot['storage'], self.screen.breadcrumb))
 
     def action_filter(self):
         if not self.too_small and self.snapshot is not None and not isinstance(self.screen, StateFilterView):

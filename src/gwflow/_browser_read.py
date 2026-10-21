@@ -173,14 +173,15 @@ def read_history(storage, task):
                                        for stream in ('stdout', 'stderr')}))
             if attempt['attempt'] == current_id:
                 current_submissions = {item.submission for item in admission.observe(store, attempt, None, 'recorded').values()}
-                groups.append(dict(label='Current recorded attempt ' + current_id, attempt=current_id,
+                groups.append(dict(kind='current', label='Current recorded attempt ' + current_id, attempt=current_id,
                                    jobs=[job for job in jobs if job['submission'] in current_submissions]))
                 earlier = [job for job in jobs if job['submission'] not in current_submissions]
                 if earlier:
-                    groups.append(dict(label='Earlier retries in current attempt ' + current_id,
+                    groups.append(dict(kind='retries', label='Earlier retries in current attempt ' + current_id,
                                        attempt=current_id, jobs=earlier))
             else:
-                groups.append(dict(label='Previous attempt ' + attempt['attempt'], attempt=attempt['attempt'], jobs=jobs))
+                groups.append(dict(kind='previous', label='Previous attempt ' + attempt['attempt'],
+                                   attempt=attempt['attempt'], jobs=jobs))
     return dict(groups=groups, current_attempt=current_id, finished=time.time())
 
 

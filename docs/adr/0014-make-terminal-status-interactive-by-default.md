@@ -124,7 +124,7 @@ position. Entry through `--details` still starts with jobs expanded in the Task
 list; it does not require drilling into every Task to see those jobs.
 
 Complete the keyboard map with contextual shortcuts: `g` opens the grouped
-summary within the original selection; `h` opens the selected Task's history;
+summary within the original selection; Task history is a visible panel, with no `h` shortcut;
 `l` opens a stdout/stderr chooser for the selected job or historical submission.
 Home and End move to the first and last rows, or the beginning and latest content
 in logs. Page Up and Page Down page through rows or log content. Tab and Shift+Tab
@@ -204,7 +204,7 @@ Keep the previous snapshot available for responsive navigation while showing
 "Refreshing...". Replace the displayed snapshot together only after a successful
 inspection. Preserve the current screen, filters, selected item, and scroll
 position where possible. If the selected item disappears, return to the nearest
-surviving parent and explain the change, except for pinned log and history views
+surviving parent and explain the change, except for pinned log views
 as specified below. This is a presentation boundary, not a claim that source
 observations form a distributed atomic snapshot.
 
@@ -281,7 +281,7 @@ fields are not focusable. The Logs panel uses `stdout` and `stderr` labels;
 Up/Down selects these streams regardless of pathname length, and Enter or a click
 opens the selected log directly. Tab remains available for focus navigation.
 Esc restores focus to the selected stream.
-Disable `l` in Job details while retaining `h` for Task history.
+Disable `l` in Job details. Access history through the parent Task view, without an `h` shortcut.
 Use the existing bounded log reader without re-inspecting the workflow.
 
 For example, `mapping__B` can show state Failed, Jobs completed 3/5, Next action
@@ -342,13 +342,20 @@ validation remains separate follow-up outside CI, consistent with the existing
 release plan, and is not a v0.8.0 release gate. Keep automated candidate evidence
 distinct from historical real-Slurm validation.
 
-Provide in-app log and history views, loading their additional data only when
-requested. Task and job details use the existing status snapshot. Opening stdout
-or stderr reads the file for that specific submission. Opening Task history
-reads saved records of earlier submissions and attempts, clearly distinguishing
-earlier retries within the current attempt from previous attempts. Historical
-views show recorded evidence without querying the scheduler merely to browse
-history.
+Provide an in-app log view and a History panel below Jobs in the Task view.
+Opening a Task starts an independent, stoppable background history read. Jobs
+uses enough height for its current rows, capped so History gets the remaining
+space; both lists scroll independently. Tab switches between the lists, Up/Down
+selects, and Enter opens a job or a historical submission's stream chooser.
+Remove `h` from all views and help.
+
+Task and job status details use the existing snapshot. History reads saved
+records without scheduler queries, showing earlier retries and previous attempts
+grouped by attempt. Omit current recorded submissions already represented in Jobs.
+Preserve empty previous attempts; show “No earlier submissions.” when there are
+no earlier records. Opening stdout or stderr reads that exact submission's file.
+History failures preserve previously loaded entries. Closing the Task stops and
+reaps a pending reader. Returning from a historical log restores its selection.
 
 Give log and history reads their own timestamps; opening them does not refresh
 the status snapshot or reset its age. Show missing files and read failures in the
@@ -375,19 +382,20 @@ first and last lines as well. Keep the viewer tied to the chosen submission even
 if a later retry creates another submission.
 
 Use `u` to reload the current log while preserving the reading position where
-possible; when already at the end, show the latest output. In a history view,
+possible; when already at the end, show the latest output. In the Task view,
 `u` reloads the saved history records. `r` remains the separate workflow-status
 refresh.
 
-An open log or Task history view stays in place when a successful status refresh
+An open log view stays in place when a successful status refresh
 changes its current attempt or submission or removes its Task from the refreshed
 selection. Preserve the selected log, reading position, and following mode.
 When a newer submission becomes current, explain that change while continuing
-to identify the original submission being viewed. History keeps its independent
-read timestamp, and `u` reloads its saved records.
+to identify the original submission being viewed. The Task History panel keeps its independent
+read timestamp and contents across `r`; `u` reloads its saved records. If the Task
+is removed from the selection, the Task view returns to its surviving parent.
 
 If the Task is absent from the successfully refreshed selection, show "Task no
-longer in the refreshed selection" and retain the open log or history view until
+longer in the refreshed selection" and retain the open log view until
 the user leaves it. Esc then returns to the nearest surviving parent in the new
 status view. This is an explicit exception to navigation fallback for disappearing
 items. Missing or unreadable logs retain the failure behavior specified below.

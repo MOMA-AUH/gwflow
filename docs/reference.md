@@ -223,9 +223,9 @@ a stream regardless of pathname length; Enter or a click opens that log directly
 Tab and Shift+Tab also switch between streams.
 Esc returns to the selected stream. Opening a log reads its saved contents without
 inspecting the workflow again.
-In Job details, `l` is disabled; `h` still opens Task history.
+In Job details, `l` is disabled. History is in the parent Task view; there is no `h` shortcut.
 Individual jobs have states, without computation percentages. The Jobs table
-uses the available space; Task details omit command suggestions and copy buttons.
+uses enough space for its rows, with a scroll limit to leave room for History; Task details omit command suggestions and copy buttons.
 The browser executes no
 run, cancellation, cleanup, or recovery commands.
 
@@ -240,7 +240,6 @@ run, cancellation, cleanup, or recovery commands.
 | `/` | Edit a literal, case-insensitive Task-name search; Enter applies, Esc cancels |
 | `f` | Edit primary Task states; Space toggles, Enter applies, Esc cancels, `c` clears choices |
 | `r` | Inspect again using the original workflow, backend, and Task selectors |
-| `h` | Read the selected Task's saved history |
 | `l` | Choose stdout/stderr for the selected job or historical submission; Job details use Up/Down and Enter instead |
 | `u` | Reload the current log/history without inspecting status |
 | `F` | Toggle following of the selected log; initially off |
@@ -260,17 +259,27 @@ any now-unmatched selector makes refresh fail. The old snapshot stays browsable
 while inspection runs. Success replaces the observations together, preserving
 the current view, filters, stable item focus, and scroll where possible. If an
 item disappears, status returns to the nearest surviving parent and explains why.
-Open log and history views remain pinned, with a notice when their Task leaves
+Open log views remain pinned, with a notice when their Task leaves
 the refreshed selection or current work changes. Esc then finds the nearest
 surviving parent. A now-unmatched original selector still makes refresh fail.
 
-History reads only the selected Task's saved records, distinguishing current
-recorded submissions, earlier retries within the current attempt, and previous
-attempts. Empty attempts remain visible, including after work cleanup. The
-recorded states are evidence from disk, without new scheduler observations.
-Enter or `l` on a history submission opens its stream chooser. Choosers and logs
-show complete Task, attempt, public-job, and exact-submission identities; scroll
-their details to read long names and paths.
+The Task view includes a **History** panel below Jobs. Opening the Task starts a
+background read of its saved records without inspecting the workflow or querying
+the scheduler. Jobs shows current observations; History shows earlier retries
+within the current attempt and previous attempts, grouped by attempt. Current
+recorded submissions are omitted from History to avoid repeating Jobs. Empty
+previous attempts remain visible, including after work cleanup; a Task with no
+earlier records shows “No earlier submissions.”
+
+Tab switches between Jobs and History. Each panel scrolls independently; use
+Up/Down to select an entry and Enter to open a current job or a historical
+submission's stdout/stderr chooser. `l` also opens the selected submission's
+chooser. Returning from a historical log restores the History selection.
+History states are recorded evidence, not fresh scheduler observations. `u`
+reloads history without refreshing status; `r` refreshes the Task and Jobs while
+preserving the history already read. Leaving the Task stops any pending history
+read. If a refresh removes the Task, normal parent navigation applies; an open
+historical log remains pinned to its exact submission.
 
 Logs initially show up to the latest 200 newline-delimited lines. A 64 KiB byte
 window can contain fewer lines or only part of one exceptionally long line;
