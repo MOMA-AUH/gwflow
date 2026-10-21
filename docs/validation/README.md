@@ -9,6 +9,8 @@ numbers identify that context inside each record.
 The [v0.8.0 candidate record](v0.8.0/acceptance.md) ties the combined regression
 journeys and interactive measurements to the installed release candidate and
 documents the separate publication verification procedure.
+The [v0.8.0 publication record](v0.8.0/publication.md) identifies the published
+artifact and records its successful channel installation and smoke checks.
 
 ## Local checks
 
