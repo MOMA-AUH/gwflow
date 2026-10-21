@@ -1,0 +1,25 @@
+{
+  "release": "v0.8.0",
+  "source_commit": "e4d8bd2b86d0c0454c6192669029e8b5f71f4128",
+  "workflow_run": "https://github.com/MOMA-AUH/gwflow/actions/runs/39637951722",
+  "artifact": {
+    "filename": "gwflow-0.8.0-py_0.conda",
+    "sha256": "36252c9e3af0cf63ce510728fc61d88dfcb0146abc16906dc2b7da65ad3b1da2",
+    "size_bytes": 83896,
+    "url": "https://conda.anaconda.org/MOMA-AUH/noarch/gwflow-0.8.0-py_0.conda",
+    "build": "py_0"
+  },
+  "versions": {
+    "python": "3.12.15",
+    "gwflow": "0.8.0",
+    "gwf": "2.1.1",
+    "rich": "15.0.0",
+    "textual": "8.2.8"
+  },
+  "platform": {
+    "system": "Linux",
+    "machine": "x86_64"
+  },
+  "verification": "Fresh channel installation matches the tested artifact; release smoke checks passed.",
+  "scope": "Pre-1.0 publication provenance; not the future v1.0.0 stable compatibility baseline."
+}
