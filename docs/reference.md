@@ -212,13 +212,29 @@ and a plain static report.
 
 In the browser, Enter opens the selected group, Task, or job on a full-width
 screen. Breadcrumbs show the current location. Task details lead with state,
-Jobs completed, Next action, and the concrete reason; expandable sections show
-attempt identities, paths, and diagnostics. Job details retain the captured
+Jobs completed, Next action, and the concrete reason, followed by the Jobs table.
+Task details omit the former attempt, paths, and diagnostics panel.
+Job details retain the captured
 submission state and identity even when that work must repeat for Task progress.
-Individual jobs have states, without computation percentages. Ordinary command
-hints include copy buttons, retaining full Task names and workflow/backend
-options; clipboard support depends on the terminal. The browser executes no
+Job identifiers and log paths occupy one line with aligned bold labels. Long
+values are shortened in the middle without expandable or horizontally scrolling
+fields. The Logs panel is a two-column **Kind / Path** table, with `stdout` and
+`stderr` rows, a shaded header, and an unshaded separator. Up/Down selects
+a stream regardless of pathname length; Enter or a click opens that log directly.
+Tab and Shift+Tab also switch between streams.
+Esc returns to the selected stream. Opening a log reads its saved contents without
+inspecting the workflow again.
+In Job details, `l` is disabled. History is in the parent Task view; there is no `h` shortcut.
+Individual jobs have states, without computation percentages. The Jobs table
+uses enough space for its rows, with a scroll limit to leave room for History; Task details omit command suggestions and copy buttons.
+The browser executes no
 run, cancellation, cleanup, or recovery commands.
+
+The one-line footer separates key–action pairs with `│`. Keys are bold cyan;
+labels remain plain. Actions depend on the current view, with Back, Help, and
+Quit at the end where applicable. Narrow terminals keep the essential actions
+and omit whole lower-priority pairs; `?` opens the complete keyboard reference.
+Search shows Apply and Cancel because shortcut letters are entered as text.
 
 | Key | Action |
 | --- | --- |
@@ -231,10 +247,10 @@ run, cancellation, cleanup, or recovery commands.
 | `/` | Edit a literal, case-insensitive Task-name search; Enter applies, Esc cancels |
 | `f` | Edit primary Task states; Space toggles, Enter applies, Esc cancels, `c` clears choices |
 | `r` | Inspect again using the original workflow, backend, and Task selectors |
-| `h` | Read the selected Task's saved history |
-| `l` | Choose stdout/stderr for the selected job or historical submission |
+| `l` | Choose stdout/stderr for the selected job or historical submission; Job details use Up/Down and Enter instead |
 | `u` | Reload the current log/history without inspecting status |
 | `F` | Toggle following of the selected log; initially off |
+| `w` | Toggle log wrapping; initially off. Left/Right scroll unwrapped lines |
 | `?` | Show the keyboard reference and captured inspection diagnostics |
 | `q` | Quit status |
 | Ctrl+C | Interrupt using ordinary CLI behavior |
@@ -250,44 +266,86 @@ any now-unmatched selector makes refresh fail. The old snapshot stays browsable
 while inspection runs. Success replaces the observations together, preserving
 the current view, filters, stable item focus, and scroll where possible. If an
 item disappears, status returns to the nearest surviving parent and explains why.
-Open log and history views remain pinned, with a notice when their Task leaves
+Open log and historical Job views remain pinned, with a notice when their Task leaves
 the refreshed selection or current work changes. Esc then finds the nearest
 surviving parent. A now-unmatched original selector still makes refresh fail.
 
-History reads only the selected Task's saved records, distinguishing current
-recorded submissions, earlier retries within the current attempt, and previous
-attempts. Empty attempts remain visible, including after work cleanup. The
-recorded states are evidence from disk, without new scheduler observations.
-Enter or `l` on a history submission opens its stream chooser. Choosers and logs
-show complete Task, attempt, public-job, and exact-submission identities; scroll
-their details to read long names and paths.
+The Task view includes a **History** panel below Jobs. Opening the Task starts a
+background read of its saved records without inspecting the workflow or querying
+the scheduler. Jobs shows current observations; History shows earlier retries
+within the current attempt and previous attempts, grouped by attempt. Current
+recorded submissions are omitted from History to avoid repeating Jobs. Empty
+previous attempts remain visible, including after work cleanup; a Task with no
+earlier records shows “No earlier submissions.”
+
+History uses a compact table with one line per submission: Job, Recorded state,
+History (Earlier submission or Previous attempt), Attempt, and Submission. State
+symbols and colors follow the other status views; history categories use cyan and
+magenta. Long identifiers stay on one line. Left/Right scrolls horizontally;
+Home/End goes to the left/right edge. The column headings remain visible while
+scrolling vertically, with a thin separator underneath. History has no read-timestamp line.
+All table headings use the same shaded background. History's Job column aligns
+with its panel title and the Jobs table's Name column.
+
+Tab switches between Jobs and History. Each panel scrolls independently; use
+Up/Down to select an entry and Enter to open its Job and Logs panels. Historical
+submissions use the same layout and stream controls as current jobs: Up/Down or
+Tab selects stdout/stderr and Enter opens the log. Historical details show the
+recorded state and remain tied to the selected submission across
+status refreshes. `l` on a History row also opens these panels; inside Job details
+it is disabled. Esc from a log restores its selected stream; another Esc returns
+to the selected History row.
+Both current and historical Job panels include Attempt below Backend job.
+History states are recorded evidence, not fresh scheduler observations. `u`
+reloads history without refreshing status; `r` refreshes the Task and Jobs while
+preserving the history already read. Leaving the Task stops any pending history
+read. If a refresh removes the Task, normal parent navigation applies; an open
+historical Job view or log remains pinned to its exact submission.
 
 Logs initially show up to the latest 200 newline-delimited lines. A 64 KiB byte
 window can contain fewer lines or only part of one exceptionally long line;
 the read notice identifies that limit. Page Up/Down scroll within the portion
 and read the adjacent portion at its edge. Home/End jump directly to the
-beginning/latest, without scanning the file for a total line count. Text wraps,
-and lines longer than 2,048 characters are segmented with continuation markers.
+beginning/latest, without scanning the file for a total line count. Logs open
+without wrapping; Left/Right scroll horizontally. Press `w` to toggle wrapping;
+the log panel border shows the current setting. When wrapping is enabled, lines
+longer than 2,048 characters are segmented with continuation markers.
 Paging preserves UTF-8 character boundaries and keeps every portion accessible.
 
-Each read has its own timestamp. `u` preserves the log's reading position where
+Each log read has its own timestamp. The previous read details remain visible while
+the next read is pending, keeping live updates from shifting the panels.
+`u` preserves the log's reading position where
 possible, or loads the latest output when already at the end. It reloads saved
 history without changing the status snapshot or its age. `r` leaves independently
 read text, history, and their positions intact. Following starts off. A missing or
 unreadable stream shows its failure and preserves any previously read portion.
+For a missing file, the viewer says “No stdout/stderr log available” and explains
+that the submission may not have started or its log may have been removed.
+Attempt and Path remain visible, without a raw file-not-found error or permissions
+advice. Missing logs do not change the recorded job state.
 While following is off, detected replacement, truncation, or changes to the previous portion preserve
 the displayed text and offer `u`; paging never joins old and replacement content.
-Tab focuses the read details, where arrows scroll complete notices and errors
-even at 40 × 12. Read failures do not change the latest inspection's exit result.
+The `Log information` panel shows **Read at:** with a timestamp, followed by
+**Attempt:** and **Path:**. A green `(live)` appears beside the timestamp only
+while following; manual mode has no indicator. Task and Public job names remain
+in the breadcrumb. The path identifies the submission, so there is no separate
+Submission field or Details section. Long identifiers and paths stay on one line.
+Partial reads show a short notice such as “Showing latest 200 lines”; complete
+and empty files omit this notice. Errors and file-change notices remain visible.
+The selected stream opens automatically in its own panel below, which uses
+the remaining space and receives initial keyboard focus. Empty files show
+`Log is empty.` Tab switches to the information panel, where arrows scroll
+complete notices and errors even at 40 × 12. Read failures do not change the
+latest inspection's exit result.
 
-Uppercase `F` enables live following of the selected exact-submission path,
-checking about once per second and keeping the latest bounded portion at the
-end. The visible following/paused state is independent of the status snapshot's
+Uppercase `F` toggles between manual mode and live following of the selected
+exact-submission path. Live mode checks about once per second and keeps the
+latest bounded portion at the end. The live indicator is independent of the status snapshot's
 age. Up, Page Up, Home, upward mouse-wheel scrolling, and upward scrollbar
-movement pause following; `F` resumes it. End jumps to latest without enabling
-following. `u` while following also reads the latest portion. Leaving the log,
-including opening Help, filters, or a terminal-size overlay, pauses following
-and stops its pending read and retries. Returning leaves it paused.
+movement switch to manual mode; `F` enables live mode again. End jumps to latest
+without enabling following. `u` while following also reads the latest portion. Leaving the log,
+including opening Help, filters, or a terminal-size overlay, switches to manual mode
+and stops its pending read and retries. Returning leaves it in manual mode.
 
 Following reloads the latest portion after detected replacement, truncation, or
 rewriting, and retains a visible change notice. If output advances beyond the
@@ -322,6 +380,13 @@ For example, a 24-Task group with 14 reusable, four active, and six failed Tasks
 still shows 14/24 and those counts when the failed filter exposes six matches.
 Required workflow notices remain visible when their affected Tasks are hidden.
 
+Inside a Task group, the panel title identifies the group and the `Instance`
+column shows each Task's Instance key, or `(no key)` when none was supplied.
+Lists spanning groups retain full Task names. Search still matches full Task
+names, and details retain them. Job summaries and workspace notes share the
+Task's row in a `Details` column when space permits; longer summaries and narrow
+terminals place them underneath.
+
 Snapshot age measures time since the last successful inspection. A failed
 refresh retains those observations and their age, with a visible error; Tab
 focuses the error banner and Enter opens complete error details. A later
@@ -337,7 +402,7 @@ the previous completed result. Final inspection errors remain on stderr. Unexpec
 failures restore the terminal and report the full exception chain on stderr.
 Shrinking below 40 × 12 shows a resize notice; enlarging restores the current
 view without another inspection. Long list names may use ellipses; full names
-remain available in details and copied commands.
+remain available in details.
 
 Resolve Task selectors before `--status` filtering. A valid selection emptied by
 the filter succeeds with an empty report (`No Tasks match the filter.` in the
@@ -387,6 +452,17 @@ Every Task state retains a progress bar in formatted reports. Unknown completion
 appears as `?/N` with a stationary hatched bar and a concrete explanation, such
 as image unavailability or an unresolved submission. It is distinct from known
 zero progress; plain reports retain the fraction and reason without a bar.
+Interactive views, static reports, and submission progress share the same
+heavy chevrons in standard green, gray light chevrons for the remaining
+track, and yellow slashes for unknown counts. The terminal dim attribute is
+disabled. Completed and remaining progress remain distinct when color is disabled.
+
+During initial inspection and refresh, a spinner marks the scheduler wait.
+Once its initial observations are available, `Inspecting Tasks: 37/120` counts
+finished Task inspections within the inspection scope, including required
+upstream Tasks and blocked Tasks. This is inspection progress, not completed
+jobs or an estimate of remaining time. Dependency checks follow as a separate
+phase. Plain and redirected output print phase messages without per-Task counts.
 
 The primary states are pending, queued, preparing, running, finishing, reusable,
 repairable, deferred, failed, canceled, and blocked. Blockage takes precedence

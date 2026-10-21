@@ -13,7 +13,6 @@ from gwf.backends import BackendStatus
 from rich import box
 from rich.console import Console, Group
 from rich.panel import Panel
-from rich.progress_bar import ProgressBar
 from rich.table import Table
 from rich.text import Text
 
@@ -89,10 +88,24 @@ def task_order(workflow, plan):
         yield remaining.pop(name)
 
 
-def progress_text(completed, total, width=10):
-    filled = int(width * completed / total) if completed is not None and total else 0
-    bar = "/" * width if completed is None else "━" * filled + "─" * (width - filled)
-    return f"{'?' if completed is None else completed}/{total} [{bar}]"
+def progress_bar(completed, total, width=14):
+    """Render counted progress consistently in interactive and static reports."""
+    bar = Text("[", style="#808080 not dim not bold")
+    if completed is None:
+        bar.append("/" * width, "yellow not dim")
+    else:
+        filled = int(width * completed / total) if total else 0
+        bar.append("❯" * filled, "green not dim")
+        bar.append("›" * (width - filled))
+    bar.append("]")
+    return bar
+
+
+def progress_display(completed, total, width=14, *, fraction_width=0):
+    fraction = f"{'?' if completed is None else completed}/{total}"
+    text = Text(fraction.rjust(fraction_width) + " ", style="default not dim not bold")
+    text.append_text(progress_bar(completed, total, width))
+    return text
 
 
 def observed_job_state(task, local):
@@ -171,6 +184,11 @@ def task_row(task):
         else:
             detail.append("progress unavailable: unresolved submission")
     return TaskRow(task, state, completed, len(jobs), "; ".join(detail), jobs)
+
+
+def format_reason(reason):
+    """Use sentence case without changing embedded identifiers or paths."""
+    return reason[:1].upper() + reason[1:]
 
 
 def blocking_reason(reason):
@@ -338,6 +356,11 @@ class Report:
 
     def status_line(self, value, *, style=""):
         """Wrap prose at whitespace; leave identifiers intact for the terminal."""
+        if isinstance(value, Text):
+            if not self.plain:
+                self.console.print(value, style=style)
+                return
+            value = value.plain
         if not self.terminal:
             click.echo(value, color=False)
             return
@@ -357,9 +380,9 @@ class Report:
     def progress(self, completed, total):
         fraction = f"{'?' if completed is None else completed}/{total}"
         if self.plain:
-            return fraction
+            return Text(fraction)
         width = max(3, min(18, self.console.width - len(fraction) - 22))
-        return progress_text(completed, total, width)
+        return progress_display(completed, total, width)
 
     def _state_counts(self, counts):
         labels = []
@@ -396,10 +419,10 @@ class Report:
         entries = []
         for group, members in visible:
             counts = overview_counts(members)
-            fraction = Text(self.progress(counts['reusable'], len(members)))
+            fraction = self.progress(counts['reusable'], len(members))
             if not self.plain:
                 symbol, style = _VISUALS["reusable"]
-                fraction = Text(f"{symbol} {fraction.plain}", style=style if counts["reusable"] else "dim")
+                fraction = Text(f"{symbol} ", style=style) + fraction
             other = self._state_counts({state: count for state, count in counts.items() if state != "reusable"})
             if matching is not None:
                 count = sum(row.task.name in matching for row in members)
@@ -679,12 +702,17 @@ class Report:
             if expand:
                 for name, state in self._status_jobs(row):
                     entries.append((["", name, state, "", ""], state))
-        widths = [max(Text(cells[index]).cell_len for cells in [headers, *(cells for cells, _ in entries)])
+        headers = [Text(value) for value in headers]
+        entries = [([value if isinstance(value, Text) else Text(value) for value in cells], state)
+                   for cells, state in entries]
+        widths = [max(cells[index].cell_len for cells in [headers, *(cells for cells, _ in entries)])
                   for index in range(len(headers))]
         if not self.terminal or sum(widths) + 2 * (len(widths) - 1) <= self.console.width:
             def line(cells):
-                return "  ".join(value + " " * (width - Text(value).cell_len)
-                                 for value, width in zip(cells, widths)).rstrip()
+                text = Text("  ").join(value + " " * (width - value.cell_len)
+                                      for value, width in zip(cells, widths))
+                text.rstrip()
+                return text
             self.status_line(line(headers), style="bold")
             for cells, state in entries:
                 self.status_line(line(cells), style=_VISUALS[state][1])
@@ -694,7 +722,7 @@ class Report:
                 self.status_line("")
             self.status_line(row.task.name, style="bold")
             self.status_line("  State: " + row.state, style=_VISUALS[row.state][1])
-            self.status_line("  Jobs completed: " + self.progress(row.completed, row.total))
+            self.status_line(Text("  Jobs completed: ") + self.progress(row.completed, row.total))
             if row.detail:
                 self.status_line("  " + row.detail)
             if expand:
@@ -771,8 +799,8 @@ class Report:
             confirmed = sum(outcome.confirmed for outcome in outcomes)
             count = f"{confirmed}/{len(outcomes)} confirmed"
             row = Table.grid(padding=(0, 1))
-            width = max(3, min(30, self.console.width - len(count) - 2))
-            row.add_row(ProgressBar(total=len(outcomes), completed=confirmed, width=width), Text(count))
+            width = max(3, min(30, self.console.width - len(count) - 4))
+            row.add_row(progress_bar(confirmed, len(outcomes), width), Text(count))
             return Group(Text("Submitting jobs"), row)
 
         with live_report(get_renderable=render, console=self.console, refresh_per_second=4,
@@ -843,7 +871,7 @@ class Report:
                 table.add_row(self.text(name, style=style), self.state(state))
         if not self.plain and self.console.width >= 48:
             self.console.print(table)
-        for line in (f"Condition: {condition(task)}", f"Next action: {NEXT_ACTIONS[task.action]}", f"Reason: {task.reason}",
+        for line in (f"Condition: {condition(task)}", f"Next action: {NEXT_ACTIONS[task.action]}", f"Reason: {format_reason(task.reason)}",
                      *task_details(self.store, task)):
             self.line("  " + line)
 

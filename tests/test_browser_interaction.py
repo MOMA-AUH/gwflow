@@ -1,12 +1,12 @@
 """Status keyboard and layout behavior using Textual's public interaction API."""
 
 import asyncio
-import shlex
 import time
 import unittest
 import xml.etree.ElementTree as ET
 
 from gwflow.browser import StatusBrowser
+from rich.cells import cell_len
 from support import LocalBackendTestCase
 import test_graphs
 import test_grouped_status
@@ -14,8 +14,17 @@ import test_grouped_status
 
 def visible_text(app):
     svg = ET.fromstring(app.export_screenshot())
-    return '\n'.join(''.join(node.itertext()).replace('\xa0', ' ')
-                     for node in svg.iter('{http://www.w3.org/2000/svg}text'))
+    rows = {}
+    for node in svg.iter('{http://www.w3.org/2000/svg}text'):
+        text = ''.join(node.itertext()).replace('\xa0', ' ')
+        if not text.strip() or node.get('textLength') is None:
+            continue
+        cell_width = float(node.get('textLength')) / cell_len(text)
+        column = round(float(node.get('x')) / cell_width)
+        row = rows.get(node.get('y'), '')
+        # Styled spans are separate SVG nodes; preserve their visual spacing.
+        rows[node.get('y')] = row + ' ' * max(0, column - cell_len(row)) + text
+    return '\n'.join(rows.values())
 
 
 class BrowserInteractionTests(LocalBackendTestCase, unittest.IsolatedAsyncioTestCase):
@@ -37,6 +46,38 @@ class BrowserInteractionTests(LocalBackendTestCase, unittest.IsolatedAsyncioTest
             await asyncio.sleep(0.05)
         self.fail(f'{expected!r} not visible:\n{text}')
 
+    async def test_group_instances_use_declared_keys_and_keep_full_task_identity(self):
+        test_grouped_status.GroupedStatusTests.configure_workflow(self)
+        (self.work / 'second.py').write_text((self.work / 'library.py').read_text())
+        (self.work / 'workflow.py').write_text(
+            'from gwflow import Workflow\nfrom library import mapping\n'
+            'from second import mapping as other\ngwf = Workflow()\n'
+            "gwf.task(mapping(), alias='reads__map', key='A__rep1')\n"
+            "gwf.task(mapping(), alias='reads__map', key='B')\n"
+            "gwf.task(mapping(), alias='reads__map')\n"
+            "gwf.task(other(), alias='reads__map', key='C')\n")
+        app = self.browser()
+        async with app.run_test(size=(80, 24)) as pilot:
+            await self.shown(app, pilot, 'reads__map@library.mapping')
+            await pilot.press('enter')
+            text = await self.shown(app, pilot, 'Instance')
+            self.assertIn('A__rep1', text)
+            self.assertIn('(no key)', text)
+            self.assertNotIn('reads__map__A__rep1', text)
+            self.assertEqual({task['name']: task['instance_key'] for task in app.snapshot['tasks']},
+                             {'reads__map__A__rep1': 'A__rep1', 'reads__map__B': 'B',
+                              'reads__map': None, 'reads__map__C': 'C'})
+            await pilot.press('end', 'enter')
+            await self.shown(app, pilot, 'Jobs completed:')
+            self.assertEqual(app.screen.observation['name'], 'reads__map')
+            await pilot.press('escape', 'slash', *'reads__map__A__rep1', 'enter')
+            text = await self.shown(app, pilot, 'Showing 1 of 4 selected Tasks')
+            self.assertIn('A__rep1', text)
+            await pilot.press('enter')
+            await self.shown(app, pilot, 'reads__map__A__rep1')
+            self.assertEqual(app.screen.observation['name'], 'reads__map__A__rep1')
+            await pilot.press('q')
+
     async def test_normal_compact_and_large_views_survive_resize_without_reinspection(self):
         workflow = self.work / 'workflow.py'
         workflow.write_text(workflow.read_text() +
@@ -49,8 +90,8 @@ class BrowserInteractionTests(LocalBackendTestCase, unittest.IsolatedAsyncioTest
                     await pilot.press('enter')
                     text = await self.shown(app, pilot, '0/5')
                     self.assertIn('pending', text)
-                    self.assertIn('─', text)
-                    self.assertIn('q quit', text)
+                    self.assertIn('›', text)
+                    self.assertIn('q Quit', text)
                     await pilot.resize_terminal(30, 8)
                     await self.shown(app, pilot, 'Terminal too small', timeout=3)
                     await pilot.resize_terminal(*size)
@@ -86,7 +127,7 @@ class BrowserInteractionTests(LocalBackendTestCase, unittest.IsolatedAsyncioTest
             await self.shown(app, pilot, 'sample_000_end')
             await pilot.press('q')
 
-    async def test_tab_controls_expose_diagnostics_and_copy_complete_commands(self):
+    async def test_task_details_focus_on_jobs_without_extra_panels(self):
         name = 'sample_' + 'long_name_' * 18 + 'final'
         workflow = self.work / 'workflow.py'
         workflow.write_text(workflow.read_text().replace("alias='sample'", f'alias={name!r}') + '\ncustom = gwf\n')
@@ -98,11 +139,9 @@ class BrowserInteractionTests(LocalBackendTestCase, unittest.IsolatedAsyncioTest
             await self.shown(app, pilot, '0/5')
             await pilot.press('enter')
             await self.shown(app, pilot, 'Jobs completed:')
-            await pilot.press('tab', 'tab', 'enter')
-            command = shlex.split(app.clipboard)
-            self.assertEqual(command[-3:], ['run', name, '--dry-run'])
-            self.assertEqual(command[command.index('--file') + 1], str(custom) + ':custom')
-            self.assertEqual(command[command.index('--backend') + 1], 'local')
-            await pilot.press('shift+tab', 'enter')
-            await self.shown(app, pilot, 'Attempt:')
+            self.assertFalse(app.screen.query('Button'))
+            self.assertNotIn('Ordinary commands', visible_text(app))
+            self.assertFalse(app.screen.query('Collapsible'))
+            await pilot.press('enter')
+            await self.shown(app, pilot, 'Observed state:')
             await pilot.press('q')

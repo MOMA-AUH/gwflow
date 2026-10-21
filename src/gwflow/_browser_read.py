@@ -86,7 +86,10 @@ class ReadOperation:
 def read_log(path, *, direction='backward', offset=None, previous=None, following=False):
     if path is None:
         return {'error': 'No recorded submission for this stream.'}
-    fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK | os.O_CLOEXEC)
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK | os.O_CLOEXEC)
+    except FileNotFoundError:
+        return {'error': 'Log file not found.', 'error_kind': 'missing'}
     try:
         metadata = os.fstat(fd)
         if not stat.S_ISREG(metadata.st_mode):
@@ -163,25 +166,21 @@ def read_history(storage, task):
         groups = []
         for attempt in attempts:
             observations = admission.observe_submissions(store, attempt, None, 'recorded')
+            is_current = attempt['attempt'] == current_id
+            if is_current:
+                current_submissions = {item.submission for item in admission.observe(store, attempt, None, 'recorded').values()}
+                observations = [item for item in observations if item.submission not in current_submissions]
             jobs = []
             for item in observations:
                 state = {'complete': 'completed', 'cancelled': 'canceled', 'uncertain': 'unknown'}.get(item.state, item.state)
                 jobs.append(dict(local=item.local, name=f'{task}__{item.local}', submission=item.submission,
                                  state=state, observed_state=state, recorded_state=item.state,
-                                 requires_repetition=False, backend_id=item.job_id, backend=item.intent['backend'],
+                                 requires_repetition=False, backend_id=item.job_id,
                                  logs={stream: str(store.working_dir / '.gwf' / 'logs' / f'{item.submission}.{stream}')
                                        for stream in ('stdout', 'stderr')}))
-            if attempt['attempt'] == current_id:
-                current_submissions = {item.submission for item in admission.observe(store, attempt, None, 'recorded').values()}
-                groups.append(dict(label='Current recorded attempt ' + current_id, attempt=current_id,
-                                   jobs=[job for job in jobs if job['submission'] in current_submissions]))
-                earlier = [job for job in jobs if job['submission'] not in current_submissions]
-                if earlier:
-                    groups.append(dict(label='Earlier retries in current attempt ' + current_id,
-                                       attempt=current_id, jobs=earlier))
-            else:
-                groups.append(dict(label='Previous attempt ' + attempt['attempt'], attempt=attempt['attempt'], jobs=jobs))
-    return dict(groups=groups, current_attempt=current_id, finished=time.time())
+            if jobs or not is_current:
+                groups.append(dict(kind='retries' if is_current else 'previous', attempt=attempt['attempt'], jobs=jobs))
+    return dict(groups=groups)
 
 
 if __name__ == '__main__':

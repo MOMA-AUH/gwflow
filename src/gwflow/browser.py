@@ -14,17 +14,18 @@ from typing import cast
 import click
 from rich.text import Text
 from rich.cells import cell_len
+from rich.spinner import Spinner
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Vertical, VerticalScroll
 from textual.filter import Monochrome, NoColor
 from textual.screen import Screen
-from textual.widgets import Button, Collapsible, Input, OptionList, SelectionList, Static
+from textual.widgets import Collapsible, DataTable, Input, OptionList, SelectionList, Static
 from textual.widgets._collapsible import CollapsibleTitle
 from textual.widgets.option_list import Option
 
 from .diagnostics import error_message
-from .presentation import ACTIVE, STATES, _VISUALS, progress_text
+from .presentation import ACTIVE, STATES, _VISUALS, format_reason, progress_display
 
 
 def state_text(state):
@@ -57,12 +58,29 @@ class Breadcrumb:
 
 
 class Shortcuts:
-    def __init__(self, primary="↑↓ Enter open  Esc back  Tab  g groups", secondary="/ find f filter r refresh ? help q quit"):
-        self.primary, self.secondary = primary, secondary
+    """Fit complete key–action pairs on one line, in priority order."""
+
+    def __init__(self, *actions, back=None, show_help=True, show_quit=True):
+        self.actions = actions
+        self.trailing = ([('Esc', back)] if back else []) + ([('?', 'Help')] if show_help else [])
+        if show_quit:
+            self.trailing.append(('q', 'Quit'))
 
     def __rich_console__(self, console, options):
-        separator = "  " if len(self.primary) + len(self.secondary) + 2 <= options.max_width else "\n"
-        yield Text(self.primary + separator + self.secondary)
+        def width(items):
+            return sum(cell_len(key + ' ' + label) for key, label in items) + max(0, len(items) - 1) * 3
+
+        selected = []
+        for action in self.actions:
+            if width([*selected, action, *self.trailing]) <= options.max_width:
+                selected.append(action)
+        result = Text(no_wrap=True, overflow='crop')
+        for key, label in [*selected, *self.trailing]:
+            if result:
+                result.append(' │ ', style='dim')
+            result.append(key, style='bold cyan')
+            result.append(' ' + label)
+        yield result
 
 
 class Scope:
@@ -76,64 +94,188 @@ class Scope:
         if width < 60:
             states = middle_name(self.states, max(4, (width - 16) // 2))
             name_query = middle_name(self.name_query, width - cell_len(states) - 16)
-            yield Text(f"Showing {self.shown}/{self.selected} selected; workflow {self.total}\n"
-                       f"Scope: {middle_name(self.selectors, width - 7)}\n"
-                       f"State: {states}; Name: {name_query}")
+            yield Text.assemble(
+                f"Showing {self.shown}/{self.selected} selected; workflow {self.total}\n",
+                ("Scope:", "bold"), f" {middle_name(self.selectors, width - 7)}\n",
+                ("State:", "bold"), f" {states}; ", ("Name:", "bold"), f" {name_query}",
+            )
         else:
             states = middle_name(self.states, max(8, width // 4))
             selectors = middle_name(self.selectors, (width - 24) // 3)
             name_query = middle_name(self.name_query, width - cell_len(states) - cell_len(selectors) - 24)
-            yield Text(f"Showing {self.shown} of {self.selected} selected Tasks ({self.total} in workflow)\n"
-                       f"Scope: {selectors}; State: {states}; Name: {name_query}")
+            yield Text.assemble(
+                f"Showing {self.shown} of {self.selected} selected Tasks ({self.total} in workflow)\n",
+                ("Scope:", "bold"), f" {selectors}; ",
+                ("State:", "bold"), f" {states}; ", ("Name:", "bold"), f" {name_query}",
+            )
+
+
+class ProgressColumns:
+    """Shared headings and widths for a list of names, progress, and states."""
+
+    def __init__(self, name_width, fraction_width, *, progress_label="Reusable", state_width=None, name_label="Name",
+                 detail_width=0):
+        self.name_width, self.fraction_width = max(8, name_width), fraction_width
+        self.progress_label, self.state_width = progress_label, state_width
+        self.state_label = "Other states" if state_width is None else "State"
+        self.name_label = name_label
+        self.detail_width = max(len("Details"), detail_width) if detail_width else 0
+
+    def bar_width(self, width):
+        if self.detail_width and self.state_width is not None and width >= 70:
+            name = min(self.name_width, max(12, width // 4))
+            available = width - name - self.state_width - self.fraction_width - 9 - min(self.detail_width, 20)
+            return max(6, min(14, available))
+        return 14
+
+    def inline_detail_width(self, width):
+        if not self.detail_width or self.state_width is None or width < 70:
+            return 0
+        name = min(self.name_width, max(12, width // 4))
+        available = width - (self.bar_width(width) + 3 + self.fraction_width) - self.state_width - name - 6
+        return min(self.detail_width, available) if available >= len("Details") else 0
+
+    def widths(self, width):
+        detail = self.inline_detail_width(width)
+        progress = self.bar_width(width) + 3 + self.fraction_width
+        if detail:
+            return min(self.name_width, width - progress - self.state_width - detail - 6), progress
+        available = width * 2 // 5 if self.state_width is None else width - progress - self.state_width - 4
+        return min(self.name_width, max(8, available)), progress
+
+    def progress(self, completed, total, *, bar_width=14):
+        return progress_display(completed, total, bar_width, fraction_width=self.fraction_width)
+
+    def __rich_console__(self, console, options):
+        if options.max_width < 70:
+            yield Text(f"{self.name_label} / {self.progress_label} / {self.state_label}", style="bold")
+        else:
+            name, progress = self.widths(options.max_width)
+            tail = f"{self.state_label:<{self.state_width}}  Details" if self.inline_detail_width(options.max_width) else self.state_label
+            yield Text(f"{self.name_label:<{name}}  {self.progress_label:<{progress}}  {tail}", style="bold")
+
+
+class JobColumns:
+    def __init__(self, jobs):
+        self.name_width = max((cell_len(job['local']) for job in jobs), default=8)
+        self.state_width = max((job_state_text(job).cell_len for job in jobs), default=5)
+
+    def width(self, width):
+        return max(8, min(self.name_width, width - self.state_width - 2))
+
+    def __rich_console__(self, console, options):
+        yield Text(f"{'Name':<{self.width(options.max_width)}}  State", style="bold")
+
+
+def job_state_text(job):
+    state = state_text(job["observed_state"])
+    if job["requires_repetition"]:
+        state.append("; repeat required")
+    return state
 
 
 class GroupPrompt:
-    def __init__(self, label, counts, total, matching):
+    def __init__(self, label, counts, total, matching, columns):
         self.label, self.counts, self.total, self.matching = label, counts, total, matching
+        self.columns = columns
 
     def __rich_console__(self, console, options):
-        line = Text(middle_name(self.label, options.max_width) + "\n")
-        width = max(3, min(18, options.max_width - len(f"{self.counts['reusable']}/{self.total}") - 5))
-        line.append("✓ " + progress_text(self.counts['reusable'], self.total, width), "green")
-        line.append("\n" if options.max_width < 60 else "  ")
+        states = Text()
         for state, count in self.counts.items():
-            line.append_text(state_text(state))
-            line.append(f" {count}  ")
+            if state == "reusable":
+                continue
+            if states:
+                states.append("  ")
+            states.append_text(state_text(state))
+            states.append(f" {count}")
+        name_width, progress_width = self.columns.widths(options.max_width)
+        single_line = options.max_width >= 70 and name_width + progress_width + states.cell_len + 4 <= options.max_width
+        if single_line:
+            name = middle_name(self.label, name_width)
+            line = Text(name + " " * (name_width - cell_len(name)) + "  ")
+            line.append_text(self.columns.progress(self.counts['reusable'], self.total))
+            line.append("  ")
+        else:
+            line = Text(middle_name(self.label, options.max_width) + "\n")
+            width = max(3, min(18, options.max_width - len(f"{self.counts['reusable']}/{self.total}") - 5))
+            progress = Text.assemble(("✓ ", "green"))
+            progress.append_text(progress_display(self.counts['reusable'], self.total, width))
+            line.append_text(progress)
+            if states:
+                line.append("\n" if progress.cell_len + states.cell_len + 2 > options.max_width else "  ")
+        line.append_text(states)
         if self.matching is not None:
             line.append(f"\n{self.matching} Task{'s match' if self.matching != 1 else ' matches'} the filter")
         yield line
 
 
+def task_summary(detail):
+    parts = []
+    for part in detail.split('; '):
+        words = part.split()
+        if len(words) == 3 and words[0].isdigit() and words[1] in ('job', 'jobs'):
+            part = f'{words[0]} {words[2]}'
+        parts.append(part)
+    return ' · '.join(parts)
+
+
 class TaskPrompt:
-    def __init__(self, task):
-        self.task = task
+    def __init__(self, task, columns, display_name):
+        self.task, self.columns = task, columns
+        self.display_name = display_name
+        self.detail = task_summary(task['detail'])
 
     def __rich_console__(self, console, options):
         task = self.task
         state = state_text(task["state"])
         fraction = f"{task['completed']}/{task['total']}"
-        width = max(3, min(18, options.max_width - state.cell_len - len(fraction) - 5))
-        line = Text(middle_name(task["name"], options.max_width) + "\n")
-        line.append_text(state)
-        line.append("  " + progress_text(task["completed"], task["total"], width))
-        if task["detail"]:
-            line.append("\n" + task["detail"])
+        name_width, progress_width = self.columns.widths(options.max_width)
+        detail_indent = 2
+        inline_detail = False
+        if options.max_width >= 70 and name_width + progress_width + state.cell_len + 4 <= options.max_width:
+            name = middle_name(self.display_name, name_width)
+            line = Text(name + " " * (name_width - cell_len(name)) + "  ")
+            detail_width = self.columns.inline_detail_width(options.max_width)
+            line.append_text(self.columns.progress(task['completed'], task['total'],
+                                                  bar_width=self.columns.bar_width(options.max_width)))
+            line.append("  ")
+            line.append_text(state)
+            inline_detail = detail_width and cell_len(self.detail) <= detail_width and '\n' not in self.detail
+            if inline_detail and self.detail:
+                line.append(' ' * (self.columns.state_width - state.cell_len + 2))
+                line.append(self.detail)
+            detail_indent = name_width + 2
+        else:
+            width = max(3, min(18, options.max_width - state.cell_len - len(fraction) - 5))
+            line = Text(middle_name(self.display_name, options.max_width) + "\n")
+            line.append_text(state)
+            line.append("  ")
+            line.append_text(progress_display(task["completed"], task["total"], width))
+        if self.detail and not inline_detail:
+            for detail_line in Text(self.detail).wrap(console, max(1, options.max_width - detail_indent)):
+                line.append("\n" + " " * detail_indent + detail_line.plain)
         yield line
 
 
 class JobPrompt:
-    def __init__(self, job):
-        self.job = job
+    def __init__(self, job, columns):
+        self.job, self.columns = job, columns
 
     def __rich_console__(self, console, options):
-        state = state_text(self.job["observed_state"])
-        if self.job["requires_repetition"]:
-            state.append("; repeat required")
+        state = job_state_text(self.job)
         name = self.job["local"]
-        if cell_len(name) + state.cell_len + 2 <= options.max_width:
-            yield Text(name + "  ") + state
+        if isinstance(self.columns, ProgressColumns):
+            # Expanded jobs share their parent Task's state column.
+            name_width, progress_width = self.columns.widths(options.max_width)
+            indent, gap = "  ", progress_width + 4
         else:
-            yield Text(middle_name(name, options.max_width) + "\n") + state
+            name_width = self.columns.width(options.max_width)
+            indent, gap = "", 2
+        if name_width + gap + state.cell_len <= options.max_width:
+            name = indent + middle_name(name, name_width - len(indent))
+            yield Text(name + " " * (name_width - cell_len(name) + gap)) + state
+        else:
+            yield Text(indent + middle_name(name, options.max_width - len(indent)) + "\n") + state
 
 
 def failure_summary(failure):
@@ -153,6 +295,7 @@ class InspectionStatus(Static):
         if browser.inspection is not None:
             elapsed = int(time.monotonic() - browser.inspection.started)
             lines.append(f"Refreshing... {elapsed}s elapsed")
+            lines.append(browser.inspection.progress(max(40, self.size.width)))
         if browser.failure:
             summary = " ".join(failure_summary(browser.failure).split())
             lines.append(middle_name("Refresh failed: " + summary, max(40, self.size.width)))
@@ -160,9 +303,9 @@ class InspectionStatus(Static):
         if browser.navigation_notice:
             lines.append(middle_name(browser.navigation_notice, max(40, self.size.width)))
         self.can_focus = bool(browser.failure)
-        value = "\n".join(lines)
+        value = Text("\n").join(line if isinstance(line, Text) else Text(line) for line in lines)
         if value != getattr(self, "last_value", None):
-            self.update(Text(value))
+            self.update(value)
             self.last_value = value
 
     def on_mount(self):
@@ -214,11 +357,23 @@ class BrowserView(Screen):
                             browser.name_query))
 
     def footer(self):
-        return Static(Shortcuts(), classes="shortcuts")
+        return self.shortcut_bar(('Enter', 'Open'), ('↑↓', 'Select'), ('/', 'Search'),
+                                 ('f', 'Filter'), ('r', 'Refresh'))
 
-    def notices(self):
+    def shortcut_bar(self, *actions, back='Back', show_help=True, show_quit=True):
+        return Static(Shortcuts(*actions, back=back if len(self.app.screen_stack) > 2 else None,
+                                show_help=show_help, show_quit=show_quit), classes='shortcuts')
+
+    def listing(self, options, columns, title, *, classes="", list_id=None):
+        panel = Vertical(Vertical(Static(columns, classes="list-columns"), classes="list-heading"),
+                         OptionList(*options, classes="listing table-list", id=list_id),
+                         classes="listing-panel " + classes)
+        panel.border_title = title
+        return panel
+
+    def notices(self, *, can_focus=True):
         if self.snapshot.get("notices"):
-            with VerticalScroll(classes="notice-pane"):
+            with VerticalScroll(classes="notice-pane", can_focus=can_focus):
                 yield Static(Text(self.snapshot["notices"], style="yellow"))
 
     def observe_snapshot(self):
@@ -233,6 +388,9 @@ class BrowserView(Screen):
 
     def on_resize(self, event):
         self.set_class(event.size.height < 18, "compact")
+        # Stacking can make the selected row taller than its previous viewport.
+        for listing in self.query(OptionList):
+            self.call_after_refresh(listing.scroll_to_highlight)
 
     def section(self, title):
         return Collapsible(title=title, collapsed=self.section_states.get(title, True))
@@ -285,6 +443,9 @@ class GroupsView(BrowserView):
         yield self.scope()
         yield from self.notices()
         options = []
+        columns = ProgressColumns(max((cell_len(group['label']) for group in self.snapshot['groups']), default=8),
+                               max((len(f"{len(group['members'])}/{len(group['members'])}")
+                                    for group in self.snapshot['groups']), default=3))
         tasks = {task["name"]: task for task in self.snapshot["tasks"]}
         for group in self.snapshot["groups"]:
             members = [tasks[name] for name in group["members"]]
@@ -295,9 +456,10 @@ class GroupsView(BrowserView):
             counts = Counter("active" if task["state"] in ACTIVE else task["state"] for task in members)
             options.append(Option(GroupPrompt(group["label"], counts, len(members),
                                               matching if (cast(StatusBrowser, self.app).statuses or
-                                                           cast(StatusBrowser, self.app).name_query) else None),
+                                                           cast(StatusBrowser, self.app).name_query) else None,
+                                              columns),
                                   id="group:" + group["key"]))
-        yield OptionList(*options, classes="listing")
+        yield self.listing(options, columns, "Groups")
         yield self.footer()
 
     def on_mount(self):
@@ -321,29 +483,41 @@ class TasksView(BrowserView):
         yield self.heading()
         yield self.scope()
         yield from self.notices()
-        yield Static(Breadcrumb(["Tasks in " + self.group if self.group else "Selected Tasks"]),
-                     classes="task-list-label")
+        tasks = [task for task in self.snapshot['tasks'] if cast(StatusBrowser, self.app).matches(task)
+                 and (self.members is None or task['name'] in self.members)]
+        # Instance keys are captured from naming metadata: neither a qualified
+        # group label nor splitting a name on '__' reliably identifies the key.
+        names = [(task.get('instance_key', task['name']) or '(no key)') if self.group is not None
+                 else task['name'] for task in tasks]
+        states = [state_text(task['state']).cell_len for task in tasks]
+        if self.expanded:
+            states.extend(job_state_text(job).cell_len for task in tasks for job in task['jobs'])
+        name_widths = [cell_len(name) for name in names]
+        if self.expanded:
+            name_widths.extend(cell_len(job['local']) + 2 for task in tasks for job in task['jobs'])
+        columns = ProgressColumns(max(name_widths, default=8),
+                                  max((len(f"{task['completed']}/{task['total']}") for task in tasks), default=3),
+                                  progress_label="Progress", state_width=max(states, default=5),
+                                  name_label="Instance" if self.group is not None else "Name",
+                                  detail_width=max((cell_len(task_summary(task['detail'])) for task in tasks), default=0))
         options = []
-        for task in self.snapshot["tasks"]:
-            if not cast(StatusBrowser, self.app).matches(task):
-                continue
-            if self.members is not None and task["name"] not in self.members:
-                continue
-            options.append(Option(TaskPrompt(task), id="task:" + task["name"]))
+        for task, name in zip(tasks, names):
+            options.append(Option(TaskPrompt(task, columns, name), id="task:" + task["name"]))
             self.items.append((task, None))
             if self.expanded:
                 for job in task["jobs"]:
-                    options.append(Option(JobPrompt(job), id="job:" + job["name"]))
+                    options.append(Option(JobPrompt(job, columns), id="job:" + job["name"]))
                     self.items.append((task, job))
-        yield OptionList(*options, classes="listing")
+        yield self.listing(options, columns, self.group if self.group is not None else "Selected Tasks")
         yield self.footer()
 
     def on_mount(self):
         self.set_focus(self.query_one(OptionList))
 
     def footer(self):
-        return Static(Shortcuts('↑↓ Enter h history' + (' l logs' if self.expanded else ''),
-                                'Esc back g groups / f r ? q quit'), classes='shortcuts')
+        logs = [('l', 'Logs')] if self.expanded else []
+        return self.shortcut_bar(('Enter', 'Open'), ('↑↓', 'Select'), *logs, ('/', 'Search'),
+                                 ('f', 'Filter'), ('r', 'Refresh'), ('g', 'Groups'))
 
     def selection(self):
         index = self.query_one(OptionList).highlighted
@@ -368,81 +542,227 @@ class TasksView(BrowserView):
 
 
 class TaskView(BrowserView):
+    BINDINGS = [Binding('u', 'reload_history', show=False)]
+    DEFAULT_CSS = """
+    TaskView .jobs-panel { min-height: 3; max-height: 50%; }
+    TaskView .jobs-panel:focus-within { border: round $accent; }
+    """
+
     def __init__(self, task, breadcrumb):
         super().__init__(breadcrumb)
         self.observation = task
-        self.copy_commands = dict(zip(("copy-preview", "copy-run", "copy-cancel"), task["commands"]))
+
+    def summary(self):
+        task = self.observation
+        return Text.assemble(
+            ("State:", "bold"), " ", state_text(task["state"]),
+            ("\nJobs completed:", "bold"), " ", progress_display(task['completed'], task['total']),
+            ("\nNext action:", "bold"), f" {task['next_action']}",
+            ("\nReason:", "bold"), f" {format_reason(task['reason'])}",
+        )
 
     def compose(self) -> ComposeResult:
+        from .browser_evidence import HistoryPanel
         task = self.observation
         yield self.heading()
-        yield from self.notices()
-        with VerticalScroll():
-            lead = Text("State: ") + state_text(task["state"])
-            lead.append(f"\nJobs completed: {progress_text(task['completed'], task['total'])}"
-                        f"\nNext action: {task['next_action']}\nReason: {task['reason']}")
-            yield Static(lead)
-            yield OptionList(*(Option(JobPrompt(job), id="job:" + job["name"]) for job in task["jobs"]), classes="jobs")
-            yield Static("Task: " + task["name"], markup=False)
-            with self.section("Attempt, paths, and diagnostics"):
-                yield Static(task["diagnostics"], markup=False)
-            yield Static("Ordinary commands (run in another terminal):")
-            for identifier, label in (("copy-preview", "Copy run preview"), ("copy-run", "Copy run command"),
-                                      ("copy-cancel", "Copy cancellation command")):
-                yield Static(self.copy_commands[identifier], markup=False)
-                yield Button(label, id=identifier)
+        with VerticalScroll(id='task-notices', classes='notice-pane', can_focus=False) as notices:
+            notices.display = bool(self.snapshot.get('notices'))
+            yield Static(Text(self.snapshot.get('notices', ''), style='yellow'))
+        with VerticalScroll(can_focus=False):
+            with Vertical(classes="detail-panel") as panel:
+                panel.border_title = "Task"
+                yield Static(self.summary(), id='task-summary')
+            columns = JobColumns(task['jobs'])
+            jobs = self.listing([Option(JobPrompt(job, columns), id="job:" + job["name"]) for job in task['jobs']],
+                                columns, "Jobs", classes="jobs-panel", list_id='task-jobs')
+            jobs.styles.height = len(task['jobs']) + 4
+            yield jobs
+            self.history = HistoryPanel(task, self.snapshot.get('storage'))
+            yield self.history
         yield self.footer()
 
     def on_mount(self):
-        self.set_focus(self.query_one(OptionList), scroll_visible=False)
+        self.set_focus(self.query_one('#task-jobs', OptionList), scroll_visible=False)
+
+    def on_resize(self, event):
+        super().on_resize(event)
+        self.call_after_refresh(self.scroll_focused_panel)
+
+    def scroll_focused_panel(self):
+        if isinstance(self.focused, (OptionList, DataTable)):
+            self.focused.parent.scroll_visible(animate=False)
 
     def footer(self):
-        return Static(Shortcuts('↑↓ Enter h history l logs Tab', 'Esc back g groups / f r ? q quit'), classes='shortcuts')
+        return self.shortcut_bar(('Enter', 'Open'), ('↑↓', 'Select'), ('Tab', 'Switch panel'),
+                                 ('u', 'Reload history'), ('←→', 'Scroll history'), ('l', 'Logs'),
+                                 ('r', 'Refresh'), ('g', 'Groups'), ('/', 'Search'), ('f', 'Filter'))
 
     def selection(self):
-        index = self.query_one(OptionList).highlighted
+        if self.focused is self.history.query_one(DataTable):
+            return self.history.selection()
+        index = self.query_one('#task-jobs', OptionList).highlighted
         jobs = self.observation['jobs']
         return self.observation, jobs[index] if index is not None and index < len(jobs) else None
 
     def on_option_list_option_selected(self, event):
-        job = self.observation["jobs"][event.option_index]
-        self.app.push_screen(JobView(job, [*self.breadcrumb, job["local"]]))
+        if event.option_list.id == 'task-jobs':
+            job = self.observation["jobs"][event.option_index]
+            self.app.push_screen(JobView(job, [*self.breadcrumb, job["local"]]))
 
-    def on_button_pressed(self, event):
-        if event.button.id in self.copy_commands:
-            self.app.copy_to_clipboard(self.copy_commands[event.button.id])
-            event.stop()
+    def action_reload_history(self):
+        self.history.reload()
+
+    async def refresh_contents(self, navigation=None):
+        navigation = self.capture_navigation() if navigation is None else navigation
+        self.query_one('.breadcrumb', Static).update(Breadcrumb(self.breadcrumb))
+        self.query_one('#task-summary', Static).update(self.summary())
+        notices = self.query_one('#task-notices')
+        notices.display = bool(self.snapshot.get('notices'))
+        notices.query_one(Static).update(Text(self.snapshot.get('notices', ''), style='yellow'))
+        jobs = self.observation['jobs']
+        columns = JobColumns(jobs)
+        self.query_one('.jobs-panel .list-columns', Static).update(columns)
+        self.query_one('.jobs-panel').styles.height = len(jobs) + 4
+        listing = self.query_one('#task-jobs', OptionList)
+        listing.clear_options()
+        listing.add_options(Option(JobPrompt(job, columns), id='job:' + job['name']) for job in jobs)
+        self.app.call_after_refresh(self.restore_navigation, navigation)
 
     def observe_snapshot(self):
         task = next((task for task in self.snapshot["tasks"] if task["name"] == self.observation["name"]), None)
         if task is None or not cast(StatusBrowser, self.app).matches(task):
             return False
         self.observation = task
-        self.copy_commands = dict(zip(self.copy_commands, task["commands"]))
         return True
 
 
-class JobView(BrowserView):
+class ValueField(Static):
+    """Show a literal field on one line, shortening long values in the middle."""
+
+    DEFAULT_CSS = """
+    ValueField { height: 1; }
+    """
+
+    def __init__(self, label, value, *, label_width, **kwargs):
+        super().__init__(**kwargs)
+        self.label, self.value, self.label_width = label, str(value), label_width
+
+    def render(self):
+        width = max(1, self.content_size.width - self.label_width - 1)
+        return Text.assemble((self.label.ljust(self.label_width), "bold"), " ",
+                             middle_name(self.value, width))
+
+    def on_resize(self):
+        self.refresh()
+
+
+class LogField(ValueField, can_focus=True):
+    """Select a log stream independently of whether its pathname is truncated."""
+
+    BINDINGS = [Binding("up", "select_stream('stdout')", show=False, priority=True),
+                Binding("down", "select_stream('stderr')", show=False, priority=True)]
+
+    DEFAULT_CSS = """
+    LogField:focus {
+        background: $block-cursor-background;
+        color: $block-cursor-foreground;
+        text-style: bold;
+    }
+    """
+
+    def __init__(self, stream, path):
+        super().__init__(stream, path, label_width=len('stdout') + 1, id='log-' + stream)
+        self.stream = stream
+
+    def action_select_stream(self, stream):
+        self.screen.set_focus(self.screen.query_one('#log-' + stream, LogField))
+
+    def on_key(self, event):
+        if event.key == "enter":
+            cast(JobDetailsView, self.screen).open_log(self.stream)
+            event.stop()
+
+    def on_click(self, event):
+        self.focus()
+        cast(JobDetailsView, self.screen).open_log(self.stream)
+        event.stop()
+
+
+class LogsPanel(Vertical):
+    """A compact Kind/Path table with one selectable row per log stream."""
+
+    DEFAULT_CSS = """
+    LogsPanel LogField { padding: 0 2; }
+    LogsPanel:focus-within .list-columns { background-tint: $foreground 5%; }
+    """
+
+    def __init__(self, logs):
+        super().__init__(classes='detail-panel logs-panel')
+        self.logs = logs
+        self.border_title = 'Logs'
+
+    def compose(self):
+        with Vertical(classes='list-heading'):
+            yield Static(Text(f"{'Kind':<7} Path", style='bold'), classes='list-columns')
+        for stream in ('stdout', 'stderr'):
+            yield LogField(stream, self.logs.get(stream, 'unavailable'))
+
+
+class JobDetailsView(BrowserView):
+    """Shared Job and Logs panels for current and historical submissions."""
+
+    DEFAULT_CSS = """
+    JobDetailsView .job-information { height: 1fr; max-height: 9; }
+    """
+
+    def compose(self) -> ComposeResult:
+        yield self.heading()
+        yield from self.notices(can_focus=False)
+        yield from self.details()
+        yield self.footer()
+
+    def details(self):
+        job = self.job
+        recorded = 'recorded_state' in job
+        label = 'Recorded state:' if recorded else 'Observed state:'
+        if recorded:
+            symbol, style = _VISUALS.get(job['observed_state'], ('?', 'yellow'))
+            state = Text(f"{symbol} {job['recorded_state']}", style=style)
+        else:
+            state = state_text(job['observed_state'])
+        with VerticalScroll(can_focus=False, classes='job-information'):
+            with Vertical(classes="detail-panel") as panel:
+                panel.border_title = "Job"
+                yield Static(Text.assemble((label, "bold"), " ", state))
+                if job["requires_repetition"]:
+                    yield Static("Requires repetition for Task progress.")
+                for label, value in (("Public job:", job['name']),
+                                     ("Submission:", job['submission'] or 'not submitted'),
+                                     ("Backend job:", job['backend_id'] if job['backend_id'] is not None else 'unavailable')):
+                    yield ValueField(label, value, label_width=len("Observed state:"))
+                task, _ = self.selection()
+                yield ValueField('Attempt:', (task or {}).get('attempt') or 'not recorded',
+                                 label_width=len('Observed state:'))
+        yield LogsPanel(job['logs'])
+
+    def footer(self):
+        return self.shortcut_bar(('Enter', 'Open'), ('↑↓', 'Select stream'), ('Tab', 'Switch stream'),
+                                 ('r', 'Refresh'), ('g', 'Groups'))
+
+    def on_mount(self):
+        self.set_focus(self.query_one(LogField))
+
+    def open_log(self, stream):
+        task, job = self.selection()
+        if task is not None:
+            from .browser_evidence import LogView
+            self.app.push_screen(LogView(task, job, stream, self.breadcrumb))
+
+
+class JobView(JobDetailsView):
     def __init__(self, job, breadcrumb):
         super().__init__(breadcrumb)
         self.job = job
-
-    def compose(self) -> ComposeResult:
-        job = self.job
-        yield self.heading()
-        yield from self.notices()
-        with VerticalScroll():
-            yield Static(Text("Observed state: ") + state_text(job["observed_state"]))
-            if job["requires_repetition"]:
-                yield Static("Requires repetition for Task progress.")
-            yield Static(f"Public job: {job['name']}\nSubmission: {job['submission'] or 'not submitted'}\n"
-                         f"Backend job: {job['backend_id'] if job['backend_id'] is not None else 'unavailable'}", markup=False)
-            for stream, path in job["logs"].items():
-                yield Static(f"Log {stream}: {path}", markup=False)
-        yield self.footer()
-
-    def footer(self):
-        return Static(Shortcuts('↑↓ scroll h history l logs Tab', 'Esc back g groups r refresh ? q quit'), classes='shortcuts')
 
     def selection(self):
         name = self.job['name'].removesuffix('__' + self.job['local'])
@@ -473,14 +793,20 @@ class HelpView(BrowserView):
                          "Home/End: first/last row or beginning/end of details\nPage Up/Page Down: page through rows or details\n"
                          "Tab/Shift+Tab: move between controls and expandable sections\n"
                          "g: grouped summary within the original selection\n?: keyboard reference\nq: quit\n"
-                         "h: read selected Task history (recorded evidence only)\n"
+                         "In Task details, Tab switches Jobs/History; Enter opens a job or historical logs.\n"
                          "l: choose stdout/stderr for the selected job or historical submission\n"
+                         "In Job details, use Up/Down and Enter to open a log; l is disabled.\n"
                          "u: reload the current log/history; status age stays unchanged\n"
-                         "F: toggle live log following (starts off; checks about once per second)\n"
-                         "Scrolling upward or Home pauses following; F resumes. End does not enable it.\n"
-                         "Leaving the log, including opening help, pauses following and stops retries.\n"
+                         "F: toggle live/manual log mode (starts manual; live checks about once per second)\n"
+                         "Scrolling upward or Home switches to manual; F enables live mode. End does not enable it.\n"
+                         "Leaving the log, including opening help, switches to manual and stops retries.\n"
                          "In logs, Page Up/Down scroll then read adjacent bounded portions; Home/End jump to first/latest.\n"
-                         "Tab focuses read details; Up/Down scroll complete notices and errors.\n"
+                         "w: toggle log wrapping (starts off); Left/Right scroll unwrapped lines.\n"
+                         "Tab switches between log information and content.\n"
+                         "Up/Down in log information scroll complete notices and errors.\n"
+                         "In History, Left/Right scroll horizontally; Home/End go to the horizontal edges.\n"
+                         "In search, Enter applies and Esc cancels; shortcut letters enter text.\n"
+                         "In state filters, Space toggles, Enter applies, c clears, and Esc cancels.\n"
                          "/: literal Task-name search (ignores case)\nf: filter primary Task states\nr: inspect again\n"
                          "Ctrl+C: interrupt\n\nTask/job details use captured observations. "
                          "Logs/history read only the requested saved evidence. No workflow operations are executed here.")
@@ -497,7 +823,8 @@ class HelpView(BrowserView):
         yield self.footer()
 
     def footer(self):
-        return Static(Shortcuts("↑↓ scroll  Tab controls  Enter expand", "Esc close  g groups  q quit"), classes="shortcuts")
+        return self.shortcut_bar(('↑↓', 'Scroll'), ('Tab', 'Controls'), ('Enter', 'Toggle details'),
+                                 ('g', 'Groups'), back='Close', show_help=False)
 
 
 class SearchView(Screen):
@@ -507,7 +834,8 @@ class SearchView(Screen):
         yield Static("Search Task names", classes="breadcrumb")
         yield InspectionStatus()
         yield Input(cast(StatusBrowser, self.app).name_query, placeholder="Literal text; ignores case")
-        yield Static("Enter: apply  Esc: cancel  Empty search: all selected Tasks", markup=False)
+        yield Static('Empty search: all selected Tasks', markup=False)
+        yield Static(Shortcuts(('Enter', 'Apply'), back='Cancel', show_help=False, show_quit=False), classes='shortcuts')
 
     def on_mount(self):
         self.query_one(Input).focus()
@@ -537,7 +865,9 @@ class StateFilterView(Screen):
         yield InspectionStatus()
         yield SelectionList(*((state_text(state), state, state in cast(StatusBrowser, self.app).statuses)
                               for state in STATES), classes="listing")
-        yield Static("Space: toggle  Enter: apply  Esc: cancel\nc: clear; no choices means all states", classes="shortcuts")
+        yield Static('No choices means all states', markup=False)
+        yield Static(Shortcuts(('Enter', 'Apply'), ('Space', 'Toggle'), ('↑↓', 'Select'), ('c', 'Clear'),
+                              back='Cancel', show_quit=False), classes='shortcuts')
 
     def on_mount(self):
         self.query_one(SelectionList).focus()
@@ -573,7 +903,8 @@ class ErrorView(BrowserView):
             if self.output:
                 with self.section("Captured workflow output"):
                     yield Static(Text.from_ansi(self.output))
-        yield Static("Tab: controls  Enter: expand  r: retry  q: quit", classes="shortcuts")
+        yield self.shortcut_bar(('r', 'Retry'), ('Enter', 'Toggle details'), ('Tab', 'Controls'),
+                                show_help=cast(StatusBrowser, self.app).snapshot is not None)
 
     def on_mount(self):
         self.set_focus(self.query_one(CollapsibleTitle))
@@ -581,7 +912,8 @@ class ErrorView(BrowserView):
 
 class ResizeView(Screen):
     def compose(self) -> ComposeResult:
-        yield Static("Terminal too small. Resize to at least 40 × 12. q: quit", markup=False)
+        yield Static("Terminal too small. Resize to at least 40 × 12.", markup=False)
+        yield Static(Shortcuts(show_help=False), classes='shortcuts')
 
 
 class Inspection:
@@ -592,6 +924,7 @@ class Inspection:
         self.root = Path(self.directory.name)
         self.result = self.root / "snapshot.json"
         self.started = time.monotonic()
+        self.spinner = Spinner("dots")
         with (self.root / "stdout").open("wb") as output, (self.root / "stderr").open("wb") as errors:
             self.process = subprocess.Popen(
                 [sys.executable, "-m", "gwflow._inspection_process", *arguments[0],
@@ -604,7 +937,23 @@ class Inspection:
             stream.seek(max(0, os.fstat(stream.fileno()).st_size - 8192))
             lines = stream.read().decode(errors="replace").splitlines()
         return next((line for line in reversed(lines) if line.startswith(
-            ("Inspecting ", "Waiting ", "Pulling image:"))), "Loading workflow...")
+            ("Inspecting ", "Preparing ", "Checking ", "Waiting ", "Pulling image:"))), "Loading workflow...")
+
+    def progress(self, width):
+        try:
+            state = json.loads(self.result.with_suffix('.activity.json').read_text())
+        except FileNotFoundError:
+            state = dict(phase=self.phase(), total=None)
+        state = state or dict(phase="Finalizing inspection...", total=None)
+        if state['total'] is None:
+            self.spinner.update(text=state['phase'])
+            return self.spinner.render(time.monotonic())
+        label = state['phase'].rstrip('.') + ': '
+        fraction = f"{state['completed']}/{state['total']}"
+        available = width - cell_len(label) - len(fraction) - 3
+        separator = '' if available >= 3 else '\n'
+        bar_width = min(14, available if available >= 3 else width - len(fraction) - 3)
+        return Text(label + separator) + progress_display(state['completed'], state['total'], max(3, bar_width))
 
     def completed(self):
         return self.process.poll() is not None
@@ -640,22 +989,37 @@ class Inspection:
 class StatusBrowser(App[int]):
     CSS = """
     Screen { layout: vertical; }
-    .view-heading { height: auto; }
+    .view-heading { height: auto; margin-bottom: 1; }
     #breadcrumb, .breadcrumb { height: auto; text-style: bold; color: cyan; }
     #activity { height: auto; }
     #rows, .listing { height: 1fr; border: none; }
-    .jobs { height: 8; min-height: 3; max-height: 50%; border: none; }
+    .listing-panel { height: 1fr; margin-top: 1; border: round $foreground 25%; }
+    .list-heading { height: auto; margin: 0 1; border-bottom: solid $foreground 20%; }
+    .list-columns {
+        height: auto; padding: 0 4 0 1;
+        background: $panel; color: $foreground; text-style: bold;
+    }
+    .listing-panel:focus-within .list-columns { background-tint: $foreground 5%; }
+    .table-list { padding: 0 1 0 2; scrollbar-gutter: stable; scrollbar-size-vertical: 2; }
+    .table-list > .option-list--option { padding: 0; }
+    .table-list:focus > .option-list--option-highlighted { text-style: bold; }
+    .detail-panel { height: auto; margin-bottom: 1; padding: 0 2; border: round $foreground 25%; }
+    .logs-panel { padding: 0; }
+    .jobs-panel { height: 1fr; min-height: 8; }
+    .compact .view-heading { margin-bottom: 0; }
+    .compact .listing-panel { margin-top: 0; border: none; }
+    .compact .list-heading { display: none; }
+    .compact .logs-panel .list-heading { display: block; }
+    .compact .table-list { padding: 0 1; }
+    .compact .detail-panel { margin-bottom: 0; padding: 0; border: none; }
+    .compact .jobs-panel { min-height: 3; }
     .notice-pane { height: auto; min-height: 2; max-height: 25%; border-left: wide yellow; }
     .compact .notice-pane { height: 1; min-height: 1; max-height: 1; }
-    .compact .task-list-label { display: none; }
-    .read-info { height: auto; min-height: 1; max-height: 25%; }
-    .compact .read-info { height: 2; max-height: 2; }
-    #shortcuts, .shortcuts { height: auto; dock: bottom; }
+    #shortcuts, .shortcuts { height: 1; dock: bottom; }
     """
     BINDINGS = [Binding("q", "quit", "Quit"), Binding("ctrl+c", "interrupt", show=False, priority=True),
                 Binding("g", "groups", "Groups"), Binding("r", "refresh", "Refresh"),
                 Binding("l", "logs", "Logs"),
-                Binding("h", "history", "History"),
                 Binding("slash", "search", "Search"), Binding("f", "filter", "Filter"),
                 Binding("question_mark", "help", "Help")]
 
@@ -685,7 +1049,7 @@ class StatusBrowser(App[int]):
         yield Static("Groups", id="breadcrumb")
         yield Static("Loading workflow...", id="activity")
         yield OptionList(id="rows")
-        yield Static("q: quit", id="shortcuts")
+        yield Static(Shortcuts(show_help=False), id="shortcuts")
 
     def on_mount(self):
         self.action_refresh()
@@ -727,7 +1091,8 @@ class StatusBrowser(App[int]):
         if self.inspection is None:
             return
         elapsed = int(time.monotonic() - self.inspection.started)
-        self.screen_stack[0].query_one("#activity", Static).update(f"{self.inspection.phase()}  {elapsed}s elapsed")
+        self.screen_stack[0].query_one("#activity", Static).update(
+            self.inspection.progress(self.size.width) + f"\n{elapsed}s elapsed")
         if not self.inspection.completed():
             return
         try:
@@ -797,18 +1162,16 @@ class StatusBrowser(App[int]):
             self.open_menu(SearchView())
 
     def action_logs(self):
+        if isinstance(self.screen, JobDetailsView):
+            return
         if not self.too_small and isinstance(self.screen, BrowserView):
             task, job = self.screen.selection()
             if task is not None and job is not None:
-                from .browser_evidence import StreamChooser
-                self.push_screen(StreamChooser(task, job, self.screen.breadcrumb))
-
-    def action_history(self):
-        if not self.too_small and isinstance(self.screen, BrowserView):
-            from .browser_evidence import HistoryView
-            task, _ = self.screen.selection()
-            if task is not None and not isinstance(self.screen, HistoryView):
-                self.push_screen(HistoryView(task, self.snapshot['storage'], self.screen.breadcrumb))
+                from .browser_evidence import HistoricalJobView, StreamChooser
+                if 'recorded_state' in job:
+                    self.push_screen(HistoricalJobView(task, job, self.screen.breadcrumb))
+                else:
+                    self.push_screen(StreamChooser(task, job, self.screen.breadcrumb))
 
     def action_filter(self):
         if not self.too_small and self.snapshot is not None and not isinstance(self.screen, StateFilterView):

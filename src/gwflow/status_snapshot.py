@@ -4,7 +4,6 @@ from contextlib import redirect_stdout
 import io
 import json
 from pathlib import Path
-import shlex
 import signal
 import sys
 import time
@@ -13,9 +12,9 @@ import click
 from gwf.core import pass_context
 
 from ._frontend import _submission_guard, load_workflow
+from .activity import observe_activity
 from .planning import plan_workflow
-from .inspection import task_details
-from .presentation import NEXT_ACTIONS, Report, inspection_command, observed_job_state, selected_rows, task_groups, task_order
+from .presentation import NEXT_ACTIONS, Report, observed_job_state, selected_rows, task_groups, task_order
 from .status import status_selection
 
 
@@ -24,6 +23,17 @@ from .status import status_selection
 @click.argument("selectors", nargs=-1)
 @pass_context
 def capture(ctx, destination, selectors):
+    def publish_activity(state):
+        path = destination.with_suffix('.activity.json')
+        temporary = path.with_suffix('.tmp')
+        temporary.write_text(json.dumps(state))
+        temporary.replace(path)
+
+    with observe_activity(publish_activity):
+        capture_snapshot(ctx, destination, selectors)
+
+
+def capture_snapshot(ctx, destination, selectors):
     # Fresh source must not reuse timestamp/size-valid bytecode after a rapid
     # same-size edit. This private, empty cache namespace affects this child only.
     sys.pycache_prefix = str(destination.parent / "pycache")
@@ -46,13 +56,11 @@ def capture(ctx, destination, selectors):
                              "submission": submission, "backend_id": item.job_id if item else None,
                              "logs": {stream: str(plan.store.working_dir / ".gwf" / "logs" / f"{submission}.{stream}")
                                       for stream in ("stdout", "stderr")} if submission else {}})
-            tasks.append({"name": task.name, "attempt": task.attempt['attempt'] if task.attempt else None,
+            tasks.append({"name": task.name, "instance_key": workflow._task_naming[task.name].key,
+                          "attempt": task.attempt['attempt'] if task.attempt else None,
                           "state": row.state, "completed": row.completed,
                           "total": row.total, "detail": row.detail, "jobs": jobs,
-                          "next_action": NEXT_ACTIONS[task.action], "reason": task.reason,
-                          "diagnostics": "\n".join(task_details(plan.store, task)),
-                          "commands": [shlex.join(inspection_command(*args)) for args in (
-                              ("run", task.name, "--dry-run"), ("run", task.name), ("cancel", task.name))]})
+                          "next_action": NEXT_ACTIONS[task.action], "reason": task.reason})
         with redirect_stdout(io.StringIO()) as notices:
             Report(plan.store, plain=True).workflow_notices(task_order(workflow, plan), rows, include_reasons=True)
         snapshot = {

@@ -18,7 +18,7 @@ class StaticStatusTests(LocalBackendTestCase):
                 expected = self.cli("status", *view)
                 self.assertEqual(self.cli("status", *view, "--static"), expected)
                 terminal = self.terminal_cli("status", *view, "--static", "--plain").stdout
-                self.assertNotRegex(terminal, r"\x1b\[|[━─]")
+                self.assertNotRegex(terminal, r"\x1b\[|[❯›]")
                 self.assertEqual("Reusable" in terminal, not view)
                 self.assertEqual(terminal.count("[preparation]"), 4 if "--details" in view else 0)
                 self.assertIn("0/3", terminal)
@@ -28,7 +28,8 @@ class StaticStatusTests(LocalBackendTestCase):
             for view in ((), ("*",), ("--details",)):
                 with self.subTest(width=width, view=view):
                     output = self.terminal_cli("status", *view, "--static", width=width).stdout
-                    self.assertRegex(output, r"0/3\s+\[─+\]")
+                    output = re.sub(r"\x1b\[[0-9;]*m", "", output)
+                    self.assertRegex(output, r"0/3\s+\[›+\]")
         workflow = self.work / "workflow.py"
         workflow.write_text(workflow.read_text().replace(
             "a = gwf.task(mapping(), key='A')",
@@ -42,7 +43,7 @@ class StaticStatusTests(LocalBackendTestCase):
         for options, environment in ((("--plain",), {}), ((), {"TERM": "dumb"}),
                                      ((), {"PYTHONIOENCODING": "ascii"})):
             output = self.terminal_cli("status", "mapping__A", "--static", *options, env=environment).stdout
-            self.assertNotRegex(output, r"\x1b\[|[━─]|\[/+\]")
+            self.assertNotRegex(output, r"\x1b\[|[❯›]|\[/+\]")
             self.assertIn("?/3", output)
             self.assertIn("image unavailable", output)
 
@@ -71,9 +72,9 @@ class StaticStatusTests(LocalBackendTestCase):
             self.assertIn("Showing 6 of 24 selected Tasks", output)
         output = self.terminal_cli("-b", "recovery_fixture", "status", "*", "--static", env=environment).stdout
         output = re.sub(r"\x1b\[[0-9;]*m", "", output)
-        self.assertRegex(output, r"reusable\s+3/3 \[━+\]")
-        self.assertRegex(output, r"running\s+2/3 \[━+─+\]")
-        self.assertRegex(output, r"failed\s+1/3 \[━+─+\]")
+        self.assertRegex(output, r"reusable\s+3/3 \[❯+\]")
+        self.assertRegex(output, r"running\s+2/3 \[❯+›+\]")
+        self.assertRegex(output, r"failed\s+1/3 \[❯+›+\]")
 
     def test_group_discovery_offers_only_exact_patterns_and_keeps_context(self):
         overview = self.cli("status", "--static")

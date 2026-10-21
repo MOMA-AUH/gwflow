@@ -22,7 +22,7 @@ class CommandPresentationTests(LocalBackendTestCase):
         self.assertIn('\x1b[', colored)
         monochrome = self.terminal_cli('status', '*', env={'NO_COLOR': '1'}).stdout
         self.assertNotIn('\x1b[', monochrome)
-        self.assertRegex(monochrome, r'0/5 \[─+\]')
+        self.assertRegex(monochrome, r'0/5 \[›+\]')
         for flag in ('--no-color', '--use-color'):
             self.assertNotIn(flag, self.cli('--help'))
             result = self.cli_result(flag, 'status', success=False)

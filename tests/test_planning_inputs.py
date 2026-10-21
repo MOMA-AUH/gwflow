@@ -127,7 +127,7 @@ class SharedInputObservationTests(RegistryTestCase):
             [{"pass": 0, "after": "image:" + str(image), "remove": [str(image)]}],
         )
         sample = first["output"].split("Details for Task sample1:")[1]
-        self.assertIn("input metadata changed", sample)
+        self.assertIn("Reason: Input metadata changed", sample)
         self.assertIn("fresh attempt", sample)
         self.assertIn("input metadata changed", second["output"])
         self.assertEqual(len(self.calls("pull")), 2)

@@ -112,13 +112,13 @@ class TaskPresentationTests(LocalBackendTestCase):
             self.assertIn("reusable", narrow)
             self.assertIn("5/5", narrow)
             if command[0] == "status":
-                self.assertRegex(narrow, r"5/5 \[━+\]")
+                self.assertRegex(narrow, r"5/5 \[❯+\]")
             for environment in ({"TERM": "dumb"}, {"PYTHONIOENCODING": "ascii"}, {"PYTHONIOENCODING": "shift_jis"}):
                 with self.subTest(command=command, environment=environment):
                     output = self.terminal_cli(*command, "--details", width=40, env=environment, no_color=False).stdout
                     self.assertIn("reusable", output)
                     self.assertIn("5/5", output)
-                    self.assertNotRegex(output, "[╭○━\\x1b]")
+                    self.assertNotRegex(output, "[╭○❯›\\x1b]")
 
     def test_removed_truncation_option_is_rejected_and_absent_from_help(self):
         for command in ("run", "status"):
@@ -164,7 +164,7 @@ class TaskPresentationTests(LocalBackendTestCase):
                         if color == "--no-color" or options or environment:
                             self.assertNotIn("\x1b[", raw)
                         if options or environment:
-                            self.assertNotRegex(output, "[╭╮╰╯│─━]")
+                            self.assertNotRegex(output, "[╭╮╰╯│─❯›]")
 
     def test_plan_color_and_plain_controls_preserve_actions_and_summary(self):
         self.run_complete()
@@ -228,7 +228,7 @@ class TaskPresentationTests(LocalBackendTestCase):
             compact = re.sub(r"[\s│]", "", output)
             self.assertIn("Workflowblocked—nonewjobswillbesubmitted.BlockedTasks:" + name, compact)
             self.assertIn("?/5", output)
-            self.assertNotIn("━", output)
+            self.assertNotIn("❯", output)
 
     def test_required_deferral_reminder_is_not_truncated(self):
         test_fresh.FreshAttemptTests.configure_workflow(self)

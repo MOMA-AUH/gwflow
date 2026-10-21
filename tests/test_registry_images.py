@@ -101,7 +101,7 @@ class RegistryImageTests(RegistryTestCase):
     def test_status_reports_pull_before_acquisition_finishes(self):
         self.options(gate="progress")
         progress = self.work / "pull-progress.log"
-        phases = "Inspecting workflow...\nInspecting Tasks...\nWaiting for scheduler...\n"
+        phases = "Inspecting workflow...\nPreparing Task inspection...\nWaiting for scheduler...\nInspecting Tasks...\n"
         with progress.open("w") as stream, subprocess.Popen(
             [GWFLOW, "status"], cwd=self.work, stdout=subprocess.PIPE, stderr=stream, text=True,
         ) as process:
@@ -115,7 +115,8 @@ class RegistryImageTests(RegistryTestCase):
             output, _ = process.communicate(timeout=30)
         self.assertEqual(process.returncode, 0, output + progress.read_text())
         self.assertEqual(progress.read_text(),
-                         phases + f"Pulling image: {self.reference}\nPulled image: {self.reference}\n")
+                         phases + f"Pulling image: {self.reference}\nPulled image: {self.reference}\n"
+                         "Checking Task dependencies...\n")
         self.assertNotIn("Pulling image:", output)
         self.assertNotIn("Pulled image:", output)
         self.assertEqual(len(self.cached_images()), 1)

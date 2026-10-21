@@ -36,7 +36,7 @@ class StatusLogTerminalTests(LocalBackendTestCase):
         checkpoint = session.send('u')
         session.wait_for('APPENDED_BY_TEST', after=checkpoint)
         checkpoint = session.send('\x1b[H')
-        session.wait_for('bytes 0–', after=checkpoint)
+        session.wait_for('Showing first 200 lines.', after=checkpoint)
         checkpoint = session.send('\x1b[F')
         session.wait_for('APPENDED_BY_TEST', after=checkpoint)
         checkpoint = session.send('\x1b')
@@ -47,8 +47,8 @@ class StatusLogTerminalTests(LocalBackendTestCase):
         session.wait_for('TTYERR', after=checkpoint)
         checkpoint = session.send('\x1b')
         session.wait_for('Selected Tasks', after=checkpoint)
-        checkpoint = session.send('h')
-        session.wait_for('History read at', after=checkpoint)
+        checkpoint = session.send('\x1b[H\r')
+        session.wait_for('No earlier submissions.', after=checkpoint)
         session.wait_for('Recorded evidence', after=checkpoint)
         self.assertEqual((self.work / 'tty-log-imports').read_text(), 'import\n')
         self.assertEqual((self.work / 'backend-observations.jsonl').read_bytes(), observations)
@@ -61,7 +61,7 @@ class StatusLogTerminalTests(LocalBackendTestCase):
         self.run_complete()
         session = self.terminal('status', size=(120, 40))
         session.wait_for('sample')
-        for expected in ('Tasks in sample', 'Jobs completed:'):
+        for expected in ('Instance', 'Jobs completed:'):
             checkpoint = session.send('\r')
             session.wait_for(expected, after=checkpoint)
         checkpoint = session.send('\x1b[B' * 2 + 'l')

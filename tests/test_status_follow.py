@@ -4,7 +4,6 @@ import asyncio
 import gc
 import os
 from pathlib import Path
-import re
 import resource
 import subprocess
 import sys
@@ -14,6 +13,7 @@ import unittest
 import weakref
 from unittest.mock import patch
 
+from rich.console import Console
 from textual.widgets import Static
 
 from test_browser_interaction import visible_text
@@ -35,14 +35,16 @@ class StatusFollowTests(unittest.IsolatedAsyncioTestCase):
             inspected = app.snapshot['finished']
             await pilot.press('down', 'l', 'enter')
             await self.shown(app, pilot, 'initial log')
-            self.assertIn('Live log: off', visible_text(app))
+            self.assertNotIn('(live)', visible_text(app))
             with self.stdout.open('a') as stream:
                 stream.write('appended while off\n')
             await pilot.pause(1.3)
             self.assertNotIn('appended while off', self.content(app))
             await pilot.press('F')
             await self.shown(app, pilot, 'appended while off', timeout=4)
-            self.assertIn('Live log: following', visible_text(app))
+            self.assertIn('(live)', visible_text(app))
+            status = app.screen.query_one('#read-status', Static).content
+            self.assertEqual(status.get_style_at_offset(Console(), status.plain.index('(live)')).color.name, 'green')
             with self.stdout.open('a') as stream:
                 stream.write('automatic appended read\n')
             await self.shown(app, pilot, 'automatic appended read', timeout=4)
@@ -50,7 +52,9 @@ class StatusFollowTests(unittest.IsolatedAsyncioTestCase):
             pane = app.screen.query_one('#log-pane')
             self.assertTrue(pane.is_vertical_scroll_end, (pane.scroll_y, pane.max_scroll_y, pane.scroll_target_y))
             await pilot.press('F')
-            self.assertIn('Live log: paused', visible_text(app))
+            self.assertNotIn('(live)', visible_text(app))
+            status = app.screen.query_one('#read-status', Static).content
+            self.assertRegex(status.plain, r'^Read at:\s+\d{2}:\d{2}:\d{2}$')
             read_status = app.screen.query_one('#read-status', Static).content
             with self.stdout.open('a') as stream:
                 stream.write('appended while paused\n')
@@ -82,7 +86,12 @@ class StatusFollowTests(unittest.IsolatedAsyncioTestCase):
                         await self.shown(app, pilot, 'sample')
                         await pilot.press('down', 'l', 'enter')
                         await self.shown(app, pilot, 'blocked reader 0499')
+                        self.assertIn('Showing latest 200 lines.', visible_text(app))
+                        self.assertNotIn('Portion:', visible_text(app))
                         await pilot.wait_for_scheduled_animations()
+                        read_status = app.screen.query_one('#read-status', Static).content
+                        info_region = app.screen.query_one('#log-info').region
+                        log_region = app.screen.query_one('#log-pane').region
                         started.unlink(missing_ok=True)
                         gate.touch()
                         await pilot.press('F')
@@ -91,6 +100,10 @@ class StatusFollowTests(unittest.IsolatedAsyncioTestCase):
                                 break
                             await pilot.pause(0.05)
                         self.assertTrue(started.exists(), visible_text(app))
+                        self.assertEqual(str(app.screen.query_one('#read-status', Static).content),
+                                         str(read_status) + ' (live)')
+                        self.assertEqual(app.screen.query_one('#log-info').region, info_region)
+                        self.assertEqual(app.screen.query_one('#log-pane').region, log_region)
                         pid = int(started.read_text())
                         self.assertTrue(Path(f'/proc/{pid}').exists())
                         await pilot.press(key)
@@ -100,7 +113,7 @@ class StatusFollowTests(unittest.IsolatedAsyncioTestCase):
                         if key == 'question_mark':
                             await pilot.press('escape')
                         if key not in ('escape', 'q'):
-                            self.assertIn('Live log: paused', visible_text(app))
+                            self.assertNotIn('(live)', visible_text(app))
                             self.assertIn('blocked reader', self.content(app))
                             self.assertNotIn('Reading log...', visible_text(app))
                         if key != 'q':
@@ -121,10 +134,10 @@ class StatusFollowTests(unittest.IsolatedAsyncioTestCase):
             await self.shown(app, pilot, 'line 0499')
             for key in ('up', 'pageup', 'home'):
                 await pilot.press('F')
-                await self.shown(app, pilot, 'Log read at')
+                await self.shown(app, pilot, 'Read at:')
                 await pilot.wait_for_scheduled_animations()
                 await pilot.press(key)
-                self.assertIn('Live log: paused', visible_text(app))
+                self.assertNotIn('(live)', visible_text(app))
                 if key == 'home':
                     await self.shown(app, pilot, 'line 0000')
                 with self.stdout.open('a') as stream:
@@ -133,7 +146,7 @@ class StatusFollowTests(unittest.IsolatedAsyncioTestCase):
                 self.assertNotIn(f'paused after {key}', self.content(app))
                 await pilot.press('end')
                 await self.shown(app, pilot, f'paused after {key}')
-                self.assertIn('Live log: paused', visible_text(app))
+                self.assertNotIn('(live)', visible_text(app))
                 with self.stdout.open('a') as stream:
                     stream.write(f'end leaves paused {key}\n')
                 await pilot.pause(1.2)
@@ -150,7 +163,7 @@ class StatusFollowTests(unittest.IsolatedAsyncioTestCase):
             await pilot.press('down', 'l', 'enter')
             await self.shown(app, pilot, 'original content')
             await pilot.press('F')
-            await self.shown(app, pilot, 'Log read at')
+            await self.shown(app, pilot, 'Read at:')
             replacement = self.root / 'replacement'
             replacement.write_text('replacement content\n' * 40)
             replacement.replace(self.stdout)
@@ -164,7 +177,7 @@ class StatusFollowTests(unittest.IsolatedAsyncioTestCase):
             self.assertIn('Log truncated', visible_text(app))
             self.assertNotIn('replacement content', self.content(app))
             self.stdout.unlink()
-            await self.shown(app, pilot, 'No such file', timeout=4)
+            await self.shown(app, pilot, 'No stdout log available.', timeout=4)
             self.assertIn('Previously read', visible_text(app))
             self.assertEqual(self.content(app), 'truncated content\n')
             self.stdout.mkdir()
@@ -175,7 +188,7 @@ class StatusFollowTests(unittest.IsolatedAsyncioTestCase):
             await self.shown(app, pilot, 'readable again', timeout=4)
             self.assertIn('Log readable again', visible_text(app))
             self.assertNotIn('truncated content', self.content(app))
-            self.assertIn('Live log: following', visible_text(app))
+            self.assertIn('(live)', visible_text(app))
             self.assertEqual(app.snapshot['finished'], inspected)
             self.assertEqual(app.acquisitions, 1)
             await pilot.press('q')
@@ -198,10 +211,10 @@ class StatusFollowTests(unittest.IsolatedAsyncioTestCase):
                 await pilot.press('down', 'l', 'enter')
                 await self.shown(app, pilot, 'retained after failure')
                 await pilot.press('F')
-                await self.shown(app, pilot, 'Log read at')
+                await self.shown(app, pilot, 'Read at:')
                 self.stdout.unlink()
-                await self.shown(app, pilot, 'No such file', timeout=4)
-                failed = str(app.screen.query_one('#read-status', Static).content)
+                await self.shown(app, pilot, 'No stdout log available.', timeout=4)
+                failed = str(app.screen.query_one('#read-notice', Static).content)
                 started.unlink(missing_ok=True)
                 gate.touch()
                 self.stdout.write_text('recovered content\n')
@@ -210,16 +223,16 @@ class StatusFollowTests(unittest.IsolatedAsyncioTestCase):
                         break
                     await pilot.pause(0.05)
                 self.assertTrue(started.exists())
-                self.assertIn(failed, str(app.screen.query_one('#read-status', Static).content))
+                self.assertIn(failed, str(app.screen.query_one('#read-notice', Static).content))
                 self.assertIn('retained after failure', self.content(app))
                 await pilot.press('F')
-                self.assertIn('Live log: paused', visible_text(app))
-                self.assertEqual(str(app.screen.query_one('#read-status', Static).content), failed)
+                self.assertNotIn('(live)', visible_text(app))
+                self.assertEqual(str(app.screen.query_one('#read-notice', Static).content), failed)
                 gate.unlink()
                 await pilot.press('F')
                 await self.shown(app, pilot, 'recovered content', timeout=4)
                 self.assertIn('Log readable again', visible_text(app))
-                self.assertNotIn('No such file', str(app.screen.query_one('#read-status', Static).content))
+                self.assertNotIn('No stdout log available.', str(app.screen.query_one('#read-notice', Static).content))
                 self.assertEqual(app.acquisitions, 1)
                 await pilot.press('q')
 
@@ -235,14 +248,14 @@ class StatusFollowTests(unittest.IsolatedAsyncioTestCase):
             await self.shown(app, pilot, 'line 0000')
             self.stdout.unlink()
             await pilot.press('u')
-            await self.shown(app, pilot, 'No such file')
+            await self.shown(app, pilot, 'No stdout log available.')
             self.stdout.write_text(contents)
             await pilot.press('u')
             await self.shown(app, pilot, 'Log readable again')
             self.assertIn('line 0000', self.content(app))
             self.assertNotIn('line 0499', self.content(app))
-            self.assertNotIn('latest content', str(app.screen.query_one('#read-status', Static).content))
-            self.assertIn('Live log: off', visible_text(app))
+            self.assertNotIn('latest content', str(app.screen.query_one('#read-notice', Static).content))
+            self.assertNotIn('(live)', visible_text(app))
             await pilot.press('q')
 
     async def test_scrolling_up_with_the_scrollbar_pauses_following(self):
@@ -253,21 +266,21 @@ class StatusFollowTests(unittest.IsolatedAsyncioTestCase):
             await pilot.press('down', 'l', 'enter')
             await self.shown(app, pilot, 'scrollbar 0499')
             await pilot.press('F')
-            await self.shown(app, pilot, 'Log read at')
+            await self.shown(app, pilot, 'Read at:')
             await pilot.wait_for_scheduled_animations()
             pane = app.screen.query_one('#log-pane')
             await pilot.click(pane.vertical_scrollbar, offset=(0, 1))
-            self.assertIn('Live log: paused', visible_text(app))
+            self.assertNotIn('(live)', visible_text(app))
             await pilot.wait_for_scheduled_animations()
             self.assertLess(pane.scroll_y, pane.max_scroll_y)
             await pilot.press('F')
-            await self.shown(app, pilot, 'Log read at')
+            await self.shown(app, pilot, 'Read at:')
             await pilot.wait_for_scheduled_animations()
             bar = pane.vertical_scrollbar
             await pilot.mouse_down(bar, offset=(0, bar.size.height - 1))
             await pilot.hover(bar, offset=(0, 1))
             await pilot.mouse_up(bar, offset=(0, 1))
-            self.assertIn('Live log: paused', visible_text(app))
+            self.assertNotIn('(live)', visible_text(app))
             await pilot.wait_for_scheduled_animations()
             self.assertLess(pane.scroll_y, pane.max_scroll_y)
             await pilot.press('q')
@@ -280,7 +293,7 @@ class StatusFollowTests(unittest.IsolatedAsyncioTestCase):
             await pilot.press('down', 'l', 'enter')
             await self.shown(app, pilot, 'INITIAL_END')
             await pilot.press('F')
-            await self.shown(app, pilot, 'Log read at')
+            await self.shown(app, pilot, 'Read at:')
             for index in range(5):
                 replacement = self.root / 'replacement'
                 replacement.write_text('🚀' * 40000 + f'\nREPLACEMENT_END_{index}\n')
@@ -319,7 +332,7 @@ class StatusFollowTests(unittest.IsolatedAsyncioTestCase):
             await pilot.press('down', 'l', 'enter')
             await self.shown(app, pilot, 'selected submission')
             await pilot.press('F')
-            await self.shown(app, pilot, 'Log read at')
+            await self.shown(app, pilot, 'Read at:')
             new_path = self.root / 'new.stdout'
             new_path.write_text('NEW SUBMISSION MUST NOT REPLACE SELECTED LOG\n')
             newer = self.snapshot()
@@ -328,7 +341,7 @@ class StatusFollowTests(unittest.IsolatedAsyncioTestCase):
             app.snapshot_factory = lambda: newer
             await pilot.press('r')
             await self.shown(app, pilot, 'Current submission changed')
-            self.assertIn('Live log: following', visible_text(app))
+            self.assertIn('(live)', visible_text(app))
             with self.stdout.open('a') as stream:
                 stream.write('retired submission appended\n')
             await self.shown(app, pilot, 'retired submission appended', timeout=4)
@@ -338,7 +351,7 @@ class StatusFollowTests(unittest.IsolatedAsyncioTestCase):
             app.snapshot_factory = lambda: removed
             await pilot.press('r')
             await self.shown(app, pilot, 'Task no longer in the refreshed selection')
-            self.assertIn('Live log: following', visible_text(app))
+            self.assertIn('(live)', visible_text(app))
             with self.stdout.open('a') as stream:
                 stream.write('removed Task appended\n')
             await self.shown(app, pilot, 'removed Task appended', timeout=4)
@@ -364,13 +377,15 @@ class StatusFollowTests(unittest.IsolatedAsyncioTestCase):
             views = []
             for index in range(12):
                 await pilot.press('l', 'enter')
-                await self.shown(app, pilot, 'cycle reader')
+                await self.shown(app, pilot, f'follow cycle {index - 1}' if index else 'cycle reader')
+                with self.stdout.open('a') as stream:
+                    stream.write(f'follow cycle {index}\n')
                 await pilot.press('F')
-                await self.shown(app, pilot, 'Log read at')
+                await self.shown(app, pilot, f'follow cycle {index}')
                 await pilot.press('up')
-                self.assertIn('Live log: paused', visible_text(app))
+                self.assertNotIn('(live)', visible_text(app))
                 await pilot.press('F')
-                await self.shown(app, pilot, 'Log read at')
+                await self.shown(app, pilot, '(live)')
                 views.append(weakref.ref(app.screen))
                 await pilot.press('escape')
                 await pilot.pause()
@@ -391,10 +406,10 @@ class StatusFollowTests(unittest.IsolatedAsyncioTestCase):
             await pilot.press('down', 'l', 'enter')
             await self.shown(app, pilot, 'MINIMUM_TAIL')
             await pilot.press('F')
-            await self.shown(app, pilot, 'Log read at')
+            await self.shown(app, pilot, 'Read at:')
             await pilot.resize_terminal(40, 12)
             await self.shown(app, pilot, 'MINIMUM_TAIL', timeout=4)
-            self.assertIn('Live log: following', visible_text(app))
+            self.assertIn('(live)', visible_text(app))
             replacement = self.snapshot()
             replacement['tasks'][0]['jobs'][0]['submission'] = 'newer-submission'
             app.snapshot_factory = lambda: replacement
@@ -403,9 +418,9 @@ class StatusFollowTests(unittest.IsolatedAsyncioTestCase):
             await self.shown(app, pilot, 'MINIMUM_TAIL', timeout=4)
             self.stdout.unlink()
             await self.shown(app, pilot, 'Previously read', timeout=4)
-            self.assertIn('No such file', str(app.screen.query_one('#read-status', Static).content))
-            self.assertIn('Live log: following', visible_text(app))
-            self.assertIn('q quit', visible_text(app))
+            self.assertIn('No stdout log available.', str(app.screen.query_one('#read-notice', Static).content))
+            self.assertIn('(live)', visible_text(app))
+            self.assertIn('q Quit', visible_text(app))
             self.assertIn('MINIMUM_TAIL', self.content(app))
             await pilot.press('q')
 
@@ -439,10 +454,8 @@ class StatusFollowTests(unittest.IsolatedAsyncioTestCase):
                     stream.write(b'\x9a\x80')
                 gate.unlink()
                 await self.shown(app, pilot, 'tail start 🚀', timeout=4)
-                portion = re.search(r'bytes (\d+)–(\d+) of (\d+)',
-                                    str(app.screen.query_one('#read-status', Static).content))
-                self.assertIsNotNone(portion)
-                self.assertLessEqual(int(portion.group(2)), int(portion.group(3)))
+                result = app.screen.result
+                self.assertLessEqual(result['end'], result['size'])
                 await pilot.press('q')
 
 

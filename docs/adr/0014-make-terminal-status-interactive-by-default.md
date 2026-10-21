@@ -124,13 +124,20 @@ position. Entry through `--details` still starts with jobs expanded in the Task
 list; it does not require drilling into every Task to see those jobs.
 
 Complete the keyboard map with contextual shortcuts: `g` opens the grouped
-summary within the original selection; `h` opens the selected Task's history;
+summary within the original selection; Task history is a visible panel, with no `h` shortcut;
 `l` opens a stdout/stderr chooser for the selected job or historical submission.
 Home and End move to the first and last rows, or the beginning and latest content
 in logs. Page Up and Page Down page through rows or log content. Tab and Shift+Tab
 move between controls and expandable sections; Enter opens the selected item or
 activates the focused control. Show applicable actions in the footer and the
 complete keyboard reference under `?`.
+
+Keep the footer one line tall. Render separate key–action pairs with bold cyan
+keys, plain labels, and subdued `│` separators. Prioritize the current view's
+main action and navigation, with Back, Help, and Quit at the end when applicable.
+At narrow widths omit whole lower-priority pairs, preserving Help access rather
+than wrapping or cutting labels. Search text entry only advertises Apply and
+Cancel; initial loading and undersized terminals only advertise Quit.
 
 While entering search text, shortcut letters such as `q` and `r` enter text.
 Enter applies the search; Esc cancels editing. Outside text entry, Esc closes
@@ -204,7 +211,7 @@ Keep the previous snapshot available for responsive navigation while showing
 "Refreshing...". Replace the displayed snapshot together only after a successful
 inspection. Preserve the current screen, filters, selected item, and scroll
 position where possible. If the selected item disappears, return to the nearest
-surviving parent and explain the change, except for pinned log and history views
+surviving parent and explain the change, except for pinned log and historical Job views
 as specified below. This is a presentation boundary, not a claim that source
 observations form a distributed atomic snapshot.
 
@@ -265,31 +272,42 @@ refresh applies to items absent from the resulting view, not to invalid
 selections that would fail an ordinary invocation.
 
 A Task detail screen leads with its state, Jobs completed fraction, the
-snapshot's Next action and reason, and its job list. Keep the full attempt
-identifier, storage paths, and detailed planning evidence in an expandable
-"Attempt, paths, and diagnostics" section. Opening a job exposes its full public
+snapshot's Next action and reason, and its job list. On 2026-10-21, the maintainer
+requested removal of the entire "Attempt, paths, and diagnostics" section,
+superseding the earlier requirement for that expandable panel and leaving more
+space for the Jobs table. Opening a job exposes its full public
 name, submission identifier, backend job ID, and log paths where those facts are
-available. Expanding or opening these captured details requires no additional
+available. Opening these captured details requires no additional
 workflow inspection or scheduler queries; displaying a log path does not imply
 that its contents or availability have been read.
 
+Job identifiers and log paths use single-line fields with aligned bold labels.
+Shorten long values in the middle so both ends remain visible. The maintainer
+subsequently requested removal of the horizontal scrolling popups. Identifier
+fields are not focusable. The Logs panel and stream chooser use a two-column
+Kind/Path table with `stdout` and `stderr` rows, a shaded header, and an unshaded
+separator. Keep the column headings visible at compact sizes;
+Up/Down selects these streams regardless of pathname length, and Enter or a click
+opens the selected log directly. Tab remains available for focus navigation.
+Esc restores focus to the selected stream.
+Disable `l` in Job details. Access history through the parent Task view, without an `h` shortcut.
+Use the existing bounded log reader without re-inspecting the workflow.
+
 For example, `mapping__B` can show state Failed, Jobs completed 3/5, Next action
 Retry, and the reason "The index job failed." Its job list shows preparation,
-align, and sort completed, index failed, and completion pending. The identifiers
-and paths section starts collapsed. Blockers, uncertain activity, and required
-recovery guidance remain visible in the main Task view rather than being hidden
-in that section. The displayed Next action describes the captured snapshot and
+align, and sort completed, index failed, and completion pending. Blockers,
+uncertain activity, and required recovery guidance remain visible in the main
+Task view. The displayed Next action describes the captured snapshot and
 does not authorize execution.
 
-The v0.8.0 TUI is for inspection only. Provide copyable ordinary-command hints in
-Task details, including a run preview, ordinary run, and Cancellation, rather
-than controls that execute these operations within the TUI. For example, Task
-`mapping__B` exposes `gwflow run mapping__B --dry-run`,
-`gwflow run mapping__B`, and `gwflow cancel mapping__B`. Users can leave status
-open while issuing commands in another terminal and press `r` to inspect the
-resulting state. This keeps the first interactive release focused on status,
-diagnostics, logs, and history. The ordinary commands retain their current-state
-validation and execution safeguards.
+The v0.8.0 TUI is for inspection only. On 2026-10-21, the maintainer requested
+removal of the Task detail command suggestions and copy buttons, superseding
+the earlier requirement for copyable run-preview, run, and Cancellation hints.
+Give the Jobs table the available vertical space instead of a fixed height cap.
+Users can leave status open while issuing ordinary commands in another terminal
+and press `r` to inspect the resulting state. The browser remains focused on
+status, diagnostics, logs, and history; ordinary commands retain their
+current-state validation and execution safeguards.
 
 Use Textual for the interactive interface and retain Rich for static reports.
 Textual's [screen navigation](https://textual.textualize.io/guide/screens/),
@@ -333,18 +351,52 @@ validation remains separate follow-up outside CI, consistent with the existing
 release plan, and is not a v0.8.0 release gate. Keep automated candidate evidence
 distinct from historical real-Slurm validation.
 
-Provide in-app log and history views, loading their additional data only when
-requested. Task and job details use the existing status snapshot. Opening stdout
-or stderr reads the file for that specific submission. Opening Task history
-reads saved records of earlier submissions and attempts, clearly distinguishing
-earlier retries within the current attempt from previous attempts. Historical
-views show recorded evidence without querying the scheduler merely to browse
-history.
+Provide an in-app log view and a History panel below Jobs in the Task view.
+Opening a Task starts an independent, stoppable background history read. Jobs
+uses enough height for its current rows, capped so History gets the remaining
+space; both lists scroll independently. Tab switches between the lists, Up/Down
+selects, and Enter opens Job details for the current or historical submission.
+Historical details share the current Job and Logs panels, with bold labels and
+single-line fields. Both Job panels show Attempt below Backend job. Show Recorded state for history;
+Up/Down or Tab selects stdout/stderr, and Enter opens the log. Disable `l` within
+both Job views. Esc returns to the selected stream, then to the History row.
+Historical details stay pinned to their exact submission across status refreshes.
+Remove `h` from all views and help.
 
-Give log and history reads their own timestamps; opening them does not refresh
-the status snapshot or reset its age. Show missing files and read failures in the
+Task and job status details use the existing snapshot. History reads saved
+records without scheduler queries, showing earlier retries and previous attempts
+grouped by attempt. Omit current recorded submissions already represented in Jobs.
+Render History as a table with one unwrapped row per submission, and Job,
+Recorded state, History kind, Attempt, and Submission columns. Preserve recorded
+state wording while using the shared state symbols and colors. Distinguish
+earlier submissions in cyan and previous attempts in magenta. Use row selection,
+fixed column headings with a thin separator underneath, and horizontal scrolling with Left/Right (Home/End to
+the horizontal edges); retain full identifiers in the table. Reloading preserves
+the selected submission and scroll position when it still exists.
+Use the same shaded header background across all tables. Align History's Job
+heading and rows with its panel title and the Jobs table's Name column.
+Preserve empty previous attempts; show “No earlier submissions.” when there are
+no earlier records. Opening stdout or stderr reads that exact submission's file.
+History failures preserve previously loaded entries. Closing the Task stops and
+reaps a pending reader. Returning from a historical log restores its selection.
+
+Show a timestamp for log reads, but omit the History read-timestamp line.
+Opening logs or history does not refresh the status snapshot or reset its age. Show missing files and read failures in the
 relevant view. This keeps initial status acquisition focused on current
 observations while providing an in-app troubleshooting path.
+
+Use a bounded `Log information` panel with bold field labels. Show `Read at:`
+with the timestamp and a green `(live)` indicator only while following; leave
+manual mode implicit. Show attempt and path directly below it. Keep the Task and
+Public job in the breadcrumb instead of repeating them. The path identifies the
+submission; omit a separate Submission field and the Details section.
+Show a short portion notice only when some content lies outside the loaded portion;
+keep errors and file-change notices visible. Keep identifiers and paths
+on single lines. Open the selected log automatically in a separate panel below,
+giving its contents the remaining vertical space and initial keyboard focus.
+Keep metadata out of the scrolling log contents. Show an explicit empty-file
+message. Tab focuses the information panel to scroll its full notices and errors
+when the terminal is small.
 
 Open logs at their latest 200 lines, clearly indicating that only a portion is
 displayed. Page Up and Page Down navigate older and newer content, reading
@@ -353,19 +405,20 @@ first and last lines as well. Keep the viewer tied to the chosen submission even
 if a later retry creates another submission.
 
 Use `u` to reload the current log while preserving the reading position where
-possible; when already at the end, show the latest output. In a history view,
+possible; when already at the end, show the latest output. In the Task view,
 `u` reloads the saved history records. `r` remains the separate workflow-status
 refresh.
 
-An open log or Task history view stays in place when a successful status refresh
+An open log or historical Job view stays in place when a successful status refresh
 changes its current attempt or submission or removes its Task from the refreshed
 selection. Preserve the selected log, reading position, and following mode.
 When a newer submission becomes current, explain that change while continuing
-to identify the original submission being viewed. History keeps its independent
-read timestamp, and `u` reloads its saved records.
+to identify the original submission being viewed. The Task History panel keeps its
+loaded contents across `r`; `u` reloads its saved records. If the Task
+is removed from the selection, the Task view returns to its surviving parent.
 
 If the Task is absent from the successfully refreshed selection, show "Task no
-longer in the refreshed selection" and retain the open log or history view until
+longer in the refreshed selection" and retain the open log or historical Job view until
 the user leaves it. Esc then returns to the nearest surviving parent in the new
 status view. This is an explicit exception to navigation fallback for disappearing
 items. Missing or unreadable logs retain the failure behavior specified below.
@@ -373,14 +426,14 @@ An unmatched original exact Task selector still fails the refresh and retains
 the previous snapshot; it is not a successful removal from the selection.
 
 Use Home to jump to the first log line and End to jump to the latest lines.
-Provide opt-in live following, initially off, toggled with `F`. While following,
+Use `F` to toggle between manual mode (the initial state) and live following. While following,
 check the chosen log for appended output roughly once per second and keep the
-view at the end. Scrolling upward or pressing Home pauses following; `F` resumes
-it. End jumps to the latest output without enabling following. Leaving the log
-view stops following. Reads remain tied to that submission and bounded in memory.
+view at the end. Scrolling upward or pressing Home switches to manual mode; `F` enables
+live mode again. End jumps to the latest output without enabling following. Leaving the log
+view switches to manual mode. Reads remain tied to that submission and bounded in memory.
 Following a log does not inspect the workflow or query the scheduler. Make this
-distinction visible, for example "Live log: following; Status snapshot: 2 minutes
-old". Workflow-status refresh remains manual only.
+distinction visible with `(live)` beside the log timestamp and the independent
+inspection age above the panels. Workflow-status refresh remains manual only.
 
 Live log following recovers automatically from changes to the chosen submission's
 log path. Appended output keeps the view at the end. On detected truncation or
@@ -391,6 +444,10 @@ the exact submission and the independently aged status snapshot.
 If the log is missing or unreadable, retain the currently displayed portion,
 mark it as previously read, show the read failure, and retry while following is
 enabled. Resume when the file becomes readable, with a visible recovery notice.
+For a missing log file, show “No stdout/stderr log available” and explain that
+the submission may not have started or its log may have been removed. Retain
+Attempt and Path, omit the raw file-not-found exception and permissions advice,
+and leave the recorded job state unchanged. Other read errors retain their diagnostics.
 These reads stay tied to the same selected submission's log path; a retry creating
 another submission does not switch the viewer to its log. Leaving the view stops
 following and retries.
@@ -401,7 +458,11 @@ reading older output. Keep file changes and gaps visible rather than silently
 joining old and replacement content. All reads and retained display content
 remain bounded.
 
-The TUI log viewer wraps text to the available width. Read exceptionally large
+The TUI log viewer opens without wrapping, with Left/Right horizontal scrolling.
+Use `w` to toggle wrapping to the available width, showing the setting in the
+log panel border. Preserve the horizontal reading position during live reads.
+Keep the last completed read's details visible while the next read is pending,
+so live following does not repeatedly shift the panels. Read exceptionally large
 lines in bounded portions, with visible continuation markers and paging through
 the remaining content. The latest 200 lines are the initial display target,
 subject to a bounded read size: if the size limit is reached first, label the
@@ -440,14 +501,14 @@ An unresolved submission is another possible reason for an unavailable count.
 These representations preserve uncertainty rather than inventing a completion
 fraction.
 
-For v0.8.0, counted bars have three meanings only: reusable over selected Tasks in
-a group, completed over total jobs in a Task, and confirmed backend acceptances
-over planned submissions during run. Individual jobs display their observed
-state, such as queued, running, or completed; current observations do not provide
-a within-job completion fraction.
+Counted bars show reusable over selected Tasks in a group, completed over total
+jobs in a Task, confirmed backend acceptances over planned submissions during
+run, and inspected over in-scope Tasks during inspection. Individual jobs display
+their observed state, such as queued, running, or completed; current observations
+do not provide a within-job completion fraction.
 
-Inspection, frontend-lock waits, scheduler waits, and image acquisition use an
-activity indicator with the current phase and elapsed time when available. For
+Workflow loading, frontend-lock waits, scheduler waits, and image acquisition
+use an activity indicator with the current phase and elapsed time when available. For
 example, "Inspecting workflow… 8s", "Waiting for scheduler… 12s", or "Acquiring
 image <image reference>… 32s" identifies the ongoing operation. Formatted
 terminal commands show activity while waiting. Plain and redirected output use
@@ -455,6 +516,24 @@ concise phase messages on stderr without animation or repeated elapsed-time
 updates. Do not present estimated completion percentages or ETAs. Task bars
 remain present for every Task state as specified above; activity indicators do
 not change the meaning of a captured Task's progress.
+
+On 2026-10-21, the maintainer approved a counted Task-inspection phase, extending
+the original activity-only inspection design. Keep the scheduler spinner while
+opening the backend and obtaining its initial observations. Then show
+"Inspecting Tasks: 37/120" with the shared progress bar. The denominator is the
+planned inspection scope, including required upstream Tasks; state and name
+view filters do not change it. Advance once each Task's inspection finishes,
+including a Task classified as blocked. An aborted inspection does not advance
+the unfinished Task. This counts inspected Tasks, not completed workflow jobs,
+elapsed-time percentages, or scheduler-query completion.
+
+Show dependency checks as a separate uncounted phase after the Task loop.
+Nested waits temporarily replace the counter and restore its current value on
+return. Initial browser loads and refreshes receive structured phase/count
+updates while retaining the existing owned-process cancellation behavior.
+Plain and redirected output retain one message per phase rather than per-Task
+updates. Snapshot publication still happens only after the entire inspection
+succeeds; finishing the Task counter alone does not publish partial results.
 
 Across commands, make outcomes easy to find and reduce long identifiers and
 repeated routine prose without hiding differing outcomes or cases requiring

@@ -143,9 +143,9 @@ class ManagedStatusTests(LocalBackendTestCase):
             self.assertNotRegex(output, "[╭○━]")
             self.assertRegex(output, r"(?m)^sample\s+pending\s+0/5")
         self.assertEqual(re.sub(r"\x1b\[[0-9;]*m", "", decorated), monochrome)
-        self.assertRegex(monochrome, r"0/5 \[─+\]")
+        self.assertRegex(monochrome, r"0/5 \[›+\]")
         self.assertEqual(" ".join(plain.split()),
-                         " ".join(re.sub(r" \[─+\]", "", monochrome).split()))
+                         " ".join(re.sub(r" \[›+\]", "", monochrome).split()))
 
     def test_retired_filters_reject_and_valid_state_filters_can_be_empty(self):
         for option, value in (("--format", "tree"), ("--format", "default"),
