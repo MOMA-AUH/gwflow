@@ -218,7 +218,8 @@ Job details retain the captured
 submission state and identity even when that work must repeat for Task progress.
 Job identifiers and log paths occupy one line with aligned bold labels. Long
 values are shortened in the middle without expandable or horizontally scrolling
-fields. The Logs panel labels its streams `stdout` and `stderr`. Up/Down selects
+fields. The Logs panel is a two-column **Kind / Path** table, with `stdout` and
+`stderr` rows, a shaded header, and an unshaded separator. Up/Down selects
 a stream regardless of pathname length; Enter or a click opens that log directly.
 Tab and Shift+Tab also switch between streams.
 Esc returns to the selected stream. Opening a log reads its saved contents without
@@ -228,6 +229,12 @@ Individual jobs have states, without computation percentages. The Jobs table
 uses enough space for its rows, with a scroll limit to leave room for History; Task details omit command suggestions and copy buttons.
 The browser executes no
 run, cancellation, cleanup, or recovery commands.
+
+The one-line footer separates key–action pairs with `│`. Keys are bold cyan;
+labels remain plain. Actions depend on the current view, with Back, Help, and
+Quit at the end where applicable. Narrow terminals keep the essential actions
+and omit whole lower-priority pairs; `?` opens the complete keyboard reference.
+Search shows Apply and Cancel because shortcut letters are entered as text.
 
 | Key | Action |
 | --- | --- |
@@ -276,16 +283,19 @@ History (Earlier submission or Previous attempt), Attempt, and Submission. State
 symbols and colors follow the other status views; history categories use cyan and
 magenta. Long identifiers stay on one line. Left/Right scrolls horizontally;
 Home/End goes to the left/right edge. The column headings remain visible while
-scrolling vertically.
+scrolling vertically, with a thin separator underneath. History has no read-timestamp line.
+All table headings use the same shaded background. History's Job column aligns
+with its panel title and the Jobs table's Name column.
 
 Tab switches between Jobs and History. Each panel scrolls independently; use
 Up/Down to select an entry and Enter to open its Job and Logs panels. Historical
 submissions use the same layout and stream controls as current jobs: Up/Down or
 Tab selects stdout/stderr and Enter opens the log. Historical details show the
-recorded state and attempt and remain tied to the selected submission across
+recorded state and remain tied to the selected submission across
 status refreshes. `l` on a History row also opens these panels; inside Job details
 it is disabled. Esc from a log restores its selected stream; another Esc returns
 to the selected History row.
+Both current and historical Job panels include Attempt below Backend job.
 History states are recorded evidence, not fresh scheduler observations. `u`
 reloads history without refreshing status; `r` refreshes the Task and Jobs while
 preserving the history already read. Leaving the Task stops any pending history
@@ -302,7 +312,7 @@ the log panel border shows the current setting. When wrapping is enabled, lines
 longer than 2,048 characters are segmented with continuation markers.
 Paging preserves UTF-8 character boundaries and keeps every portion accessible.
 
-Each read has its own timestamp. The previous read details remain visible while
+Each log read has its own timestamp. The previous read details remain visible while
 the next read is pending, keeping live updates from shifting the panels.
 `u` preserves the log's reading position where
 possible, or loads the latest output when already at the end. It reloads saved

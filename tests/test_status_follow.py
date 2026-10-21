@@ -418,7 +418,7 @@ class StatusFollowTests(unittest.IsolatedAsyncioTestCase):
             await self.shown(app, pilot, 'Previously read', timeout=4)
             self.assertIn('No stdout log available.', str(app.screen.query_one('#read-notice', Static).content))
             self.assertIn('(live)', visible_text(app))
-            self.assertIn('q quit', visible_text(app))
+            self.assertIn('q Quit', visible_text(app))
             self.assertIn('MINIMUM_TAIL', self.content(app))
             await pilot.press('q')
 

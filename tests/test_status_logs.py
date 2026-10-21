@@ -33,6 +33,16 @@ class StatusLogInteractionTests(LocalBackendTestCase, unittest.IsolatedAsyncioTe
     browser = test_browser_interaction.BrowserInteractionTests.browser
     shown = test_browser_interaction.BrowserInteractionTests.shown
 
+    async def history_loaded(self, app, pilot):
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline:
+            panel = app.screen.query_one('#history-panel')
+            if panel.result and panel.operation is None:
+                await pilot.pause()
+                return panel
+            await pilot.pause(0.05)
+        self.fail('History did not finish loading')
+
     async def test_selected_job_opens_both_exact_streams_without_reinspection(self):
         self.configure_workflow(left_command="echo selected-stdout; echo selected-stderr >&2; printf left > same.txt")
         self.run_complete()
@@ -83,7 +93,8 @@ class StatusLogInteractionTests(LocalBackendTestCase, unittest.IsolatedAsyncioTe
                 observed = (self.work / 'backend-observations.jsonl').read_bytes()
                 inspected = app.snapshot['finished']
                 await pilot.press('enter')
-                await self.shown(app, pilot, 'History read at', timeout=10)
+                await self.history_loaded(app, pilot)
+                self.assertNotIn('History read at', test_browser_interaction.visible_text(app))
                 task_view = app.screen
                 jobs = task_view.query_one('#task-jobs', OptionList)
                 self.assertIs(task_view.focused, jobs)
@@ -108,13 +119,14 @@ class StatusLogInteractionTests(LocalBackendTestCase, unittest.IsolatedAsyncioTe
                     await pilot.press('down')
                 self.assertEqual(listing.get_row_at(listing.cursor_row)[-1].plain, earlier)
                 self.assertTrue(all(row.height == 1 for row in listing.ordered_rows))
+                self.assertEqual(listing.render_line(1).text, '─' * listing.size.width)
                 self.assertEqual(listing.get_row_at(listing.cursor_row)[1].style, 'bold red')
                 await pilot.press('right', 'right', 'right')
                 await pilot.pause()
                 self.assertGreater(listing.scroll_x, 0)
                 horizontal_position = listing.scroll_x
                 await pilot.press('u')
-                await self.shown(app, pilot, 'History read at')
+                await self.history_loaded(app, pilot)
                 self.assertEqual(listing.get_row_at(listing.cursor_row)[-1].plain, earlier)
                 self.assertEqual(listing.scroll_x, horizontal_position)
                 await pilot.press('home')
@@ -163,7 +175,7 @@ class StatusLogInteractionTests(LocalBackendTestCase, unittest.IsolatedAsyncioTe
             await pilot.press('enter', 'enter')
             await self.shown(app, pilot, 'No earlier submissions.')
             panel = app.screen.query_one('#history-panel')
-            read_before = panel.query_one('#history-status', Static).content
+            read_before = panel.result['finished']
             self.run_complete()
             self.cli('run', '--force')
             self.finish()
@@ -171,7 +183,7 @@ class StatusLogInteractionTests(LocalBackendTestCase, unittest.IsolatedAsyncioTe
             await pilot.press('r')
             await self.shown(app, pilot, 'reusable')
             self.assertIs(app.screen.query_one('#history-panel'), panel)
-            self.assertEqual(panel.query_one('#history-status', Static).content, read_before)
+            self.assertEqual(panel.result['finished'], read_before)
             inspected = app.snapshot['finished']
             await pilot.press('u')
             await self.shown(app, pilot, 'Previous attempt')
@@ -223,7 +235,7 @@ class StatusLogInteractionTests(LocalBackendTestCase, unittest.IsolatedAsyncioTe
         async with app.run_test(size=(100, 30)) as pilot:
             await self.shown(app, pilot, '5/5')
             await pilot.press('enter')
-            await self.shown(app, pilot, 'History read at')
+            await self.history_loaded(app, pilot)
             table = app.screen.query_one('#history-jobs', DataTable)
             prompts = '\n'.join(str(cell) for row in range(table.row_count) for cell in table.get_row_at(row))
             self.assertIn('Previous attempt', prompts)
@@ -279,6 +291,8 @@ class StatusLogWindowTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(view.focus_chain, list(view.query(LogField)))
                 self.assertTrue(all(field.size.height == 1 for field in view.query(ValueField)))
             self.assertIn('Recorded state: ? uncertain', test_browser_interaction.visible_text(app))
+            self.assertEqual(next(field.value for field in view.query(ValueField) if field.label == 'Attempt:'),
+                             'historical-attempt')
             await pilot.press('down')
             await app.accept_inspection(self.snapshot())
             self.assertIs(app.screen, view)
@@ -362,6 +376,8 @@ class StatusLogWindowTests(unittest.IsolatedAsyncioTestCase):
             await pilot.press('down', 'enter')
             self.assertIsInstance(app.screen, JobView)
             job_view = app.screen
+            self.assertEqual(next(field.value for field in job_view.query(ValueField) if field.label == 'Attempt:'),
+                             '3' * 32)
             await pilot.press('l')
             self.assertIs(app.screen, job_view)
             for size in ((80, 24), (40, 12), (120, 40)):
@@ -649,10 +665,10 @@ class StatusLogWindowTests(unittest.IsolatedAsyncioTestCase):
             await app.accept_inspection(replacement)
             await self.shown(app, pilot, 'Current submission changed')
             await self.shown(app, pilot, 'NARROW_LAST', timeout=3)
-            self.assertIn('q quit', test_browser_interaction.visible_text(app))
+            self.assertIn('q Quit', test_browser_interaction.visible_text(app))
             await pilot.press('escape', 'l', 'down', 'enter')
             await self.shown(app, pilot, 'No stderr log available.')
-            self.assertIn('q quit', test_browser_interaction.visible_text(app))
+            self.assertIn('q Quit', test_browser_interaction.visible_text(app))
             await pilot.press('q')
 
 

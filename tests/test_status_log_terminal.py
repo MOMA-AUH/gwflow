@@ -48,7 +48,7 @@ class StatusLogTerminalTests(LocalBackendTestCase):
         checkpoint = session.send('\x1b')
         session.wait_for('Selected Tasks', after=checkpoint)
         checkpoint = session.send('\x1b[H\r')
-        session.wait_for('History read at', after=checkpoint)
+        session.wait_for('No earlier submissions.', after=checkpoint)
         session.wait_for('Recorded evidence', after=checkpoint)
         self.assertEqual((self.work / 'tty-log-imports').read_text(), 'import\n')
         self.assertEqual((self.work / 'backend-observations.jsonl').read_bytes(), observations)

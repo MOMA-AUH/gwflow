@@ -132,6 +132,13 @@ move between controls and expandable sections; Enter opens the selected item or
 activates the focused control. Show applicable actions in the footer and the
 complete keyboard reference under `?`.
 
+Keep the footer one line tall. Render separate key–action pairs with bold cyan
+keys, plain labels, and subdued `│` separators. Prioritize the current view's
+main action and navigation, with Back, Help, and Quit at the end when applicable.
+At narrow widths omit whole lower-priority pairs, preserving Help access rather
+than wrapping or cutting labels. Search text entry only advertises Apply and
+Cancel; initial loading and undersized terminals only advertise Quit.
+
 While entering search text, shortcut letters such as `q` and `r` enter text.
 Enter applies the search; Esc cancels editing. Outside text entry, Esc closes
 the current menu or help view before navigating back through screens. At the
@@ -277,7 +284,9 @@ that its contents or availability have been read.
 Job identifiers and log paths use single-line fields with aligned bold labels.
 Shorten long values in the middle so both ends remain visible. The maintainer
 subsequently requested removal of the horizontal scrolling popups. Identifier
-fields are not focusable. The Logs panel uses `stdout` and `stderr` labels;
+fields are not focusable. The Logs panel and stream chooser use a two-column
+Kind/Path table with `stdout` and `stderr` rows, a shaded header, and an unshaded
+separator. Keep the column headings visible at compact sizes;
 Up/Down selects these streams regardless of pathname length, and Enter or a click
 opens the selected log directly. Tab remains available for focus navigation.
 Esc restores focus to the selected stream.
@@ -348,7 +357,7 @@ uses enough height for its current rows, capped so History gets the remaining
 space; both lists scroll independently. Tab switches between the lists, Up/Down
 selects, and Enter opens Job details for the current or historical submission.
 Historical details share the current Job and Logs panels, with bold labels and
-single-line fields. Show Recorded state and the selected Attempt for history;
+single-line fields. Both Job panels show Attempt below Backend job. Show Recorded state for history;
 Up/Down or Tab selects stdout/stderr, and Enter opens the log. Disable `l` within
 both Job views. Esc returns to the selected stream, then to the History row.
 Historical details stay pinned to their exact submission across status refreshes.
@@ -361,16 +370,18 @@ Render History as a table with one unwrapped row per submission, and Job,
 Recorded state, History kind, Attempt, and Submission columns. Preserve recorded
 state wording while using the shared state symbols and colors. Distinguish
 earlier submissions in cyan and previous attempts in magenta. Use row selection,
-fixed column headings, and horizontal scrolling with Left/Right (Home/End to
+fixed column headings with a thin separator underneath, and horizontal scrolling with Left/Right (Home/End to
 the horizontal edges); retain full identifiers in the table. Reloading preserves
 the selected submission and scroll position when it still exists.
+Use the same shaded header background across all tables. Align History's Job
+heading and rows with its panel title and the Jobs table's Name column.
 Preserve empty previous attempts; show “No earlier submissions.” when there are
 no earlier records. Opening stdout or stderr reads that exact submission's file.
 History failures preserve previously loaded entries. Closing the Task stops and
 reaps a pending reader. Returning from a historical log restores its selection.
 
-Give log and history reads their own timestamps; opening them does not refresh
-the status snapshot or reset its age. Show missing files and read failures in the
+Show a timestamp for log reads, but omit the History read-timestamp line.
+Opening logs or history does not refresh the status snapshot or reset its age. Show missing files and read failures in the
 relevant view. This keeps initial status acquisition focused on current
 observations while providing an in-app troubleshooting path.
 
@@ -402,8 +413,8 @@ An open log or historical Job view stays in place when a successful status refre
 changes its current attempt or submission or removes its Task from the refreshed
 selection. Preserve the selected log, reading position, and following mode.
 When a newer submission becomes current, explain that change while continuing
-to identify the original submission being viewed. The Task History panel keeps its independent
-read timestamp and contents across `r`; `u` reloads its saved records. If the Task
+to identify the original submission being viewed. The Task History panel keeps its
+loaded contents across `r`; `u` reloads its saved records. If the Task
 is removed from the selection, the Task view returns to its surviving parent.
 
 If the Task is absent from the successfully refreshed selection, show "Task no

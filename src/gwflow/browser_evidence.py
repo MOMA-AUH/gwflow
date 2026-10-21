@@ -3,13 +3,14 @@
 import time
 
 from rich.text import Text
+from rich.segment import Segment
 from textual.binding import Binding
 from textual.containers import Vertical, VerticalScroll
-from textual.widgets import DataTable, OptionList, Static
-from textual.widgets.option_list import Option
+from textual.strip import Strip
+from textual.widgets import DataTable, Static
 
 from ._browser_read import ReadOperation
-from .browser import Breadcrumb, BrowserView, JobDetailsView, Shortcuts, ValueField
+from .browser import Breadcrumb, BrowserView, JobDetailsView, LogField, LogsPanel, ValueField
 from .presentation import _VISUALS
 
 
@@ -105,18 +106,17 @@ class StreamChooser(PinnedView):
                          f"{self.job.get('recorded_state', self.job['observed_state'])}\n"
                          f"Backend job: {self.job['backend_id'] if self.job['backend_id'] is not None else 'unavailable'}",
                          markup=False)
-        yield OptionList('stdout', 'stderr', classes='jobs')
+        yield LogsPanel(self.job['logs'])
         yield self.footer()
 
     def on_mount(self):
-        self.set_focus(self.query_one(OptionList))
+        self.set_focus(self.query_one(LogField))
 
-    def on_option_list_option_selected(self, event):
-        stream = ('stdout', 'stderr')[event.option_index]
+    def open_log(self, stream):
         self.app.switch_screen(LogView(self.observation, self.job, stream, self.breadcrumb[:-1]))
 
     def footer(self):
-        return Static(Shortcuts('↑↓ choose  Enter open', 'Esc back  ? help  q quit'), classes='shortcuts')
+        return self.shortcut_bar(('Enter', 'Open'), ('↑↓', 'Select stream'))
 
 
 class LogPane(VerticalScroll):
@@ -227,8 +227,9 @@ class LogView(PinnedView):
         notice.display = bool(notices)
 
     def footer(self):
-        return Static(Shortcuts('PgUp/Dn Home/End Tab', 'F u r Esc ? q quit'),
-                      classes='shortcuts')
+        return self.shortcut_bar(('↑↓', 'Scroll'), ('F', 'Live/manual'), ('u', 'Reload'), ('w', 'Wrap'),
+                                 ('Tab', 'Switch panel'), ('←→', 'Scroll sideways'), ('PgUp/PgDn', 'Page'),
+                                 ('Home', 'Beginning'), ('End', 'Latest'), ('r', 'Refresh'))
 
     def check_action(self, action, parameters):
         if action in ('beginning', 'latest', 'older', 'newer', 'scroll_up'):
@@ -389,15 +390,29 @@ class LogView(PinnedView):
             self.operation = None
 
 
+class HistoryTable(DataTable):
+    """Keep a thin separator below the headings while either axis scrolls."""
+
+    COMPONENT_CLASSES = {'history-header-rule'}
+    DEFAULT_CSS = """
+    HistoryTable > .history-header-rule { color: $foreground 20%; }
+    """
+
+    def render_line(self, y):
+        if self.show_header and y == self.header_height - 1:
+            return Strip([Segment('─' * self.size.width, self.get_component_rich_style('history-header-rule'))])
+        return super().render_line(y)
+
+
 class HistoryPanel(Vertical):
     """Read earlier submissions independently of the Task's status snapshot."""
 
     DEFAULT_CSS = """
-    HistoryPanel { height: 1fr; min-height: 5; margin-top: 1; border: round $foreground 25%; }
+    HistoryPanel { height: 1fr; min-height: 6; margin-top: 1; border: round $foreground 25%; }
     HistoryPanel:focus-within { border: round $accent; }
     HistoryPanel #history-status { height: auto; max-height: 3; margin: 0 1; }
-    HistoryPanel #history-jobs { height: 1fr; border: none; scrollbar-size-horizontal: 1; }
-    .compact HistoryPanel { min-height: 5; margin-top: 0; }
+    HistoryPanel #history-jobs { height: 1fr; border: none; padding: 0 1; scrollbar-size-horizontal: 1; }
+    .compact HistoryPanel { min-height: 6; margin-top: 0; }
     .compact HistoryPanel #history-status { display: none; }
     """
 
@@ -413,8 +428,8 @@ class HistoryPanel(Vertical):
 
     def compose(self):
         yield Static('Reading history...', id='history-status')
-        table = DataTable(id='history-jobs', cursor_type='row', zebra_stripes=True,
-                          cursor_foreground_priority='renderable')
+        table = HistoryTable(id='history-jobs', cursor_type='row', zebra_stripes=True, header_height=2,
+                             cursor_foreground_priority='renderable')
         table.add_columns('Job', 'Recorded state', 'History', 'Attempt', 'Submission')
         table.add_row(Text('Reading history...'), '', '', '', '')
         yield table
@@ -429,7 +444,9 @@ class HistoryPanel(Vertical):
             self.query_one(DataTable).clear().add_row(Text('History unavailable.'), '', '', '', '')
         elif self.operation is None:
             self.operation = ReadOperation({'kind': 'history', 'storage': self.storage, 'task': self.task_name})
-            self.query_one('#history-status', Static).update('Reading history...')
+            status = self.query_one('#history-status', Static)
+            status.update('Reading history...')
+            status.display = True
 
     def read_progress(self):
         if self.operation is None or not self.operation.completed():
@@ -441,7 +458,9 @@ class HistoryPanel(Vertical):
             self.operation = None
         table = self.query_one(DataTable)
         if 'error' in result:
-            self.query_one('#history-status', Static).update(Text(result['error'], style='yellow'))
+            status = self.query_one('#history-status', Static)
+            status.update(Text(result['error'], style='yellow'))
+            status.display = True
             if not self.result:
                 table.clear().add_row(Text(result['error'], style='yellow'), '', '', '', '')
             return
@@ -465,8 +484,7 @@ class HistoryPanel(Vertical):
                               key=job['submission'])
         if not table.row_count:
             table.add_row(Text('No earlier submissions.'), '', '', '', '')
-        self.query_one('#history-status', Static).update(Text.assemble(
-            ('History read at:', 'bold'), ' ' + time.strftime('%H:%M:%S', time.localtime(result['finished']))))
+        self.query_one('#history-status', Static).display = False
         indices = {row.key.value: index for index, row in enumerate(table.ordered_rows)}
         if selected is not None and selected in indices:
             table.move_cursor(row=indices[selected], scroll=False)

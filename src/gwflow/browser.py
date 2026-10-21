@@ -58,12 +58,29 @@ class Breadcrumb:
 
 
 class Shortcuts:
-    def __init__(self, primary="↑↓ Enter open  Esc back  Tab  g groups", secondary="/ find f filter r refresh ? help q quit"):
-        self.primary, self.secondary = primary, secondary
+    """Fit complete key–action pairs on one line, in priority order."""
+
+    def __init__(self, *actions, back=None, show_help=True, show_quit=True):
+        self.actions = actions
+        self.trailing = ([('Esc', back)] if back else []) + ([('?', 'Help')] if show_help else [])
+        if show_quit:
+            self.trailing.append(('q', 'Quit'))
 
     def __rich_console__(self, console, options):
-        separator = "  " if len(self.primary) + len(self.secondary) + 2 <= options.max_width else "\n"
-        yield Text(self.primary + separator + self.secondary)
+        def width(items):
+            return sum(cell_len(key + ' ' + label) for key, label in items) + max(0, len(items) - 1) * 3
+
+        selected = []
+        for action in self.actions:
+            if width([*selected, action, *self.trailing]) <= options.max_width:
+                selected.append(action)
+        result = Text(no_wrap=True, overflow='crop')
+        for key, label in [*selected, *self.trailing]:
+            if result:
+                result.append(' │ ', style='dim')
+            result.append(key, style='bold cyan')
+            result.append(' ' + label)
+        yield result
 
 
 class Scope:
@@ -340,10 +357,15 @@ class BrowserView(Screen):
                             browser.name_query))
 
     def footer(self):
-        return Static(Shortcuts(), classes="shortcuts")
+        return self.shortcut_bar(('Enter', 'Open'), ('↑↓', 'Select'), ('/', 'Search'),
+                                 ('f', 'Filter'), ('r', 'Refresh'))
+
+    def shortcut_bar(self, *actions, back='Back', show_help=True, show_quit=True):
+        return Static(Shortcuts(*actions, back=back if len(self.app.screen_stack) > 2 else None,
+                                show_help=show_help, show_quit=show_quit), classes='shortcuts')
 
     def listing(self, options, columns, title, *, classes="", list_id=None):
-        panel = Vertical(Static(columns, classes="list-columns"),
+        panel = Vertical(Vertical(Static(columns, classes="list-columns"), classes="list-heading"),
                          OptionList(*options, classes="listing table-list", id=list_id),
                          classes="listing-panel " + classes)
         panel.border_title = title
@@ -490,8 +512,9 @@ class TasksView(BrowserView):
         self.set_focus(self.query_one(OptionList))
 
     def footer(self):
-        return Static(Shortcuts('↑↓ Enter' + (' l logs' if self.expanded else ''),
-                                'Esc back g groups / f r ? q quit'), classes='shortcuts')
+        logs = [('l', 'Logs')] if self.expanded else []
+        return self.shortcut_bar(('Enter', 'Open'), ('↑↓', 'Select'), *logs, ('/', 'Search'),
+                                 ('f', 'Filter'), ('r', 'Refresh'), ('g', 'Groups'))
 
     def selection(self):
         index = self.query_one(OptionList).highlighted
@@ -567,7 +590,9 @@ class TaskView(BrowserView):
             self.focused.parent.scroll_visible(animate=False)
 
     def footer(self):
-        return Static(Shortcuts('↑↓ Enter Tab u history', 'l r Esc ? q quit'), classes='shortcuts')
+        return self.shortcut_bar(('Enter', 'Open'), ('↑↓', 'Select'), ('Tab', 'Switch panel'),
+                                 ('u', 'Reload history'), ('←→', 'Scroll history'), ('l', 'Logs'),
+                                 ('r', 'Refresh'), ('g', 'Groups'), ('/', 'Search'), ('f', 'Filter'))
 
     def selection(self):
         if self.focused is self.history.query_one(DataTable):
@@ -643,7 +668,7 @@ class LogField(ValueField, can_focus=True):
     """
 
     def __init__(self, stream, path):
-        super().__init__(stream + ':', path, label_width=len('stdout:'), id='log-' + stream)
+        super().__init__(stream, path, label_width=len('stdout') + 1, id='log-' + stream)
         self.stream = stream
 
     def action_select_stream(self, stream):
@@ -658,6 +683,26 @@ class LogField(ValueField, can_focus=True):
         self.focus()
         cast(JobDetailsView, self.screen).open_log(self.stream)
         event.stop()
+
+
+class LogsPanel(Vertical):
+    """A compact Kind/Path table with one selectable row per log stream."""
+
+    DEFAULT_CSS = """
+    LogsPanel LogField { padding: 0 2; }
+    LogsPanel:focus-within .list-columns { background-tint: $foreground 5%; }
+    """
+
+    def __init__(self, logs):
+        super().__init__(classes='detail-panel logs-panel')
+        self.logs = logs
+        self.border_title = 'Logs'
+
+    def compose(self):
+        with Vertical(classes='list-heading'):
+            yield Static(Text(f"{'Kind':<7} Path", style='bold'), classes='list-columns')
+        for stream in ('stdout', 'stderr'):
+            yield LogField(stream, self.logs.get(stream, 'unavailable'))
 
 
 class JobDetailsView(BrowserView):
@@ -688,16 +733,14 @@ class JobDetailsView(BrowserView):
                                      ("Submission:", job['submission'] or 'not submitted'),
                                      ("Backend job:", job['backend_id'] if job['backend_id'] is not None else 'unavailable')):
                     yield ValueField(label, value, label_width=len("Observed state:"))
-                if recorded:
-                    task, _ = self.selection()
-                    yield ValueField('Attempt:', task.get('attempt') or 'not recorded', label_width=len('Observed state:'))
-            with Vertical(classes="detail-panel") as panel:
-                panel.border_title = "Logs"
-                for stream in ("stdout", "stderr"):
-                    yield LogField(stream, job["logs"].get(stream, "unavailable"))
+                task, _ = self.selection()
+                yield ValueField('Attempt:', (task or {}).get('attempt') or 'not recorded',
+                                 label_width=len('Observed state:'))
+            yield LogsPanel(job['logs'])
 
     def footer(self):
-        return Static(Shortcuts('↑↓ stdout/stderr Enter open', 'Esc back g groups r refresh ? q quit'), classes='shortcuts')
+        return self.shortcut_bar(('Enter', 'Open'), ('↑↓', 'Select stream'), ('Tab', 'Switch stream'),
+                                 ('r', 'Refresh'), ('g', 'Groups'))
 
     def on_mount(self):
         self.set_focus(self.query_one(LogField))
@@ -754,6 +797,9 @@ class HelpView(BrowserView):
                          "w: toggle log wrapping (starts off); Left/Right scroll unwrapped lines.\n"
                          "Tab switches between log information and content.\n"
                          "Up/Down in log information scroll complete notices and errors.\n"
+                         "In History, Left/Right scroll horizontally; Home/End go to the horizontal edges.\n"
+                         "In search, Enter applies and Esc cancels; shortcut letters enter text.\n"
+                         "In state filters, Space toggles, Enter applies, c clears, and Esc cancels.\n"
                          "/: literal Task-name search (ignores case)\nf: filter primary Task states\nr: inspect again\n"
                          "Ctrl+C: interrupt\n\nTask/job details use captured observations. "
                          "Logs/history read only the requested saved evidence. No workflow operations are executed here.")
@@ -770,7 +816,8 @@ class HelpView(BrowserView):
         yield self.footer()
 
     def footer(self):
-        return Static(Shortcuts("↑↓ scroll  Tab controls  Enter expand", "Esc close  g groups  q quit"), classes="shortcuts")
+        return self.shortcut_bar(('↑↓', 'Scroll'), ('Tab', 'Controls'), ('Enter', 'Toggle details'),
+                                 ('g', 'Groups'), back='Close', show_help=False)
 
 
 class SearchView(Screen):
@@ -780,7 +827,8 @@ class SearchView(Screen):
         yield Static("Search Task names", classes="breadcrumb")
         yield InspectionStatus()
         yield Input(cast(StatusBrowser, self.app).name_query, placeholder="Literal text; ignores case")
-        yield Static("Enter: apply  Esc: cancel  Empty search: all selected Tasks", markup=False)
+        yield Static('Empty search: all selected Tasks', markup=False)
+        yield Static(Shortcuts(('Enter', 'Apply'), back='Cancel', show_help=False, show_quit=False), classes='shortcuts')
 
     def on_mount(self):
         self.query_one(Input).focus()
@@ -810,7 +858,9 @@ class StateFilterView(Screen):
         yield InspectionStatus()
         yield SelectionList(*((state_text(state), state, state in cast(StatusBrowser, self.app).statuses)
                               for state in STATES), classes="listing")
-        yield Static("Space: toggle  Enter: apply  Esc: cancel\nc: clear; no choices means all states", classes="shortcuts")
+        yield Static('No choices means all states', markup=False)
+        yield Static(Shortcuts(('Enter', 'Apply'), ('Space', 'Toggle'), ('↑↓', 'Select'), ('c', 'Clear'),
+                              back='Cancel', show_quit=False), classes='shortcuts')
 
     def on_mount(self):
         self.query_one(SelectionList).focus()
@@ -846,7 +896,8 @@ class ErrorView(BrowserView):
             if self.output:
                 with self.section("Captured workflow output"):
                     yield Static(Text.from_ansi(self.output))
-        yield Static("Tab: controls  Enter: expand  r: retry  q: quit", classes="shortcuts")
+        yield self.shortcut_bar(('r', 'Retry'), ('Enter', 'Toggle details'), ('Tab', 'Controls'),
+                                show_help=cast(StatusBrowser, self.app).snapshot is not None)
 
     def on_mount(self):
         self.set_focus(self.query_one(CollapsibleTitle))
@@ -854,7 +905,8 @@ class ErrorView(BrowserView):
 
 class ResizeView(Screen):
     def compose(self) -> ComposeResult:
-        yield Static("Terminal too small. Resize to at least 40 × 12. q: quit", markup=False)
+        yield Static("Terminal too small. Resize to at least 40 × 12.", markup=False)
+        yield Static(Shortcuts(show_help=False), classes='shortcuts')
 
 
 class Inspection:
@@ -935,15 +987,22 @@ class StatusBrowser(App[int]):
     #activity { height: auto; }
     #rows, .listing { height: 1fr; border: none; }
     .listing-panel { height: 1fr; margin-top: 1; border: round $foreground 25%; }
-    .list-columns { height: auto; margin: 0 1; padding: 0 4 0 1; border-bottom: solid $foreground 20%; }
+    .list-heading { height: auto; margin: 0 1; border-bottom: solid $foreground 20%; }
+    .list-columns {
+        height: auto; padding: 0 4 0 1;
+        background: $panel; color: $foreground; text-style: bold;
+    }
+    .listing-panel:focus-within .list-columns { background-tint: $foreground 5%; }
     .table-list { padding: 0 1 0 2; scrollbar-gutter: stable; scrollbar-size-vertical: 2; }
     .table-list > .option-list--option { padding: 0; }
     .table-list:focus > .option-list--option-highlighted { text-style: bold; }
     .detail-panel { height: auto; margin-bottom: 1; padding: 0 2; border: round $foreground 25%; }
+    .logs-panel { padding: 0; }
     .jobs-panel { height: 1fr; min-height: 8; }
     .compact .view-heading { margin-bottom: 0; }
     .compact .listing-panel { margin-top: 0; border: none; }
-    .compact .list-columns { display: none; }
+    .compact .list-heading { display: none; }
+    .compact .logs-panel .list-heading { display: block; }
     .compact .table-list { padding: 0 1; }
     .compact .detail-panel { margin-bottom: 0; padding: 0; border: none; }
     .compact .jobs-panel { min-height: 3; }
@@ -952,9 +1011,7 @@ class StatusBrowser(App[int]):
     .compact .notice-pane { height: 1; min-height: 1; max-height: 1; }
     .read-info { height: auto; min-height: 1; max-height: 25%; }
     .compact .read-info { height: 2; max-height: 2; }
-    #shortcuts, .shortcuts { height: auto; dock: bottom; }
-    .shortcuts { margin-top: 1; border-top: solid $foreground 25%; }
-    .compact .shortcuts { margin-top: 0; border-top: none; }
+    #shortcuts, .shortcuts { height: 1; dock: bottom; }
     """
     BINDINGS = [Binding("q", "quit", "Quit"), Binding("ctrl+c", "interrupt", show=False, priority=True),
                 Binding("g", "groups", "Groups"), Binding("r", "refresh", "Refresh"),
@@ -988,7 +1045,7 @@ class StatusBrowser(App[int]):
         yield Static("Groups", id="breadcrumb")
         yield Static("Loading workflow...", id="activity")
         yield OptionList(id="rows")
-        yield Static("q: quit", id="shortcuts")
+        yield Static(Shortcuts(show_help=False), id="shortcuts")
 
     def on_mount(self):
         self.action_refresh()
