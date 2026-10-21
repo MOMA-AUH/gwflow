@@ -20,7 +20,7 @@ from textual.binding import Binding
 from textual.containers import Vertical, VerticalScroll
 from textual.filter import Monochrome, NoColor
 from textual.screen import Screen
-from textual.widgets import Collapsible, Input, OptionList, SelectionList, Static
+from textual.widgets import Collapsible, DataTable, Input, OptionList, SelectionList, Static
 from textual.widgets._collapsible import CollapsibleTitle
 from textual.widgets.option_list import Option
 
@@ -563,14 +563,14 @@ class TaskView(BrowserView):
         self.call_after_refresh(self.scroll_focused_panel)
 
     def scroll_focused_panel(self):
-        if isinstance(self.focused, OptionList):
+        if isinstance(self.focused, (OptionList, DataTable)):
             self.focused.parent.scroll_visible(animate=False)
 
     def footer(self):
         return Static(Shortcuts('↑↓ Enter Tab u history', 'l r Esc ? q quit'), classes='shortcuts')
 
     def selection(self):
-        if self.focused is self.history.query_one(OptionList):
+        if self.focused is self.history.query_one(DataTable):
             return self.history.selection()
         index = self.query_one('#task-jobs', OptionList).highlighted
         jobs = self.observation['jobs']
@@ -651,39 +651,50 @@ class LogField(ValueField, can_focus=True):
 
     def on_key(self, event):
         if event.key == "enter":
-            cast(JobView, self.screen).open_log(self.stream)
+            cast(JobDetailsView, self.screen).open_log(self.stream)
             event.stop()
 
     def on_click(self, event):
         self.focus()
-        cast(JobView, self.screen).open_log(self.stream)
+        cast(JobDetailsView, self.screen).open_log(self.stream)
         event.stop()
 
 
-class JobView(BrowserView):
-    def __init__(self, job, breadcrumb):
-        super().__init__(breadcrumb)
-        self.job = job
+class JobDetailsView(BrowserView):
+    """Shared Job and Logs panels for current and historical submissions."""
 
     def compose(self) -> ComposeResult:
-        job = self.job
         yield self.heading()
         yield from self.notices(can_focus=False)
+        yield from self.details()
+        yield self.footer()
+
+    def details(self):
+        job = self.job
+        recorded = 'recorded_state' in job
+        label = 'Recorded state:' if recorded else 'Observed state:'
+        if recorded:
+            symbol, style = _VISUALS.get(job['observed_state'], ('?', 'yellow'))
+            state = Text(f"{symbol} {job['recorded_state']}", style=style)
+        else:
+            state = state_text(job['observed_state'])
         with VerticalScroll(can_focus=False):
             with Vertical(classes="detail-panel") as panel:
                 panel.border_title = "Job"
-                yield Static(Text.assemble(("Observed state:", "bold"), " ", state_text(job["observed_state"])))
+                yield Static(Text.assemble((label, "bold"), " ", state))
                 if job["requires_repetition"]:
                     yield Static("Requires repetition for Task progress.")
                 for label, value in (("Public job:", job['name']),
                                      ("Submission:", job['submission'] or 'not submitted'),
                                      ("Backend job:", job['backend_id'] if job['backend_id'] is not None else 'unavailable')):
                     yield ValueField(label, value, label_width=len("Observed state:"))
+                if recorded:
+                    task, _ = self.selection()
+                    yield ValueField('Attempt:', task.get('attempt') or 'not recorded', label_width=len('Observed state:'))
             with Vertical(classes="detail-panel") as panel:
                 panel.border_title = "Logs"
                 for stream in ("stdout", "stderr"):
                     yield LogField(stream, job["logs"].get(stream, "unavailable"))
-        yield self.footer()
 
     def footer(self):
         return Static(Shortcuts('↑↓ stdout/stderr Enter open', 'Esc back g groups r refresh ? q quit'), classes='shortcuts')
@@ -696,6 +707,12 @@ class JobView(BrowserView):
         if task is not None:
             from .browser_evidence import LogView
             self.app.push_screen(LogView(task, job, stream, self.breadcrumb))
+
+
+class JobView(JobDetailsView):
+    def __init__(self, job, breadcrumb):
+        super().__init__(breadcrumb)
+        self.job = job
 
     def selection(self):
         name = self.job['name'].removesuffix('__' + self.job['local'])
@@ -1084,13 +1101,16 @@ class StatusBrowser(App[int]):
             self.open_menu(SearchView())
 
     def action_logs(self):
-        if isinstance(self.screen, JobView):
+        if isinstance(self.screen, JobDetailsView):
             return
         if not self.too_small and isinstance(self.screen, BrowserView):
             task, job = self.screen.selection()
             if task is not None and job is not None:
-                from .browser_evidence import StreamChooser
-                self.push_screen(StreamChooser(task, job, self.screen.breadcrumb))
+                from .browser_evidence import HistoricalJobView, StreamChooser
+                if 'recorded_state' in job:
+                    self.push_screen(HistoricalJobView(task, job, self.screen.breadcrumb))
+                else:
+                    self.push_screen(StreamChooser(task, job, self.screen.breadcrumb))
 
     def action_filter(self):
         if not self.too_small and self.snapshot is not None and not isinstance(self.screen, StateFilterView):

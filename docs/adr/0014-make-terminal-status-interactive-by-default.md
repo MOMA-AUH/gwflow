@@ -204,7 +204,7 @@ Keep the previous snapshot available for responsive navigation while showing
 "Refreshing...". Replace the displayed snapshot together only after a successful
 inspection. Preserve the current screen, filters, selected item, and scroll
 position where possible. If the selected item disappears, return to the nearest
-surviving parent and explain the change, except for pinned log views
+surviving parent and explain the change, except for pinned log and historical Job views
 as specified below. This is a presentation boundary, not a claim that source
 observations form a distributed atomic snapshot.
 
@@ -346,12 +346,24 @@ Provide an in-app log view and a History panel below Jobs in the Task view.
 Opening a Task starts an independent, stoppable background history read. Jobs
 uses enough height for its current rows, capped so History gets the remaining
 space; both lists scroll independently. Tab switches between the lists, Up/Down
-selects, and Enter opens a job or a historical submission's stream chooser.
+selects, and Enter opens Job details for the current or historical submission.
+Historical details share the current Job and Logs panels, with bold labels and
+single-line fields. Show Recorded state and the selected Attempt for history;
+Up/Down or Tab selects stdout/stderr, and Enter opens the log. Disable `l` within
+both Job views. Esc returns to the selected stream, then to the History row.
+Historical details stay pinned to their exact submission across status refreshes.
 Remove `h` from all views and help.
 
 Task and job status details use the existing snapshot. History reads saved
 records without scheduler queries, showing earlier retries and previous attempts
 grouped by attempt. Omit current recorded submissions already represented in Jobs.
+Render History as a table with one unwrapped row per submission, and Job,
+Recorded state, History kind, Attempt, and Submission columns. Preserve recorded
+state wording while using the shared state symbols and colors. Distinguish
+earlier submissions in cyan and previous attempts in magenta. Use row selection,
+fixed column headings, and horizontal scrolling with Left/Right (Home/End to
+the horizontal edges); retain full identifiers in the table. Reloading preserves
+the selected submission and scroll position when it still exists.
 Preserve empty previous attempts; show “No earlier submissions.” when there are
 no earlier records. Opening stdout or stderr reads that exact submission's file.
 History failures preserve previously loaded entries. Closing the Task stops and
@@ -386,7 +398,7 @@ possible; when already at the end, show the latest output. In the Task view,
 `u` reloads the saved history records. `r` remains the separate workflow-status
 refresh.
 
-An open log view stays in place when a successful status refresh
+An open log or historical Job view stays in place when a successful status refresh
 changes its current attempt or submission or removes its Task from the refreshed
 selection. Preserve the selected log, reading position, and following mode.
 When a newer submission becomes current, explain that change while continuing
@@ -395,7 +407,7 @@ read timestamp and contents across `r`; `u` reloads its saved records. If the Ta
 is removed from the selection, the Task view returns to its surviving parent.
 
 If the Task is absent from the successfully refreshed selection, show "Task no
-longer in the refreshed selection" and retain the open log view until
+longer in the refreshed selection" and retain the open log or historical Job view until
 the user leaves it. Esc then returns to the nearest surviving parent in the new
 status view. This is an explicit exception to navigation fallback for disappearing
 items. Missing or unreadable logs retain the failure behavior specified below.
@@ -421,6 +433,10 @@ the exact submission and the independently aged status snapshot.
 If the log is missing or unreadable, retain the currently displayed portion,
 mark it as previously read, show the read failure, and retry while following is
 enabled. Resume when the file becomes readable, with a visible recovery notice.
+For a missing log file, show “No stdout/stderr log available” and explain that
+the submission may not have started or its log may have been removed. Retain
+Attempt and Path, omit the raw file-not-found exception and permissions advice,
+and leave the recorded job state unchanged. Other read errors retain their diagnostics.
 These reads stay tied to the same selected submission's log path; a retry creating
 another submission does not switch the viewer to its log. Leaving the view stops
 following and retries.

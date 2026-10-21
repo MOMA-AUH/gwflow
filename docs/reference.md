@@ -259,7 +259,7 @@ any now-unmatched selector makes refresh fail. The old snapshot stays browsable
 while inspection runs. Success replaces the observations together, preserving
 the current view, filters, stable item focus, and scroll where possible. If an
 item disappears, status returns to the nearest surviving parent and explains why.
-Open log views remain pinned, with a notice when their Task leaves
+Open log and historical Job views remain pinned, with a notice when their Task leaves
 the refreshed selection or current work changes. Esc then finds the nearest
 surviving parent. A now-unmatched original selector still makes refresh fail.
 
@@ -271,15 +271,26 @@ recorded submissions are omitted from History to avoid repeating Jobs. Empty
 previous attempts remain visible, including after work cleanup; a Task with no
 earlier records shows “No earlier submissions.”
 
+History uses a compact table with one line per submission: Job, Recorded state,
+History (Earlier submission or Previous attempt), Attempt, and Submission. State
+symbols and colors follow the other status views; history categories use cyan and
+magenta. Long identifiers stay on one line. Left/Right scrolls horizontally;
+Home/End goes to the left/right edge. The column headings remain visible while
+scrolling vertically.
+
 Tab switches between Jobs and History. Each panel scrolls independently; use
-Up/Down to select an entry and Enter to open a current job or a historical
-submission's stdout/stderr chooser. `l` also opens the selected submission's
-chooser. Returning from a historical log restores the History selection.
+Up/Down to select an entry and Enter to open its Job and Logs panels. Historical
+submissions use the same layout and stream controls as current jobs: Up/Down or
+Tab selects stdout/stderr and Enter opens the log. Historical details show the
+recorded state and attempt and remain tied to the selected submission across
+status refreshes. `l` on a History row also opens these panels; inside Job details
+it is disabled. Esc from a log restores its selected stream; another Esc returns
+to the selected History row.
 History states are recorded evidence, not fresh scheduler observations. `u`
 reloads history without refreshing status; `r` refreshes the Task and Jobs while
 preserving the history already read. Leaving the Task stops any pending history
 read. If a refresh removes the Task, normal parent navigation applies; an open
-historical log remains pinned to its exact submission.
+historical Job view or log remains pinned to its exact submission.
 
 Logs initially show up to the latest 200 newline-delimited lines. A 64 KiB byte
 window can contain fewer lines or only part of one exceptionally long line;
@@ -298,6 +309,10 @@ possible, or loads the latest output when already at the end. It reloads saved
 history without changing the status snapshot or its age. `r` leaves independently
 read text, history, and their positions intact. Following starts off. A missing or
 unreadable stream shows its failure and preserves any previously read portion.
+For a missing file, the viewer says “No stdout/stderr log available” and explains
+that the submission may not have started or its log may have been removed.
+Attempt and Path remain visible, without a raw file-not-found error or permissions
+advice. Missing logs do not change the recorded job state.
 While following is off, detected replacement, truncation, or changes to the previous portion preserve
 the displayed text and offer `u`; paging never joins old and replacement content.
 The `Log information` panel shows **Read at:** with a timestamp, followed by

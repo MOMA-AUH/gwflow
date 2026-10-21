@@ -71,7 +71,7 @@ class StatusFollowTerminalTests(LocalBackendTestCase):
         session.wait_for('TTY_REPLACED', after=checkpoint)
         checkpoint = len(session.output)
         path.unlink()
-        session.wait_for('No such file', after=checkpoint, timeout=4)
+        session.wait_for('No stdout log available.', after=checkpoint, timeout=4)
         checkpoint = len(session.output)
         path.write_text('TTY_READABLE_AGAIN\n')
         session.wait_for('Log readable again', after=checkpoint, timeout=4)

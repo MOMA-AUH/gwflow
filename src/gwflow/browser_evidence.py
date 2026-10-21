@@ -5,11 +5,12 @@ import time
 from rich.text import Text
 from textual.binding import Binding
 from textual.containers import Vertical, VerticalScroll
-from textual.widgets import OptionList, Static
+from textual.widgets import DataTable, OptionList, Static
 from textual.widgets.option_list import Option
 
 from ._browser_read import ReadOperation
-from .browser import Breadcrumb, BrowserView, Shortcuts, ValueField
+from .browser import Breadcrumb, BrowserView, JobDetailsView, Shortcuts, ValueField
+from .presentation import _VISUALS
 
 
 def log_text(result, *, wrap=False):
@@ -70,6 +71,22 @@ class PinnedView(BrowserView):
         context = self.query_one('#pinned-context', Static)
         context.update(Text(notice, style='yellow'))
         context.display = bool(notice)
+
+
+class HistoricalJobView(PinnedView, JobDetailsView):
+    """Use the common job layout while keeping the selected historical identity."""
+
+    def __init__(self, task, job, breadcrumb):
+        super().__init__(task, [*breadcrumb, job['local']], job)
+
+    def compose(self):
+        yield self.heading()
+        yield self.context()
+        yield from self.details()
+        yield self.footer()
+
+    def selection(self):
+        return self.observation, self.job
 
 
 class StreamChooser(PinnedView):
@@ -151,6 +168,7 @@ class LogView(PinnedView):
         self.next_follow = 0.0
         self.follow_notice = ''
         self.read_error = ''
+        self.read_error_kind = ''
         self.wrap = False
 
     def compose(self):
@@ -183,8 +201,14 @@ class LogView(PinnedView):
         self.query_one('#read-status', Static).update(self.read_status())
         notices = []
         if self.read_error:
-            notices = [('Previously read content' if self.result else 'No log content read') + '; u: reload.',
-                       self.read_error]
+            if self.read_error_kind == 'missing':
+                notices = [f'No {self.stream} log available.',
+                           'This submission may not have started, or its log may have been removed.']
+                if self.result:
+                    notices.insert(0, 'Previously read content; u: reload.')
+            else:
+                notices = [('Previously read content' if self.result else 'No log content read') + '; u: reload.',
+                           self.read_error]
         elif self.result:
             result = self.result
             if self.follow_notice:
@@ -316,6 +340,7 @@ class LogView(PinnedView):
             self.operation = None
         if 'error' in result:
             self.read_error = result['error']
+            self.read_error_kind = result.get('error_kind', '')
             self.update_read_information()
             self.read_position = self.previous_position
             self.app.call_after_refresh(self.restore_reading_position)
@@ -330,6 +355,7 @@ class LogView(PinnedView):
         if notices:
             self.follow_notice = ' '.join(notices)
         self.read_error = ''
+        self.read_error_kind = ''
         self.result = result
         self.query_one('#empty-log', Static).display = result['size'] == 0
         self.query_one('#log-text', Static).update(log_text(result, wrap=self.wrap))
@@ -370,8 +396,8 @@ class HistoryPanel(Vertical):
     HistoryPanel { height: 1fr; min-height: 5; margin-top: 1; border: round $foreground 25%; }
     HistoryPanel:focus-within { border: round $accent; }
     HistoryPanel #history-status { height: auto; max-height: 3; margin: 0 1; }
-    HistoryPanel #history-jobs { height: 1fr; border: none; padding: 0 1; }
-    .compact HistoryPanel { min-height: 3; margin-top: 0; }
+    HistoryPanel #history-jobs { height: 1fr; border: none; scrollbar-size-horizontal: 1; }
+    .compact HistoryPanel { min-height: 5; margin-top: 0; }
     .compact HistoryPanel #history-status { display: none; }
     """
 
@@ -383,11 +409,15 @@ class HistoryPanel(Vertical):
         self.result = {}
         self.records = {}
         self.border_title = 'History'
-        self.border_subtitle = 'Recorded evidence'
+        self.border_subtitle = 'Recorded evidence · ←→ scroll'
 
     def compose(self):
         yield Static('Reading history...', id='history-status')
-        yield OptionList(Option('Reading history...', disabled=True), id='history-jobs')
+        table = DataTable(id='history-jobs', cursor_type='row', zebra_stripes=True,
+                          cursor_foreground_priority='renderable')
+        table.add_columns('Job', 'Recorded state', 'History', 'Attempt', 'Submission')
+        table.add_row(Text('Reading history...'), '', '', '', '')
+        yield table
 
     def on_mount(self):
         self.reload()
@@ -396,7 +426,7 @@ class HistoryPanel(Vertical):
     def reload(self):
         if self.storage is None:
             self.query_one('#history-status', Static).update('History unavailable.')
-            self.query_one(OptionList).clear_options().add_option(Option('History unavailable.', disabled=True))
+            self.query_one(DataTable).clear().add_row(Text('History unavailable.'), '', '', '', '')
         elif self.operation is None:
             self.operation = ReadOperation({'kind': 'history', 'storage': self.storage, 'task': self.task_name})
             self.query_one('#history-status', Static).update('Reading history...')
@@ -409,47 +439,51 @@ class HistoryPanel(Vertical):
         finally:
             self.operation.close()
             self.operation = None
-        listing = self.query_one(OptionList)
+        table = self.query_one(DataTable)
         if 'error' in result:
             self.query_one('#history-status', Static).update(Text(result['error'], style='yellow'))
             if not self.result:
-                listing.clear_options().add_option(Option(Text(result['error'], style='yellow'), disabled=True))
+                table.clear().add_row(Text(result['error'], style='yellow'), '', '', '', '')
             return
-        selected = listing.highlighted_option.id if listing.highlighted_option else None
-        position = listing.scroll_offset
+        selected = table.ordered_rows[table.cursor_row].key.value if table.row_count else None
+        position = table.scroll_offset
         self.result = result
         self.records = {}
-        listing.clear_options()
+        table.clear()
         for group in result['groups']:
             if group['kind'] == 'current':
                 continue
-            listing.add_option(Option(Text(group['label'], style='bold'), disabled=True))
+            category = Text('Earlier submission', style='cyan') if group['kind'] == 'retries' else Text('Previous attempt', style='magenta')
             if not group['jobs']:
-                listing.add_option(Option('No recorded submissions', disabled=True))
+                table.add_row(Text('No recorded submissions'), '', category, Text(group['attempt']), '',
+                              key='empty:' + group['attempt'])
             for job in group['jobs']:
                 self.records[job['submission']] = (dict(name=self.task_name, attempt=group['attempt']), job)
-                listing.add_option(Option(Text(f"{job['local']}: {job['recorded_state']}\nSubmission: {job['submission']}"),
-                                          id=job['submission']))
-        if not listing.option_count:
-            listing.add_option(Option('No earlier submissions.', disabled=True))
+                symbol, style = _VISUALS.get(job['state'], ('?', 'yellow'))
+                state = Text(f"{symbol} {job['recorded_state']}", style=style)
+                table.add_row(Text(job['local']), state, category, Text(group['attempt']), Text(job['submission']),
+                              key=job['submission'])
+        if not table.row_count:
+            table.add_row(Text('No earlier submissions.'), '', '', '', '')
         self.query_one('#history-status', Static).update(Text.assemble(
             ('History read at:', 'bold'), ' ' + time.strftime('%H:%M:%S', time.localtime(result['finished']))))
-        indices = {option.id: index for index, option in enumerate(listing.options)}
+        indices = {row.key.value: index for index, row in enumerate(table.ordered_rows)}
         if selected is not None and selected in indices:
-            listing.highlighted = indices[selected]
-            listing.scroll_to(position.x, position.y, animate=False)
+            table.move_cursor(row=indices[selected], scroll=False)
+            self.call_after_refresh(table.scroll_to, position.x, position.y, animate=False)
         else:
-            listing.action_first()
+            table.move_cursor(row=0)
 
     def selection(self):
-        option = self.query_one(OptionList).highlighted_option
-        return self.records.get(option.id, (None, None)) if option else (None, None)
+        table = self.query_one(DataTable)
+        key = table.ordered_rows[table.cursor_row].key.value if table.row_count else None
+        return self.records.get(key, (None, None))
 
-    def on_option_list_option_selected(self, event):
+    def on_data_table_row_selected(self, event):
         event.stop()
         task, job = self.selection()
         if task is not None and job is not None:
-            self.app.push_screen(StreamChooser(task, job, self.screen.breadcrumb))
+            self.app.push_screen(HistoricalJobView(task, job, self.screen.breadcrumb))
 
     def on_unmount(self):
         self.read_timer.stop()

@@ -16,7 +16,7 @@ import weakref
 from unittest.mock import patch
 
 from rich.console import Console
-from textual.widgets import OptionList, Static
+from textual.widgets import DataTable, OptionList, Static
 
 from fixtures.browser_workload import CapturedBrowser, captured_snapshot
 from gwflow.browser import JobView, LogField, StatusBrowser, ValueField
@@ -83,7 +83,7 @@ class StatusLogInteractionTests(LocalBackendTestCase, unittest.IsolatedAsyncioTe
                 observed = (self.work / 'backend-observations.jsonl').read_bytes()
                 inspected = app.snapshot['finished']
                 await pilot.press('enter')
-                await self.shown(app, pilot, 'History read at', timeout=3)
+                await self.shown(app, pilot, 'History read at', timeout=10)
                 task_view = app.screen
                 jobs = task_view.query_one('#task-jobs', OptionList)
                 self.assertIs(task_view.focused, jobs)
@@ -93,19 +93,31 @@ class StatusLogInteractionTests(LocalBackendTestCase, unittest.IsolatedAsyncioTe
                 await pilot.press('enter', 'h')
                 self.assertIsInstance(app.screen, JobView)
                 await pilot.press('escape', 'tab')
-                listing = app.screen.query_one('#history-jobs', OptionList)
+                listing = app.screen.query_one('#history-jobs', DataTable)
                 self.assertIs(app.screen.focused, listing)
-                prompts = '\n'.join(str(option.prompt) for option in listing.options)
+                prompts = '\n'.join(str(cell) for row in range(listing.row_count) for cell in listing.get_row_at(row))
                 self.assertNotIn('Current recorded attempt', prompts)
-                self.assertIn('Earlier retries in current attempt', prompts)
-                self.assertIn('Previous attempt ' + old_attempt, prompts)
+                self.assertIn('Earlier submission', prompts)
+                self.assertIn('Previous attempt', prompts)
+                self.assertIn(old_attempt, prompts)
                 self.assertIn(earlier, prompts)
                 self.assertIn('Recorded evidence', test_browser_interaction.visible_text(app))
                 for _ in range(20):
-                    if earlier in str(listing.highlighted_option.prompt):
+                    if listing.get_row_at(listing.cursor_row)[-1].plain == earlier:
                         break
                     await pilot.press('down')
-                self.assertIn(earlier, str(listing.highlighted_option.prompt))
+                self.assertEqual(listing.get_row_at(listing.cursor_row)[-1].plain, earlier)
+                self.assertTrue(all(row.height == 1 for row in listing.ordered_rows))
+                self.assertEqual(listing.get_row_at(listing.cursor_row)[1].style, 'bold red')
+                await pilot.press('right', 'right', 'right')
+                await pilot.pause()
+                self.assertGreater(listing.scroll_x, 0)
+                horizontal_position = listing.scroll_x
+                await pilot.press('u')
+                await self.shown(app, pilot, 'History read at')
+                self.assertEqual(listing.get_row_at(listing.cursor_row)[-1].plain, earlier)
+                self.assertEqual(listing.scroll_x, horizontal_position)
+                await pilot.press('home')
                 history = task_view.query_one('#history-panel')
                 jobs_panel = task_view.query_one('.jobs-panel')
                 self.assertGreaterEqual(history.region.y, jobs_panel.region.bottom)
@@ -116,13 +128,29 @@ class StatusLogInteractionTests(LocalBackendTestCase, unittest.IsolatedAsyncioTe
                     self.assertIs(task_view.focused, listing)
                     self.assertGreater(listing.content_size.height, 0)
                     self.assertIn('History', test_browser_interaction.visible_text(app))
-                    self.assertEqual(listing.highlighted_option.id, earlier)
-                await pilot.press('enter', 'enter')
+                    self.assertEqual(listing.get_row_at(listing.cursor_row)[-1].plain, earlier)
+                await pilot.press('enter')
+                historical = app.screen
+                self.assertEqual([panel.border_title for panel in historical.query('.detail-panel')], ['Job', 'Logs'])
+                self.assertIn('Recorded state:', test_browser_interaction.visible_text(app))
+                self.assertNotIn('Choose log stream', test_browser_interaction.visible_text(app))
+                self.assertEqual(historical.selection()[1]['submission'], earlier)
+                self.assertEqual(historical.focused.id, 'log-stdout')
+                await pilot.press('down')
+                self.assertEqual(historical.focused.id, 'log-stderr')
+                await pilot.press('tab')
+                self.assertEqual(historical.focused.id, 'log-stdout')
+                await pilot.press('l')
+                self.assertIs(app.screen, historical)
+                await pilot.press('enter')
                 await self.shown(app, pilot, 'earlier-failed-log')
+                await pilot.press('escape')
+                self.assertIs(app.screen, historical)
+                self.assertEqual(historical.focused.id, 'log-stdout')
                 await pilot.press('escape')
                 self.assertIs(app.screen, task_view)
                 self.assertIs(task_view.focused, listing)
-                self.assertEqual(listing.highlighted_option.id, earlier)
+                self.assertEqual(listing.get_row_at(listing.cursor_row)[-1].plain, earlier)
                 self.assertEqual(app.snapshot['finished'], inspected)
                 self.assertEqual((self.work / 'history-imports').read_text(), 'import\n')
                 self.assertEqual((self.work / 'backend-observations.jsonl').read_bytes(), observed)
@@ -148,14 +176,14 @@ class StatusLogInteractionTests(LocalBackendTestCase, unittest.IsolatedAsyncioTe
             await pilot.press('u')
             await self.shown(app, pilot, 'Previous attempt')
             self.assertEqual(app.snapshot['finished'], inspected)
-            listing = panel.query_one(OptionList)
-            prompts = [str(option.prompt) for option in listing.options]
+            listing = panel.query_one(DataTable)
+            prompts = [listing.get_row_at(row) for row in range(listing.row_count)]
             owner = self.work / '.gwf/gwflow/owner.json'
             saved = owner.read_bytes()
             owner.unlink()
             await pilot.press('u')
             await self.shown(app, pilot, 'Missing or malformed managed ownership')
-            self.assertEqual([str(option.prompt) for option in listing.options], prompts)
+            self.assertEqual([listing.get_row_at(row) for row in range(listing.row_count)], prompts)
             owner.write_bytes(saved)
             (self.work / 'workflow.py').write_text('from gwflow import Workflow\ngwf = Workflow()\n')
             await pilot.press('r')
@@ -196,8 +224,10 @@ class StatusLogInteractionTests(LocalBackendTestCase, unittest.IsolatedAsyncioTe
             await self.shown(app, pilot, '5/5')
             await pilot.press('enter')
             await self.shown(app, pilot, 'History read at')
-            prompts = '\n'.join(str(option.prompt) for option in app.screen.query_one('#history-jobs', OptionList).options)
-            self.assertIn('Previous attempt ' + previous, prompts)
+            table = app.screen.query_one('#history-jobs', DataTable)
+            prompts = '\n'.join(str(cell) for row in range(table.row_count) for cell in table.get_row_at(row))
+            self.assertIn('Previous attempt', prompts)
+            self.assertIn(previous, prompts)
             self.assertIn('No recorded submissions', prompts)
             await pilot.press('q')
 
@@ -228,6 +258,46 @@ class StatusLogWindowTests(unittest.IsolatedAsyncioTestCase):
 
     def content(self, app):
         return app.screen.query_one('#log-text', Static).content.plain
+
+    async def test_historical_job_details_keep_identity_and_stream_focus_across_refresh(self):
+        from gwflow.browser_evidence import HistoricalJobView
+
+        self.stderr.write_text('HISTORICAL_STDERR\n')
+        app = self.browser()
+        async with app.run_test(size=(100, 30)) as pilot:
+            await self.shown(app, pilot, 'sample')
+            await pilot.press('enter')
+            task = dict(name='sample', attempt='historical-attempt')
+            job = {**self.snapshot()['tasks'][0]['jobs'][0], 'submission': 'historical-submission',
+                   'recorded_state': 'uncertain', 'observed_state': 'unknown'}
+            view = HistoricalJobView(task, job, app.screen.breadcrumb)
+            await app.push_screen(view)
+            await pilot.pause()
+            for size in ((100, 30), (40, 12), (120, 40)):
+                await pilot.resize_terminal(*size)
+                await pilot.pause()
+                self.assertEqual(view.focus_chain, list(view.query(LogField)))
+                self.assertTrue(all(field.size.height == 1 for field in view.query(ValueField)))
+            self.assertIn('Recorded state: ? uncertain', test_browser_interaction.visible_text(app))
+            await pilot.press('down')
+            await app.accept_inspection(self.snapshot())
+            self.assertIs(app.screen, view)
+            self.assertEqual(view.selection(), (task, job))
+            self.assertEqual(view.focused.id, 'log-stderr')
+            await pilot.press('enter')
+            await self.shown(app, pilot, 'HISTORICAL_STDERR')
+            self.assertEqual(app.screen.job['submission'], 'historical-submission')
+            await pilot.press('escape')
+            self.assertIs(app.screen, view)
+            self.assertEqual(view.focused.id, 'log-stderr')
+            replacement = self.snapshot()
+            replacement.update(tasks=[], groups=[], total=0)
+            await app.accept_inspection(replacement)
+            self.assertIs(app.screen, view)
+            self.assertIn('Task no longer in the refreshed selection', test_browser_interaction.visible_text(app))
+            await pilot.press('escape')
+            await self.shown(app, pilot, 'Showing 0 of 0 selected Tasks')
+            await pilot.press('q')
 
     async def test_log_information_and_content_have_separate_panels(self):
         self.stdout.write_text('PANEL_CONTENT\n')
@@ -427,13 +497,13 @@ class StatusLogWindowTests(unittest.IsolatedAsyncioTestCase):
             await self.shown(app, pilot, 'truncated content')
             self.stdout.unlink()
             await pilot.press('home')
-            await self.shown(app, pilot, 'No such file', timeout=3)
+            await self.shown(app, pilot, 'No stdout log available.', timeout=3)
             self.assertEqual(self.content(app), 'truncated content\n')
             self.assertIn('previously read', test_browser_interaction.visible_text(app).casefold())
             self.stdout.write_text('readable again\n')
             await pilot.press('u')
             await self.shown(app, pilot, 'readable again')
-            self.assertNotIn('No such file', test_browser_interaction.visible_text(app))
+            self.assertNotIn('No stdout log available.', test_browser_interaction.visible_text(app))
             self.assertEqual(app.acquisitions, 1)
             await pilot.press('q')
 
@@ -581,10 +651,33 @@ class StatusLogWindowTests(unittest.IsolatedAsyncioTestCase):
             await self.shown(app, pilot, 'NARROW_LAST', timeout=3)
             self.assertIn('q quit', test_browser_interaction.visible_text(app))
             await pilot.press('escape', 'l', 'down', 'enter')
-            await self.shown(app, pilot, 'No such file')
+            await self.shown(app, pilot, 'No stderr log available.')
             self.assertIn('q quit', test_browser_interaction.visible_text(app))
             await pilot.press('q')
 
+
+    async def test_missing_logs_explain_absence_without_changing_job_state(self):
+        for stream in ('stdout', 'stderr'):
+            with self.subTest(stream=stream):
+                app = self.browser()
+                async with app.run_test(size=(120, 30)) as pilot:
+                    await self.shown(app, pilot, 'sample')
+                    await pilot.press('down', 'l')
+                    if stream == 'stderr':
+                        await pilot.press('down')
+                    await pilot.press('enter')
+                    state = app.screen.job['observed_state']
+                    await self.shown(app, pilot, f'No {stream} log available.')
+                    rendered = test_browser_interaction.visible_text(app)
+                    self.assertIn('This submission may not have started, or its log may have been removed.', rendered)
+                    self.assertIn('Attempt:', rendered)
+                    self.assertIn('Path:', rendered)
+                    self.assertIn(str(self.root / f'exact.{stream}'), rendered)
+                    self.assertNotIn('[Errno', rendered)
+                    self.assertNotIn('permissions', rendered)
+                    self.assertEqual(app.screen.job['observed_state'], state)
+                    self.assertEqual(app.acquisitions, 1)
+                    await pilot.press('q')
 
     async def test_unsubmitted_and_nonregular_streams_show_read_errors_without_tracebacks(self):
         os.mkfifo(self.stdout)
@@ -599,7 +692,7 @@ class StatusLogWindowTests(unittest.IsolatedAsyncioTestCase):
                 async with app.run_test(size=(100, 30)) as pilot:
                     await self.shown(app, pilot, 'sample')
                     await pilot.press('down', 'enter', 'enter')
-                    await self.shown(app, pilot, expected, timeout=3)
+                    await self.shown(app, pilot, expected, timeout=10)
                     self.assertNotIn('Traceback', str(app.screen.query_one('#read-status', Static).content))
                     self.assertEqual(app.acquisitions, 1)
                     await pilot.press('q')

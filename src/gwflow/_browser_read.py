@@ -86,7 +86,10 @@ class ReadOperation:
 def read_log(path, *, direction='backward', offset=None, previous=None, following=False):
     if path is None:
         return {'error': 'No recorded submission for this stream.'}
-    fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK | os.O_CLOEXEC)
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK | os.O_CLOEXEC)
+    except FileNotFoundError:
+        return {'error': 'Log file not found.', 'error_kind': 'missing'}
     try:
         metadata = os.fstat(fd)
         if not stat.S_ISREG(metadata.st_mode):
