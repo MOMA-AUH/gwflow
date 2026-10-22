@@ -255,12 +255,14 @@ class LogView(PinnedView):
 
     def action_toggle_wrap(self):
         pane = self.query_one('#log-pane')
-        at_end = pane.is_vertical_scroll_end or pane.max_scroll_y == 0
+        text = self.query_one('#log-text', Static)
+        # Scrollbar layout can report overflow even when all text fits vertically.
+        at_end = pane.is_vertical_scroll_end or text.size.height <= pane.scrollable_content_region.height
         pane.anchor(False)
         self.wrap = not self.wrap
         pane.set_class(self.wrap, 'wrapped')
         pane.border_subtitle = 'w: wrap ' + ('on' if self.wrap else 'off')
-        self.query_one('#log-text', Static).update(log_text(self.result, wrap=self.wrap))
+        text.update(log_text(self.result, wrap=self.wrap))
         if at_end:
             self.call_after_refresh(self.scroll_to_latest_display)
 

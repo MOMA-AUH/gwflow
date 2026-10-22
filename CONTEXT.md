@@ -100,5 +100,8 @@ The checked finished state of a Task attempt, established by successful computat
 **Completion record**:
 Durable evidence of a Task attempt's checked Completion, retained so later Reuse can ignore removed internal intermediates. It does not certify scientific output correctness.
 
+**Record compaction**:
+Consolidation of a Task attempt's durable evidence to reduce its retained metadata footprint without discarding evidence. Successful record compaction is required for completion-job success, but does not itself establish Completion.
+
 **File freshness**:
 The existence-and-modification-time relationship between a target's inputs and outputs under gwf's rules. Freshness alone does not establish successful execution or a managed task's eligibility for Reuse.

@@ -631,6 +631,51 @@ class StatusLogWindowTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(app.acquisitions, 1)
             await pilot.press('q')
 
+    async def test_wrapping_keeps_tail_when_horizontal_scrollbar_layout_reports_transient_overflow(self):
+        from gwflow.browser_evidence import LogPane
+
+        self.stdout.write_text('BEGIN ' + '🚀' * 4000 + ' END\n')
+        app = self.browser()
+        async with app.run_test(size=(100, 30)) as pilot:
+            await self.shown(app, pilot, 'sample')
+            await pilot.press('down', 'l', 'enter')
+            await self.shown(app, pilot, 'BEGIN')
+            view = app.screen
+            pane = view.query_one('#log-pane')
+            text = view.query_one('#log-text')
+            self.assertIn('END', self.content(app))
+            self.assertGreater(pane.max_scroll_x, 0)
+            self.assertLess(text.size.height, pane.scrollable_content_region.height)
+            maximum = LogPane.max_scroll_y
+
+            def pending_scrollbar_height(widget):
+                # Replay the one-row overflow observed before the horizontal scrollbar settles.
+                value = maximum.fget(widget)
+                return max(1, value) if not view.wrap else value
+
+            with patch.object(LogPane, 'max_scroll_y', property(pending_scrollbar_height)):
+                self.assertFalse(pane.is_vertical_scroll_end)
+                await pilot.press('w')
+            await self.shown(app, pilot, 'END', timeout=3)
+            self.assertTrue(pane.is_vertical_scroll_end)
+            await pilot.press('q')
+
+    async def test_wrapping_preserves_position_above_the_end_of_multiline_logs(self):
+        self.stdout.write_text('BEGIN\n' + ''.join(f'line {index} ' + 'x' * 150 + '\n'
+                                                 for index in range(60)) + 'END\n')
+        app = self.browser()
+        async with app.run_test(size=(100, 30)) as pilot:
+            await self.shown(app, pilot, 'sample')
+            await pilot.press('down', 'l', 'enter')
+            await self.shown(app, pilot, 'END')
+            await pilot.press('home')
+            await self.shown(app, pilot, 'BEGIN')
+            await pilot.press('w')
+            await self.shown(app, pilot, 'wrap on')
+            self.assertIn('BEGIN', test_browser_interaction.visible_text(app))
+            self.assertNotIn('END', test_browser_interaction.visible_text(app))
+            await pilot.press('q')
+
     async def test_huge_utf8_line_is_segmented_and_every_byte_remains_accessible(self):
         original = 'BEGIN ' + ''.join(f' checkpoint_{index:03d} ' + '🚀' * 2045 + f' checkpoint_{index:03d} '
                                     for index in range(80)) + ' END'
