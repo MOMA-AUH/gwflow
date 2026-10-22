@@ -731,10 +731,6 @@ class LogsPanel(Vertical):
 class JobDetailsView(BrowserView):
     """Shared Job and Logs panels for current and historical submissions."""
 
-    DEFAULT_CSS = """
-    JobDetailsView .job-information { height: 1fr; max-height: 9; }
-    """
-
     def compose(self) -> ComposeResult:
         yield self.heading()
         yield from self.notices(can_focus=False)
@@ -1024,6 +1020,7 @@ class StatusBrowser(App[int]):
     .table-list > .option-list--option { padding: 0; }
     .table-list:focus > .option-list--option-highlighted { text-style: bold; }
     .detail-panel { height: auto; margin-bottom: 1; padding: 0 2; border: round $foreground 25%; }
+    .job-information { height: 1fr; max-height: 9; }
     .logs-panel { padding: 0; }
     .jobs-panel { height: 1fr; min-height: 8; }
     .compact .view-heading { margin-bottom: 0; }
