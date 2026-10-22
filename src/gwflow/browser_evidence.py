@@ -5,12 +5,12 @@ import time
 from rich.text import Text
 from rich.segment import Segment
 from textual.binding import Binding
-from textual.containers import Vertical, VerticalScroll
+from textual.containers import Vertical
 from textual.strip import Strip
 from textual.widgets import DataTable, Static
 
 from ._browser_read import ReadOperation
-from .browser import Breadcrumb, BrowserView, JobDetailsView, LogField, LogsPanel, ValueField
+from .browser import Breadcrumb, BrowserView, JobDetailsView, LogField, LogsPanel, ValueField, VimScroll
 from .presentation import _VISUALS
 
 
@@ -115,10 +115,15 @@ class StreamChooser(PinnedView):
         self.app.switch_screen(LogView(self.observation, self.job, stream, self.breadcrumb[:-1]))
 
     def footer(self):
-        return self.shortcut_bar(('Enter', 'Open'), ('↑↓', 'Select stream'))
+        return self.shortcut_bar(('Enter', 'Open'), ('↑↓/jk', 'Select stream'))
 
 
-class LogPane(VerticalScroll):
+class LogPane(VimScroll):
+    def action_scroll_up(self):
+        # Mirror the screen-level Up binding: pause live following, then scroll.
+        self.screen.pause_follow()
+        self.scroll_up(animate=False)
+
     def on_scroll_up(self):
         self.screen.pause_follow()
 
@@ -172,7 +177,7 @@ class LogView(PinnedView):
 
     def compose(self):
         yield self.heading()
-        with VerticalScroll(id='log-info') as information:
+        with VimScroll(id='log-info') as information:
             information.border_title = 'Log information'
             yield self.context()
             yield Static(self.read_status(), id='read-status')
@@ -226,7 +231,7 @@ class LogView(PinnedView):
         notice.display = bool(notices)
 
     def footer(self):
-        return self.shortcut_bar(('↑↓', 'Scroll'), ('F', 'Live/manual'), ('u', 'Reload'), ('w', 'Wrap'),
+        return self.shortcut_bar(('↑↓/jk', 'Scroll'), ('F', 'Live/manual'), ('u', 'Reload'), ('w', 'Wrap'),
                                  ('Tab', 'Switch panel'), ('←→', 'Scroll sideways'), ('PgUp/PgDn', 'Page'),
                                  ('Home', 'Beginning'), ('End', 'Latest'), ('r', 'Refresh'))
 
@@ -391,6 +396,8 @@ class LogView(PinnedView):
 
 class HistoryTable(DataTable):
     """Keep a thin separator below the headings while either axis scrolls."""
+
+    BINDINGS = [Binding("j", "cursor_down", show=False), Binding("k", "cursor_up", show=False)]
 
     COMPONENT_CLASSES = {'history-header-rule'}
     DEFAULT_CSS = """

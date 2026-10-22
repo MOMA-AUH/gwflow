@@ -100,8 +100,8 @@ computation command requires a fresh whole-Task attempt, even after cleanup.
 For changes to packages or environments that leave tracked commands and inputs
 unchanged, preview and request fresh computation with `gwflow run TASK --force`.
 Status focuses on the selected tasks and explains relevant upstream blockers.
-In the browser, use arrows and Enter to open groups, Tasks, and jobs; Esc goes
-back, `/` searches Task names, `f` filters states, and `q` quits. `r` refreshes
+In the browser, use arrows or j/k and Enter to open groups, Tasks, and jobs;
+Esc goes back, `/` searches Task names, `f` filters states, and `q` quits. `r` refreshes
 observations while the previous snapshot remains browsable; `?` shows all keys.
 `h` reads the selected Task's saved history, and `l` chooses stdout/stderr for
 the selected job or historical submission. Logs open at a bounded tail; Page

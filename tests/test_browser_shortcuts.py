@@ -66,13 +66,13 @@ class ShortcutViewTests(unittest.IsolatedAsyncioTestCase):
             await pilot.press('enter', 'enter')
             await self.check_footer(app, pilot, expected=('Tab Switch panel', 'u Reload history'))
             await pilot.press('enter')
-            await self.check_footer(app, pilot, expected=('↑↓ Select stream',), absent=('l Logs', 'u Reload history'))
+            await self.check_footer(app, pilot, expected=('↑↓/jk Select stream',), absent=('l Logs', 'u Reload history'))
             await pilot.press('enter')
             await self.check_footer(app, pilot, expected=('F Live/manual', 'w Wrap', '←→ Scroll sideways'),
                                     absent=('Enter Open', 'u Reload history'))
             await pilot.press('escape')
             await pilot.press('question_mark')
-            await self.check_footer(app, pilot, expected=('↑↓ Scroll', 'Esc Close'), absent=('? Help',))
+            await self.check_footer(app, pilot, expected=('↑↓/jk Scroll', 'Esc Close'), absent=('? Help',))
             await pilot.press('escape', 'slash')
             await self.check_footer(app, pilot, expected=('Enter Apply', 'Esc Cancel'),
                                     absent=('q Quit', '? Help'), exit_pair='Esc Cancel')
