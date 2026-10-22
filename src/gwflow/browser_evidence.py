@@ -98,7 +98,7 @@ class StreamChooser(PinnedView):
         yield self.heading()
         yield self.context()
         yield Static('Choose log stream')
-        with VerticalScroll():
+        with VimScroll():
             yield Static(f"Task: {self.observation['name']}\nPublic job: {self.job['name']}\n"
                          f"Attempt: {self.observation.get('attempt') or 'not recorded'}\n"
                          f"Submission: {self.job['submission'] or 'not submitted'}\n"
