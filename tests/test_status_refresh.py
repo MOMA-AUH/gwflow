@@ -241,7 +241,8 @@ class StatusRefreshTests(LocalBackendTestCase):
         self.cli('run', 'mapping__A')
         self.finish()
         session = self.terminal('status', 'mapping*')
-        session.wait_for('3/3')
+        # Inspection progress can show 3/3 before the task list accepts keys.
+        session.wait_for('Showing 3 of 3 selected Tasks')
         session.send('\r')
         session.wait_for('Jobs completed: 3/3')
         session.send('\x1b[B\r')
