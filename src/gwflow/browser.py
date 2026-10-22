@@ -282,6 +282,24 @@ def failure_summary(failure):
     return (failure.partition("Error: ")[2] or failure).partition("Traceback:")[0].strip()
 
 
+class VimScroll(VerticalScroll):
+    """Scrollable pane that also scrolls one line with the vim keys j and k."""
+
+    BINDINGS = [Binding("j", "scroll_down", show=False), Binding("k", "scroll_up", show=False)]
+
+
+class NavigableList(OptionList):
+    """Row listing whose highlight also moves with the vim keys j and k."""
+
+    BINDINGS = [Binding("j", "cursor_down", show=False), Binding("k", "cursor_up", show=False)]
+
+
+class FilterList(SelectionList):
+    """State choices whose highlight also moves with the vim keys j and k."""
+
+    BINDINGS = [Binding("j", "cursor_down", show=False), Binding("k", "cursor_up", show=False)]
+
+
 class InspectionStatus(Static):
     """Snapshot age and acquisition outcome, independent of the current view."""
 
@@ -357,7 +375,7 @@ class BrowserView(Screen):
                             browser.name_query))
 
     def footer(self):
-        return self.shortcut_bar(('Enter', 'Open'), ('↑↓', 'Select'), ('/', 'Search'),
+        return self.shortcut_bar(('Enter', 'Open'), ('↑↓/jk', 'Select'), ('/', 'Search'),
                                  ('f', 'Filter'), ('r', 'Refresh'))
 
     def shortcut_bar(self, *actions, back='Back', show_help=True, show_quit=True):
@@ -366,14 +384,14 @@ class BrowserView(Screen):
 
     def listing(self, options, columns, title, *, classes="", list_id=None):
         panel = Vertical(Vertical(Static(columns, classes="list-columns"), classes="list-heading"),
-                         OptionList(*options, classes="listing table-list", id=list_id),
+                         NavigableList(*options, classes="listing table-list", id=list_id),
                          classes="listing-panel " + classes)
         panel.border_title = title
         return panel
 
     def notices(self, *, can_focus=True):
         if self.snapshot.get("notices"):
-            with VerticalScroll(classes="notice-pane", can_focus=can_focus):
+            with VimScroll(classes="notice-pane", can_focus=can_focus):
                 yield Static(Text(self.snapshot["notices"], style="yellow"))
 
     def observe_snapshot(self):
@@ -516,7 +534,7 @@ class TasksView(BrowserView):
 
     def footer(self):
         logs = [('l', 'Logs')] if self.expanded else []
-        return self.shortcut_bar(('Enter', 'Open'), ('↑↓', 'Select'), *logs, ('/', 'Search'),
+        return self.shortcut_bar(('Enter', 'Open'), ('↑↓/jk', 'Select'), *logs, ('/', 'Search'),
                                  ('f', 'Filter'), ('r', 'Refresh'), ('g', 'Groups'))
 
     def selection(self):
@@ -593,7 +611,7 @@ class TaskView(BrowserView):
             self.focused.parent.scroll_visible(animate=False)
 
     def footer(self):
-        return self.shortcut_bar(('Enter', 'Open'), ('↑↓', 'Select'), ('Tab', 'Switch panel'),
+        return self.shortcut_bar(('Enter', 'Open'), ('↑↓/jk', 'Select'), ('Tab', 'Switch panel'),
                                  ('u', 'Reload history'), ('←→', 'Scroll history'), ('l', 'Logs'),
                                  ('r', 'Refresh'), ('g', 'Groups'), ('/', 'Search'), ('f', 'Filter'))
 
@@ -660,7 +678,9 @@ class LogField(ValueField, can_focus=True):
     """Select a log stream independently of whether its pathname is truncated."""
 
     BINDINGS = [Binding("up", "select_stream('stdout')", show=False, priority=True),
-                Binding("down", "select_stream('stderr')", show=False, priority=True)]
+                Binding("down", "select_stream('stderr')", show=False, priority=True),
+                Binding("k", "select_stream('stdout')", show=False, priority=True),
+                Binding("j", "select_stream('stderr')", show=False, priority=True)]
 
     DEFAULT_CSS = """
     LogField:focus {
@@ -742,7 +762,7 @@ class JobDetailsView(BrowserView):
         yield LogsPanel(job['logs'])
 
     def footer(self):
-        return self.shortcut_bar(('Enter', 'Open'), ('↑↓', 'Select stream'), ('Tab', 'Switch stream'),
+        return self.shortcut_bar(('Enter', 'Open'), ('↑↓/jk', 'Select stream'), ('Tab', 'Switch stream'),
                                  ('r', 'Refresh'), ('g', 'Groups'))
 
     def on_mount(self):
@@ -783,15 +803,15 @@ class HelpView(BrowserView):
 
     def compose(self) -> ComposeResult:
         yield self.heading()
-        with VerticalScroll():
-            yield Static("Up/Down: select a row\nEnter: open a row or activate a control\n"
+        with VimScroll():
+            yield Static("Up/Down or j/k: select a row or scroll\nEnter: open a row or activate a control\n"
                          "Esc: close help or go back; stay at the root\n"
                          "Home/End: first/last row or beginning/end of details\nPage Up/Page Down: page through rows or details\n"
                          "Tab/Shift+Tab: move between controls and expandable sections\n"
                          "g: grouped summary within the original selection\n?: keyboard reference\nq: quit\n"
                          "In Task details, Tab switches Jobs/History; Enter opens a job or historical logs.\n"
                          "l: choose stdout/stderr for the selected job or historical submission\n"
-                         "In Job details, use Up/Down and Enter to open a log; l is disabled.\n"
+                         "In Job details, use Up/Down or j/k and Enter to open a log; l is disabled.\n"
                          "u: reload the current log/history; status age stays unchanged\n"
                          "F: toggle live/manual log mode (starts manual; live checks about once per second)\n"
                          "Scrolling upward or Home switches to manual; F enables live mode. End does not enable it.\n"
@@ -799,10 +819,10 @@ class HelpView(BrowserView):
                          "In logs, Page Up/Down scroll then read adjacent bounded portions; Home/End jump to first/latest.\n"
                          "w: toggle log wrapping (starts off); Left/Right scroll unwrapped lines.\n"
                          "Tab switches between log information and content.\n"
-                         "Up/Down in log information scroll complete notices and errors.\n"
+                         "Up/Down or j/k scroll log information and content; k pauses live following like Up.\n"
                          "In History, Left/Right scroll horizontally; Home/End go to the horizontal edges.\n"
-                         "In search, Enter applies and Esc cancels; shortcut letters enter text.\n"
-                         "In state filters, Space toggles, Enter applies, c clears, and Esc cancels.\n"
+                         "In search, Enter applies and Esc cancels; shortcut letters, including j and k, enter text.\n"
+                         "In state filters, j/k move like Up/Down; Space toggles, Enter applies, c clears, and Esc cancels.\n"
                          "/: literal Task-name search (ignores case)\nf: filter primary Task states\nr: inspect again\n"
                          "Ctrl+C: interrupt\n\nTask/job details use captured observations. "
                          "Logs/history read only the requested saved evidence. No workflow operations are executed here.")
@@ -819,7 +839,7 @@ class HelpView(BrowserView):
         yield self.footer()
 
     def footer(self):
-        return self.shortcut_bar(('↑↓', 'Scroll'), ('Tab', 'Controls'), ('Enter', 'Toggle details'),
+        return self.shortcut_bar(('↑↓/jk', 'Scroll'), ('Tab', 'Controls'), ('Enter', 'Toggle details'),
                                  ('g', 'Groups'), back='Close', show_help=False)
 
 
@@ -859,10 +879,10 @@ class StateFilterView(Screen):
     def compose(self) -> ComposeResult:
         yield Static("Filter Task states", classes="breadcrumb")
         yield InspectionStatus()
-        yield SelectionList(*((state_text(state), state, state in cast(StatusBrowser, self.app).statuses)
-                              for state in STATES), classes="listing")
+        yield FilterList(*((state_text(state), state, state in cast(StatusBrowser, self.app).statuses)
+                           for state in STATES), classes="listing")
         yield Static('No choices means all states', markup=False)
-        yield Static(Shortcuts(('Enter', 'Apply'), ('Space', 'Toggle'), ('↑↓', 'Select'), ('c', 'Clear'),
+        yield Static(Shortcuts(('Enter', 'Apply'), ('Space', 'Toggle'), ('↑↓/jk', 'Select'), ('c', 'Clear'),
                               back='Cancel', show_quit=False), classes='shortcuts')
 
     def on_mount(self):
@@ -892,7 +912,7 @@ class ErrorView(BrowserView):
 
     def compose(self) -> ComposeResult:
         yield self.heading()
-        with VerticalScroll():
+        with VimScroll():
             yield Static(failure_summary(self.failure), markup=False)
             with self.section("Error details"):
                 yield Static(Text.from_ansi(self.failure))
