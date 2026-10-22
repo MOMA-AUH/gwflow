@@ -155,14 +155,15 @@ class TaskLogTests(LocalBackendTestCase):
         self.run_complete()
         old = self.cli("logs", "a__b", "--details")
         submission = re.search(r"a__b__left: complete; submission (\S+)", old).group(1)
-        self.configure_workflow(left_command="echo new-log; printf left > same.txt")
+        # Change source size so same-tick rewrites invalidate Python's bytecode cache.
+        self.configure_workflow(left_command="echo new-owner-log; printf left > same.txt")
         workflow.write_text(workflow.read_text().replace("alias='sample'", "alias='a'")
                             .replace("task.target('left'", "task.target('b__left'"))
         self.run_complete()
         for removed in (False, True):
             if removed:
                 workflow.write_text("from gwflow import Workflow\ngwf = Workflow()\n")
-            for selector, owner, content in (("a__b__left", "a", "new-log"), (submission, "a__b", "old-log")):
+            for selector, owner, content in (("a__b__left", "a", "new-owner-log"), (submission, "a__b", "old-log")):
                 with self.subTest(removed=removed, selector=selector):
                     error = self.cli("logs", selector, "--details", success=False)
                     self.assertIn(f"Use gwflow logs {owner} --details", error)
