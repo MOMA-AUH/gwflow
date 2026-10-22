@@ -6,6 +6,7 @@ import errno
 import json
 import os
 from pathlib import Path
+import re
 import stat
 from uuid import uuid4
 
@@ -309,6 +310,18 @@ def publish(path, record, *, replace=True):
                 os.unlink(temporary, dir_fd=parent)
             except FileNotFoundError:
                 pass
+
+
+def initialization_entries(path):
+    """Ignore only regular private files left by an interrupted publication."""
+    with directory(path) as parent:
+        entries = set(os.listdir(parent))
+    for name in list(entries):
+        if re.fullmatch(r"\.pending-[0-9a-f]{32}", name):
+            # Never read these as evidence, select them, or delete them here.
+            metadata(path, [name])
+            entries.remove(name)
+    return entries
 
 
 def commit_directory(source, destination, *, expected=None):

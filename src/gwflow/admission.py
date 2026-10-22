@@ -8,7 +8,6 @@ or cancellation requests.
 from dataclasses import dataclass
 from contextlib import nullcontext
 import json
-import os
 import time
 from uuid import uuid4
 
@@ -20,7 +19,7 @@ from gwf.backends.slurm import SlurmOps
 from gwf.exceptions import WorkflowError
 from gwf.scheduling import submit_backend
 
-from . import _files, _observations
+from . import _observations
 from .activity import activity as report_activity
 from ._frontend import observation_deadline
 from .diagnostics import report_error
@@ -111,7 +110,7 @@ def read_intent(store, attempt, local):
     path = intent_path(attempt, local)
     record = store.read(attempt, path, "submission-intent", **store.job_identity(attempt, local))
     if record is None:
-        if _files.exists(store.attempt_dir(attempt) / path):
+        if store.exists(attempt, path):
             raise WorkflowError(f"Malformed submission intent for {attempt['task']}__{local}")
         for previous in recorded_intents(store, attempt):
             if previous["job"] == attempt["jobs"][local]:
@@ -128,12 +127,8 @@ def read_intent(store, attempt, local):
 
 def recorded_intents(store, attempt):
     """Read archived submission identities, including replaced retry admissions."""
-    archive = store.attempt_dir(attempt) / "admissions"
-    if not _files.exists(archive):
-        return []
-    with _files.directory(archive) as directory:
-        tokens = sorted(os.listdir(directory))
-    return [_archived_intent(store, attempt, token) for token in tokens]
+    return [_archived_intent(store, attempt, token)
+            for token in store.records(attempt).names("admissions")]
 
 
 def _archived_intent(store, attempt, token):
@@ -155,7 +150,7 @@ def identity(intent):
 def read_recovery(store, attempt, intent):
     path = f"recoveries/{intent['admission']}/recovery.json"
     record = store.read(attempt, path, "operator-recovery", **identity(intent))
-    if record is None and not _files.exists(store.record_path(attempt, path)):
+    if record is None and not store.exists(attempt, path):
         return None
     if (record is None or record.get("assertion") != "whole-task-inactive"
             or not _uuid(record.get("recovery")) or type(record.get("asserted_at_ns")) is not int
@@ -265,13 +260,8 @@ def cancellation_diagnostic_identity(store, attempt, local):
 
 def superseded_activity(store, attempt, backend, name):
     """Recovery never overrides later activity, including after a retry."""
-    archive = store.attempt_dir(attempt) / "recoveries"
-    if not _files.exists(archive):
-        return []
-    with _files.directory(archive) as directory:
-        tokens = sorted(os.listdir(directory))
     active = []
-    for token in tokens:
+    for token in store.records(attempt).names("recoveries"):
         intent = _archived_intent(store, attempt, token)
         local = intent["job"].removeprefix(attempt["task"] + "__").rsplit("__", 1)[0]
         if intent == read_intent(store, attempt, local):

@@ -79,7 +79,7 @@ def retry_observation(store, observation, jobs):
     store.check_inputs(attempt)
     if not observation.work_present:
         raise WorkflowError("Missing attempt workspace requires a fresh attempt")
-    if any(_files.exists(store.record_path(attempt, filename)) for filename in ("manifest.json", "installed.json", "completion.json")):
+    if any(store.exists(attempt, filename) for filename in ("manifest.json", "installed.json", "completion.json")):
         raise WorkflowError("Existing results finishing evidence requires recovery before computation retry")
     admission.require_retry_inactive(jobs, replaced)
     observation.retry = replaced
@@ -116,7 +116,7 @@ def fresh_observation(store, observation, reason):
 
 
 def input_metadata_changes(store, attempt):
-    if not _files.exists(store.attempt_dir(attempt) / "inputs.json"):
+    if not store.exists(attempt, "inputs.json"):
         return []
     baseline = store.input_baseline(attempt)
     try:
@@ -138,7 +138,7 @@ def recover_transfer(store, observation, jobs):
     except transfer.InvalidSources:
         attempt = observation.attempt
         if (observation.work_present and store.repair_intent(attempt) is None
-                and not any(_files.exists(store.record_path(attempt, filename))
+                and not any(store.exists(attempt, filename)
                             for filename in ("manifest.json", "installed.json", "completion.json"))
                 and retry_observation(store, observation, jobs)):
             return
@@ -233,7 +233,7 @@ def plan_workflow(workflow, ctx, *, selectors=(), force=False):
                         initializing = store.read(attempt, "ready.json", "ready") is None
                         if initializing:
                             store.initialization(attempt)
-                            if _files.exists(store.attempt_dir(attempt) / "admissions"):
+                            if store.exists(attempt, "admissions"):
                                 raise WorkflowError("Task initialization is not ready but has submission evidence")
                         observation.work_present = _files.exists(store.workspace(attempt))
                         jobs = admission.observe(store, attempt, backend, ctx.backend)
@@ -259,7 +259,7 @@ def plan_workflow(workflow, ctx, *, selectors=(), force=False):
                             observation.action, observation.reason = "initialize", "resume selected initialization; remove previous results before submission"
                             observation.pending = lifecycle_jobs(ordered_targets(structure))
                         elif not active and any(awaiting_producer_metadata(store, observations_by_name[producer])
-                                                for producer in producer_names(structure)) and _files.exists(store.attempt_dir(attempt) / "inputs.json"):
+                                                for producer in producer_names(structure)) and store.exists(attempt, "inputs.json"):
                             observation.action, observation.reason = "deferred", "producer results need recovery; a later invocation must replan input validity after restored metadata is available"
                         elif not active and store.cleanup_record(attempt) is not None:
                             completed_observation(store, observation)
@@ -273,7 +273,7 @@ def plan_workflow(workflow, ctx, *, selectors=(), force=False):
                                or jobs["gwflow_prepare"].backend_state in (BackendStatus.FAILED, BackendStatus.CANCELLED))
                               and not active and observation.work_present
                               and not any(_files.exists(store.execution_dir(attempt, local)) for local in attempt["executions"])):
-                            if _files.exists(store.attempt_dir(attempt) / "inputs.json"):
+                            if store.exists(attempt, "inputs.json"):
                                 store.check_inputs(attempt)
                             observation.action, observation.reason = "prepare", "restart interrupted preparation in the same attempt"
                             observation.repeated_jobs.update(lifecycle_jobs(structure["targets"]))
@@ -282,12 +282,12 @@ def plan_workflow(workflow, ctx, *, selectors=(), force=False):
                         elif (not active and (finishing.state in ("failed", "cancelled")
                                               or finishing.state == "pending" and finishing.intent is not None)
                               and all(jobs[local].state == "complete" for local in attempt["executions"])
-                              and not _files.exists(store.record_path(attempt, "completion.json"))):
+                              and not store.exists(attempt, "completion.json")):
                             recover_transfer(store, observation, jobs)
                         elif retry_observation(store, observation, jobs):
                             pass
                         elif not failed and pending:
-                            if _files.exists(store.attempt_dir(attempt) / "inputs.json"):
+                            if store.exists(attempt, "inputs.json"):
                                 store.check_inputs(attempt)
                             observation.action, observation.reason = "continue", "continue known submissions without repeating admitted work"
                             observation.pending = pending

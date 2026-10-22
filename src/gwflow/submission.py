@@ -116,7 +116,7 @@ def submit_plan(plan, workflow, ctx, *, dry_run, outcomes, progress):
                     if any(item.state == "uncertain" for item in observed.values()):
                         raise WorkflowError(f"Task {task.name}: unresolved submission prevents retry")
                     admission.require_retry_inactive(observed, task.retry)
-                    if task.action != "prepare" or _files.exists(plan.store.attempt_dir(attempt) / "inputs.json"):
+                    if task.action != "prepare" or plan.store.exists(attempt, "inputs.json"):
                         plan.store.check_inputs(attempt)
                     attempt = plan.store.replace_executions(task, tracking=True)
                     submitted[task.name] = observed
