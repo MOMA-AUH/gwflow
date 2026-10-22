@@ -12,25 +12,13 @@ from uuid import uuid4
 from gwf.exceptions import WorkflowError
 from gwf.utils import is_valid_name
 
-from . import _files, _observations, images, inputs, staging
+from . import _files, _observations, _records, images, inputs, staging
 from .commands import Command, shell
 from .workflow import RetainedOutput, TargetOutput, relative_path, validate_destinations
 
 
 def _uuid(value):
     return isinstance(value, str) and re.fullmatch(r"[0-9a-f]{32}", value) is not None
-
-
-def _initialization_entries(path):
-    with _files.directory(path) as directory:
-        entries = set(os.listdir(directory))
-    for filename in list(entries):
-        if filename.startswith(".pending-") and _uuid(filename.removeprefix(".pending-")):
-            # A killed atomic publish may leave its private regular file.
-            # It is never read as evidence, selected, or deleted here.
-            _files.metadata(path, [filename])
-            entries.remove(filename)
-    return entries
 
 
 def _overlap(left, right):
@@ -382,8 +370,8 @@ class Store:
     def _task_dir(self, name):
         return self.root / "owners" / self.owner["owner"] / "tasks" / name
 
-    def attempt_dir(self, attempt):
-        return self._task_dir(attempt["task"]) / "attempts" / attempt["attempt"]
+    def records(self, attempt):
+        return _records.AttemptRecords(self._task_dir(attempt["task"]), attempt)
 
     def workspace(self, attempt):
         return self.locations["work"] / attempt["task"] / attempt["attempt"]
@@ -397,7 +385,7 @@ class Store:
 
     def cleanup_record(self, attempt):
         record = self.read(attempt, "cleanup.json", "cleanup")
-        if record is None and not _files.exists(self.record_path(attempt, "cleanup.json")):
+        if record is None and not self.exists(attempt, "cleanup.json"):
             return None
         if (record is None or not _uuid(record.get("cleanup")) or record.get("state") not in ("removing", "removed")
                 or record.get("operation") != attempt["operation"] or record.get("executions") != attempt["executions"]
@@ -416,7 +404,7 @@ class Store:
 
     def staging_record(self, attempt):
         record = self.read(attempt, "staging.json", "staging-directory", operation=attempt["operation"])
-        if record is None and not _files.exists(self.record_path(attempt, "staging.json")):
+        if record is None and not self.exists(attempt, "staging.json"):
             return None
         if (record is None or not _uuid(record.get("allocation")) or not _files.valid_identity(record.get("identity"))
                 or record.get("destination") != str(self.transfer_dir(attempt))
@@ -448,13 +436,8 @@ class Store:
         return destination
 
     def staging_directories(self, attempt):
-        root = self.attempt_dir(attempt) / "operations"
-        if not _files.exists(root):
-            return {}
-        with _files.directory(root) as directory:
-            operations = sorted(os.listdir(directory))
         result = {}
-        for operation in operations:
+        for operation in self.records(attempt).names("operations"):
             if not _uuid(operation):
                 raise WorkflowError("Malformed recorded transfer operation")
             record = self.staging_record({**attempt, "operation": operation})
@@ -464,9 +447,8 @@ class Store:
         return result
 
     def transfer_ownership(self, attempt):
-        path = self.record_path(attempt, "transfer.json")
         record = self.read(attempt, "transfer.json", "transfer", operation=attempt["operation"])
-        if record is None and not _files.exists(path):
+        if record is None and not self.exists(attempt, "transfer.json"):
             return None
         if (record is None or not _uuid(record.get("copy"))
                 or record.get("staging") != str(self.transfer_dir(attempt) / record["copy"])
@@ -478,7 +460,7 @@ class Store:
 
     def repair_intent(self, attempt):
         record = self.read(attempt, "repair.json", "repair", operation=attempt["operation"])
-        if "repair_from" not in attempt and record is None and not _files.exists(self.record_path(attempt, "repair.json")):
+        if "repair_from" not in attempt and record is None and not self.exists(attempt, "repair.json"):
             return None
         if (record is None or not _uuid(record.get("previous")) or record["previous"] == attempt["operation"]
                 or record["previous"] != attempt.get("repair_from")
@@ -499,7 +481,7 @@ class Store:
         attempt["jobs"]["gwflow_complete"] = f"{attempt['task']}__gwflow_complete__{attempt['operation']}"
         self.publish(attempt, "repair.json", "repair", operation=attempt["operation"], previous=previous,
                      result_identity=removal, destination=str(self.result_dir(attempt)), sources=sources)
-        _files.publish(self.attempt_dir(attempt) / "attempt.json", attempt)
+        self.records(attempt).publish("attempt.json", attempt)
         return attempt
 
     def identity(self, attempt, **extra):
@@ -511,20 +493,18 @@ class Store:
                       else {"execution": attempt["executions"][local]})
         return {"job": attempt["jobs"][local], **generation}
 
-    def record_path(self, attempt, filename):
-        if filename in ("staging.json", "transfer.json", "manifest.json", "installed.json", "completion.json", "repair.json", "installation.json"):
-            return self.attempt_dir(attempt) / "operations" / attempt["operation"] / filename
-        return self.attempt_dir(attempt) / filename
+    def exists(self, attempt, filename):
+        return self.records(attempt).exists(filename)
 
     def read(self, attempt, filename, kind, **extra):
-        record = _files.read_json(self.record_path(attempt, filename))
+        record = self.records(attempt).read(filename)
         return record if _matches(record, kind, **self.identity(attempt, **extra)) else None
 
-    def publish(self, attempt, filename, kind, **fields):
+    def publish(self, attempt, filename, kind, *, replace=True, **fields):
         self.validate_roots()
         if hasattr(self, "runtime_admission"):
             fields.setdefault("admission", self.runtime_admission)
-        _files.publish(self.record_path(attempt, filename), _record(kind, **self.identity(attempt), **fields))
+        self.records(attempt).publish(filename, _record(kind, **self.identity(attempt), **fields), replace=replace)
 
     def current(self, name, result_dir):
         destination = self.locations["results"] / result_dir
@@ -556,17 +536,16 @@ class Store:
         task_dir = self._task_dir(name)
         if _files.exists(task_dir / "current.json") or _files.exists(self.locations["work"] / name):
             return False
-        if _initialization_entries(task_dir) != {"attempts"}:
+        if _files.initialization_entries(task_dir) != {"attempts"}:
             return False
-        with _files.directory(task_dir / "attempts") as directory:
-            attempts = os.listdir(directory)
+        attempts = _records.attempt_ids(task_dir)
         if not attempts or any(not _uuid(value) for value in attempts):
             return False
         for attempt_id in attempts:
             attempt = self.read({"task": name, "attempt": attempt_id}, "attempt.json", "attempt")
             if attempt is None or not _valid_attempt(attempt) or _files.exists(self.result_dir(attempt)):
                 return False
-            for filename in _initialization_entries(self.attempt_dir(attempt)):
+            for filename in self.records(attempt).names(initializing=True):
                 if filename == "initialization.json":
                     record = self.initialization(attempt)
                     if record["previous"] is not None or record["result_identity"] is not None:
@@ -608,10 +587,7 @@ class Store:
     def recorded_attempts(self, *, names=None):
         result = []
         for current in self.recorded_tasks(names=names):
-            root = self._task_dir(current["task"]) / "attempts"
-            with _files.directory(root) as directory:
-                attempts = sorted(os.listdir(directory))
-            for attempt_id in attempts:
+            for attempt_id in _records.attempt_ids(self._task_dir(current["task"])):
                 if not _uuid(attempt_id):
                     raise WorkflowError("Malformed recorded Task attempt")
                 attempt = self.read({"task": current["task"], "attempt": attempt_id}, "attempt.json", "attempt")
@@ -669,17 +645,14 @@ class Store:
             raise WorkflowError("External inputs changed after preparation; a fresh attempt is required")
 
     def prepare(self, attempt):
-        path = self.attempt_dir(attempt) / "inputs.json"
-        if _files.exists(path):
+        if self.exists(attempt, "inputs.json"):
             self.check_inputs(attempt)
             return
         observed = self.observe_inputs(attempt)
-        self.validate_roots()
-        record = _record("inputs", **self.identity(attempt), preparation=attempt["preparation"], inputs=observed,
-                         producers=attempt["producers"],
-                         admission=getattr(self, "runtime_admission", None))
         try:
-            _files.publish(path, record, replace=False)
+            self.publish(attempt, "inputs.json", "inputs", replace=False,
+                         preparation=attempt["preparation"], inputs=observed, producers=attempt["producers"],
+                         admission=getattr(self, "runtime_admission", None))
         except FileExistsError:
             self.check_inputs(attempt)
 
@@ -716,7 +689,7 @@ class Store:
             attempt["jobs"][local] = f"{attempt['task']}__{local}__{execution}"
         for local in observation.retry:
             self.write_execution(attempt, local, observation.commands[local], tracking=tracking)
-        _files.publish(self.attempt_dir(attempt) / "attempt.json", attempt)
+        self.records(attempt).publish("attempt.json", attempt)
         return attempt
 
     def checked_target(self, attempt, local, *, check_files=True):
@@ -793,7 +766,7 @@ class Store:
             if not _files.same_directory(expected, _files.identity(destination)):
                 raise WorkflowError(f"Previous results ownership changed during initialization: {destination}")
             return expected
-        if not _files.exists(self.record_path(attempt, "completion.json")):
+        if not self.exists(attempt, "completion.json"):
             transfer = self.transfer_ownership(attempt)
             if transfer is not None and any(_files.same_directory(_files.identity(destination), identity)
                                             for identity in (transfer["staged_identity"], transfer["replaces"])):
@@ -839,7 +812,7 @@ class Store:
             raise WorkflowError("Task selection changed during initialization")
         if self.read(attempt, "ready.json", "ready") is not None:
             return attempt
-        if _files.exists(self.attempt_dir(attempt) / "admissions"):
+        if self.exists(attempt, "admissions"):
             raise WorkflowError("Unready Task has submission evidence; initialization cannot remove results")
         destination = self.result_dir(attempt)
         if _files.exists(destination):
@@ -875,7 +848,7 @@ class Store:
                           operation=operation, preparation=preparation, executions=executions, jobs=jobs, result_dir=result_dir,
                           structure=observation.structure, commands=observation.commands, producers=producers,
                           command_tracking=bool(tracking), fingerprint=fingerprint, managed_tmpdir=managed_tmpdir)
-        _files.publish(self.attempt_dir(attempt) / "attempt.json", attempt)
+        self.records(attempt).publish("attempt.json", attempt)
         self.publish(attempt, "initialization.json", "initialization", destination=str(self.result_dir(attempt)),
                      previous=observation.attempt["attempt"] if observation.attempt else None,
                      result_identity=observation.removal)
