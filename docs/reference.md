@@ -219,7 +219,7 @@ submission state and identity even when that work must repeat for Task progress.
 Job identifiers and log paths occupy one line with aligned bold labels. Long
 values are shortened in the middle without expandable or horizontally scrolling
 fields. The Logs panel is a two-column **Kind / Path** table, with `stdout` and
-`stderr` rows, a shaded header, and an unshaded separator. Up/Down selects
+`stderr` rows, a shaded header, and an unshaded separator. Up/Down or j/k selects
 a stream regardless of pathname length; Enter or a click opens that log directly.
 Tab and Shift+Tab also switch between streams.
 Esc returns to the selected stream. Opening a log reads its saved contents without
@@ -238,7 +238,7 @@ Search shows Apply and Cancel because shortcut letters are entered as text.
 
 | Key | Action |
 | --- | --- |
-| Up / Down | Select a row or scroll details |
+| Up / Down or `j` / `k` | Select a row or scroll details |
 | Enter | Open the selected row or activate a control |
 | Esc | Return with focus and scroll position preserved; stay at the root |
 | Tab / Shift+Tab | Move between controls and expandable sections |
@@ -247,7 +247,7 @@ Search shows Apply and Cancel because shortcut letters are entered as text.
 | `/` | Edit a literal, case-insensitive Task-name search; Enter applies, Esc cancels |
 | `f` | Edit primary Task states; Space toggles, Enter applies, Esc cancels, `c` clears choices |
 | `r` | Inspect again using the original workflow, backend, and Task selectors |
-| `l` | Choose stdout/stderr for the selected job or historical submission; Job details use Up/Down and Enter instead |
+| `l` | Choose stdout/stderr for the selected job or historical submission; Job details use Up/Down or j/k and Enter instead |
 | `u` | Reload the current log/history without inspecting status |
 | `F` | Toggle following of the selected log; initially off |
 | `w` | Toggle log wrapping; initially off. Left/Right scroll unwrapped lines |
@@ -288,10 +288,10 @@ All table headings use the same shaded background. History's Job column aligns
 with its panel title and the Jobs table's Name column.
 
 Tab switches between Jobs and History. Each panel scrolls independently; use
-Up/Down to select an entry and Enter to open its Job and Logs panels. Historical
-submissions use the same layout and stream controls as current jobs: Up/Down or
-Tab selects stdout/stderr and Enter opens the log. Historical details show the
-recorded state and remain tied to the selected submission across
+Up/Down or j/k to select an entry and Enter to open its Job and Logs panels.
+Historical submissions use the same layout and stream controls as current jobs:
+Up/Down, j/k, or Tab selects stdout/stderr and Enter opens the log. Historical
+details show the recorded state and remain tied to the selected submission across
 status refreshes. `l` on a History row also opens these panels; inside Job details
 it is disabled. Esc from a log restores its selected stream; another Esc returns
 to the selected History row.
@@ -334,14 +334,14 @@ Partial reads show a short notice such as “Showing latest 200 lines”; comple
 and empty files omit this notice. Errors and file-change notices remain visible.
 The selected stream opens automatically in its own panel below, which uses
 the remaining space and receives initial keyboard focus. Empty files show
-`Log is empty.` Tab switches to the information panel, where arrows scroll
+`Log is empty.` Tab switches to the information panel, where arrows or j/k scroll
 complete notices and errors even at 40 × 12. Read failures do not change the
 latest inspection's exit result.
 
 Uppercase `F` toggles between manual mode and live following of the selected
 exact-submission path. Live mode checks about once per second and keeps the
 latest bounded portion at the end. The live indicator is independent of the status snapshot's
-age. Up, Page Up, Home, upward mouse-wheel scrolling, and upward scrollbar
+age. Up, `k`, Page Up, Home, upward mouse-wheel scrolling, and upward scrollbar
 movement switch to manual mode; `F` enables live mode again. End jumps to latest
 without enabling following. `u` while following also reads the latest portion. Leaving the log,
 including opening Help, filters, or a terminal-size overlay, switches to manual mode
