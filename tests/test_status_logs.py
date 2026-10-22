@@ -300,6 +300,9 @@ class StatusLogWindowTests(unittest.IsolatedAsyncioTestCase):
                 await pilot.pause()
                 self.assertEqual(view.focus_chain, list(view.query(LogField)))
                 self.assertTrue(all(field.size.height == 1 for field in view.query(ValueField)))
+                job_panel = view.query_one('.job-information .detail-panel')
+                logs_panel = view.query_one('.logs-panel')
+                self.assertLessEqual(logs_panel.region.y - job_panel.region.bottom, 3)
             self.assertIn('Recorded state: ? uncertain', test_browser_interaction.visible_text(app))
             self.assertEqual(next(field.value for field in view.query(ValueField) if field.label == 'Attempt:'),
                              'historical-attempt')
