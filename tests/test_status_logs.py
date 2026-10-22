@@ -281,6 +281,39 @@ class StatusLogWindowTests(unittest.IsolatedAsyncioTestCase):
     def content(self, app):
         return app.screen.query_one('#log-text', Static).content.plain
 
+    async def test_closing_log_before_deferred_read_position_update_keeps_browser_usable(self):
+        self.stdout.write_text('DEFERRED_LOG_CONTENT\n')
+        app = self.browser()
+        async with app.run_test(size=(80, 24)) as pilot:
+            await self.shown(app, pilot, 'sample')
+            await pilot.press('down', 'l', 'enter')
+            await self.shown(app, pilot, 'DEFERRED_LOG_CONTENT')
+            view = app.screen
+            deferred = []
+            schedule = app.call_after_refresh
+
+            def delay_position_update(callback, *args, **kwargs):
+                if callback == view.restore_reading_position:
+                    deferred.append((callback, args, kwargs))
+                    return True
+                return schedule(callback, *args, **kwargs)
+
+            with patch.object(app, 'call_after_refresh', side_effect=delay_position_update):
+                self.stdout.write_text('RELOADED_LOG_CONTENT\n')
+                await pilot.press('u')
+                await self.shown(app, pilot, 'RELOADED_LOG_CONTENT')
+                self.assertTrue(deferred)
+                await pilot.press('escape')
+                await pilot.pause()
+            self.assertFalse(view.is_attached)
+            self.assertIsNone(view.operation)
+            for callback, args, kwargs in deferred:
+                schedule(callback, *args, **kwargs)
+            await pilot.pause()
+            await pilot.press('l', 'enter')
+            await self.shown(app, pilot, 'RELOADED_LOG_CONTENT', timeout=3)
+            await pilot.press('q')
+
     async def test_historical_job_details_keep_identity_and_stream_focus_across_refresh(self):
         from gwflow.browser_evidence import HistoricalJobView
 

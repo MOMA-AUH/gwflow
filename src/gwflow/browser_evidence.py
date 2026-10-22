@@ -363,6 +363,9 @@ class LogView(PinnedView):
         self.app.call_after_refresh(self.restore_reading_position)
 
     def restore_reading_position(self):
+        # An app-level refresh callback may run after this log view is closed.
+        if not self.is_attached:
+            return
         pane = self.query_one('#log-pane')
         if self.read_position == 'end':
             self.scroll_to_latest_display()
