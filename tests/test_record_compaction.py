@@ -52,6 +52,30 @@ class RecordCompactionTests(unittest.TestCase):
         self.compact()
         self.assert_compacted()
 
+    def test_publication_recovery_preserves_authority_and_refuses_unsafe_temporaries(self):
+        from gwf.exceptions import WorkflowError
+        import os
+        self.compact()
+        before = (self.root / 'record-state.json').read_bytes()
+        temporary = self.root / ('.pending-' + '1' * 32)
+        temporary.write_text('incomplete publication')
+        self.records.recover_publications()
+        self.assertFalse(temporary.exists())
+        self.assertEqual((self.root / 'record-state.json').read_bytes(), before)
+        self.assert_compacted()
+        external = self.task_directory / 'unowned'
+        external.write_text('preserve')
+        temporary.symlink_to(external)
+        with self.assertRaisesRegex(WorkflowError, 'Unsafe attempt publication temporary'):
+            self.records.recover_publications()
+        self.assertEqual(external.read_text(), 'preserve')
+        temporary.unlink()
+        os.link(external, temporary)
+        with self.assertRaisesRegex(WorkflowError, 'Unsafe attempt publication temporary'):
+            self.records.recover_publications()
+        self.assertTrue(temporary.exists())
+        self.assertEqual((self.root / 'record-state.json').read_bytes(), before)
+
     def test_uncertain_authority_publication_keeps_sources_until_recovery_syncs(self):
         from unittest.mock import patch
         import os

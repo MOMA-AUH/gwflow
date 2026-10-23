@@ -387,6 +387,15 @@ class Store:
                 or record.get("operation") != attempt["operation"] or record.get("executions") != attempt["executions"]
                 or not isinstance(record.get("directories"), dict)):
             raise WorkflowError("Missing or malformed cleanup evidence")
+        removed = record.get("removed_paths", [])
+        pending = record.get("removing_path")
+        if (not isinstance(removed, list) or any(not isinstance(path, str) or path not in record["directories"]
+                                                for path in removed)
+                or len(set(removed)) != len(removed)
+                or pending is not None and (not isinstance(pending, str) or pending not in record["directories"]
+                                             or pending in removed)
+                or record["state"] == "removed" and pending is not None):
+            raise WorkflowError("Malformed cleanup progress evidence")
         return record
 
     def execution_dir(self, attempt, local):

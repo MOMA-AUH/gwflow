@@ -229,6 +229,36 @@ class AttemptRecords:
             state.document = updated
             self._verify_access(state)
 
+    def recover_publications(self):
+        """Synchronize embedded authority and discard only owned root temporaries.
+
+        Cleanup can recover its atomic writes without completing a pending
+        conversion or removing any redundant logical records.
+        """
+        with self.access(write=True) as state:
+            if state.document["phase"] == "individual":
+                return
+            self._verify_access(state)
+            pending = {}
+            for name in os.listdir(state.directory):
+                if not re.fullmatch(r"\.pending-[0-9a-f]{32}", name):
+                    continue
+                info = os.stat(name, dir_fd=state.directory, follow_symlinks=False)
+                if (not stat.S_ISREG(info.st_mode) or info.st_nlink != 1
+                        or info.st_uid != os.getuid()):
+                    raise WorkflowError(f"Unsafe attempt publication temporary: {name}")
+                pending[name] = info
+            # A prior replacement may be visible despite a failed directory
+            # synchronization. Establish durability before discarding leftovers.
+            with _files._regular_at(state.directory, self._root / _STATE) as fd:
+                os.fsync(fd)
+            _files.sync_directory(state.directory)
+            for name, info in pending.items():
+                _files._unchanged(name, info, os.stat(name, dir_fd=state.directory, follow_symlinks=False))
+                os.unlink(name, dir_fd=state.directory)
+            _files.sync_directory(state.directory)
+            self._verify_access(state)
+
     def _verify_access(self, state, *, cached=False):
         # Recheck the pinned directory's current name and persistent lock,
         # including when metadata inspection has evicted the cached handle.

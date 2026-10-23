@@ -54,7 +54,20 @@ def replace(source, destination, **kwargs):
     if selected and destination == "cleanup.json" and phase == "cleanup_before_completion":
         if json.loads((parent / source).read_text()).get("state") == "removed":
             os._exit(105)
+    compacted_cleanup = None
+    if selected and destination == "record-state.json" and phase.startswith("compacted_cleanup_"):
+        compacted_cleanup = json.loads((parent / source).read_text()).get("records", {}).get("cleanup.json")
+        if compacted_cleanup:
+            boundary = "intent" if compacted_cleanup["state"] == "removing" else "outcome"
+            if phase == "compacted_cleanup_error_before_" + boundary:
+                raise OSError("injected compacted cleanup publication failure")
+            if phase == "compacted_cleanup_before_" + boundary:
+                os._exit(114)
     result = original_replace(source, destination, **kwargs)
+    if compacted_cleanup and phase == "compacted_cleanup_error_after_" + boundary:
+        raise OSError("injected compacted cleanup replacement synchronization uncertainty")
+    if compacted_cleanup and phase == "compacted_cleanup_after_" + boundary:
+        os._exit(115)
     if selected and destination == "recovery.json" and phase == "recovery_second_write_interrupt" and recovery_writes == 2:
         raise KeyboardInterrupt
     if selected and destination == "recovery.json" and phase == "after_recovery_record":
