@@ -6,19 +6,15 @@ import hashlib
 import json
 import os
 from pathlib import Path
-import re
 from uuid import uuid4
 
 from gwf.exceptions import WorkflowError
 from gwf.utils import is_valid_name
 
 from . import _files, _observations, _records, images, inputs, staging
+from ._records import _uuid
 from .commands import Command, shell
 from .workflow import RetainedOutput, TargetOutput, relative_path, validate_destinations
-
-
-def _uuid(value):
-    return isinstance(value, str) and re.fullmatch(r"[0-9a-f]{32}", value) is not None
 
 
 def _overlap(left, right):
@@ -371,7 +367,7 @@ class Store:
         return self.root / "owners" / self.owner["owner"] / "tasks" / name
 
     def records(self, attempt):
-        return _records.AttemptRecords(self._task_dir(attempt["task"]), attempt)
+        return _records.AttemptRecords(self._task_dir(attempt["task"]), {**attempt, **self.identity(attempt)})
 
     def workspace(self, attempt):
         return self.locations["work"] / attempt["task"] / attempt["attempt"]
@@ -435,6 +431,7 @@ class Store:
             _files.commit_directory(source, destination, expected=record["identity"])
         return destination
 
+    @_records.observing
     def staging_directories(self, attempt):
         result = {}
         for operation in self.records(attempt).names("operations"):
@@ -506,6 +503,7 @@ class Store:
             fields.setdefault("admission", self.runtime_admission)
         self.records(attempt).publish(filename, _record(kind, **self.identity(attempt), **fields), replace=replace)
 
+    @_observations.observation()
     def current(self, name, result_dir):
         destination = self.locations["results"] / result_dir
         if self.owner is None:
@@ -522,14 +520,15 @@ class Store:
         if (not _matches(current, "current", owner=self.owner["owner"], task=name)
                 or not _uuid(current.get("attempt"))):
             raise WorkflowError(f"Invalid current-attempt evidence for Task {name!r}")
-        attempt = self.read(current, "attempt.json", "attempt")
-        if attempt is None or not _valid_attempt(attempt):
-            raise WorkflowError(f"Missing, malformed or unsupported managed attempt for Task {name!r}; existing data is not adopted")
-        if attempt.get("result_dir") != result_dir:
-            raise WorkflowError(f"Recorded Task results location changed for {name!r}")
-        if self.read(attempt, "ready.json", "ready") is not None:
-            self.workspace_identity(attempt)
-        return attempt
+        with self.records(current).access():
+            attempt = self.read(current, "attempt.json", "attempt")
+            if attempt is None or not _valid_attempt(attempt):
+                raise WorkflowError(f"Missing, malformed or unsupported managed attempt for Task {name!r}; existing data is not adopted")
+            if attempt.get("result_dir") != result_dir:
+                raise WorkflowError(f"Recorded Task results location changed for {name!r}")
+            if self.read(attempt, "ready.json", "ready") is not None:
+                self.workspace_identity(attempt)
+            return attempt
 
     def unselected_initialization(self, name):
         """Recognize abandoned owned plans, never completed work or submissions."""
@@ -561,6 +560,7 @@ class Store:
             raise WorkflowError("Missing or malformed input preparation baseline")
         return record
 
+    @_observations.observation()
     def recorded_current(self, name):
         current = _files.read_json(self._task_dir(name) / "current.json")
         if (not _matches(current, "current", owner=self.owner["owner"], task=name)
@@ -597,7 +597,7 @@ class Store:
         return result
 
     def producer_attempt(self, attempt, name):
-        producer = _observations.reuse("producer", (self, name), lambda: self.recorded_current(name))
+        producer = self.recorded_current(name)
         if producer["attempt"] != attempt["producers"][name]:
             raise WorkflowError(f"Expected producer {name} attempt {attempt['producers'][name]} changed; a fresh consumer attempt is required")
         return producer
@@ -692,6 +692,7 @@ class Store:
         self.records(attempt).publish("attempt.json", attempt)
         return attempt
 
+    @_records.observing
     def checked_target(self, attempt, local, *, check_files=True):
         record = self.read(attempt, f"executions/{attempt['executions'][local]}/success.json", "target-success",
                            execution=attempt["executions"][local], target=local)
@@ -703,6 +704,7 @@ class Store:
             raise WorkflowError(f"Target {local!r} work metadata changed")
         return record
 
+    @_records.observing
     def source_evidence(self, attempt):
         sources = {}
         for local in attempt["executions"]:
@@ -732,12 +734,16 @@ class Store:
                 changes.append(f"retained output unavailable: {path}: {error}")
         return changes
 
+    @_observations.observation()
     def completed(self, attempt):
-        return _observations.reuse("completion", (self, json.dumps(attempt, sort_keys=True)),
-                                   lambda: self._completed(attempt))
-
-    def _completed(self, attempt):
         self.check_inputs(attempt)
+        # A producer mutation must invalidate dependent Completion even when
+        # this attempt's own evidence is unchanged. Never nest attempt locks.
+        with self.records(attempt).access():
+            key = (self, json.dumps(attempt, sort_keys=True), self.records(attempt).version())
+            return _observations.reuse("completion", key, lambda: self._completion_records(attempt))
+
+    def _completion_records(self, attempt):
         operation = attempt["operation"]
         completion = self.read(attempt, "completion.json", "completion", operation=operation)
         installed = self.read(attempt, "installed.json", "installed", operation=operation)
@@ -848,6 +854,7 @@ class Store:
                           operation=operation, preparation=preparation, executions=executions, jobs=jobs, result_dir=result_dir,
                           structure=observation.structure, commands=observation.commands, producers=producers,
                           command_tracking=bool(tracking), fingerprint=fingerprint, managed_tmpdir=managed_tmpdir)
+        self.records(attempt).initialize()
         self.records(attempt).publish("attempt.json", attempt)
         self.publish(attempt, "initialization.json", "initialization", destination=str(self.result_dir(attempt)),
                      previous=observation.attempt["attempt"] if observation.attempt else None,

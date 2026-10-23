@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from gwf.backends import BackendStatus, create_backend
 from gwf.exceptions import WorkflowError
 
-from . import _files, _observations, admission, images, inputs, transfer
+from . import _files, _observations, _records, admission, images, inputs, transfer
 from .activity import activity as report_activity
 from .lifecycle import Store, TaskObservation, declarations, ordered_tasks, ordered_targets, producer_names, target_dependencies
 from .selection import task_selection
@@ -23,6 +23,7 @@ class Plan:
         return [task for task in self.tasks if task.action == "blocked"]
 
 
+@_records.observing
 def tracked_commands_match(store, attempt, commands):
     if not attempt["command_tracking"] or commands != attempt["commands"]:
         return False
@@ -55,6 +56,7 @@ def definition_change(store, observation, observations_by_name, *, force_option,
     return None
 
 
+@_records.observing
 def retry_targets(store, attempt, jobs):
     replaced = set()
     for local in ordered_targets(attempt["structure"]):

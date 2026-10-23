@@ -160,7 +160,13 @@ class RepresentativePlanningTests(RegistryTestCase):
             # headroom and explicit ancestry/eviction work at greater depth.
             extra_depth = max(0, report["path_depth"] - 2)
             self.assertLessEqual(counts["directory_opens"], 3200 + 418 * extra_depth)
-            self.assertLessEqual(counts["file_opens"], 3300)
+            # Persistent record locks are opened for bounded observations;
+            # they do not read evidence. Keep the original evidence-I/O limit
+            # and bound this new coordination cost separately.
+            lock_opens = sum(count for path, count in paths.items()
+                             if path.startswith("file_opens:") and path.endswith("/records.lock"))
+            self.assertLessEqual(lock_opens, 1500)
+            self.assertLessEqual(counts["file_opens"] - lock_opens, 3300)
             self.assertLessEqual(counts["stream_reads"], 2700)
             self.assertLessEqual(counts["stat"], 90000 + 6000 * extra_depth)
         if "unoptimized" in evidence["versions"]:

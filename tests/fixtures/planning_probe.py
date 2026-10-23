@@ -85,7 +85,7 @@ class Probe:
             self.counts[self.phase][category] += 1
             self.paths[self.phase][category + ":" + path] += 1
             result = original(*args, **kwargs)
-            if name == "open":
+            if name in ("open", "dup"):
                 self.fds[result] = path
                 # fdopen closes in C; remove stale descriptors before counting.
                 for fd in list(self.fds):
@@ -101,7 +101,7 @@ class Probe:
         setattr(os, name, counted)
 
     def __enter__(self):
-        for name in ("fstat", "open", "close", "stat", "lstat", "readlink", "listdir", "read", "access"):
+        for name in ("fstat", "open", "dup", "close", "stat", "lstat", "readlink", "listdir", "read", "access"):
             self.operation(name)
         sys.setprofile(self.profile)
         return self

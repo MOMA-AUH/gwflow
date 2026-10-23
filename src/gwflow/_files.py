@@ -60,7 +60,9 @@ def directory(path, *, create=False):
 class _ReadDirectories:
     """Bounded handles, with current no-follow ancestry checked on every use."""
 
-    limit = 64
+    # Leave eight of the directory-handle budget for attempt-local sessions.
+    # Those handles must close before releasing the attempt's record lock.
+    limit = 56
 
     def __init__(self):
         self.handles = OrderedDict()
@@ -206,8 +208,8 @@ def _unchanged(path, expected, observed):
         raise WorkflowError(f"Managed file changed while observing evidence: {path}")
 
 
-def _observed_file(path, kind, read):
-    with _read_directory(path.parent) as parent:
+def _observed_file(path, kind, read, *, parent_directory=None):
+    with parent_directory if parent_directory is not None else _read_directory(path.parent) as parent:
         if not _observations.active():
             return read(parent, None)
         try:
@@ -269,7 +271,7 @@ def file_set(root):
     return files
 
 
-def read_json(path):
+def read_json(path, *, parent_directory=None):
     path = Path(path)
     def read(parent, expected):
         fd = os.open(path.name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=parent)
@@ -281,16 +283,16 @@ def read_json(path):
             value = json.load(stream)
             return value if isinstance(value, dict) else None
     try:
-        return _observed_file(path, "json", read)
+        return _observed_file(path, "json", read, parent_directory=parent_directory)
     except (FileNotFoundError, ValueError, UnicodeError):
         return None
     except OSError as exc:
         raise WorkflowError(f"Cannot read managed evidence {path}: {exc}") from exc
 
 
-def publish(path, record, *, replace=True):
+def publish(path, record, *, replace=True, parent_directory=None):
     path = Path(path)
-    with directory(path.parent, create=True) as parent:
+    with parent_directory if parent_directory is not None else directory(path.parent, create=True) as parent:
         temporary = ".pending-" + uuid4().hex
         fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
                      0o600, dir_fd=parent)

@@ -19,7 +19,7 @@ from gwf.backends.slurm import SlurmOps
 from gwf.exceptions import WorkflowError
 from gwf.scheduling import submit_backend
 
-from . import _observations
+from . import _observations, _records
 from .activity import activity as report_activity
 from ._frontend import observation_deadline
 from .diagnostics import report_error
@@ -106,6 +106,7 @@ def _known_job(attempt, job, local=None):
     return _uuid(generation) and prefix in {f"{attempt['task']}__{name}" for name in names}
 
 
+@_records.observing
 def read_intent(store, attempt, local):
     path = intent_path(attempt, local)
     record = store.read(attempt, path, "submission-intent", **store.job_identity(attempt, local))
@@ -125,6 +126,7 @@ def read_intent(store, attempt, local):
     return record
 
 
+@_records.observing
 def recorded_intents(store, attempt):
     """Read archived submission identities, including replaced retry admissions."""
     return [_archived_intent(store, attempt, token)
@@ -147,6 +149,7 @@ def identity(intent):
     return {key: intent[key] for key in ("job", "admission", "submission", "backend")}
 
 
+@_records.observing
 def read_recovery(store, attempt, intent):
     path = f"recoveries/{intent['admission']}/recovery.json"
     record = store.read(attempt, path, "operator-recovery", **identity(intent))
@@ -213,17 +216,21 @@ def require_dependencies(store, attempt, intent):
             raise WorkflowError("Scheduled dependency lacks checked success evidence")
 
 
+@_observations.observation()
 def observe(store, attempt, backend, name):
     """Inspect current admissions; backend=None uses only recorded evidence."""
     # Resolve the selected admissions before reuse: the attempt's execution
     # identity alone does not identify a resubmission of the same job.
-    intents = {local: read_intent(store, attempt, local)
-               for local in lifecycle_jobs(ordered_targets(attempt["structure"]))}
+    with store.records(attempt).access():
+        intents = {local: read_intent(store, attempt, local)
+                   for local in lifecycle_jobs(ordered_targets(attempt["structure"]))}
+        version = store.records(attempt).version()
     key = (store, id(backend), name, json.dumps(backend_identity(backend, name), sort_keys=True),
-           json.dumps(attempt, sort_keys=True), json.dumps(intents, sort_keys=True))
+           json.dumps(attempt, sort_keys=True), json.dumps(intents, sort_keys=True), version)
     return _observations.reuse("jobs", key, lambda: _observe(store, attempt, backend, name, intents))
 
 
+@_observations.observation()
 def observe_submissions(store, attempt, backend, name, *, tolerate_state_errors=False):
     """Inspect all archived admissions, including superseded retry submissions."""
     observations = []
@@ -235,6 +242,7 @@ def observe_submissions(store, attempt, backend, name, *, tolerate_state_errors=
     return observations
 
 
+@_observations.observation()
 def observe_cancellation(store, attempt, local, backend, name):
     """Resolve one current admission even when its live state is unavailable."""
     intent = read_intent(store, attempt, local)
@@ -258,6 +266,7 @@ def cancellation_diagnostic_identity(store, attempt, local):
     return item
 
 
+@_observations.observation()
 def superseded_activity(store, attempt, backend, name):
     """Recovery never overrides later activity, including after a retry."""
     active = []
@@ -285,11 +294,12 @@ def _observe(store, attempt, backend, name, intents, *, tolerate_state_errors=Fa
             observations[local] = JobObservation(local, "pending")
             continue
         token = intent["admission"]
-        ack = store.read(attempt, f"admissions/{token}/ack.json", "submission-ack", **identity(intent))
-        rejection = store.read(attempt, f"admissions/{token}/rejected.json", "submission-rejected", **identity(intent))
-        outcome = store.read(attempt, f"admissions/{token}/outcome.json", "job-outcome", **identity(intent))
+        with store.records(attempt).access():
+            ack = store.read(attempt, f"admissions/{token}/ack.json", "submission-ack", **identity(intent))
+            rejection = store.read(attempt, f"admissions/{token}/rejected.json", "submission-rejected", **identity(intent))
+            outcome = store.read(attempt, f"admissions/{token}/outcome.json", "job-outcome", **identity(intent))
         recovery = None
-        checked = succeeded(store, attempt, local, intent)
+        checked = (outcome is not None and outcome.get("state") == "complete") or succeeded(store, attempt, local, intent)
         target = Target(intent["submission"], [], [], {})
         tracked_id, state = None, BackendStatus.UNKNOWN
         same_backend = backend is not None and intent["backend"] == backend_identity(backend, name)
@@ -430,9 +440,10 @@ def new_intent(store, attempt, local, dependencies, backend, name):
               "submission": f"{attempt['jobs'][local]}__{token}",
               "backend": backend_identity(backend, name), "dependencies": dependencies}
     fields["producers"] = attempt["producers"] if local == "gwflow_prepare" else {}
-    store.publish(attempt, f"admissions/{token}/intent.json", "submission-intent", **fields)
-    store.publish(attempt, intent_path(attempt, local), "submission-intent", **fields)
-    return read_intent(store, attempt, local)
+    with store.records(attempt).access(write=True):
+        store.publish(attempt, f"admissions/{token}/intent.json", "submission-intent", **fields)
+        store.publish(attempt, intent_path(attempt, local), "submission-intent", **fields)
+        return read_intent(store, attempt, local)
 
 
 class _AdmissionCall:
