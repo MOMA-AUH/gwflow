@@ -245,6 +245,18 @@ class AttemptRecords:
         with self.access() as state:
             return _files._signature(os.stat(_STATE, dir_fd=state.directory, follow_symlinks=False))
 
+    def compact(self, outcome_name, outcome, *, validate):
+        """Consolidate checked Completion; callers revalidate local admission here.
+
+        Producer checks must precede this call, so the callback never nests
+        locks for different attempts. This does not enable automatic conversion.
+        """
+        from ._compaction import compact
+        with self.access(write=True) as state:
+            self._verify_access(state)
+            validate()
+            compact(self, state, self._name(outcome_name), outcome)
+
     def exists(self, name):
         """Presence is independent of whether loose evidence is readable."""
         name = self._name(name)

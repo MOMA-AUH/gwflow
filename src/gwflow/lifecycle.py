@@ -763,6 +763,40 @@ class Store:
             return False
         return _files.metadata(self.result_dir(attempt), destinations) == completion["outputs"]
 
+    def compact(self, attempt, intent):
+        """Finish record conversion for one admitted, checked completion.
+
+        This internal entry point deliberately remains separate from worker
+        activation until planning, retry and Repair support compaction.
+        """
+        from . import admission
+
+        def validate():
+            self.validate_roots()
+            if (self.current(attempt["task"], attempt["result_dir"]) != attempt
+                    or admission.read_intent(self, attempt, "gwflow_complete") != intent):
+                raise WorkflowError("Current attempt, operation or completion admission changed before compaction")
+            if not self._completion_records(attempt):
+                raise WorkflowError("Record compaction requires checked Completion")
+
+        # Producer observations happen before the exclusive local lock.
+        if not self.completed(attempt):
+            raise WorkflowError("Record compaction requires checked Completion")
+        name = f"admissions/{intent['admission']}/outcome.json"
+        fields = {**admission.identity(intent), "operation": attempt["operation"]}
+        outcome = _record("job-outcome", **self.identity(attempt), **fields, state="complete")
+        try:
+            self.records(attempt).compact(name, outcome, validate=validate)
+        except Exception as error:
+            try:
+                with self.records(attempt).access(write=True):
+                    validate()
+                    self.publish(attempt, name, "job-outcome", **fields, state="failed",
+                                 failure="compaction", diagnostic=str(error))
+            except Exception as diagnostic_error:
+                error.add_note(f"Could not record compaction failure: {diagnostic_error}")
+            raise
+
     def result_removal(self, attempt):
         destination = self.result_dir(attempt)
         if not _files.exists(destination):
