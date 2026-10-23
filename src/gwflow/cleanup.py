@@ -1,6 +1,7 @@
 """Observe and durably remove eligible owned disposable Task storage."""
 
 from dataclasses import dataclass, field
+from pathlib import Path
 from uuid import uuid4
 
 from gwf.exceptions import WorkflowError
@@ -64,6 +65,8 @@ def observe(store, attempt, backend, backend_name, *, explicit=False):
                 raise WorkflowError(f"Disposable directory ownership changed: {path}")
         if record is not None and record["directories"] != observation.directories:
             raise WorkflowError("Cleanup ownership evidence changed")
+        if record is not None and any(_files.exists(path) for path in record.get("removed_paths", [])):
+            raise WorkflowError("Removed work was recreated; existing files are not adopted")
         if record is not None and record["state"] == "removed":
             if any(_files.exists(path) for path in observation.directories):
                 raise WorkflowError("Removed work was recreated; existing files are not adopted")
@@ -89,6 +92,8 @@ def remove(store, observation, backend, backend_name):
         checked = observe(store, observation.attempt, backend, backend_name, explicit=observation.explicit)
         observation.action, observation.reason = checked.action, checked.reason
         observation.directories, observation.paths_error = checked.directories, checked.paths_error
+        if observation.action in ("eligible", "removed"):
+            store.records(observation.attempt).recover_publications()
         if observation.action != "eligible":
             return observation
         attempt = observation.attempt
@@ -96,7 +101,14 @@ def remove(store, observation, backend, backend_name):
         token = record["cleanup"] if record else uuid4().hex
         fields = dict(cleanup=token, operation=attempt["operation"], executions=attempt["executions"],
                       directories=observation.directories)
-        store.publish(attempt, "cleanup.json", "cleanup", state="removing", **fields)
+        progress = list(record.get("removed_paths", [])) if record else []
+        pending = record.get("removing_path") if record else None
+
+        def publish(state="removing"):
+            store.publish(attempt, "cleanup.json", "cleanup", state=state,
+                          removed_paths=progress, removing_path=pending, **fields)
+
+        publish()
         for path, identity in observation.directories.items():
             store.validate_roots()
             if _files.exists(path):
@@ -105,11 +117,25 @@ def remove(store, observation, backend, backend_name):
                     observation.action, observation.reason = rechecked.action, rechecked.reason
                     observation.paths_error = rechecked.paths_error
                     return observation
+                pending = path
+                publish()
                 observation.removing_path = path
                 if _files.remove_directory(path, identity):
                     observation.removed_paths.append(path)
+                progress.append(path)
+                pending = None
+                publish()
                 observation.removing_path = None
-        store.publish(attempt, "cleanup.json", "cleanup", state="removed", **fields)
+            elif pending == path:
+                # A crash after rmdir can precede parent synchronization. An
+                # absent pathname alone does not establish durable removal.
+                with _files.directory(Path(path).parent) as parent:
+                    _files.sync_directory(parent)
+                progress.append(path)
+                pending = None
+                publish()
+        publish("removed")
+        store.records(attempt).recover_publications()
         observation.action, observation.reason = "removed", "removed owned disposable work; results and bookkeeping preserved"
         return observation
     except BaseException as error:
