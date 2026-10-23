@@ -273,15 +273,14 @@ class AttemptRecordTests(unittest.TestCase):
         root = self.task_directory / "attempts" / self.attempt["attempt"]
         self.records.publish("inputs.json", {"accepted": True})
         lock = root / "records.lock"
-        with self.assertRaises(WorkflowError), self.records.access(write=True):
-            lock.rename(root / "saved-lock")
-            lock.touch()
-            try:
-                with self.assertRaises(WorkflowError):
-                    self.records.publish("inputs.json", {"overwrite": True})
-            finally:
-                lock.unlink()
-                (root / "saved-lock").rename(lock)
+        try:
+            with self.assertRaises(WorkflowError), self.records.access(write=True):
+                lock.rename(root / "saved-lock")
+                lock.touch()
+                self.records.publish("inputs.json", {"overwrite": True})
+        finally:
+            lock.unlink()
+            (root / "saved-lock").rename(lock)
         self.assertEqual(self.records.read("inputs.json"), {"accepted": True})
 
     def test_failed_consolidated_publication_preserves_authority_and_other_records(self):
