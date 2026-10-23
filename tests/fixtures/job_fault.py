@@ -54,6 +54,13 @@ def link(source, destination, **kwargs):
 
 
 def replace(source, destination, **kwargs):
+    phase = None
+    if destination == "record-state.json" and options.get("compact_completion"):
+        fd = os.open(source, os.O_RDONLY, dir_fd=kwargs.get("src_dir_fd"))
+        with os.fdopen(fd) as stream:
+            phase = json.load(stream)["phase"]
+        if options.get("compaction_fault") == "before-" + phase:
+            os._exit(110)
     if destination == "success.json" and options.get("crash_before_success"):
         os._exit(93)
     if destination == "manifest.json" and options.get("crash_before_manifest"):
@@ -67,6 +74,8 @@ def replace(source, destination, **kwargs):
     if destination == "staging.json" and options.get("crash_before_staging_ownership"):
         os._exit(106)
     result = original_replace(source, destination, **kwargs)
+    if phase and options.get("compaction_fault") == "after-" + phase:
+        os._exit(111)
     if destination == "installation.json" and options.get("crash_after_installation_intent"):
         os._exit(103)
     if destination == "staging.json" and options.get("crash_after_staging_ownership"):
@@ -108,6 +117,9 @@ def copyfileobj(source, destination, *args, **kwargs):
 def unlink(path, **kwargs):
     parent = Path(os.readlink(f"/proc/self/fd/{kwargs['dir_fd']}")) if "dir_fd" in kwargs else None
     result = original_unlink(path, **kwargs)
+    if (options.get("compaction_fault") == "during-deletion" and parent is not None
+            and "attempts" in parent.parts and not str(path).startswith(".pending-")):
+        os._exit(112)
     if options.get("crash_during_results_removal") and parent is not None and work / "results" in parent.parents:
         os._exit(104)
     return result
@@ -154,6 +166,21 @@ def published_record(frame, event, arg):
 
 if options.get("gate_after_baseline") or options.get("gate_after_manifest"):
     sys.setprofile(published_record)
+if options.get("compact_completion"):
+    # Test-only activation at the existing completion-outcome boundary. Runtime
+    # activation remains a separate ticket; production uses the same primitive.
+    from gwflow import admission
+    from gwflow.lifecycle import Store
+    original_publish = Store.publish
+
+    def publish_with_compaction(store, attempt, filename, kind, **fields):
+        if kind == "job-outcome" and fields.get("state") == "complete":
+            intent = admission.read_intent(store, attempt, "gwflow_complete")
+            store.compact(attempt, intent)
+            return
+        return original_publish(store, attempt, filename, kind, **fields)
+
+    Store.publish = publish_with_compaction
 # The backend passes the original interpreter's '-m gwflow.execution' arguments.
 sys.argv = [sys.argv[3], *sys.argv[4:]]
 runpy.run_module("gwflow.execution", run_name="__main__")
