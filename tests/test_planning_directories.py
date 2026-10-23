@@ -32,7 +32,7 @@ class DirectoryObservationTests(LocalBackendTestCase):
                                      100 + 6 * depth + 30 * consumers)
                 self.assertLessEqual(report["peak_opened_descriptors"], 66)
 
-    def test_opened_bookkeeping_root_replacement_is_rejected_then_accepted_next_pass(self):
+    def test_copied_bookkeeping_root_cannot_replace_persistent_attempt_locks(self):
         self.run_complete()
         root = self.work / ".gwf/gwflow"
         replacement = self.work / "replacement"
@@ -45,8 +45,8 @@ class DirectoryObservationTests(LocalBackendTestCase):
         )
         self.assertNotEqual(before["exit_code"], 0, before["output"])
         self.assertIn("Managed directory changed", before["output"])
-        self.assertEqual(after["exit_code"], 0, after["output"])
-        self.assertIn("2 reusable", after["output"])
+        self.assertNotEqual(after["exit_code"], 0, after["output"])
+        self.assertIn("ownership or lock identity changed", after["output"])
         self.assertEqual((self.work / "results/sample0/copy.txt").read_text(), "hello\n")
         for result in (before, after):
             self.assertEqual(result["directories_before"], result["directories_after"])

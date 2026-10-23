@@ -206,8 +206,8 @@ def _unchanged(path, expected, observed):
         raise WorkflowError(f"Managed file changed while observing evidence: {path}")
 
 
-def _observed_file(path, kind, read):
-    with _read_directory(path.parent) as parent:
+def _observed_file(path, kind, read, *, parent_directory=None):
+    with parent_directory if parent_directory is not None else _read_directory(path.parent) as parent:
         if not _observations.active():
             return read(parent, None)
         try:
@@ -269,7 +269,7 @@ def file_set(root):
     return files
 
 
-def read_json(path):
+def read_json(path, *, parent_directory=None):
     path = Path(path)
     def read(parent, expected):
         fd = os.open(path.name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=parent)
@@ -281,7 +281,7 @@ def read_json(path):
             value = json.load(stream)
             return value if isinstance(value, dict) else None
     try:
-        return _observed_file(path, "json", read)
+        return _observed_file(path, "json", read, parent_directory=parent_directory)
     except (FileNotFoundError, ValueError, UnicodeError):
         return None
     except OSError as exc:

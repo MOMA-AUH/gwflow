@@ -371,7 +371,7 @@ class Store:
         return self.root / "owners" / self.owner["owner"] / "tasks" / name
 
     def records(self, attempt):
-        return _records.AttemptRecords(self._task_dir(attempt["task"]), attempt)
+        return _records.AttemptRecords(self._task_dir(attempt["task"]), {**attempt, **self.identity(attempt)})
 
     def workspace(self, attempt):
         return self.locations["work"] / attempt["task"] / attempt["attempt"]
@@ -435,6 +435,7 @@ class Store:
             _files.commit_directory(source, destination, expected=record["identity"])
         return destination
 
+    @_records.observing
     def staging_directories(self, attempt):
         result = {}
         for operation in self.records(attempt).names("operations"):
@@ -597,7 +598,7 @@ class Store:
         return result
 
     def producer_attempt(self, attempt, name):
-        producer = _observations.reuse("producer", (self, name), lambda: self.recorded_current(name))
+        producer = self.recorded_current(name)
         if producer["attempt"] != attempt["producers"][name]:
             raise WorkflowError(f"Expected producer {name} attempt {attempt['producers'][name]} changed; a fresh consumer attempt is required")
         return producer
@@ -692,6 +693,7 @@ class Store:
         self.records(attempt).publish("attempt.json", attempt)
         return attempt
 
+    @_records.observing
     def checked_target(self, attempt, local, *, check_files=True):
         record = self.read(attempt, f"executions/{attempt['executions'][local]}/success.json", "target-success",
                            execution=attempt["executions"][local], target=local)
@@ -703,6 +705,7 @@ class Store:
             raise WorkflowError(f"Target {local!r} work metadata changed")
         return record
 
+    @_records.observing
     def source_evidence(self, attempt):
         sources = {}
         for local in attempt["executions"]:
@@ -732,12 +735,18 @@ class Store:
                 changes.append(f"retained output unavailable: {path}: {error}")
         return changes
 
+    @_observations.observation()
     def completed(self, attempt):
-        return _observations.reuse("completion", (self, json.dumps(attempt, sort_keys=True)),
+        return _observations.reuse("completion", (self, json.dumps(attempt, sort_keys=True), self.records(attempt).version()),
                                    lambda: self._completed(attempt))
 
     def _completed(self, attempt):
         self.check_inputs(attempt)
+        # Producer observations are complete before locking this attempt.
+        with self.records(attempt).access():
+            return self._completion_records(attempt)
+
+    def _completion_records(self, attempt):
         operation = attempt["operation"]
         completion = self.read(attempt, "completion.json", "completion", operation=operation)
         installed = self.read(attempt, "installed.json", "installed", operation=operation)
@@ -848,6 +857,7 @@ class Store:
                           operation=operation, preparation=preparation, executions=executions, jobs=jobs, result_dir=result_dir,
                           structure=observation.structure, commands=observation.commands, producers=producers,
                           command_tracking=bool(tracking), fingerprint=fingerprint, managed_tmpdir=managed_tmpdir)
+        self.records(attempt).initialize()
         self.records(attempt).publish("attempt.json", attempt)
         self.publish(attempt, "initialization.json", "initialization", destination=str(self.result_dir(attempt)),
                      previous=observation.attempt["attempt"] if observation.attempt else None,

@@ -13,6 +13,16 @@ def active():
 
 
 @contextmanager
+def observation():
+    """Bound a standalone inspection without discarding an enclosing pass."""
+    if active():
+        yield
+    else:
+        with planning_pass():
+            yield
+
+
+@contextmanager
 def planning_pass():
     facts = {}
     with ExitStack() as resources:

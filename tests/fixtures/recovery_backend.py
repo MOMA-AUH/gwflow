@@ -100,6 +100,9 @@ class RecoveryBackend(TrackingBackend):
             target.spec += "\n:"
         super().submit(target, dependencies)
         self.submitted = True
+        if target.name.startswith(self.options.get("hold_after_acceptance", "\0") + "__"):
+            (self.work / "acceptance-held").touch()
+            wait_for(lambda: (self.work / "acceptance-release").exists())
         if self.options.get("record_acceptances"):
             with (self.work / "backend-acceptances.jsonl").open("a") as stream:
                 stream.write(json.dumps({"name": target.name, "id": super().get_tracked_id(target)}) + "\n")
