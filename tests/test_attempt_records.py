@@ -251,3 +251,56 @@ class AttemptRecordTests(unittest.TestCase):
         self.records.publish("admissions/late/ack.json", {"job_id": 7})
         self.assertEqual(self.records.read("admissions/late/ack.json"), {"job_id": 7})
         self.assertFalse((root / "admissions").exists())
+
+    def test_replacement_after_mutation_check_cannot_redirect_publication(self):
+        import os
+        from unittest.mock import patch
+        root = self.task_directory / "attempts" / self.attempt["attempt"]
+        saved = root.with_name("saved-attempt")
+        self.records.publish("inputs.json", {"accepted": True})
+        original_stat = os.stat
+        substituted = False
+
+        def replace_after_lock_check(path, *args, **kwargs):
+            nonlocal substituted
+            observed = original_stat(path, *args, **kwargs)
+            if path == "records.lock" and not substituted:
+                substituted = True
+                root.rename(saved)
+                root.mkdir()
+                (root / "sentinel").write_text("untouched")
+            return observed
+
+        with self.records.access(write=True):
+            with patch("os.stat", side_effect=replace_after_lock_check):
+                with self.assertRaises(WorkflowError):
+                    self.records.publish("inputs.json", {"overwrite": True})
+            self.assertEqual(sorted(path.name for path in root.iterdir()), ["sentinel"])
+            (root / "sentinel").unlink()
+            root.rmdir()
+            saved.rename(root)
+
+    def test_initialization_cannot_publish_into_a_replaced_attempt_directory(self):
+        import os
+        import stat
+        from unittest.mock import patch
+        attempt = {**self.attempt, "attempt": "d" * 32}
+        records = AttemptRecords(self.task_directory, attempt)
+        root = self.task_directory / "attempts" / attempt["attempt"]
+        saved = root.with_name("saved-initialization")
+        original_sync = os.fsync
+        substituted = False
+
+        def replace_after_lock_sync(fd):
+            nonlocal substituted
+            original_sync(fd)
+            if stat.S_ISREG(os.fstat(fd).st_mode) and not substituted:
+                substituted = True
+                root.rename(saved)
+                root.mkdir()
+                (root / "sentinel").write_text("untouched")
+
+        with patch("os.fsync", side_effect=replace_after_lock_sync):
+            with self.assertRaises(WorkflowError):
+                records.initialize()
+        self.assertEqual(sorted(path.name for path in root.iterdir()), ["sentinel"])

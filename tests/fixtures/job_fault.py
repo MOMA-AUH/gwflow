@@ -50,8 +50,6 @@ def link(source, destination, **kwargs):
     if destination == "inputs.json" and options.get("crash_after_baseline") and not (work / "crashed").exists():
         (work / "crashed").touch()
         os._exit(92)
-    if destination == "inputs.json" and options.get("gate_after_baseline"):
-        gate("baseline")
     return result
 
 
@@ -75,8 +73,6 @@ def replace(source, destination, **kwargs):
         os._exit(107)
     if destination == "manifest.json" and options.get("crash_after_manifest"):
         os._exit(98)
-    if destination == "manifest.json" and options.get("gate_after_manifest"):
-        gate("manifest")
     return result
 
 
@@ -142,6 +138,22 @@ if options.get("gate_before_preparation"):
     gate("preparation")
 if "execution_path" in options:
     os.environ["PATH"] = options["execution_path"]
+
+
+def published_record(frame, event, arg):
+    # Pause after the logical publication releases its attempt lock. Crash
+    # injection above still interrupts the actual filesystem operations.
+    if (event == "return" and frame.f_globals.get("__name__") == "gwflow.lifecycle"
+            and frame.f_code.co_name == "publish"):
+        filename = frame.f_locals["filename"]
+        if filename == "inputs.json" and options.get("gate_after_baseline"):
+            gate("baseline")
+        elif filename == "manifest.json" and options.get("gate_after_manifest"):
+            gate("manifest")
+
+
+if options.get("gate_after_baseline") or options.get("gate_after_manifest"):
+    sys.setprofile(published_record)
 # The backend passes the original interpreter's '-m gwflow.execution' arguments.
 sys.argv = [sys.argv[3], *sys.argv[4:]]
 runpy.run_module("gwflow.execution", run_name="__main__")

@@ -97,12 +97,16 @@ class AttemptRecords:
             try:
                 fcntl.flock(fd, fcntl.LOCK_EX)
                 os.fsync(fd)
-                _files.publish(self._root / _STATE, {
+                document = {
                     "kind": "gwflow.record-state", "schema": 1, **self._identity,
                     "revision": 0, "phase": "individual", "records": None,
                     "directory": {"inode": os.fstat(directory).st_ino},
                     "lock": {"inode": os.fstat(fd).st_ino},
-                }, replace=False)
+                }
+                state = _Access(document, directory, os.fstat(fd))
+                _files.publish(self._root / _STATE, document, replace=False,
+                               parent_directory=state.parent(_STATE))
+                self._verify_access(state)
             finally:
                 os.close(fd)
 
@@ -196,23 +200,18 @@ class AttemptRecords:
     def publish(self, name, record, *, replace=True):
         name = self._name(name)
         with self.access(write=True) as state:
-            # A held descriptor must never authorize a write through a
-            # substituted pathname, even inside an explicit caller session.
-            with _files.directory(self._root) as directory:
-                opened, current = os.fstat(state.directory), os.fstat(directory)
-                lock = os.stat(_LOCK, dir_fd=directory, follow_symlinks=False)
-                if ((opened.st_dev, opened.st_ino) != (current.st_dev, current.st_ino)
-                        or _files._signature(lock) != _files._signature(state.lock)):
-                    raise WorkflowError("Attempt record directory or lock changed before mutation")
+            self._verify_access(state)
             document = state.document
             updated = {**document, "revision": document["revision"] + 1}
             if document["phase"] == "individual":
                 # Invalidate derived observations before changing loose evidence.
                 # A crash can leave an unused revision, never a changed record
                 # still covered by a previously observed revision.
-                _files.publish(self._root / _STATE, updated)
+                _files.publish(self._root / _STATE, updated, parent_directory=state.parent(_STATE))
                 state.document = updated
-                _files.publish(self._root / name, record, replace=replace)
+                _files.publish(self._root / name, record, replace=replace,
+                               parent_directory=state.parent(name, create=True))
+                self._verify_access(state)
                 return
             if not replace and name in document["records"]:
                 raise FileExistsError(name)
@@ -221,8 +220,20 @@ class AttemptRecords:
                            for key in document["records"])):
                 raise WorkflowError("Invalid or conflicting authoritative attempt record")
             updated["records"] = {**document["records"], name: record}
-            _files.publish(self._root / _STATE, updated)
+            _files.publish(self._root / _STATE, updated, parent_directory=state.parent(_STATE))
             state.document = updated
+            self._verify_access(state)
+
+    def _verify_access(self, state):
+        # Publication uses the pinned directory. Recheck its current name too,
+        # so substitution cannot redirect a write or report normal success.
+        with _files.directory(self._root) as directory:
+            opened, current = os.fstat(state.directory), os.fstat(directory)
+            if (opened.st_dev, opened.st_ino) != (current.st_dev, current.st_ino):
+                raise WorkflowError("Attempt record directory changed during mutation")
+            lock = os.stat(_LOCK, dir_fd=directory, follow_symlinks=False)
+            if _files._signature(lock) != _files._signature(state.lock):
+                raise WorkflowError("Attempt record lock changed during mutation")
 
     def version(self):
         """A revision/file identity token for derived, observation-scoped facts."""
@@ -276,7 +287,7 @@ class _Access:
             os.close(fd)
         self.children.clear()
 
-    def _parent(self, name):
+    def _parent(self, name, *, create=False):
         directory, parts = self.directory, []
         for part in name.split("/")[:-1]:
             parts.append(part)
@@ -289,6 +300,12 @@ class _Access:
                     raise WorkflowError("Managed record directory changed during observation")
                 self.children.move_to_end(key)
             else:
+                if create:
+                    try:
+                        os.mkdir(part, dir_fd=directory)
+                        _files.sync_directory(directory)
+                    except FileExistsError:
+                        pass
                 fd = os.open(part, _files._DIRECTORY_FLAGS, dir_fd=directory)
                 info = os.fstat(fd)
                 self.children[key] = fd, (info.st_dev, info.st_ino)
@@ -299,8 +316,8 @@ class _Access:
         return directory
 
     @contextmanager
-    def parent(self, name):
-        yield self._parent(name)
+    def parent(self, name, *, create=False):
+        yield self._parent(name, create=create)
         self._parent(name)
 
 

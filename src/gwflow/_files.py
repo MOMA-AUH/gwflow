@@ -288,9 +288,9 @@ def read_json(path, *, parent_directory=None):
         raise WorkflowError(f"Cannot read managed evidence {path}: {exc}") from exc
 
 
-def publish(path, record, *, replace=True):
+def publish(path, record, *, replace=True, parent_directory=None):
     path = Path(path)
-    with directory(path.parent, create=True) as parent:
+    with parent_directory if parent_directory is not None else directory(path.parent, create=True) as parent:
         temporary = ".pending-" + uuid4().hex
         fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
                      0o600, dir_fd=parent)
