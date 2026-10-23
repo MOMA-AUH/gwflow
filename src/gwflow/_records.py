@@ -7,7 +7,7 @@ for a scheduler. Metadata child handles live only for the duration of a locked s
 """
 
 from collections import OrderedDict
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 from contextvars import ContextVar
 from copy import deepcopy
 from functools import wraps
@@ -163,7 +163,11 @@ class AttemptRecords:
             yield state
             return
         try:
-            with _files._read_directory(self._root) as directory:
+            with _files._read_directory(self._root) as borrowed, ExitStack() as handles:
+                # Metadata inspection may evict the borrowed cache entry while
+                # this session still needs its original directory identity.
+                directory = os.dup(borrowed)
+                handles.callback(os.close, directory)
                 fd = os.open(_LOCK, os.O_RDWR | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC,
                              dir_fd=directory)
                 try:
@@ -178,6 +182,7 @@ class AttemptRecords:
                     token = _current.set((self, write, state))
                     try:
                         yield state
+                        self._verify_access(state, cached=True)
                     finally:
                         _current.reset(token)
                         state.close()
@@ -224,16 +229,16 @@ class AttemptRecords:
             state.document = updated
             self._verify_access(state)
 
-    def _verify_access(self, state):
-        # Publication uses the pinned directory. Recheck its current name too,
-        # so substitution cannot redirect a write or report normal success.
-        with _files.directory(self._root) as directory:
+    def _verify_access(self, state, *, cached=False):
+        # Recheck the pinned directory's current name and persistent lock,
+        # including when metadata inspection has evicted the cached handle.
+        with (_files._read_directory if cached else _files.directory)(self._root) as directory:
             opened, current = os.fstat(state.directory), os.fstat(directory)
             if (opened.st_dev, opened.st_ino) != (current.st_dev, current.st_ino):
-                raise WorkflowError("Attempt record directory changed during mutation")
+                raise WorkflowError("Attempt record directory changed during access")
             lock = os.stat(_LOCK, dir_fd=directory, follow_symlinks=False)
             if _files._signature(lock) != _files._signature(state.lock):
-                raise WorkflowError("Attempt record lock changed during mutation")
+                raise WorkflowError("Attempt record lock changed during access")
 
     def version(self):
         """A revision/file identity token for derived, observation-scoped facts."""

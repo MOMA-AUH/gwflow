@@ -2,6 +2,7 @@
 
 from concurrent.futures import ThreadPoolExecutor
 import json
+import os
 from pathlib import Path
 import tempfile
 from threading import Barrier
@@ -9,7 +10,7 @@ import unittest
 
 from gwf.exceptions import WorkflowError
 
-from gwflow import _observations
+from gwflow import _files, _observations
 from gwflow._records import AttemptRecords
 
 
@@ -87,6 +88,34 @@ class AttemptRecordTests(unittest.TestCase):
         self.assertEqual(self.records.read("completion.json"), {"outputs": {"report": "checked"}})
         self.assertEqual(self.records.names("operations/" + self.attempt["operation"]), ["completion.json"])
 
+    @unittest.skipUnless(Path("/proc/self/fd").exists(), "requires Linux descriptor accounting")
+    def test_attempt_and_planning_observations_share_a_bounded_descriptor_budget(self):
+        names = [f"admissions/job{index}/intent.json" for index in range(10)]
+        for name in names:
+            self.records.publish(name, {"value": name})
+        paths = []
+        for index in range(70):
+            path = self.task_directory.parent / f"other{index}" / "record.json"
+            path.parent.mkdir()
+            path.write_text("{}")
+            paths.append(path)
+        before = len(os.listdir("/proc/self/fd"))
+        with _observations.planning_pass():
+            for path in paths:
+                _files.read_json(path)
+            for _ in range(2):
+                with self.records.access():
+                    # Retained-output inspection may evict the attempt's
+                    # borrowed directory from the wider planning cache.
+                    for path in paths:
+                        _files.read_json(path)
+                    for name in names:
+                        self.assertEqual(self.records.read(name), {"value": name})
+                    # Leave one descriptor for a transient record read within
+                    # the installed-command peak budget of 67.
+                    self.assertLessEqual(len(os.listdir("/proc/self/fd")) - before, 66)
+        self.assertEqual(len(os.listdir("/proc/self/fd")), before)
+
     def test_malformed_evidence_is_present_and_symlinked_history_is_refused(self):
         self.assertFalse(self.records.exists("inputs.json"))
         self.assertIsNone(self.records.read("inputs.json"))
@@ -106,6 +135,24 @@ class AttemptRecordTests(unittest.TestCase):
         with self.assertRaises(WorkflowError):
             self.records.publish("admissions/ack.json", {"job_id": 99})
         self.assertEqual((outside / "ack.json").read_text(), '{"job_id": 42}')
+
+    def test_shared_observation_rejects_substitution_after_directory_cache_eviction(self):
+        self.records.publish("inputs.json", {"value": "original"})
+        root = self.task_directory / "attempts" / self.attempt["attempt"]
+        paths = []
+        for index in range(70):
+            path = self.task_directory.parent / f"other{index}" / "record.json"
+            path.parent.mkdir()
+            path.write_text("{}")
+            paths.append(path)
+        with self.assertRaises(WorkflowError), _observations.planning_pass(), self.records.access():
+            root.rename(root.with_name("displaced"))
+            root.mkdir()
+            (root / "sentinel").touch()
+            for path in paths:
+                _files.read_json(path)
+            self.records.read("inputs.json")
+        self.assertEqual([path.name for path in root.iterdir()], ["sentinel"])
 
     def test_bounded_observation_refreshes_after_another_writer_changes_a_record(self):
         from record_fixtures import consolidate
@@ -226,7 +273,7 @@ class AttemptRecordTests(unittest.TestCase):
         root = self.task_directory / "attempts" / self.attempt["attempt"]
         self.records.publish("inputs.json", {"accepted": True})
         lock = root / "records.lock"
-        with self.records.access(write=True):
+        with self.assertRaises(WorkflowError), self.records.access(write=True):
             lock.rename(root / "saved-lock")
             lock.touch()
             try:

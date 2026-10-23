@@ -60,7 +60,9 @@ def directory(path, *, create=False):
 class _ReadDirectories:
     """Bounded handles, with current no-follow ancestry checked on every use."""
 
-    limit = 64
+    # Leave eight of the directory-handle budget for attempt-local sessions.
+    # Those handles must close before releasing the attempt's record lock.
+    limit = 56
 
     def __init__(self):
         self.handles = OrderedDict()
