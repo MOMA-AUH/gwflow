@@ -5,6 +5,7 @@ import re
 import shlex
 import shutil
 
+from gwf.exceptions import WorkflowError
 from gwflow import _observations, admission
 from gwflow.lifecycle import Store
 
@@ -80,8 +81,17 @@ class ConsolidatedRecordTests(LocalBackendTestCase):
 
     def test_changed_evidence_refreshes_completion_and_admissions_in_one_store(self):
         self.run_complete()
-        store, attempt, _, state = self.compact_fixture()
+        store, attempt, _, _ = self.compact_fixture()
+        self.assert_observation_refreshes(store, attempt)
+
+    def test_changed_loose_evidence_refreshes_completion_and_admissions_in_one_store(self):
+        self.run_complete()
+        store = Store(self.work)
+        self.assert_observation_refreshes(store, store.recorded_current("sample"))
+
+    def assert_observation_refreshes(self, store, attempt):
         peer = Store(self.work)
+        completion = store.read(attempt, "completion.json", "completion")
         with _observations.planning_pass():
             self.assertTrue(store.completed(attempt))
             observed = admission.observe(store, attempt, None, "local")
@@ -90,7 +100,6 @@ class ConsolidatedRecordTests(LocalBackendTestCase):
             peer.publish(attempt, f"admissions/{intent['admission']}/ack.json", "submission-ack",
                          **admission.identity(intent), job_id=99999)
             self.assertEqual(admission.observe(store, attempt, None, "local")["right"].job_id, 99999)
-            completion = state["records"][f"operations/{attempt['operation']}/completion.json"]
             peer.records(attempt).publish("completion.json", {**completion, "outputs": {}})
             self.assertFalse(store.completed(attempt))
 
@@ -169,3 +178,16 @@ class ConsolidatedProducerTests(LocalBackendTestCase):
         self.run_complete("sample0")
         self.assertEqual((self.work / "results/sample0/copy.txt").read_text(), "hello\n")
         self.assertIn("2 reusable", self.cli("status"))
+
+    def test_consumer_rechecks_changed_producer_completion_within_one_store_observation(self):
+        self.run_complete()
+        store, producer, _, _ = self.compact_fixture("reference")
+        _, consumer, _, _ = self.compact_fixture("sample0")
+        peer = Store(self.work)
+        with _observations.planning_pass():
+            self.assertTrue(store.completed(consumer))
+            completion = peer.read(producer, "completion.json", "completion")
+            peer.records(producer).publish("completion.json", {**completion, "outputs": {}})
+            self.assertFalse(store.completed(producer))
+            with self.assertRaisesRegex(WorkflowError, "lacks checked Completion"):
+                store.completed(consumer)

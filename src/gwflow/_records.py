@@ -45,7 +45,12 @@ def _logical_name(name):
 
 
 class _Documents:
-    """Bounded decoded documents, without retained file or directory handles."""
+    """Optional reuse between bounded attempt observations, without handles.
+
+    Each access session pins its decoded document until it ends. This LRU also
+    avoids parsing on nearby fresh observations. A later revisit after eviction
+    starts a new observation, rather than retaining every workflow's history.
+    """
 
     def __init__(self):
         self.values = OrderedDict()
@@ -202,6 +207,11 @@ class AttemptRecords:
             document = state.document
             updated = {**document, "revision": document["revision"] + 1}
             if document["phase"] == "individual":
+                # Invalidate derived observations before changing loose evidence.
+                # A crash can leave an unused revision, never a changed record
+                # still covered by a previously observed revision.
+                _files.publish(self._root / _STATE, updated)
+                state.document = updated
                 _files.publish(self._root / name, record, replace=replace)
                 return
             if not replace and name in document["records"]:

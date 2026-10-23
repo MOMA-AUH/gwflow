@@ -32,7 +32,8 @@ class OperatorRecoveryTests(LocalBackendTestCase):
             output = self.cli("run", *flags, success=False)
             self.assertIn("unresolved submission", output)
         before = self.task_attempts(success=False)["sample"]
-        evidence = {path: path.read_bytes() for path in (self.work / ".gwf/gwflow").rglob("*.json")}
+        evidence = {path: path.read_bytes() for path in (self.work / ".gwf/gwflow").rglob("*.json")
+                    if path.name != "record-state.json"}
         intent_path = next(path for path in evidence if path.name == "intent.json")
         intent = json.loads(evidence[intent_path])
         output = self.cli("--file", "workflow.py", "--backend", "local", "recover", "sample")
@@ -75,7 +76,8 @@ class OperatorRecoveryTests(LocalBackendTestCase):
         self.interrupt_computation()
         before = self.task_attempts()["sample"]
         accepted = (self.work / "backend-acceptances.jsonl").read_bytes()
-        evidence = {path: path.read_bytes() for path in (self.work / ".gwf/gwflow").rglob("*.json")}
+        evidence = {path: path.read_bytes() for path in (self.work / ".gwf/gwflow").rglob("*.json")
+                    if path.name != "record-state.json"}
         environment = self.inject(job_states={"sample": "UNKNOWN"}, record_acceptances=True,
                                   record_cancellations=True)
         self.assertIn("unresolved submission", self.cli("-b", "recovery_fixture", "run", env=environment, success=False))
@@ -263,7 +265,8 @@ class OperatorRecoveryTests(LocalBackendTestCase):
         self.interrupt_computation()
         attempt = self.task_attempts()["sample"]
         accepted = (self.work / "backend-acceptances.jsonl").read_bytes()
-        evidence = {path: path.read_bytes() for path in (self.work / ".gwf/gwflow").rglob("*.json")}
+        evidence = {path: path.read_bytes() for path in (self.work / ".gwf/gwflow").rglob("*.json")
+                    if path.name != "record-state.json"}
         environment = self.inject(job_states={"sample": "UNKNOWN"}, record_acceptances=True, record_cancellations=True)
         result = subprocess.run([sys.executable, str(FIXTURES / "frontend_fault.py"), str(self.work), phase,
                                  "sample", "-b", "recovery_fixture", "recover", "sample"], cwd=self.work,
