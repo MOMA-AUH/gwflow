@@ -148,7 +148,9 @@ class CompactedCleanupTests(LocalBackendTestCase):
         test_recovery.OperatorRecoveryTests.interrupt_computation(self)
         self.cli('-b', 'recovery_fixture', 'recover', 'sample',
                  env=self.inject(job_states={'sample': 'UNKNOWN'}))
-        self.run_complete()
+        self.cli('run')
+        self.settle()
+        self.assertIn('Reuse', self.cli('run', '--dry-run'))
         history = self.cli('logs', 'sample', '--history', '--details')
         logs = self.cli('logs', 'sample__left', '--no-pager')
         store, attempt, root = self.compact()
