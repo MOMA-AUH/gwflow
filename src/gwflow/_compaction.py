@@ -62,14 +62,14 @@ def _owned_record(records, name, value):
         raise WorkflowError(f'Unsupported record ownership during compaction: {name}')
 
 
-def _inventory(records, state):
+def _inventory(records, state, *, exclude=()):
     """Validate the entire physical collection before performing any deletion."""
     claims, collection, pending, links = {}, {}, [''], {}
     while pending:
         namespace = pending.pop()
         with state.parent(namespace + '/child' if namespace else 'child') as parent:
             for leaf in sorted(os.listdir(parent)):
-                if not namespace and leaf in {'record-state.json', 'records.lock'}:
+                if not namespace and leaf in {'record-state.json', 'records.lock', *exclude}:
                     continue
                 name = namespace + '/' + leaf if namespace else leaf
                 info = os.stat(leaf, dir_fd=parent, follow_symlinks=False)
@@ -132,11 +132,11 @@ def _durable(records, state):
     _files.sync_directory(state.directory)
 
 
-def _remove(records, state, claims):
+def _remove(records, state, claims, *, verify=None):
     # Children precede parents; validate names/identities again at each boundary.
     links = Counter(claim['inode'] for claim in claims.values() if not claim.get('directory'))
     for name in sorted(claims, key=lambda name: (-name.count('/'), name)):
-        records._verify_access(state)
+        (verify or (lambda: records._verify_access(state)))()
         expected = claims[name]
         with state.parent(name) as parent:
             info = os.stat(name.split('/')[-1], dir_fd=parent, follow_symlinks=False)
