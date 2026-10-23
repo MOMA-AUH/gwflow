@@ -140,7 +140,11 @@ class InteractiveStatusTests(LocalBackendTestCase):
                  "Path('detached-pid').write_text(str(os.getpid()))\n"
                  "while not Path('detached-release').exists(): time.sleep(0.025)\n"
                  "Path('detached-late-effect').touch()\n")
-        intermediate = f"import subprocess, sys; subprocess.Popen([sys.executable, '-c', {child!r}], start_new_session=True)"
+        # Let the descendant start before the workflow can finish and reap it;
+        # otherwise cleanup can win the race with the expected PID publication.
+        intermediate = ("from pathlib import Path; import subprocess, sys, time\n"
+                        f"subprocess.Popen([sys.executable, '-c', {child!r}], start_new_session=True)\n"
+                        "while not Path('detached-pid').exists(): time.sleep(0.025)\n")
         for stalled in (True, False):
             with self.subTest(stalled=stalled):
                 workflow.write_text("import subprocess, sys, time\n"
