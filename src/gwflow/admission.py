@@ -183,8 +183,6 @@ def success_evidence(store, attempt, local, intent):
     token = intent["admission"]
     if local == "gwflow_prepare":
         record = store.input_baseline(attempt)
-    elif local == "gwflow_complete":
-        record = store.read(attempt, "completion.json", "completion", operation=attempt["operation"])
     else:
         record = store.checked_target(attempt, local, check_files=False)
     return record is not None and record.get("admission") == token
