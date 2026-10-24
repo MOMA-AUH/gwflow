@@ -782,11 +782,18 @@ class Store:
             if not self.compaction_required(attempt):
                 self.publish(attempt, "compaction.json", "compaction", operation=attempt["operation"])
 
+    @_records.observing
     def compaction_required(self, attempt):
-        record = self.read(attempt, "compaction.json", "compaction", operation=attempt["operation"])
-        if record is None and self.exists(attempt, "compaction.json"):
-            raise WorkflowError("Malformed record compaction obligation")
-        return record is not None
+        def observe():
+            record = self.read(attempt, "compaction.json", "compaction", operation=attempt["operation"])
+            if record is None and self.exists(attempt, "compaction.json"):
+                raise WorkflowError("Malformed record compaction obligation")
+            return record is not None
+
+        # Every cooperating writer changes this revision. Reuse only within
+        # the bounded observation, including repeated checks of one producer.
+        key = (self, attempt["task"], attempt["attempt"], attempt["operation"], self.records(attempt).version())
+        return _observations.reuse("compaction-obligation", key, observe)
 
     def compaction_succeeded(self, attempt, intent=None):
         from . import admission

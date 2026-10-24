@@ -300,19 +300,25 @@ def _observe(store, attempt, backend, name, intents, *, tolerate_state_errors=Fa
             ack = store.read(attempt, f"admissions/{token}/ack.json", "submission-ack", **identity(intent))
             rejection = store.read(attempt, f"admissions/{token}/rejected.json", "submission-rejected", **identity(intent))
             outcome = store.read(attempt, f"admissions/{token}/outcome.json", "job-outcome", **identity(intent))
-        recovery = None
-        if historical and local == "gwflow_complete":
-            # Archived diagnostics describe that operation's outcome, not its
-            # eligibility to satisfy the currently selected completion work.
-            operation = {**attempt, "operation": intent["operation"]}
-            if store.compaction_required(operation):
-                checked = (outcome is not None and outcome.get("state") == "complete"
-                           and outcome.get("compaction") is True
-                           and outcome.get("operation") == intent["operation"])
+            if local != "gwflow_complete":
+                checked = outcome is not None and outcome.get("state") == "complete"
+            elif historical:
+                # Archived diagnostics describe that operation's outcome, not its
+                # eligibility to satisfy the currently selected completion work.
+                operation = {**attempt, "operation": intent["operation"]}
+                if store.compaction_required(operation):
+                    checked = (outcome is not None and outcome.get("state") == "complete"
+                               and outcome.get("compaction") is True
+                               and outcome.get("operation") == intent["operation"])
+                else:
+                    checked = succeeded(store, operation, local, intent)
             else:
-                checked = succeeded(store, operation, local, intent)
-        else:
+                checked = succeeded(store, attempt, local, intent)
+        # Preparation fallback can inspect producer paths, so it must happen
+        # after releasing this attempt's lock.
+        if local != "gwflow_complete" and not checked:
             checked = succeeded(store, attempt, local, intent)
+        recovery = None
         target = Target(intent["submission"], [], [], {})
         tracked_id, state = None, BackendStatus.UNKNOWN
         same_backend = backend is not None and intent["backend"] == backend_identity(backend, name)
