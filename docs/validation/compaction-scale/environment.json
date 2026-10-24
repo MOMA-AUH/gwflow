@@ -1,0 +1,205 @@
+{
+  "commands": [
+    {
+      "command": [
+        "modinfo",
+        "-F",
+        "version",
+        "beegfs"
+      ],
+      "result": {
+        "args": [
+          "modinfo",
+          "-F",
+          "version",
+          "beegfs"
+        ],
+        "returncode": 0,
+        "stdout": "8.3.1\n",
+        "stderr": ""
+      }
+    },
+    {
+      "command": [
+        "uname",
+        "-r"
+      ],
+      "result": {
+        "args": [
+          "uname",
+          "-r"
+        ],
+        "returncode": 0,
+        "stdout": "5.14.0-687.57.2.el9_8.x86_64\n",
+        "stderr": ""
+      }
+    },
+    {
+      "command": [
+        "sbatch",
+        "--version"
+      ],
+      "result": {
+        "args": [
+          "sbatch",
+          "--version"
+        ],
+        "returncode": 0,
+        "stdout": "slurm 25.11.6\n",
+        "stderr": ""
+      }
+    }
+  ],
+  "production_source_sha256": {
+    "<REPO>/src/gwflow/__init__.py": "590b40b7561dfa1463ce8ab3eff3457cac06d5d49e1a03ba0b69d41c82b395f3",
+    "<REPO>/src/gwflow/_browser_read.py": "7908304527d15ee6dae98aeb1774c39ff45b15c0ee776235ff4ec11c73469383",
+    "<REPO>/src/gwflow/_compaction.py": "f4f65a65fc314bbfb5aefd2ee899cb24d01578acd814f9dbedcef2f1095b84bd",
+    "<REPO>/src/gwflow/_files.py": "bcbbca6104aca30e66f8ebb1127ce0190d1f2cce9123958205356f3b31fa4c6e",
+    "<REPO>/src/gwflow/_frontend.py": "9e66c99ad30eaf95632eec831eff623519a5d6f876a6dd1a7874be7f3f0be597",
+    "<REPO>/src/gwflow/_inspection_process.py": "eb5b41b78165b1181ce58ba7b418e0394bf956f411ec273b3817a9b0cc304afe",
+    "<REPO>/src/gwflow/_observations.py": "54c1f862447c9e2dfcd34170a074c6e21197b51f9b83cad6725c7f7d01a87a77",
+    "<REPO>/src/gwflow/_records.py": "b6843b3139a0b112720998cff46c54fa48b1a6f64e1ab9aa9fd3c724c75c3102",
+    "<REPO>/src/gwflow/_restoration.py": "5302cee96a50de7188c89d8de4b5d60cf5c71ee634b65bfa4737b26a2540e3b2",
+    "<REPO>/src/gwflow/activity.py": "5aab2605022b1e90025a04f807799612bf5979b3d2b33aba05a5df6e86792e72",
+    "<REPO>/src/gwflow/admission.py": "9ae685d276ac3c32ecd20804c92159d01f3e557fdaa897534f3f0e0604d4cb66",
+    "<REPO>/src/gwflow/browser.py": "210b7f5b0d469eb8177f0dc77117755396e281fd04ade789bb75f3e9ef6fe21e",
+    "<REPO>/src/gwflow/browser_evidence.py": "01ff8f9cefac6f0816b34a2b80a0ac25b2f259c48724d4e8a2993259f54c2432",
+    "<REPO>/src/gwflow/cancel.py": "a20151801883d7b631e5680fe40c452e3f6251d9bbac9840b986646c037184b8",
+    "<REPO>/src/gwflow/clean_work.py": "10ae9b3054fbe4a82ebebe09fca1da58c9579b92d8b5ffe691f40cfc9af6f820",
+    "<REPO>/src/gwflow/cleanup.py": "d2baf9f2b101480ce7426fb172fbc56a449bea226783116996e5d2c8a207ec2e",
+    "<REPO>/src/gwflow/cli.py": "511b4f1c52aac63737977069505cfa5206c374dc40cc2b236c556b6a5dbdafe5",
+    "<REPO>/src/gwflow/commands.py": "2f60df3a05ca67a6be66a29c0353294876763841eda24a7ae06c0fd32be3588d",
+    "<REPO>/src/gwflow/diagnostics.py": "d733af996fa4518560df3889149476d1eb4f33d2d7bd02beadda866ea605a5a9",
+    "<REPO>/src/gwflow/execution.py": "fe4c1c0ae7f03cda8008423fe56576f241916567d6e80608549adcf066d550db",
+    "<REPO>/src/gwflow/images.py": "f5c72401c59df5b1d4eaf1a9e36d5abba023a710300c30101d8e162274014ba3",
+    "<REPO>/src/gwflow/inputs.py": "2eb363eb763fae8022266f8b13d48cedf131729508ca053d5f4bf80a24da0ff0",
+    "<REPO>/src/gwflow/inspection.py": "e73f5b0aa67e4dfc55b6e3200a77f3b54dc6404779812e29a016fd18e148ec52",
+    "<REPO>/src/gwflow/lifecycle.py": "92f312259bd902e3ae222c08a2d9d05ca30b5e4d55cb2595f036fe121204a647",
+    "<REPO>/src/gwflow/logs.py": "0805bdd13678fa1a71f409207c9fcb12480defed7f6fe7833831e852c56d8996",
+    "<REPO>/src/gwflow/planning.py": "0ae051cdf3668445130dc211445d47d9ad7839e1be8c6c014f34307fef34f0e9",
+    "<REPO>/src/gwflow/presentation.py": "587578d0b538744cf3e1b32ed8cb7bcbb0980f29fa0868e19f9442ee9b8fbc90",
+    "<REPO>/src/gwflow/recover.py": "35d2b55d910d907976fe2eb90669266a5ea31c8087785365e8ffeece9870ca9c",
+    "<REPO>/src/gwflow/run.py": "ddb2012dd857d6ba36cd9c463ee1e50ca7cc6544e37465eda9bc324d4c42b2cf",
+    "<REPO>/src/gwflow/selection.py": "bdcbe03d3d7fc7be3452c943bf88acac6194151cbcaa848b1eefe55fcb682629",
+    "<REPO>/src/gwflow/staging.py": "69a6d81afa683a62128d885472d0065b822f01ebbae9f7b4c2ce6583e8f2acff",
+    "<REPO>/src/gwflow/status.py": "9e6aba765c6fae3da5d71e8ff7436eaae8bbc97ede5d809917c42e61ea6ecb54",
+    "<REPO>/src/gwflow/status_snapshot.py": "e23f9568d757196388e86bc1cb24ae430f36d73fba66cb02a29098187c3bafe2",
+    "<REPO>/src/gwflow/submission.py": "a229b1d9f9236836bf06fbf8492e33acd754b81546790a82192edd21a14d587b",
+    "<REPO>/src/gwflow/terminal.py": "9484d64ff4307dddcad14147ac22119ea0b7224661b9e166419d736615a7cbb9",
+    "<REPO>/src/gwflow/transfer.py": "91d524a4a5e334f852d6282e9fcf74b679a36d4ec09a99577fa86eb25b5e1fa7",
+    "<REPO>/src/gwflow/workers.py": "b35c26c6d2e77ee5738ed18128fe55a8ba3503d14b1b04f6371e0965258773b4",
+    "<REPO>/src/gwflow/workflow.py": "666737b491e6695f033c5ef09db65aba07b0e697fdc6f9c7ff14eca02f3ecbc5"
+  },
+  "regressions": [
+    {
+      "command": [
+        ".conda-env/bin/python",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_attempt_records.py",
+        "-v"
+      ],
+      "result": "test_all_authoritative_phases_refuse_damaged_documents_and_ignore_redundant_files (test_attempt_records.AttemptRecordTests.test_all_authoritative_phases_refuse_damaged_documents_and_ignore_redundant_files) ... ok\ntest_attempt_and_planning_observations_share_a_bounded_descriptor_budget (test_attempt_records.AttemptRecordTests.test_attempt_and_planning_observations_share_a_bounded_descriptor_budget) ... ok\ntest_bounded_observation_refreshes_after_another_writer_changes_a_record (test_attempt_records.AttemptRecordTests.test_bounded_observation_refreshes_after_another_writer_changes_a_record) ... ok\ntest_concurrent_exclusive_creation_preserves_one_complete_record (test_attempt_records.AttemptRecordTests.test_concurrent_exclusive_creation_preserves_one_complete_record) ... ok\ntest_concurrent_writers_and_coherent_readers_preserve_all_updates (test_attempt_records.AttemptRecordTests.test_concurrent_writers_and_coherent_readers_preserve_all_updates) ... ok\ntest_consolidated_document_is_authoritative_and_late_writes_stay_consolidated (test_attempt_records.AttemptRecordTests.test_consolidated_document_is_authoritative_and_late_writes_stay_consolidated) ... ok\ntest_failed_consolidated_publication_preserves_authority_and_other_records (test_attempt_records.AttemptRecordTests.test_failed_consolidated_publication_preserves_authority_and_other_records) ... ok\ntest_failed_publication_preserves_existing_evidence (test_attempt_records.AttemptRecordTests.test_failed_publication_preserves_existing_evidence) ... ok\ntest_initialization_cannot_publish_into_a_replaced_attempt_directory (test_attempt_records.AttemptRecordTests.test_initialization_cannot_publish_into_a_replaced_attempt_directory) ... ok\ntest_late_acknowledgement_is_visible_in_the_same_observation (test_attempt_records.AttemptRecordTests.test_late_acknowledgement_is_visible_in_the_same_observation) ... ok\ntest_lock_and_document_path_substitutions_are_refused (test_attempt_records.AttemptRecordTests.test_lock_and_document_path_substitutions_are_refused) ... ok\ntest_malformed_evidence_is_present_and_symlinked_history_is_refused (test_attempt_records.AttemptRecordTests.test_malformed_evidence_is_present_and_symlinked_history_is_refused) ... ok\ntest_mutation_refuses_a_lock_replaced_during_the_session (test_attempt_records.AttemptRecordTests.test_mutation_refuses_a_lock_replaced_during_the_session) ... ok\ntest_replacement_after_mutation_check_cannot_redirect_publication (test_attempt_records.AttemptRecordTests.test_replacement_after_mutation_check_cannot_redirect_publication) ... ok\ntest_shared_observation_rejects_substitution_after_directory_cache_eviction (test_attempt_records.AttemptRecordTests.test_shared_observation_rejects_substitution_after_directory_cache_eviction) ... ok\ntest_large_documents_are_decoded_once_and_cache_evicts_and_refreshes (test_attempt_records.ConsolidatedObservationScaleTests.test_large_documents_are_decoded_once_and_cache_evicts_and_refreshes) ... ok\n\n----------------------------------------------------------------------\nRan 16 tests in 1.395s\n\nOK\n"
+    },
+    {
+      "command": [
+        ".conda-env/bin/python",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_consolidated_records.py",
+        "-v"
+      ],
+      "result": "test_consumer_rechecks_changed_producer_completion_within_one_store_observation (test_consolidated_records.ConsolidatedProducerTests.test_consumer_rechecks_changed_producer_completion_within_one_store_observation) ... ok\ntest_real_consumer_worker_reads_consolidated_producer_after_work_cleanup (test_consolidated_records.ConsolidatedProducerTests.test_real_consumer_worker_reads_consolidated_producer_after_work_cleanup) ... ok\ntest_changed_evidence_refreshes_completion_and_admissions_in_one_store (test_consolidated_records.ConsolidatedRecordTests.test_changed_evidence_refreshes_completion_and_admissions_in_one_store) ... ok\ntest_changed_loose_evidence_refreshes_completion_and_admissions_in_one_store (test_consolidated_records.ConsolidatedRecordTests.test_changed_loose_evidence_refreshes_completion_and_admissions_in_one_store) ... ok\ntest_inspection_logs_and_superseded_attempt_keep_exact_history (test_consolidated_records.ConsolidatedRecordTests.test_inspection_logs_and_superseded_attempt_keep_exact_history) ... ok\ntest_interactive_status_reads_consolidated_job_evidence (test_consolidated_records.ConsolidatedRecordTests.test_interactive_status_reads_consolidated_job_evidence) ... ok\ntest_malformed_or_missing_authority_never_uses_redundant_records (test_consolidated_records.ConsolidatedRecordTests.test_malformed_or_missing_authority_never_uses_redundant_records) ... ok\ntest_planning_decodes_each_unchanged_consolidated_document_once (test_consolidated_records.ConsolidatedRecordTests.test_planning_decodes_each_unchanged_consolidated_document_once) ... ok\ntest_recoveries_and_worker_outcomes_update_consolidated_records (test_consolidated_records.ConsolidatedRecordTests.test_recoveries_and_worker_outcomes_update_consolidated_records) ... ok\ntest_worker_finishes_ahead_of_frontend_acknowledgement_and_keeps_all_evidence (test_consolidated_records.ConsolidatedRecordTests.test_worker_finishes_ahead_of_frontend_acknowledgement_and_keeps_all_evidence) ... ok\n\n----------------------------------------------------------------------\nRan 10 tests in 56.973s\n\nOK\n"
+    },
+    {
+      "command": [
+        ".conda-env/bin/python",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_planning_probe.py",
+        "-v"
+      ],
+      "result": "test_counts_decodes_and_actual_utf8_bytes (test_planning_probe.PlanningProbeTests.test_counts_decodes_and_actual_utf8_bytes) ... ok\ntest_in_memory_json_stream_does_not_require_a_descriptor (test_planning_probe.PlanningProbeTests.test_in_memory_json_stream_does_not_require_a_descriptor) ... ok\n\n----------------------------------------------------------------------\nRan 2 tests in 0.002s\n\nOK\n"
+    },
+    {
+      "command": [
+        ".conda-env/bin/python",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_compaction_footprint.py",
+        "-v"
+      ],
+      "result": "test_staging_data_is_reported_separately_from_workflow_bookkeeping (test_compaction_footprint.FootprintTests.test_staging_data_is_reported_separately_from_workflow_bookkeeping) ... ok\n\n----------------------------------------------------------------------\nRan 1 test in 0.002s\n\nOK\n"
+    },
+    {
+      "command": [
+        ".conda-env/bin/python",
+        "tests/release_smoke.py"
+      ],
+      "result": "test_installed_producers_clean_then_new_consumer_computes_only_once (test_example.PackagedExampleTests.test_installed_producers_clean_then_new_consumer_computes_only_once) ... ok\ntest_logs_retry_history_cancel_and_ordinary_recovery (test_troubleshooting.TroubleshootingJourneyTests.test_logs_retry_history_cancel_and_ordinary_recovery) ... ok\ntest_recovery_preserves_successful_siblings_and_records_every_unresolved_submission (test_recovery.OperatorRecoveryTests.test_recovery_preserves_successful_siblings_and_records_every_unresolved_submission) ... ok\n\n----------------------------------------------------------------------\nRan 3 tests in 31.725s\n\nOK\n"
+    },
+    {
+      "command": [
+        ".conda-env/bin/python",
+        "-m",
+        "mypy",
+        "src/gwflow",
+        "--ignore-missing-imports"
+      ],
+      "result": "src/gwflow/cancel.py:65: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]\nsrc/gwflow/browser.py:1050: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]\nSuccess: no issues found in 38 source files\n"
+    }
+  ],
+  "local_container_limitation": {
+    "command": [
+      "apptainer",
+      "exec",
+      "<REPO>/build/validation/basic.sif",
+      "/bin/true"
+    ],
+    "result": {
+      "returncode": 1,
+      "diagnostic": "Failed to create user namespace: maximum number of user namespaces exceeded, check /proc/sys/user/max_user_namespaces"
+    },
+    "namespace_limit": "0",
+    "compute_node_probe": {
+      "job": "5909588",
+      "node": "cn-1040",
+      "result": "apptainer version 1.5.3-1.el9\nINFO   : A system administrator may need to enable user namespaces, install\nINFO   :   apptainer-suid, or compile with ./mconfig --with-suid\n\u001b[91mERROR  : Failed to create user namespace: maximum number of user namespaces exceeded, check /proc/sys/user/max_user_namespaces\n\u001b[0m"
+    },
+    "explanation": "Operator confirmed Apptainer is disabled locally for security. No system settings were changed. Local container tests are unavailable; GitHub CI provides the required real-container regression coverage."
+  },
+  "installed_source_verified": "Every src/gwflow/*.py file matched its installed .conda-env/lib/python3.12/site-packages/gwflow counterpart byte for byte before validation.",
+  "limits": [
+    "One BeeGFS 8.3.1 deployment and Slurm 25.11.6 scheduler; no power-loss or universal filesystem claim.",
+    "beegfs-ctl was unavailable; module version obtained through modinfo.",
+    "Instrumented time and memory include probe overhead; JSON input bytes are not physical disk traffic."
+  ],
+  "evidence_metadata": {
+    "date": "2026-10-24",
+    "production_commit": "986dca3e054e0973ea3ea1ffcaef393ee8464382",
+    "validation_commit": "9232a4509da474ae2dae2e52a1195818c946e7ea",
+    "footprint_counter_commit": "7ffb3a5824e6ba8bdda5c2d5ea22b7330ca7c73b",
+    "path_placeholders": {
+      "<REPO>": "Checkout root",
+      "<HOME>": "Validation operator home directory, if present"
+    },
+    "selection": "Version commands and production-source hashes; validation adds no production-code changes.",
+    "normalization": "Only path substitutions and this explanatory metadata were added; reverse substitution equals selected raw JSON."
+  }
+}

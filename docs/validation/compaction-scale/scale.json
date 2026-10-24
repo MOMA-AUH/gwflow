@@ -1,0 +1,5013 @@
+{
+  "python": "3.12.14",
+  "packages": {
+    "gwflow": "0.8.1",
+    "gwf": "2.1.1",
+    "rich": "15.0.0",
+    "textual": "8.2.8"
+  },
+  "tests_run": 4,
+  "failures": 0,
+  "errors": 0,
+  "cases": [
+    {
+      "path": "<REPO>/build/validation/260/scale/targets-1",
+      "targets_per_task": 1,
+      "tasks": 1,
+      "retries": 0,
+      "recoveries": 0,
+      "snapshots": [
+        {
+          "attempts": {
+            ".gwf/gwflow/owners/2f795a7da7204eddbd7f52c4d9d17153/tasks/sample0/attempts/3c06fc06cb7949b19401e6ad81c750e3": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 24,
+              "record-state.json": {
+                "device": 48,
+                "inode": 17120655141419703760,
+                "bytes": 15562
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 14314288944595658364,
+                "bytes": 0
+              }
+            }
+          },
+          "stage": "success"
+        },
+        {
+          "attempts": {
+            ".gwf/gwflow/owners/2f795a7da7204eddbd7f52c4d9d17153/tasks/sample0/attempts/3c06fc06cb7949b19401e6ad81c750e3": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 36,
+              "record-state.json": {
+                "device": 48,
+                "inode": 1842542856756132227,
+                "bytes": 23720
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 14314288944595658364,
+                "bytes": 0
+              }
+            }
+          },
+          "stage": "repair-1"
+        },
+        {
+          "attempts": {
+            ".gwf/gwflow/owners/2f795a7da7204eddbd7f52c4d9d17153/tasks/sample0/attempts/3c06fc06cb7949b19401e6ad81c750e3": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 48,
+              "record-state.json": {
+                "device": 48,
+                "inode": 825839939751474750,
+                "bytes": 31808
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 14314288944595658364,
+                "bytes": 0
+              }
+            }
+          },
+          "stage": "repair-2"
+        },
+        {
+          "attempts": {
+            ".gwf/gwflow/owners/2f795a7da7204eddbd7f52c4d9d17153/tasks/sample0/attempts/3c06fc06cb7949b19401e6ad81c750e3": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 49,
+              "record-state.json": {
+                "device": 48,
+                "inode": 8203295636850014595,
+                "bytes": 34610
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 14314288944595658364,
+                "bytes": 0
+              }
+            }
+          },
+          "stage": "cleanup-1"
+        },
+        {
+          "attempts": {
+            ".gwf/gwflow/owners/2f795a7da7204eddbd7f52c4d9d17153/tasks/sample0/attempts/3c06fc06cb7949b19401e6ad81c750e3": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 49,
+              "record-state.json": {
+                "device": 48,
+                "inode": 8203295636850014595,
+                "bytes": 34610
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 14314288944595658364,
+                "bytes": 0
+              }
+            }
+          },
+          "stage": "cleanup-2"
+        }
+      ],
+      "probes": {
+        "success": {
+          "status --plain": {
+            "command": [
+              "<REPO>/.conda-env/bin/python",
+              "<REPO>/tests/fixtures/planning_probe.py",
+              "<REPO>/build/validation/260/scale/targets-1/success-status.json",
+              "status",
+              "--plain"
+            ],
+            "counts": {
+              "startup": {
+                "stream_reads": 4,
+                "stat": 6,
+                "json_decodes": 1,
+                "json_bytes": 49,
+                "close": 25
+              },
+              "imports": {
+                "stream_reads": 285,
+                "stat": 16,
+                "listdir": 7
+              },
+              "construction": {
+                "stream_reads": 8,
+                "lstat": 13,
+                "stat": 1
+              },
+              "backend": {
+                "stream_reads": 41,
+                "stat": 72,
+                "listdir": 3,
+                "access": 2,
+                "json_decodes": 2,
+                "json_bytes": 378,
+                "scheduler_requests": 1
+              },
+              "rendering": {
+                "stream_reads": 2
+              },
+              "planning": {
+                "lstat": 51,
+                "stat": 1099,
+                "directory_opens": 101,
+                "fstat": 122,
+                "file_opens": 22,
+                "stream_reads": 3,
+                "json_decodes": 3,
+                "json_bytes": 16496,
+                "close": 114,
+                "dup": 18,
+                "listdir": 1
+              }
+            },
+            "seconds": {
+              "startup": 0.0178571519209072,
+              "imports": 1.6553340228856541,
+              "construction": 0.055612789175938815,
+              "backend": 0.19598198891617358,
+              "rendering": 0.01414076506625861,
+              "planning": 0.44407491001766175
+            },
+            "document_decodes": {
+              "<REPO>/build/validation/260/scale/targets-1/.gwf/gwflow/owners/2f795a7da7204eddbd7f52c4d9d17153/tasks/sample0/attempts/3c06fc06cb7949b19401e6ad81c750e3/record-state.json": 1
+            },
+            "peak_cached_documents": 1,
+            "peak_rss_kib": 33792,
+            "traced_memory_bytes": {
+              "current": 15579605,
+              "peak": 16809407
+            },
+            "peak_opened_descriptors": 28,
+            "path_depth": 12
+          },
+          "run --dry-run": {
+            "command": [
+              "<REPO>/.conda-env/bin/python",
+              "<REPO>/tests/fixtures/planning_probe.py",
+              "<REPO>/build/validation/260/scale/targets-1/success-run.json",
+              "run",
+              "--dry-run"
+            ],
+            "counts": {
+              "startup": {
+                "stream_reads": 4,
+                "stat": 6,
+                "json_decodes": 1,
+                "json_bytes": 49,
+                "close": 25
+              },
+              "imports": {
+                "stream_reads": 285,
+                "stat": 16,
+                "listdir": 7
+              },
+              "construction": {
+                "stream_reads": 8,
+                "lstat": 13,
+                "stat": 1
+              },
+              "backend": {
+                "stream_reads": 41,
+                "stat": 72,
+                "listdir": 3,
+                "access": 2,
+                "json_decodes": 2,
+                "json_bytes": 378,
+                "scheduler_requests": 1
+              },
+              "rendering": {
+                "stream_reads": 2
+              },
+              "planning": {
+                "lstat": 51,
+                "stat": 1099,
+                "directory_opens": 101,
+                "fstat": 122,
+                "file_opens": 22,
+                "stream_reads": 3,
+                "json_decodes": 3,
+                "json_bytes": 16496,
+                "close": 114,
+                "dup": 18,
+                "listdir": 1
+              }
+            },
+            "seconds": {
+              "startup": 0.020178528095129877,
+              "imports": 1.730237644747831,
+              "construction": 0.056609336053952575,
+              "backend": 0.2113205500645563,
+              "rendering": 0.013438122055958956,
+              "planning": 0.46466059499653056
+            },
+            "document_decodes": {
+              "<REPO>/build/validation/260/scale/targets-1/.gwf/gwflow/owners/2f795a7da7204eddbd7f52c4d9d17153/tasks/sample0/attempts/3c06fc06cb7949b19401e6ad81c750e3/record-state.json": 1
+            },
+            "peak_cached_documents": 1,
+            "peak_rss_kib": 32256,
+            "traced_memory_bytes": {
+              "current": 15575689,
+              "peak": 16807746
+            },
+            "peak_opened_descriptors": 28,
+            "path_depth": 12
+          }
+        },
+        "after-cleanup": {
+          "status --plain": {
+            "command": [
+              "<REPO>/.conda-env/bin/python",
+              "<REPO>/tests/fixtures/planning_probe.py",
+              "<REPO>/build/validation/260/scale/targets-1/after-cleanup-status.json",
+              "status",
+              "--plain"
+            ],
+            "counts": {
+              "startup": {
+                "stream_reads": 4,
+                "stat": 6,
+                "json_decodes": 1,
+                "json_bytes": 49,
+                "close": 25
+              },
+              "imports": {
+                "stream_reads": 285,
+                "stat": 16,
+                "listdir": 7
+              },
+              "construction": {
+                "stream_reads": 8,
+                "lstat": 13,
+                "stat": 1
+              },
+              "backend": {
+                "stream_reads": 41,
+                "stat": 72,
+                "listdir": 3,
+                "access": 2,
+                "json_decodes": 2,
+                "json_bytes": 612,
+                "scheduler_requests": 1
+              },
+              "rendering": {
+                "stream_reads": 2
+              },
+              "planning": {
+                "lstat": 51,
+                "stat": 904,
+                "directory_opens": 101,
+                "fstat": 102,
+                "file_opens": 18,
+                "stream_reads": 3,
+                "json_decodes": 3,
+                "json_bytes": 35544,
+                "close": 106,
+                "dup": 14,
+                "listdir": 1
+              }
+            },
+            "seconds": {
+              "startup": 0.018181035993620753,
+              "imports": 1.6733859027153812,
+              "construction": 0.057050107163377106,
+              "backend": 0.19399298110511154,
+              "rendering": 0.014404054032638669,
+              "planning": 0.4116644359892234
+            },
+            "document_decodes": {
+              "<REPO>/build/validation/260/scale/targets-1/.gwf/gwflow/owners/2f795a7da7204eddbd7f52c4d9d17153/tasks/sample0/attempts/3c06fc06cb7949b19401e6ad81c750e3/record-state.json": 1
+            },
+            "peak_cached_documents": 1,
+            "peak_rss_kib": 38400,
+            "traced_memory_bytes": {
+              "current": 15578039,
+              "peak": 16859226
+            },
+            "peak_opened_descriptors": 28,
+            "path_depth": 12
+          },
+          "run --dry-run": {
+            "command": [
+              "<REPO>/.conda-env/bin/python",
+              "<REPO>/tests/fixtures/planning_probe.py",
+              "<REPO>/build/validation/260/scale/targets-1/after-cleanup-run.json",
+              "run",
+              "--dry-run"
+            ],
+            "counts": {
+              "startup": {
+                "stream_reads": 4,
+                "stat": 6,
+                "json_decodes": 1,
+                "json_bytes": 49,
+                "close": 25
+              },
+              "imports": {
+                "stream_reads": 285,
+                "stat": 16,
+                "listdir": 7
+              },
+              "construction": {
+                "stream_reads": 8,
+                "lstat": 13,
+                "stat": 1
+              },
+              "backend": {
+                "stream_reads": 41,
+                "stat": 72,
+                "listdir": 3,
+                "access": 2,
+                "json_decodes": 2,
+                "json_bytes": 612,
+                "scheduler_requests": 1
+              },
+              "rendering": {
+                "stream_reads": 2
+              },
+              "planning": {
+                "lstat": 51,
+                "stat": 904,
+                "directory_opens": 101,
+                "fstat": 102,
+                "file_opens": 18,
+                "stream_reads": 3,
+                "json_decodes": 3,
+                "json_bytes": 35544,
+                "close": 106,
+                "dup": 14,
+                "listdir": 1
+              }
+            },
+            "seconds": {
+              "startup": 0.017797800013795495,
+              "imports": 1.7279085580958053,
+              "construction": 0.058215380006004125,
+              "backend": 0.2109693778329529,
+              "rendering": 0.013524600013624877,
+              "planning": 0.4188238950446248
+            },
+            "document_decodes": {
+              "<REPO>/build/validation/260/scale/targets-1/.gwf/gwflow/owners/2f795a7da7204eddbd7f52c4d9d17153/tasks/sample0/attempts/3c06fc06cb7949b19401e6ad81c750e3/record-state.json": 1
+            },
+            "peak_cached_documents": 1,
+            "peak_rss_kib": 41472,
+            "traced_memory_bytes": {
+              "current": 15576498,
+              "peak": 16859976
+            },
+            "peak_opened_descriptors": 28,
+            "path_depth": 12
+          }
+        }
+      },
+      "final_footprint": {
+        "categories": {
+          "validation_fixture": {
+            "files": 12,
+            "bytes": 272268,
+            "directories": 1
+          },
+          "data": {
+            "directories": 4,
+            "files": 1,
+            "bytes": 6
+          },
+          "workflow_bookkeeping": {
+            "directories": 4,
+            "files": 4,
+            "bytes": 1956
+          },
+          "logs_and_aliases": {
+            "directories": 1,
+            "files": 10,
+            "bytes": 0,
+            "symlinks": 6
+          },
+          "staging_data": {
+            "directories": 2
+          },
+          "task_bookkeeping": {
+            "directories": 3,
+            "files": 1,
+            "bytes": 151
+          },
+          "attempt_metadata": {
+            "directories": 1,
+            "files": 2,
+            "bytes": 34610
+          }
+        },
+        "attempts": {
+          ".gwf/gwflow/owners/2f795a7da7204eddbd7f52c4d9d17153/tasks/sample0/attempts/3c06fc06cb7949b19401e6ad81c750e3": {
+            "directories": 1,
+            "files": 2,
+            "phase": "compacted",
+            "logical_records": 49,
+            "record-state.json": {
+              "device": 48,
+              "inode": 8203295636850014595,
+              "bytes": 34610
+            },
+            "records.lock": {
+              "device": 48,
+              "inode": 14314288944595658364,
+              "bytes": 0
+            }
+          }
+        }
+      }
+    },
+    {
+      "path": "<REPO>/build/validation/260/scale/targets-32",
+      "targets_per_task": 32,
+      "tasks": 1,
+      "retries": 0,
+      "recoveries": 0,
+      "snapshots": [
+        {
+          "attempts": {
+            ".gwf/gwflow/owners/2fb8dc45d09d4122b128d8d69ca50f4b/tasks/sample0/attempts/1e737e9ee36044d283bf8ec83d68acb1": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 210,
+              "record-state.json": {
+                "device": 48,
+                "inode": 8020526884413579429,
+                "bytes": 174094
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 2831271657658279171,
+                "bytes": 0
+              }
+            }
+          },
+          "stage": "success"
+        },
+        {
+          "attempts": {
+            ".gwf/gwflow/owners/2fb8dc45d09d4122b128d8d69ca50f4b/tasks/sample0/attempts/1e737e9ee36044d283bf8ec83d68acb1": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 222,
+              "record-state.json": {
+                "device": 48,
+                "inode": 18243707592941305226,
+                "bytes": 208851
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 2831271657658279171,
+                "bytes": 0
+              }
+            }
+          },
+          "stage": "repair-1"
+        },
+        {
+          "attempts": {
+            ".gwf/gwflow/owners/2fb8dc45d09d4122b128d8d69ca50f4b/tasks/sample0/attempts/1e737e9ee36044d283bf8ec83d68acb1": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 234,
+              "record-state.json": {
+                "device": 48,
+                "inode": 6327803608441870417,
+                "bytes": 243540
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 2831271657658279171,
+                "bytes": 0
+              }
+            }
+          },
+          "stage": "repair-2"
+        },
+        {
+          "attempts": {
+            ".gwf/gwflow/owners/2fb8dc45d09d4122b128d8d69ca50f4b/tasks/sample0/attempts/1e737e9ee36044d283bf8ec83d68acb1": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 235,
+              "record-state.json": {
+                "device": 48,
+                "inode": 16512287172538319068,
+                "bytes": 247770
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 2831271657658279171,
+                "bytes": 0
+              }
+            }
+          },
+          "stage": "cleanup-1"
+        },
+        {
+          "attempts": {
+            ".gwf/gwflow/owners/2fb8dc45d09d4122b128d8d69ca50f4b/tasks/sample0/attempts/1e737e9ee36044d283bf8ec83d68acb1": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 235,
+              "record-state.json": {
+                "device": 48,
+                "inode": 16512287172538319068,
+                "bytes": 247770
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 2831271657658279171,
+                "bytes": 0
+              }
+            }
+          },
+          "stage": "cleanup-2"
+        }
+      ],
+      "probes": {
+        "success": {
+          "status --plain": {
+            "command": [
+              "<REPO>/.conda-env/bin/python",
+              "<REPO>/tests/fixtures/planning_probe.py",
+              "<REPO>/build/validation/260/scale/targets-32/success-status.json",
+              "status",
+              "--plain"
+            ],
+            "counts": {
+              "startup": {
+                "stream_reads": 4,
+                "stat": 6,
+                "json_decodes": 1,
+                "json_bytes": 49,
+                "close": 25
+              },
+              "imports": {
+                "stream_reads": 285,
+                "stat": 16,
+                "listdir": 7
+              },
+              "construction": {
+                "stream_reads": 8,
+                "lstat": 13,
+                "stat": 1
+              },
+              "backend": {
+                "stream_reads": 41,
+                "stat": 72,
+                "listdir": 3,
+                "access": 2,
+                "json_decodes": 2,
+                "json_bytes": 3765,
+                "scheduler_requests": 1
+              },
+              "rendering": {
+                "stream_reads": 2
+              },
+              "planning": {
+                "lstat": 51,
+                "stat": 2494,
+                "directory_opens": 101,
+                "fstat": 277,
+                "file_opens": 53,
+                "stream_reads": 3,
+                "json_decodes": 3,
+                "json_bytes": 175033,
+                "close": 176,
+                "dup": 49,
+                "listdir": 1
+              }
+            },
+            "seconds": {
+              "startup": 0.01956543792039156,
+              "imports": 1.6548047160031274,
+              "construction": 0.10242233192548156,
+              "backend": 0.19566280709113926,
+              "rendering": 0.016352488019037992,
+              "planning": 1.6363452770165168
+            },
+            "document_decodes": {
+              "<REPO>/build/validation/260/scale/targets-32/.gwf/gwflow/owners/2fb8dc45d09d4122b128d8d69ca50f4b/tasks/sample0/attempts/1e737e9ee36044d283bf8ec83d68acb1/record-state.json": 1
+            },
+            "peak_cached_documents": 1,
+            "peak_rss_kib": 46948,
+            "traced_memory_bytes": {
+              "current": 15569577,
+              "peak": 17513502
+            },
+            "peak_opened_descriptors": 28,
+            "path_depth": 12
+          },
+          "run --dry-run": {
+            "command": [
+              "<REPO>/.conda-env/bin/python",
+              "<REPO>/tests/fixtures/planning_probe.py",
+              "<REPO>/build/validation/260/scale/targets-32/success-run.json",
+              "run",
+              "--dry-run"
+            ],
+            "counts": {
+              "startup": {
+                "stream_reads": 4,
+                "stat": 6,
+                "json_decodes": 1,
+                "json_bytes": 49,
+                "close": 25
+              },
+              "imports": {
+                "stream_reads": 285,
+                "stat": 16,
+                "listdir": 7
+              },
+              "construction": {
+                "stream_reads": 8,
+                "lstat": 13,
+                "stat": 1
+              },
+              "backend": {
+                "stream_reads": 41,
+                "stat": 72,
+                "listdir": 3,
+                "access": 2,
+                "json_decodes": 2,
+                "json_bytes": 3765,
+                "scheduler_requests": 1
+              },
+              "rendering": {
+                "stream_reads": 2
+              },
+              "planning": {
+                "lstat": 51,
+                "stat": 2494,
+                "directory_opens": 101,
+                "fstat": 277,
+                "file_opens": 53,
+                "stream_reads": 3,
+                "json_decodes": 3,
+                "json_bytes": 175033,
+                "close": 176,
+                "dup": 49,
+                "listdir": 1
+              }
+            },
+            "seconds": {
+              "startup": 0.02007036912254989,
+              "imports": 1.6706238911137916,
+              "construction": 0.10194324282929301,
+              "backend": 0.20128999912412837,
+              "rendering": 0.014656112936791033,
+              "planning": 1.6308443718589842
+            },
+            "document_decodes": {
+              "<REPO>/build/validation/260/scale/targets-32/.gwf/gwflow/owners/2fb8dc45d09d4122b128d8d69ca50f4b/tasks/sample0/attempts/1e737e9ee36044d283bf8ec83d68acb1/record-state.json": 1
+            },
+            "peak_cached_documents": 1,
+            "peak_rss_kib": 44040,
+            "traced_memory_bytes": {
+              "current": 15568589,
+              "peak": 17514469
+            },
+            "peak_opened_descriptors": 28,
+            "path_depth": 12
+          }
+        },
+        "after-cleanup": {
+          "status --plain": {
+            "command": [
+              "<REPO>/.conda-env/bin/python",
+              "<REPO>/tests/fixtures/planning_probe.py",
+              "<REPO>/build/validation/260/scale/targets-32/after-cleanup-status.json",
+              "status",
+              "--plain"
+            ],
+            "counts": {
+              "startup": {
+                "stream_reads": 4,
+                "stat": 6,
+                "json_decodes": 1,
+                "json_bytes": 49,
+                "close": 25
+              },
+              "imports": {
+                "stream_reads": 285,
+                "stat": 16,
+                "listdir": 8
+              },
+              "construction": {
+                "stream_reads": 8,
+                "lstat": 13,
+                "stat": 1
+              },
+              "backend": {
+                "stream_reads": 41,
+                "stat": 72,
+                "listdir": 4,
+                "access": 2,
+                "json_decodes": 2,
+                "json_bytes": 4003,
+                "scheduler_requests": 1
+              },
+              "rendering": {
+                "stream_reads": 2
+              },
+              "planning": {
+                "lstat": 51,
+                "stat": 2299,
+                "directory_opens": 101,
+                "fstat": 257,
+                "file_opens": 49,
+                "stream_reads": 3,
+                "json_decodes": 3,
+                "json_bytes": 248709,
+                "close": 168,
+                "dup": 45,
+                "listdir": 1
+              }
+            },
+            "seconds": {
+              "startup": 0.020070775877684355,
+              "imports": 1.733256993116811,
+              "construction": 0.10537197894882411,
+              "backend": 0.20678566163405776,
+              "rendering": 0.015855249075684696,
+              "planning": 1.6164257863420062
+            },
+            "document_decodes": {
+              "<REPO>/build/validation/260/scale/targets-32/.gwf/gwflow/owners/2fb8dc45d09d4122b128d8d69ca50f4b/tasks/sample0/attempts/1e737e9ee36044d283bf8ec83d68acb1/record-state.json": 1
+            },
+            "peak_cached_documents": 1,
+            "peak_rss_kib": 36864,
+            "traced_memory_bytes": {
+              "current": 15575164,
+              "peak": 17782432
+            },
+            "peak_opened_descriptors": 28,
+            "path_depth": 12
+          },
+          "run --dry-run": {
+            "command": [
+              "<REPO>/.conda-env/bin/python",
+              "<REPO>/tests/fixtures/planning_probe.py",
+              "<REPO>/build/validation/260/scale/targets-32/after-cleanup-run.json",
+              "run",
+              "--dry-run"
+            ],
+            "counts": {
+              "startup": {
+                "stream_reads": 4,
+                "stat": 6,
+                "json_decodes": 1,
+                "json_bytes": 49,
+                "close": 25
+              },
+              "imports": {
+                "stream_reads": 285,
+                "stat": 16,
+                "listdir": 7
+              },
+              "construction": {
+                "stream_reads": 8,
+                "lstat": 13,
+                "stat": 1
+              },
+              "backend": {
+                "stream_reads": 41,
+                "stat": 72,
+                "listdir": 3,
+                "access": 2,
+                "json_decodes": 2,
+                "json_bytes": 4003,
+                "scheduler_requests": 1
+              },
+              "rendering": {
+                "stream_reads": 2
+              },
+              "planning": {
+                "lstat": 51,
+                "stat": 2299,
+                "directory_opens": 101,
+                "fstat": 257,
+                "file_opens": 49,
+                "stream_reads": 3,
+                "json_decodes": 3,
+                "json_bytes": 248709,
+                "close": 168,
+                "dup": 45,
+                "listdir": 1
+              }
+            },
+            "seconds": {
+              "startup": 0.020424679038114846,
+              "imports": 1.7880411677178927,
+              "construction": 0.10664324718527496,
+              "backend": 0.1983669910696335,
+              "rendering": 0.015737575944513083,
+              "planning": 1.630220448016189
+            },
+            "document_decodes": {
+              "<REPO>/build/validation/260/scale/targets-32/.gwf/gwflow/owners/2fb8dc45d09d4122b128d8d69ca50f4b/tasks/sample0/attempts/1e737e9ee36044d283bf8ec83d68acb1/record-state.json": 1
+            },
+            "peak_cached_documents": 1,
+            "peak_rss_kib": 32440,
+            "traced_memory_bytes": {
+              "current": 15565734,
+              "peak": 17774652
+            },
+            "peak_opened_descriptors": 28,
+            "path_depth": 12
+          }
+        }
+      },
+      "final_footprint": {
+        "categories": {
+          "validation_fixture": {
+            "files": 12,
+            "bytes": 296937,
+            "directories": 1
+          },
+          "data": {
+            "directories": 4,
+            "files": 1,
+            "bytes": 6
+          },
+          "workflow_bookkeeping": {
+            "directories": 4,
+            "files": 4,
+            "bytes": 8820
+          },
+          "logs_and_aliases": {
+            "directories": 1,
+            "symlinks": 68,
+            "files": 72,
+            "bytes": 0
+          },
+          "staging_data": {
+            "directories": 2
+          },
+          "task_bookkeeping": {
+            "directories": 3,
+            "files": 1,
+            "bytes": 151
+          },
+          "attempt_metadata": {
+            "directories": 1,
+            "files": 2,
+            "bytes": 247770
+          }
+        },
+        "attempts": {
+          ".gwf/gwflow/owners/2fb8dc45d09d4122b128d8d69ca50f4b/tasks/sample0/attempts/1e737e9ee36044d283bf8ec83d68acb1": {
+            "directories": 1,
+            "files": 2,
+            "phase": "compacted",
+            "logical_records": 235,
+            "record-state.json": {
+              "device": 48,
+              "inode": 16512287172538319068,
+              "bytes": 247770
+            },
+            "records.lock": {
+              "device": 48,
+              "inode": 2831271657658279171,
+              "bytes": 0
+            }
+          }
+        }
+      }
+    },
+    {
+      "path": "<REPO>/build/validation/260/scale/targets-128",
+      "targets_per_task": 128,
+      "tasks": 1,
+      "retries": 0,
+      "recoveries": 0,
+      "snapshots": [
+        {
+          "attempts": {
+            ".gwf/gwflow/owners/694f69ac31b54e7ab989efc3ba32c151/tasks/sample0/attempts/4d2f3249bf1e439cb56f1253ebd39c47": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 786,
+              "record-state.json": {
+                "device": 48,
+                "inode": 13508898262017417274,
+                "bytes": 666961
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 6664142918107359881,
+                "bytes": 0
+              }
+            }
+          },
+          "stage": "success"
+        },
+        {
+          "attempts": {
+            ".gwf/gwflow/owners/694f69ac31b54e7ab989efc3ba32c151/tasks/sample0/attempts/4d2f3249bf1e439cb56f1253ebd39c47": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 798,
+              "record-state.json": {
+                "device": 48,
+                "inode": 17253562006686143069,
+                "bytes": 784508
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 6664142918107359881,
+                "bytes": 0
+              }
+            }
+          },
+          "stage": "repair-1"
+        },
+        {
+          "attempts": {
+            ".gwf/gwflow/owners/694f69ac31b54e7ab989efc3ba32c151/tasks/sample0/attempts/4d2f3249bf1e439cb56f1253ebd39c47": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 810,
+              "record-state.json": {
+                "device": 48,
+                "inode": 7294033149143933269,
+                "bytes": 901987
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 6664142918107359881,
+                "bytes": 0
+              }
+            }
+          },
+          "stage": "repair-2"
+        },
+        {
+          "attempts": {
+            ".gwf/gwflow/owners/694f69ac31b54e7ab989efc3ba32c151/tasks/sample0/attempts/4d2f3249bf1e439cb56f1253ebd39c47": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 811,
+              "record-state.json": {
+                "device": 48,
+                "inode": 16042987202415393334,
+                "bytes": 910670
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 6664142918107359881,
+                "bytes": 0
+              }
+            }
+          },
+          "stage": "cleanup-1"
+        },
+        {
+          "attempts": {
+            ".gwf/gwflow/owners/694f69ac31b54e7ab989efc3ba32c151/tasks/sample0/attempts/4d2f3249bf1e439cb56f1253ebd39c47": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 811,
+              "record-state.json": {
+                "device": 48,
+                "inode": 16042987202415393334,
+                "bytes": 910670
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 6664142918107359881,
+                "bytes": 0
+              }
+            }
+          },
+          "stage": "cleanup-2"
+        }
+      ],
+      "probes": {
+        "success": {
+          "status --plain": {
+            "command": [
+              "<REPO>/.conda-env/bin/python",
+              "<REPO>/tests/fixtures/planning_probe.py",
+              "<REPO>/build/validation/260/scale/targets-128/success-status.json",
+              "status",
+              "--plain"
+            ],
+            "counts": {
+              "startup": {
+                "stream_reads": 4,
+                "stat": 6,
+                "json_decodes": 1,
+                "json_bytes": 49,
+                "close": 25
+              },
+              "imports": {
+                "stream_reads": 285,
+                "stat": 16,
+                "listdir": 7
+              },
+              "construction": {
+                "stream_reads": 8,
+                "lstat": 13,
+                "stat": 1
+              },
+              "backend": {
+                "stream_reads": 41,
+                "stat": 72,
+                "listdir": 3,
+                "access": 2,
+                "json_decodes": 2,
+                "json_bytes": 14413,
+                "scheduler_requests": 1
+              },
+              "rendering": {
+                "stream_reads": 2
+              },
+              "planning": {
+                "lstat": 51,
+                "stat": 6814,
+                "directory_opens": 101,
+                "fstat": 757,
+                "file_opens": 149,
+                "stream_reads": 3,
+                "json_decodes": 3,
+                "json_bytes": 667905,
+                "close": 368,
+                "dup": 145,
+                "listdir": 1
+              }
+            },
+            "seconds": {
+              "startup": 0.021975317155010998,
+              "imports": 1.6995820690062828,
+              "construction": 0.25053009897237644,
+              "backend": 0.2029064450180158,
+              "rendering": 0.01739350490970537,
+              "planning": 5.460292447940446
+            },
+            "document_decodes": {
+              "<REPO>/build/validation/260/scale/targets-128/.gwf/gwflow/owners/694f69ac31b54e7ab989efc3ba32c151/tasks/sample0/attempts/4d2f3249bf1e439cb56f1253ebd39c47/record-state.json": 1
+            },
+            "peak_cached_documents": 1,
+            "peak_rss_kib": 44404,
+            "traced_memory_bytes": {
+              "current": 16406384,
+              "peak": 20341396
+            },
+            "peak_opened_descriptors": 28,
+            "path_depth": 12
+          },
+          "run --dry-run": {
+            "command": [
+              "<REPO>/.conda-env/bin/python",
+              "<REPO>/tests/fixtures/planning_probe.py",
+              "<REPO>/build/validation/260/scale/targets-128/success-run.json",
+              "run",
+              "--dry-run"
+            ],
+            "counts": {
+              "startup": {
+                "stream_reads": 4,
+                "stat": 6,
+                "json_decodes": 1,
+                "json_bytes": 49,
+                "close": 25
+              },
+              "imports": {
+                "stream_reads": 285,
+                "stat": 16,
+                "listdir": 7
+              },
+              "construction": {
+                "stream_reads": 8,
+                "lstat": 13,
+                "stat": 1
+              },
+              "backend": {
+                "stream_reads": 41,
+                "stat": 72,
+                "listdir": 3,
+                "access": 2,
+                "json_decodes": 2,
+                "json_bytes": 14413,
+                "scheduler_requests": 1
+              },
+              "rendering": {
+                "stream_reads": 2
+              },
+              "planning": {
+                "lstat": 51,
+                "stat": 6814,
+                "directory_opens": 101,
+                "fstat": 757,
+                "file_opens": 149,
+                "stream_reads": 3,
+                "json_decodes": 3,
+                "json_bytes": 667905,
+                "close": 368,
+                "dup": 145,
+                "listdir": 1
+              }
+            },
+            "seconds": {
+              "startup": 0.024105806893203408,
+              "imports": 1.7198622428695671,
+              "construction": 0.26578441716264933,
+              "backend": 0.205999446217902,
+              "rendering": 0.01493095705518499,
+              "planning": 5.398945567780174
+            },
+            "document_decodes": {
+              "<REPO>/build/validation/260/scale/targets-128/.gwf/gwflow/owners/694f69ac31b54e7ab989efc3ba32c151/tasks/sample0/attempts/4d2f3249bf1e439cb56f1253ebd39c47/record-state.json": 1
+            },
+            "peak_cached_documents": 1,
+            "peak_rss_kib": 40060,
+            "traced_memory_bytes": {
+              "current": 16403091,
+              "peak": 20339991
+            },
+            "peak_opened_descriptors": 28,
+            "path_depth": 12
+          }
+        },
+        "after-cleanup": {
+          "status --plain": {
+            "command": [
+              "<REPO>/.conda-env/bin/python",
+              "<REPO>/tests/fixtures/planning_probe.py",
+              "<REPO>/build/validation/260/scale/targets-128/after-cleanup-status.json",
+              "status",
+              "--plain"
+            ],
+            "counts": {
+              "startup": {
+                "stream_reads": 4,
+                "stat": 6,
+                "json_decodes": 1,
+                "json_bytes": 49,
+                "close": 25
+              },
+              "imports": {
+                "stream_reads": 285,
+                "stat": 16,
+                "listdir": 7
+              },
+              "construction": {
+                "stream_reads": 8,
+                "lstat": 13,
+                "stat": 1
+              },
+              "backend": {
+                "stream_reads": 41,
+                "stat": 72,
+                "listdir": 3,
+                "access": 2,
+                "json_decodes": 2,
+                "json_bytes": 14655,
+                "scheduler_requests": 1
+              },
+              "rendering": {
+                "stream_reads": 2
+              },
+              "planning": {
+                "lstat": 51,
+                "stat": 6619,
+                "directory_opens": 101,
+                "fstat": 737,
+                "file_opens": 145,
+                "stream_reads": 3,
+                "json_decodes": 3,
+                "json_bytes": 911614,
+                "close": 360,
+                "dup": 141,
+                "listdir": 1
+              }
+            },
+            "seconds": {
+              "startup": 0.024083643045742065,
+              "imports": 1.7557029059971683,
+              "construction": 0.24449727789033204,
+              "backend": 0.21177404338959605,
+              "rendering": 0.016357565065845847,
+              "planning": 5.387495928618591
+            },
+            "document_decodes": {
+              "<REPO>/build/validation/260/scale/targets-128/.gwf/gwflow/owners/694f69ac31b54e7ab989efc3ba32c151/tasks/sample0/attempts/4d2f3249bf1e439cb56f1253ebd39c47/record-state.json": 1
+            },
+            "peak_cached_documents": 1,
+            "peak_rss_kib": 39768,
+            "traced_memory_bytes": {
+              "current": 16406014,
+              "peak": 21175927
+            },
+            "peak_opened_descriptors": 28,
+            "path_depth": 12
+          },
+          "run --dry-run": {
+            "command": [
+              "<REPO>/.conda-env/bin/python",
+              "<REPO>/tests/fixtures/planning_probe.py",
+              "<REPO>/build/validation/260/scale/targets-128/after-cleanup-run.json",
+              "run",
+              "--dry-run"
+            ],
+            "counts": {
+              "startup": {
+                "stream_reads": 4,
+                "stat": 6,
+                "json_decodes": 1,
+                "json_bytes": 49,
+                "close": 25
+              },
+              "imports": {
+                "stream_reads": 285,
+                "stat": 16,
+                "listdir": 7
+              },
+              "construction": {
+                "stream_reads": 8,
+                "lstat": 13,
+                "stat": 1
+              },
+              "backend": {
+                "stream_reads": 41,
+                "stat": 72,
+                "listdir": 3,
+                "access": 2,
+                "json_decodes": 2,
+                "json_bytes": 14655,
+                "scheduler_requests": 1
+              },
+              "rendering": {
+                "stream_reads": 2
+              },
+              "planning": {
+                "lstat": 51,
+                "stat": 6619,
+                "directory_opens": 101,
+                "fstat": 737,
+                "file_opens": 145,
+                "stream_reads": 3,
+                "json_decodes": 3,
+                "json_bytes": 911614,
+                "close": 360,
+                "dup": 141,
+                "listdir": 1
+              }
+            },
+            "seconds": {
+              "startup": 0.0250219990266487,
+              "imports": 1.756846062024124,
+              "construction": 0.25641482998616993,
+              "backend": 0.22577847604406998,
+              "rendering": 0.016491501010023057,
+              "planning": 5.579722763912287
+            },
+            "document_decodes": {
+              "<REPO>/build/validation/260/scale/targets-128/.gwf/gwflow/owners/694f69ac31b54e7ab989efc3ba32c151/tasks/sample0/attempts/4d2f3249bf1e439cb56f1253ebd39c47/record-state.json": 1
+            },
+            "peak_cached_documents": 1,
+            "peak_rss_kib": 54924,
+            "traced_memory_bytes": {
+              "current": 16402867,
+              "peak": 21175000
+            },
+            "peak_opened_descriptors": 28,
+            "path_depth": 12
+          }
+        }
+      },
+      "final_footprint": {
+        "categories": {
+          "data": {
+            "directories": 4,
+            "files": 1,
+            "bytes": 6
+          },
+          "validation_fixture": {
+            "files": 12,
+            "bytes": 371017,
+            "directories": 1
+          },
+          "workflow_bookkeeping": {
+            "directories": 4,
+            "files": 4,
+            "bytes": 30225
+          },
+          "logs_and_aliases": {
+            "directories": 1,
+            "symlinks": 260,
+            "files": 264,
+            "bytes": 0
+          },
+          "staging_data": {
+            "directories": 2
+          },
+          "task_bookkeeping": {
+            "directories": 3,
+            "files": 1,
+            "bytes": 151
+          },
+          "attempt_metadata": {
+            "directories": 1,
+            "files": 2,
+            "bytes": 910670
+          }
+        },
+        "attempts": {
+          ".gwf/gwflow/owners/694f69ac31b54e7ab989efc3ba32c151/tasks/sample0/attempts/4d2f3249bf1e439cb56f1253ebd39c47": {
+            "directories": 1,
+            "files": 2,
+            "phase": "compacted",
+            "logical_records": 811,
+            "record-state.json": {
+              "device": 48,
+              "inode": 16042987202415393334,
+              "bytes": 910670
+            },
+            "records.lock": {
+              "device": 48,
+              "inode": 6664142918107359881,
+              "bytes": 0
+            }
+          }
+        }
+      }
+    },
+    {
+      "path": "<REPO>/build/validation/260/history-r3/history-4",
+      "targets_per_task": 1,
+      "tasks": 1,
+      "retries": 4,
+      "recoveries": 4,
+      "snapshots": [
+        {
+          "attempts": {
+            ".gwf/gwflow/owners/b6d7531e8c124a81859daa9658da3465/tasks/sample0/attempts/b689286e06fc4ef5a69a8f696d809c6a": {
+              "directories": 38,
+              "files": 52,
+              "phase": "individual",
+              "logical_records": null,
+              "record-state.json": {
+                "device": 48,
+                "inode": 13082632918580113700,
+                "bytes": 298
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 14481740508646599654,
+                "bytes": 0
+              }
+            }
+          },
+          "stage": "before-success"
+        },
+        {
+          "attempts": {
+            ".gwf/gwflow/owners/b6d7531e8c124a81859daa9658da3465/tasks/sample0/attempts/b689286e06fc4ef5a69a8f696d809c6a": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 64,
+              "record-state.json": {
+                "device": 48,
+                "inode": 1742071618557484908,
+                "bytes": 42974
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 14481740508646599654,
+                "bytes": 0
+              }
+            }
+          },
+          "stage": "success"
+        },
+        {
+          "attempts": {
+            ".gwf/gwflow/owners/b6d7531e8c124a81859daa9658da3465/tasks/sample0/attempts/b689286e06fc4ef5a69a8f696d809c6a": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 76,
+              "record-state.json": {
+                "device": 48,
+                "inode": 6657089236453565192,
+                "bytes": 51171
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 14481740508646599654,
+                "bytes": 0
+              }
+            }
+          },
+          "stage": "repair-1"
+        },
+        {
+          "attempts": {
+            ".gwf/gwflow/owners/b6d7531e8c124a81859daa9658da3465/tasks/sample0/attempts/b689286e06fc4ef5a69a8f696d809c6a": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 88,
+              "record-state.json": {
+                "device": 48,
+                "inode": 9796615119473235803,
+                "bytes": 59296
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 14481740508646599654,
+                "bytes": 0
+              }
+            }
+          },
+          "stage": "repair-2"
+        },
+        {
+          "attempts": {
+            ".gwf/gwflow/owners/b6d7531e8c124a81859daa9658da3465/tasks/sample0/attempts/b689286e06fc4ef5a69a8f696d809c6a": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 89,
+              "record-state.json": {
+                "device": 48,
+                "inode": 795153651088936937,
+                "bytes": 62153
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 14481740508646599654,
+                "bytes": 0
+              }
+            }
+          },
+          "stage": "cleanup-1"
+        },
+        {
+          "attempts": {
+            ".gwf/gwflow/owners/b6d7531e8c124a81859daa9658da3465/tasks/sample0/attempts/b689286e06fc4ef5a69a8f696d809c6a": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 89,
+              "record-state.json": {
+                "device": 48,
+                "inode": 795153651088936937,
+                "bytes": 62153
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 14481740508646599654,
+                "bytes": 0
+              }
+            }
+          },
+          "stage": "cleanup-2"
+        }
+      ],
+      "history_preservation": [
+        {
+          "stage": "success",
+          "records": 31,
+          "recoveries": 4,
+          "sha256": "f718bc6677b33f0a2f4195ddfc937dc18c05268ecd40d61d7162f374154e79f3",
+          "unchanged": true
+        },
+        {
+          "stage": "repair-1",
+          "records": 31,
+          "recoveries": 4,
+          "sha256": "f718bc6677b33f0a2f4195ddfc937dc18c05268ecd40d61d7162f374154e79f3",
+          "unchanged": true
+        },
+        {
+          "stage": "repair-2",
+          "records": 31,
+          "recoveries": 4,
+          "sha256": "f718bc6677b33f0a2f4195ddfc937dc18c05268ecd40d61d7162f374154e79f3",
+          "unchanged": true
+        },
+        {
+          "stage": "cleanup-1",
+          "records": 31,
+          "recoveries": 4,
+          "sha256": "f718bc6677b33f0a2f4195ddfc937dc18c05268ecd40d61d7162f374154e79f3",
+          "unchanged": true
+        },
+        {
+          "stage": "cleanup-2",
+          "records": 31,
+          "recoveries": 4,
+          "sha256": "f718bc6677b33f0a2f4195ddfc937dc18c05268ecd40d61d7162f374154e79f3",
+          "unchanged": true
+        }
+      ],
+      "probes": {
+        "success": {
+          "status --plain": {
+            "command": [
+              "<REPO>/.conda-env/bin/python",
+              "<REPO>/tests/fixtures/planning_probe.py",
+              "<REPO>/build/validation/260/history-r3/history-4/success-status.json",
+              "status",
+              "--plain"
+            ],
+            "counts": {
+              "startup": {
+                "stream_reads": 4,
+                "stat": 6,
+                "json_decodes": 1,
+                "json_bytes": 89,
+                "close": 25
+              },
+              "imports": {
+                "stream_reads": 286,
+                "stat": 16,
+                "listdir": 7
+              },
+              "construction": {
+                "stream_reads": 8,
+                "lstat": 13,
+                "stat": 1
+              },
+              "backend": {
+                "stream_reads": 45,
+                "stat": 72,
+                "listdir": 3,
+                "access": 2,
+                "json_decodes": 2,
+                "json_bytes": 1252,
+                "scheduler_requests": 1
+              },
+              "rendering": {
+                "stream_reads": 2
+              },
+              "planning": {
+                "lstat": 51,
+                "stat": 2179,
+                "directory_opens": 101,
+                "fstat": 242,
+                "file_opens": 46,
+                "stream_reads": 3,
+                "json_decodes": 3,
+                "json_bytes": 43933,
+                "close": 162,
+                "dup": 42,
+                "listdir": 1
+              }
+            },
+            "seconds": {
+              "startup": 0.019478461996186525,
+              "imports": 1.7327414341270924,
+              "construction": 0.05564017198048532,
+              "backend": 0.2050153769669123,
+              "rendering": 0.015222194022499025,
+              "planning": 0.8144877828890458
+            },
+            "document_decodes": {
+              "<REPO>/build/validation/260/history-r3/history-4/.gwf/gwflow/owners/b6d7531e8c124a81859daa9658da3465/tasks/sample0/attempts/b689286e06fc4ef5a69a8f696d809c6a/record-state.json": 1
+            },
+            "peak_cached_documents": 1,
+            "peak_rss_kib": 32080,
+            "traced_memory_bytes": {
+              "current": 15614059,
+              "peak": 16917161
+            },
+            "peak_opened_descriptors": 28,
+            "path_depth": 12
+          },
+          "run --dry-run": {
+            "command": [
+              "<REPO>/.conda-env/bin/python",
+              "<REPO>/tests/fixtures/planning_probe.py",
+              "<REPO>/build/validation/260/history-r3/history-4/success-run.json",
+              "run",
+              "--dry-run"
+            ],
+            "counts": {
+              "startup": {
+                "stream_reads": 4,
+                "stat": 6,
+                "json_decodes": 1,
+                "json_bytes": 89,
+                "close": 25
+              },
+              "imports": {
+                "stream_reads": 286,
+                "stat": 16,
+                "listdir": 7
+              },
+              "construction": {
+                "stream_reads": 8,
+                "lstat": 13,
+                "stat": 1
+              },
+              "backend": {
+                "stream_reads": 45,
+                "stat": 72,
+                "listdir": 3,
+                "access": 2,
+                "json_decodes": 2,
+                "json_bytes": 1252,
+                "scheduler_requests": 1
+              },
+              "rendering": {
+                "stream_reads": 2
+              },
+              "planning": {
+                "lstat": 51,
+                "stat": 2179,
+                "directory_opens": 101,
+                "fstat": 242,
+                "file_opens": 46,
+                "stream_reads": 3,
+                "json_decodes": 3,
+                "json_bytes": 43933,
+                "close": 162,
+                "dup": 42,
+                "listdir": 1
+              }
+            },
+            "seconds": {
+              "startup": 0.01826993707800284,
+              "imports": 1.6722572130383924,
+              "construction": 0.05584814102621749,
+              "backend": 0.1937993539031595,
+              "rendering": 0.023366736946627498,
+              "planning": 0.8564383400371298
+            },
+            "document_decodes": {
+              "<REPO>/build/validation/260/history-r3/history-4/.gwf/gwflow/owners/b6d7531e8c124a81859daa9658da3465/tasks/sample0/attempts/b689286e06fc4ef5a69a8f696d809c6a/record-state.json": 1
+            },
+            "peak_cached_documents": 1,
+            "peak_rss_kib": 36132,
+            "traced_memory_bytes": {
+              "current": 15611713,
+              "peak": 16917158
+            },
+            "peak_opened_descriptors": 28,
+            "path_depth": 12
+          }
+        },
+        "after-cleanup": {
+          "status --plain": {
+            "command": [
+              "<REPO>/.conda-env/bin/python",
+              "<REPO>/tests/fixtures/planning_probe.py",
+              "<REPO>/build/validation/260/history-r3/history-4/after-cleanup-status.json",
+              "status",
+              "--plain"
+            ],
+            "counts": {
+              "startup": {
+                "stream_reads": 4,
+                "stat": 6,
+                "json_decodes": 1,
+                "json_bytes": 89,
+                "close": 25
+              },
+              "imports": {
+                "stream_reads": 286,
+                "stat": 16,
+                "listdir": 7
+              },
+              "construction": {
+                "stream_reads": 8,
+                "lstat": 13,
+                "stat": 1
+              },
+              "backend": {
+                "stream_reads": 45,
+                "stat": 72,
+                "listdir": 3,
+                "access": 2,
+                "json_decodes": 2,
+                "json_bytes": 1490,
+                "scheduler_requests": 1
+              },
+              "rendering": {
+                "stream_reads": 2
+              },
+              "planning": {
+                "lstat": 51,
+                "stat": 1984,
+                "directory_opens": 101,
+                "fstat": 222,
+                "file_opens": 42,
+                "stream_reads": 3,
+                "json_decodes": 3,
+                "json_bytes": 63112,
+                "close": 154,
+                "dup": 38,
+                "listdir": 1
+              }
+            },
+            "seconds": {
+              "startup": 0.020254459930583835,
+              "imports": 1.7205381577950902,
+              "construction": 0.05587618116987869,
+              "backend": 0.19671239535091445,
+              "rendering": 0.01776895794318989,
+              "planning": 0.7945666537852958
+            },
+            "document_decodes": {
+              "<REPO>/build/validation/260/history-r3/history-4/.gwf/gwflow/owners/b6d7531e8c124a81859daa9658da3465/tasks/sample0/attempts/b689286e06fc4ef5a69a8f696d809c6a/record-state.json": 1
+            },
+            "peak_cached_documents": 1,
+            "peak_rss_kib": 27656,
+            "traced_memory_bytes": {
+              "current": 15610159,
+              "peak": 16973753
+            },
+            "peak_opened_descriptors": 28,
+            "path_depth": 12
+          },
+          "run --dry-run": {
+            "command": [
+              "<REPO>/.conda-env/bin/python",
+              "<REPO>/tests/fixtures/planning_probe.py",
+              "<REPO>/build/validation/260/history-r3/history-4/after-cleanup-run.json",
+              "run",
+              "--dry-run"
+            ],
+            "counts": {
+              "startup": {
+                "stream_reads": 4,
+                "stat": 6,
+                "json_decodes": 1,
+                "json_bytes": 89,
+                "close": 25
+              },
+              "imports": {
+                "stream_reads": 286,
+                "stat": 16,
+                "listdir": 7
+              },
+              "construction": {
+                "stream_reads": 8,
+                "lstat": 13,
+                "stat": 1
+              },
+              "backend": {
+                "stream_reads": 45,
+                "stat": 72,
+                "listdir": 3,
+                "access": 2,
+                "json_decodes": 2,
+                "json_bytes": 1490,
+                "scheduler_requests": 1
+              },
+              "rendering": {
+                "stream_reads": 2
+              },
+              "planning": {
+                "lstat": 51,
+                "stat": 1984,
+                "directory_opens": 101,
+                "fstat": 222,
+                "file_opens": 42,
+                "stream_reads": 3,
+                "json_decodes": 3,
+                "json_bytes": 63112,
+                "close": 154,
+                "dup": 38,
+                "listdir": 1
+              }
+            },
+            "seconds": {
+              "startup": 0.017604151973500848,
+              "imports": 1.7356046970235184,
+              "construction": 0.05442662298446521,
+              "backend": 0.21522367105353624,
+              "rendering": 0.01322700793389231,
+              "planning": 0.7655245910282247
+            },
+            "document_decodes": {
+              "<REPO>/build/validation/260/history-r3/history-4/.gwf/gwflow/owners/b6d7531e8c124a81859daa9658da3465/tasks/sample0/attempts/b689286e06fc4ef5a69a8f696d809c6a/record-state.json": 1
+            },
+            "peak_cached_documents": 1,
+            "peak_rss_kib": 22760,
+            "traced_memory_bytes": {
+              "current": 15605604,
+              "peak": 16971724
+            },
+            "peak_opened_descriptors": 28,
+            "path_depth": 12
+          }
+        }
+      },
+      "final_footprint": {
+        "categories": {
+          "validation_fixture": {
+            "files": 16,
+            "bytes": 328879,
+            "directories": 2
+          },
+          "data": {
+            "directories": 4,
+            "files": 1,
+            "bytes": 6
+          },
+          "workflow_bookkeeping": {
+            "directories": 4,
+            "files": 4,
+            "bytes": 3816
+          },
+          "logs_and_aliases": {
+            "directories": 1,
+            "files": 18,
+            "bytes": 244,
+            "symlinks": 6
+          },
+          "staging_data": {
+            "directories": 2
+          },
+          "task_bookkeeping": {
+            "directories": 3,
+            "files": 1,
+            "bytes": 151
+          },
+          "attempt_metadata": {
+            "directories": 1,
+            "files": 2,
+            "bytes": 62153
+          }
+        },
+        "attempts": {
+          ".gwf/gwflow/owners/b6d7531e8c124a81859daa9658da3465/tasks/sample0/attempts/b689286e06fc4ef5a69a8f696d809c6a": {
+            "directories": 1,
+            "files": 2,
+            "phase": "compacted",
+            "logical_records": 89,
+            "record-state.json": {
+              "device": 48,
+              "inode": 795153651088936937,
+              "bytes": 62153
+            },
+            "records.lock": {
+              "device": 48,
+              "inode": 14481740508646599654,
+              "bytes": 0
+            }
+          }
+        }
+      }
+    },
+    {
+      "path": "<REPO>/build/validation/260/history-r3/history-16",
+      "targets_per_task": 1,
+      "tasks": 1,
+      "retries": 16,
+      "recoveries": 16,
+      "snapshots": [
+        {
+          "attempts": {
+            ".gwf/gwflow/owners/076d89289c6f455e9773887d27cb6697/tasks/sample0/attempts/36be4a25123d4074a2b7ef8db912d91f": {
+              "directories": 122,
+              "files": 172,
+              "phase": "individual",
+              "logical_records": null,
+              "record-state.json": {
+                "device": 48,
+                "inode": 12029358838843595414,
+                "bytes": 298
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 6037717587864586300,
+                "bytes": 0
+              }
+            }
+          },
+          "stage": "before-success"
+        },
+        {
+          "attempts": {
+            ".gwf/gwflow/owners/076d89289c6f455e9773887d27cb6697/tasks/sample0/attempts/36be4a25123d4074a2b7ef8db912d91f": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 184,
+              "record-state.json": {
+                "device": 48,
+                "inode": 282580924810554130,
+                "bytes": 125131
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 6037717587864586300,
+                "bytes": 0
+              }
+            }
+          },
+          "stage": "success"
+        },
+        {
+          "attempts": {
+            ".gwf/gwflow/owners/076d89289c6f455e9773887d27cb6697/tasks/sample0/attempts/36be4a25123d4074a2b7ef8db912d91f": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 196,
+              "record-state.json": {
+                "device": 48,
+                "inode": 10589812948274195978,
+                "bytes": 133342
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 6037717587864586300,
+                "bytes": 0
+              }
+            }
+          },
+          "stage": "repair-1"
+        },
+        {
+          "attempts": {
+            ".gwf/gwflow/owners/076d89289c6f455e9773887d27cb6697/tasks/sample0/attempts/36be4a25123d4074a2b7ef8db912d91f": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 208,
+              "record-state.json": {
+                "device": 48,
+                "inode": 15580606166524294071,
+                "bytes": 141476
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 6037717587864586300,
+                "bytes": 0
+              }
+            }
+          },
+          "stage": "repair-2"
+        },
+        {
+          "attempts": {
+            ".gwf/gwflow/owners/076d89289c6f455e9773887d27cb6697/tasks/sample0/attempts/36be4a25123d4074a2b7ef8db912d91f": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 209,
+              "record-state.json": {
+                "device": 48,
+                "inode": 1159778985385734066,
+                "bytes": 144343
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 6037717587864586300,
+                "bytes": 0
+              }
+            }
+          },
+          "stage": "cleanup-1"
+        },
+        {
+          "attempts": {
+            ".gwf/gwflow/owners/076d89289c6f455e9773887d27cb6697/tasks/sample0/attempts/36be4a25123d4074a2b7ef8db912d91f": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 209,
+              "record-state.json": {
+                "device": 48,
+                "inode": 1159778985385734066,
+                "bytes": 144343
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 6037717587864586300,
+                "bytes": 0
+              }
+            }
+          },
+          "stage": "cleanup-2"
+        }
+      ],
+      "history_preservation": [
+        {
+          "stage": "success",
+          "records": 115,
+          "recoveries": 16,
+          "sha256": "ee259342bdef6f10464ebeb3bad15c315363a474b4efca7f7905443bb0ac7912",
+          "unchanged": true
+        },
+        {
+          "stage": "repair-1",
+          "records": 115,
+          "recoveries": 16,
+          "sha256": "ee259342bdef6f10464ebeb3bad15c315363a474b4efca7f7905443bb0ac7912",
+          "unchanged": true
+        },
+        {
+          "stage": "repair-2",
+          "records": 115,
+          "recoveries": 16,
+          "sha256": "ee259342bdef6f10464ebeb3bad15c315363a474b4efca7f7905443bb0ac7912",
+          "unchanged": true
+        },
+        {
+          "stage": "cleanup-1",
+          "records": 115,
+          "recoveries": 16,
+          "sha256": "ee259342bdef6f10464ebeb3bad15c315363a474b4efca7f7905443bb0ac7912",
+          "unchanged": true
+        },
+        {
+          "stage": "cleanup-2",
+          "records": 115,
+          "recoveries": 16,
+          "sha256": "ee259342bdef6f10464ebeb3bad15c315363a474b4efca7f7905443bb0ac7912",
+          "unchanged": true
+        }
+      ],
+      "probes": {
+        "success": {
+          "status --plain": {
+            "command": [
+              "<REPO>/.conda-env/bin/python",
+              "<REPO>/tests/fixtures/planning_probe.py",
+              "<REPO>/build/validation/260/history-r3/history-16/success-status.json",
+              "status",
+              "--plain"
+            ],
+            "counts": {
+              "startup": {
+                "stream_reads": 4,
+                "stat": 6,
+                "json_decodes": 1,
+                "json_bytes": 89,
+                "close": 25
+              },
+              "imports": {
+                "stream_reads": 286,
+                "stat": 16,
+                "listdir": 7
+              },
+              "construction": {
+                "stream_reads": 8,
+                "lstat": 13,
+                "stat": 1
+              },
+              "backend": {
+                "stream_reads": 45,
+                "stat": 72,
+                "listdir": 3,
+                "access": 2,
+                "json_decodes": 2,
+                "json_bytes": 3916,
+                "scheduler_requests": 1
+              },
+              "rendering": {
+                "stream_reads": 2
+              },
+              "planning": {
+                "lstat": 51,
+                "stat": 5419,
+                "directory_opens": 101,
+                "fstat": 602,
+                "file_opens": 118,
+                "stream_reads": 3,
+                "json_decodes": 3,
+                "json_bytes": 126095,
+                "close": 306,
+                "dup": 114,
+                "listdir": 1
+              }
+            },
+            "seconds": {
+              "startup": 0.018466563953552395,
+              "imports": 1.8382216959726065,
+              "construction": 0.0605035760672763,
+              "backend": 0.21029964898480102,
+              "rendering": 0.0165540351299569,
+              "planning": 1.8724248029175214
+            },
+            "document_decodes": {
+              "<REPO>/build/validation/260/history-r3/history-16/.gwf/gwflow/owners/076d89289c6f455e9773887d27cb6697/tasks/sample0/attempts/36be4a25123d4074a2b7ef8db912d91f/record-state.json": 1
+            },
+            "peak_cached_documents": 1,
+            "peak_rss_kib": 25084,
+            "traced_memory_bytes": {
+              "current": 15622094,
+              "peak": 17197372
+            },
+            "peak_opened_descriptors": 28,
+            "path_depth": 12
+          },
+          "run --dry-run": {
+            "command": [
+              "<REPO>/.conda-env/bin/python",
+              "<REPO>/tests/fixtures/planning_probe.py",
+              "<REPO>/build/validation/260/history-r3/history-16/success-run.json",
+              "run",
+              "--dry-run"
+            ],
+            "counts": {
+              "startup": {
+                "stream_reads": 4,
+                "stat": 6,
+                "json_decodes": 1,
+                "json_bytes": 89,
+                "close": 25
+              },
+              "imports": {
+                "stream_reads": 286,
+                "stat": 16,
+                "listdir": 7
+              },
+              "construction": {
+                "stream_reads": 8,
+                "lstat": 13,
+                "stat": 1
+              },
+              "backend": {
+                "stream_reads": 45,
+                "stat": 72,
+                "listdir": 3,
+                "access": 2,
+                "json_decodes": 2,
+                "json_bytes": 3916,
+                "scheduler_requests": 1
+              },
+              "rendering": {
+                "stream_reads": 2
+              },
+              "planning": {
+                "lstat": 51,
+                "stat": 5419,
+                "directory_opens": 101,
+                "fstat": 602,
+                "file_opens": 118,
+                "stream_reads": 3,
+                "json_decodes": 3,
+                "json_bytes": 126095,
+                "close": 306,
+                "dup": 114,
+                "listdir": 1
+              }
+            },
+            "seconds": {
+              "startup": 0.026231569063384086,
+              "imports": 1.7979121017851867,
+              "construction": 0.05851138016441837,
+              "backend": 0.199021146283485,
+              "rendering": 0.013570520910434425,
+              "planning": 1.8894888897775672
+            },
+            "document_decodes": {
+              "<REPO>/build/validation/260/history-r3/history-16/.gwf/gwflow/owners/076d89289c6f455e9773887d27cb6697/tasks/sample0/attempts/36be4a25123d4074a2b7ef8db912d91f/record-state.json": 1
+            },
+            "peak_cached_documents": 1,
+            "peak_rss_kib": 22760,
+            "traced_memory_bytes": {
+              "current": 15618132,
+              "peak": 17195305
+            },
+            "peak_opened_descriptors": 28,
+            "path_depth": 12
+          }
+        },
+        "after-cleanup": {
+          "status --plain": {
+            "command": [
+              "<REPO>/.conda-env/bin/python",
+              "<REPO>/tests/fixtures/planning_probe.py",
+              "<REPO>/build/validation/260/history-r3/history-16/after-cleanup-status.json",
+              "status",
+              "--plain"
+            ],
+            "counts": {
+              "startup": {
+                "stream_reads": 4,
+                "stat": 6,
+                "json_decodes": 1,
+                "json_bytes": 89,
+                "close": 25
+              },
+              "imports": {
+                "stream_reads": 286,
+                "stat": 16,
+                "listdir": 7
+              },
+              "construction": {
+                "stream_reads": 8,
+                "lstat": 13,
+                "stat": 1
+              },
+              "backend": {
+                "stream_reads": 45,
+                "stat": 72,
+                "listdir": 3,
+                "access": 2,
+                "json_decodes": 2,
+                "json_bytes": 4154,
+                "scheduler_requests": 1
+              },
+              "rendering": {
+                "stream_reads": 2
+              },
+              "planning": {
+                "lstat": 51,
+                "stat": 5224,
+                "directory_opens": 101,
+                "fstat": 582,
+                "file_opens": 114,
+                "stream_reads": 3,
+                "json_decodes": 3,
+                "json_bytes": 145307,
+                "close": 298,
+                "dup": 110,
+                "listdir": 1
+              }
+            },
+            "seconds": {
+              "startup": 0.01797076704679057,
+              "imports": 1.69903735013213,
+              "construction": 0.05614991101901978,
+              "backend": 0.20458576182136312,
+              "rendering": 0.01628999988315627,
+              "planning": 1.7787305621313863
+            },
+            "document_decodes": {
+              "<REPO>/build/validation/260/history-r3/history-16/.gwf/gwflow/owners/076d89289c6f455e9773887d27cb6697/tasks/sample0/attempts/36be4a25123d4074a2b7ef8db912d91f/record-state.json": 1
+            },
+            "peak_cached_documents": 1,
+            "peak_rss_kib": 34472,
+            "traced_memory_bytes": {
+              "current": 15620676,
+              "peak": 17265875
+            },
+            "peak_opened_descriptors": 28,
+            "path_depth": 12
+          },
+          "run --dry-run": {
+            "command": [
+              "<REPO>/.conda-env/bin/python",
+              "<REPO>/tests/fixtures/planning_probe.py",
+              "<REPO>/build/validation/260/history-r3/history-16/after-cleanup-run.json",
+              "run",
+              "--dry-run"
+            ],
+            "counts": {
+              "startup": {
+                "stream_reads": 4,
+                "stat": 6,
+                "json_decodes": 1,
+                "json_bytes": 89,
+                "close": 25
+              },
+              "imports": {
+                "stream_reads": 286,
+                "stat": 16,
+                "listdir": 7
+              },
+              "construction": {
+                "stream_reads": 8,
+                "lstat": 13,
+                "stat": 1
+              },
+              "backend": {
+                "stream_reads": 45,
+                "stat": 72,
+                "listdir": 3,
+                "access": 2,
+                "json_decodes": 2,
+                "json_bytes": 4154,
+                "scheduler_requests": 1
+              },
+              "rendering": {
+                "stream_reads": 2
+              },
+              "planning": {
+                "lstat": 51,
+                "stat": 5224,
+                "directory_opens": 101,
+                "fstat": 582,
+                "file_opens": 114,
+                "stream_reads": 3,
+                "json_decodes": 3,
+                "json_bytes": 145307,
+                "close": 298,
+                "dup": 110,
+                "listdir": 1
+              }
+            },
+            "seconds": {
+              "startup": 0.018205205036792904,
+              "imports": 1.6790309961652383,
+              "construction": 0.05457970197312534,
+              "backend": 0.19766476686345413,
+              "rendering": 0.015853796910960227,
+              "planning": 1.7946243330952711
+            },
+            "document_decodes": {
+              "<REPO>/build/validation/260/history-r3/history-16/.gwf/gwflow/owners/076d89289c6f455e9773887d27cb6697/tasks/sample0/attempts/36be4a25123d4074a2b7ef8db912d91f/record-state.json": 1
+            },
+            "peak_cached_documents": 1,
+            "peak_rss_kib": 39936,
+            "traced_memory_bytes": {
+              "current": 15618716,
+              "peak": 17266201
+            },
+            "peak_opened_descriptors": 28,
+            "path_depth": 12
+          }
+        }
+      },
+      "final_footprint": {
+        "categories": {
+          "validation_fixture": {
+            "files": 16,
+            "bytes": 397796,
+            "directories": 2
+          },
+          "workflow_bookkeeping": {
+            "directories": 4,
+            "files": 4,
+            "bytes": 9341
+          },
+          "data": {
+            "directories": 4,
+            "files": 1,
+            "bytes": 6
+          },
+          "logs_and_aliases": {
+            "directories": 1,
+            "files": 42,
+            "bytes": 976,
+            "symlinks": 6
+          },
+          "staging_data": {
+            "directories": 2
+          },
+          "task_bookkeeping": {
+            "directories": 3,
+            "files": 1,
+            "bytes": 151
+          },
+          "attempt_metadata": {
+            "directories": 1,
+            "files": 2,
+            "bytes": 144343
+          }
+        },
+        "attempts": {
+          ".gwf/gwflow/owners/076d89289c6f455e9773887d27cb6697/tasks/sample0/attempts/36be4a25123d4074a2b7ef8db912d91f": {
+            "directories": 1,
+            "files": 2,
+            "phase": "compacted",
+            "logical_records": 209,
+            "record-state.json": {
+              "device": 48,
+              "inode": 1159778985385734066,
+              "bytes": 144343
+            },
+            "records.lock": {
+              "device": 48,
+              "inode": 6037717587864586300,
+              "bytes": 0
+            }
+          }
+        }
+      }
+    },
+    {
+      "path": "<REPO>/build/validation/260/history-r3/history-64",
+      "targets_per_task": 1,
+      "tasks": 1,
+      "retries": 64,
+      "recoveries": 64,
+      "snapshots": [
+        {
+          "attempts": {
+            ".gwf/gwflow/owners/69f6440d43f741eb90f64d8a96919a4e/tasks/sample0/attempts/fa5bf0e86ffb4929b44344b4fec31d48": {
+              "directories": 458,
+              "files": 652,
+              "phase": "individual",
+              "logical_records": null,
+              "record-state.json": {
+                "device": 48,
+                "inode": 4336780741967831191,
+                "bytes": 297
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 808962398027681837,
+                "bytes": 0
+              }
+            }
+          },
+          "stage": "before-success"
+        },
+        {
+          "attempts": {
+            ".gwf/gwflow/owners/69f6440d43f741eb90f64d8a96919a4e/tasks/sample0/attempts/fa5bf0e86ffb4929b44344b4fec31d48": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 664,
+              "record-state.json": {
+                "device": 48,
+                "inode": 13772511251054769177,
+                "bytes": 453673
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 808962398027681837,
+                "bytes": 0
+              }
+            }
+          },
+          "stage": "success"
+        },
+        {
+          "attempts": {
+            ".gwf/gwflow/owners/69f6440d43f741eb90f64d8a96919a4e/tasks/sample0/attempts/fa5bf0e86ffb4929b44344b4fec31d48": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 676,
+              "record-state.json": {
+                "device": 48,
+                "inode": 13049861732361956112,
+                "bytes": 461883
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 808962398027681837,
+                "bytes": 0
+              }
+            }
+          },
+          "stage": "repair-1"
+        },
+        {
+          "attempts": {
+            ".gwf/gwflow/owners/69f6440d43f741eb90f64d8a96919a4e/tasks/sample0/attempts/fa5bf0e86ffb4929b44344b4fec31d48": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 688,
+              "record-state.json": {
+                "device": 48,
+                "inode": 14770985421696283407,
+                "bytes": 470020
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 808962398027681837,
+                "bytes": 0
+              }
+            }
+          },
+          "stage": "repair-2"
+        },
+        {
+          "attempts": {
+            ".gwf/gwflow/owners/69f6440d43f741eb90f64d8a96919a4e/tasks/sample0/attempts/fa5bf0e86ffb4929b44344b4fec31d48": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 689,
+              "record-state.json": {
+                "device": 48,
+                "inode": 13318289924227822126,
+                "bytes": 472889
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 808962398027681837,
+                "bytes": 0
+              }
+            }
+          },
+          "stage": "cleanup-1"
+        },
+        {
+          "attempts": {
+            ".gwf/gwflow/owners/69f6440d43f741eb90f64d8a96919a4e/tasks/sample0/attempts/fa5bf0e86ffb4929b44344b4fec31d48": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 689,
+              "record-state.json": {
+                "device": 48,
+                "inode": 13318289924227822126,
+                "bytes": 472889
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 808962398027681837,
+                "bytes": 0
+              }
+            }
+          },
+          "stage": "cleanup-2"
+        }
+      ],
+      "history_preservation": [
+        {
+          "stage": "success",
+          "records": 451,
+          "recoveries": 64,
+          "sha256": "19d4be69d460858f979207afc670cb82de6e6a20125e6d174a397c078f85cb68",
+          "unchanged": true
+        },
+        {
+          "stage": "repair-1",
+          "records": 451,
+          "recoveries": 64,
+          "sha256": "19d4be69d460858f979207afc670cb82de6e6a20125e6d174a397c078f85cb68",
+          "unchanged": true
+        },
+        {
+          "stage": "repair-2",
+          "records": 451,
+          "recoveries": 64,
+          "sha256": "19d4be69d460858f979207afc670cb82de6e6a20125e6d174a397c078f85cb68",
+          "unchanged": true
+        },
+        {
+          "stage": "cleanup-1",
+          "records": 451,
+          "recoveries": 64,
+          "sha256": "19d4be69d460858f979207afc670cb82de6e6a20125e6d174a397c078f85cb68",
+          "unchanged": true
+        },
+        {
+          "stage": "cleanup-2",
+          "records": 451,
+          "recoveries": 64,
+          "sha256": "19d4be69d460858f979207afc670cb82de6e6a20125e6d174a397c078f85cb68",
+          "unchanged": true
+        }
+      ],
+      "probes": {
+        "success": {
+          "status --plain": {
+            "command": [
+              "<REPO>/.conda-env/bin/python",
+              "<REPO>/tests/fixtures/planning_probe.py",
+              "<REPO>/build/validation/260/history-r3/history-64/success-status.json",
+              "status",
+              "--plain"
+            ],
+            "counts": {
+              "startup": {
+                "stream_reads": 4,
+                "stat": 6,
+                "json_decodes": 1,
+                "json_bytes": 89,
+                "close": 25
+              },
+              "imports": {
+                "stream_reads": 286,
+                "stat": 16,
+                "listdir": 7
+              },
+              "construction": {
+                "stream_reads": 8,
+                "lstat": 13,
+                "stat": 1
+              },
+              "backend": {
+                "stream_reads": 45,
+                "stat": 72,
+                "listdir": 3,
+                "access": 2,
+                "json_decodes": 2,
+                "json_bytes": 14634,
+                "scheduler_requests": 1
+              },
+              "rendering": {
+                "stream_reads": 2
+              },
+              "planning": {
+                "lstat": 51,
+                "stat": 18379,
+                "directory_opens": 101,
+                "fstat": 2042,
+                "file_opens": 406,
+                "stream_reads": 3,
+                "json_decodes": 3,
+                "json_bytes": 454637,
+                "close": 882,
+                "dup": 402,
+                "listdir": 1
+              }
+            },
+            "seconds": {
+              "startup": 0.019640258979052305,
+              "imports": 1.6867873693117872,
+              "construction": 0.05697301169857383,
+              "backend": 0.20937388378661126,
+              "rendering": 0.01448435103520751,
+              "planning": 5.996506224211771
+            },
+            "document_decodes": {
+              "<REPO>/build/validation/260/history-r3/history-64/.gwf/gwflow/owners/69f6440d43f741eb90f64d8a96919a4e/tasks/sample0/attempts/fa5bf0e86ffb4929b44344b4fec31d48/record-state.json": 1
+            },
+            "peak_cached_documents": 1,
+            "peak_rss_kib": 54220,
+            "traced_memory_bytes": {
+              "current": 16162835,
+              "peak": 18552014
+            },
+            "peak_opened_descriptors": 28,
+            "path_depth": 12
+          },
+          "run --dry-run": {
+            "command": [
+              "<REPO>/.conda-env/bin/python",
+              "<REPO>/tests/fixtures/planning_probe.py",
+              "<REPO>/build/validation/260/history-r3/history-64/success-run.json",
+              "run",
+              "--dry-run"
+            ],
+            "counts": {
+              "startup": {
+                "stream_reads": 4,
+                "stat": 6,
+                "json_decodes": 1,
+                "json_bytes": 89,
+                "close": 25
+              },
+              "imports": {
+                "stream_reads": 286,
+                "stat": 16,
+                "listdir": 7
+              },
+              "construction": {
+                "stream_reads": 8,
+                "lstat": 13,
+                "stat": 1
+              },
+              "backend": {
+                "stream_reads": 45,
+                "stat": 72,
+                "listdir": 3,
+                "access": 2,
+                "json_decodes": 2,
+                "json_bytes": 14634,
+                "scheduler_requests": 1
+              },
+              "rendering": {
+                "stream_reads": 2
+              },
+              "planning": {
+                "lstat": 51,
+                "stat": 18379,
+                "directory_opens": 101,
+                "fstat": 2042,
+                "file_opens": 406,
+                "stream_reads": 3,
+                "json_decodes": 3,
+                "json_bytes": 454637,
+                "close": 882,
+                "dup": 402,
+                "listdir": 1
+              }
+            },
+            "seconds": {
+              "startup": 0.020458668004721403,
+              "imports": 1.7060939482180402,
+              "construction": 0.05823218775913119,
+              "backend": 0.23800767865031958,
+              "rendering": 0.0139172020717524,
+              "planning": 6.083433335297741
+            },
+            "document_decodes": {
+              "<REPO>/build/validation/260/history-r3/history-64/.gwf/gwflow/owners/69f6440d43f741eb90f64d8a96919a4e/tasks/sample0/attempts/fa5bf0e86ffb4929b44344b4fec31d48/record-state.json": 1
+            },
+            "peak_cached_documents": 1,
+            "peak_rss_kib": 54220,
+            "traced_memory_bytes": {
+              "current": 16159092,
+              "peak": 18550743
+            },
+            "peak_opened_descriptors": 28,
+            "path_depth": 12
+          }
+        },
+        "after-cleanup": {
+          "status --plain": {
+            "command": [
+              "<REPO>/.conda-env/bin/python",
+              "<REPO>/tests/fixtures/planning_probe.py",
+              "<REPO>/build/validation/260/history-r3/history-64/after-cleanup-status.json",
+              "status",
+              "--plain"
+            ],
+            "counts": {
+              "startup": {
+                "stream_reads": 4,
+                "stat": 6,
+                "json_decodes": 1,
+                "json_bytes": 89,
+                "close": 25
+              },
+              "imports": {
+                "stream_reads": 286,
+                "stat": 16,
+                "listdir": 7
+              },
+              "construction": {
+                "stream_reads": 8,
+                "lstat": 13,
+                "stat": 1
+              },
+              "backend": {
+                "stream_reads": 45,
+                "stat": 72,
+                "listdir": 3,
+                "access": 2,
+                "json_decodes": 2,
+                "json_bytes": 14876,
+                "scheduler_requests": 1
+              },
+              "rendering": {
+                "stream_reads": 2
+              },
+              "planning": {
+                "lstat": 51,
+                "stat": 18184,
+                "directory_opens": 101,
+                "fstat": 2022,
+                "file_opens": 402,
+                "stream_reads": 3,
+                "json_decodes": 3,
+                "json_bytes": 473853,
+                "close": 874,
+                "dup": 398,
+                "listdir": 1
+              }
+            },
+            "seconds": {
+              "startup": 0.02038619905943051,
+              "imports": 1.6889148819027469,
+              "construction": 0.057043052976951,
+              "backend": 0.21757235092809424,
+              "rendering": 0.0161772450665012,
+              "planning": 5.873139488103334
+            },
+            "document_decodes": {
+              "<REPO>/build/validation/260/history-r3/history-64/.gwf/gwflow/owners/69f6440d43f741eb90f64d8a96919a4e/tasks/sample0/attempts/fa5bf0e86ffb4929b44344b4fec31d48/record-state.json": 1
+            },
+            "peak_cached_documents": 1,
+            "peak_rss_kib": 54220,
+            "traced_memory_bytes": {
+              "current": 16163421,
+              "peak": 18616203
+            },
+            "peak_opened_descriptors": 28,
+            "path_depth": 12
+          },
+          "run --dry-run": {
+            "command": [
+              "<REPO>/.conda-env/bin/python",
+              "<REPO>/tests/fixtures/planning_probe.py",
+              "<REPO>/build/validation/260/history-r3/history-64/after-cleanup-run.json",
+              "run",
+              "--dry-run"
+            ],
+            "counts": {
+              "startup": {
+                "stream_reads": 4,
+                "stat": 6,
+                "json_decodes": 1,
+                "json_bytes": 89,
+                "close": 25
+              },
+              "imports": {
+                "stream_reads": 286,
+                "stat": 16,
+                "listdir": 7
+              },
+              "construction": {
+                "stream_reads": 8,
+                "lstat": 13,
+                "stat": 1
+              },
+              "backend": {
+                "stream_reads": 45,
+                "stat": 72,
+                "listdir": 3,
+                "access": 2,
+                "json_decodes": 2,
+                "json_bytes": 14876,
+                "scheduler_requests": 1
+              },
+              "rendering": {
+                "stream_reads": 2
+              },
+              "planning": {
+                "lstat": 51,
+                "stat": 18184,
+                "directory_opens": 101,
+                "fstat": 2022,
+                "file_opens": 402,
+                "stream_reads": 3,
+                "json_decodes": 3,
+                "json_bytes": 473853,
+                "close": 874,
+                "dup": 398,
+                "listdir": 1
+              }
+            },
+            "seconds": {
+              "startup": 0.019233229104429483,
+              "imports": 1.6759261019760743,
+              "construction": 0.054783675994258374,
+              "backend": 0.2131716413423419,
+              "rendering": 0.013737231027334929,
+              "planning": 5.8287502055754885
+            },
+            "document_decodes": {
+              "<REPO>/build/validation/260/history-r3/history-64/.gwf/gwflow/owners/69f6440d43f741eb90f64d8a96919a4e/tasks/sample0/attempts/fa5bf0e86ffb4929b44344b4fec31d48/record-state.json": 1
+            },
+            "peak_cached_documents": 1,
+            "peak_rss_kib": 54220,
+            "traced_memory_bytes": {
+              "current": 16158449,
+              "peak": 18612934
+            },
+            "peak_opened_descriptors": 28,
+            "path_depth": 12
+          }
+        }
+      },
+      "final_footprint": {
+        "categories": {
+          "workflow_bookkeeping": {
+            "directories": 4,
+            "files": 4,
+            "bytes": 31454
+          },
+          "validation_fixture": {
+            "files": 16,
+            "bytes": 669283,
+            "directories": 2
+          },
+          "data": {
+            "directories": 4,
+            "files": 1,
+            "bytes": 6
+          },
+          "logs_and_aliases": {
+            "directories": 1,
+            "files": 138,
+            "bytes": 3904,
+            "symlinks": 6
+          },
+          "staging_data": {
+            "directories": 2
+          },
+          "task_bookkeeping": {
+            "directories": 3,
+            "files": 1,
+            "bytes": 151
+          },
+          "attempt_metadata": {
+            "directories": 1,
+            "files": 2,
+            "bytes": 472889
+          }
+        },
+        "attempts": {
+          ".gwf/gwflow/owners/69f6440d43f741eb90f64d8a96919a4e/tasks/sample0/attempts/fa5bf0e86ffb4929b44344b4fec31d48": {
+            "directories": 1,
+            "files": 2,
+            "phase": "compacted",
+            "logical_records": 689,
+            "record-state.json": {
+              "device": 48,
+              "inode": 13318289924227822126,
+              "bytes": 472889
+            },
+            "records.lock": {
+              "device": 48,
+              "inode": 808962398027681837,
+              "bytes": 0
+            }
+          }
+        }
+      }
+    },
+    {
+      "path": "<REPO>/build/validation/260/history-r3/cache-eviction-16-tasks",
+      "targets_per_task": 1,
+      "tasks": 16,
+      "retries": 0,
+      "recoveries": 0,
+      "snapshots": [
+        {
+          "attempts": {
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample11/attempts/378ac69cc9774a588c59485274e7a60a": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 24,
+              "record-state.json": {
+                "device": 48,
+                "inode": 18277362044453169113,
+                "bytes": 15859
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 17338324329339464264,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample9/attempts/ccc560affb2646ac81fcf61d39223175": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 24,
+              "record-state.json": {
+                "device": 48,
+                "inode": 13126377351868970554,
+                "bytes": 15793
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 1022878158807922741,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample3/attempts/aaa5fceb1a5c41f8bbf30c2b822aafce": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 24,
+              "record-state.json": {
+                "device": 48,
+                "inode": 16975791741167740862,
+                "bytes": 15793
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 4775783692405894153,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample4/attempts/de6e764bbfb64d3a8a8385f8154aaa70": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 24,
+              "record-state.json": {
+                "device": 48,
+                "inode": 14399673984201964436,
+                "bytes": 15793
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 17864212319655255230,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample0/attempts/c8da19bcef2947688be6be6063ecad01": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 24,
+              "record-state.json": {
+                "device": 48,
+                "inode": 7114059167125365936,
+                "bytes": 15788
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 872364025888377770,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample12/attempts/bc2cb69641d244ac9b68020ee7e6d1a6": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 24,
+              "record-state.json": {
+                "device": 48,
+                "inode": 2388587436650799271,
+                "bytes": 15858
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 7459688187127941441,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample15/attempts/a3f6de0abaac4f8093d01a797a1abeb8": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 24,
+              "record-state.json": {
+                "device": 48,
+                "inode": 3975871681127788711,
+                "bytes": 15859
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 2278270442306472407,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample7/attempts/f8722439c6054586a94078b0a5dfe17e": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 24,
+              "record-state.json": {
+                "device": 48,
+                "inode": 6058948699579785310,
+                "bytes": 15793
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 4106120420179558555,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample5/attempts/b4619630d257407fb9e20a1e676795b5": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 24,
+              "record-state.json": {
+                "device": 48,
+                "inode": 12097474374657750644,
+                "bytes": 15790
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 3962737312705986532,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample10/attempts/00504f7f54dd49548fec04fe2b2f38a9": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 24,
+              "record-state.json": {
+                "device": 48,
+                "inode": 13035154831820357714,
+                "bytes": 15853
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 4906229427929249636,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample2/attempts/40ac2baa18f6476ea40573737f950090": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 24,
+              "record-state.json": {
+                "device": 48,
+                "inode": 11583812564145212551,
+                "bytes": 15788
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 7432365402326440117,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample8/attempts/c184e930ecac4bfc8339232b1262262c": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 24,
+              "record-state.json": {
+                "device": 48,
+                "inode": 17853240344932029959,
+                "bytes": 15791
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 9352964954631214415,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample14/attempts/570eca1a00b847398dd7bacf5a8b08f2": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 24,
+              "record-state.json": {
+                "device": 48,
+                "inode": 1009225098352104941,
+                "bytes": 15858
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 5177704206279205996,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample6/attempts/2be8a82853164b62b23bdf1e32ef76ce": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 24,
+              "record-state.json": {
+                "device": 48,
+                "inode": 18343140111836144271,
+                "bytes": 15788
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 18074572481957834789,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample1/attempts/08bac5717e094ac9ba6d07db5fbb750b": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 24,
+              "record-state.json": {
+                "device": 48,
+                "inode": 13171511017032835683,
+                "bytes": 15790
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 13748539265614980995,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample13/attempts/41b445f121bb479490b67d570319899e": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 24,
+              "record-state.json": {
+                "device": 48,
+                "inode": 17091764734630424152,
+                "bytes": 15860
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 14657107748929446446,
+                "bytes": 0
+              }
+            }
+          },
+          "stage": "success"
+        },
+        {
+          "attempts": {
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample11/attempts/378ac69cc9774a588c59485274e7a60a": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 24,
+              "record-state.json": {
+                "device": 48,
+                "inode": 18277362044453169113,
+                "bytes": 15859
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 17338324329339464264,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample9/attempts/ccc560affb2646ac81fcf61d39223175": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 24,
+              "record-state.json": {
+                "device": 48,
+                "inode": 13126377351868970554,
+                "bytes": 15793
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 1022878158807922741,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample3/attempts/aaa5fceb1a5c41f8bbf30c2b822aafce": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 24,
+              "record-state.json": {
+                "device": 48,
+                "inode": 16975791741167740862,
+                "bytes": 15793
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 4775783692405894153,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample4/attempts/de6e764bbfb64d3a8a8385f8154aaa70": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 24,
+              "record-state.json": {
+                "device": 48,
+                "inode": 14399673984201964436,
+                "bytes": 15793
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 17864212319655255230,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample0/attempts/c8da19bcef2947688be6be6063ecad01": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 36,
+              "record-state.json": {
+                "device": 48,
+                "inode": 4294309509953912749,
+                "bytes": 24091
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 872364025888377770,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample12/attempts/bc2cb69641d244ac9b68020ee7e6d1a6": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 24,
+              "record-state.json": {
+                "device": 48,
+                "inode": 2388587436650799271,
+                "bytes": 15858
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 7459688187127941441,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample15/attempts/a3f6de0abaac4f8093d01a797a1abeb8": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 24,
+              "record-state.json": {
+                "device": 48,
+                "inode": 3975871681127788711,
+                "bytes": 15859
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 2278270442306472407,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample7/attempts/f8722439c6054586a94078b0a5dfe17e": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 24,
+              "record-state.json": {
+                "device": 48,
+                "inode": 6058948699579785310,
+                "bytes": 15793
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 4106120420179558555,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample5/attempts/b4619630d257407fb9e20a1e676795b5": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 24,
+              "record-state.json": {
+                "device": 48,
+                "inode": 12097474374657750644,
+                "bytes": 15790
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 3962737312705986532,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample10/attempts/00504f7f54dd49548fec04fe2b2f38a9": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 24,
+              "record-state.json": {
+                "device": 48,
+                "inode": 13035154831820357714,
+                "bytes": 15853
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 4906229427929249636,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample2/attempts/40ac2baa18f6476ea40573737f950090": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 24,
+              "record-state.json": {
+                "device": 48,
+                "inode": 11583812564145212551,
+                "bytes": 15788
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 7432365402326440117,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample8/attempts/c184e930ecac4bfc8339232b1262262c": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 24,
+              "record-state.json": {
+                "device": 48,
+                "inode": 17853240344932029959,
+                "bytes": 15791
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 9352964954631214415,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample14/attempts/570eca1a00b847398dd7bacf5a8b08f2": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 24,
+              "record-state.json": {
+                "device": 48,
+                "inode": 1009225098352104941,
+                "bytes": 15858
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 5177704206279205996,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample6/attempts/2be8a82853164b62b23bdf1e32ef76ce": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 24,
+              "record-state.json": {
+                "device": 48,
+                "inode": 18343140111836144271,
+                "bytes": 15788
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 18074572481957834789,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample1/attempts/08bac5717e094ac9ba6d07db5fbb750b": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 24,
+              "record-state.json": {
+                "device": 48,
+                "inode": 13171511017032835683,
+                "bytes": 15790
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 13748539265614980995,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample13/attempts/41b445f121bb479490b67d570319899e": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 24,
+              "record-state.json": {
+                "device": 48,
+                "inode": 17091764734630424152,
+                "bytes": 15860
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 14657107748929446446,
+                "bytes": 0
+              }
+            }
+          },
+          "stage": "repair-1"
+        },
+        {
+          "attempts": {
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample11/attempts/378ac69cc9774a588c59485274e7a60a": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 24,
+              "record-state.json": {
+                "device": 48,
+                "inode": 18277362044453169113,
+                "bytes": 15859
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 17338324329339464264,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample9/attempts/ccc560affb2646ac81fcf61d39223175": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 24,
+              "record-state.json": {
+                "device": 48,
+                "inode": 13126377351868970554,
+                "bytes": 15793
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 1022878158807922741,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample3/attempts/aaa5fceb1a5c41f8bbf30c2b822aafce": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 24,
+              "record-state.json": {
+                "device": 48,
+                "inode": 16975791741167740862,
+                "bytes": 15793
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 4775783692405894153,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample4/attempts/de6e764bbfb64d3a8a8385f8154aaa70": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 24,
+              "record-state.json": {
+                "device": 48,
+                "inode": 14399673984201964436,
+                "bytes": 15793
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 17864212319655255230,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample0/attempts/c8da19bcef2947688be6be6063ecad01": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 48,
+              "record-state.json": {
+                "device": 48,
+                "inode": 15925656771646790588,
+                "bytes": 32320
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 872364025888377770,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample12/attempts/bc2cb69641d244ac9b68020ee7e6d1a6": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 24,
+              "record-state.json": {
+                "device": 48,
+                "inode": 2388587436650799271,
+                "bytes": 15858
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 7459688187127941441,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample15/attempts/a3f6de0abaac4f8093d01a797a1abeb8": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 24,
+              "record-state.json": {
+                "device": 48,
+                "inode": 3975871681127788711,
+                "bytes": 15859
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 2278270442306472407,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample7/attempts/f8722439c6054586a94078b0a5dfe17e": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 24,
+              "record-state.json": {
+                "device": 48,
+                "inode": 6058948699579785310,
+                "bytes": 15793
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 4106120420179558555,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample5/attempts/b4619630d257407fb9e20a1e676795b5": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 24,
+              "record-state.json": {
+                "device": 48,
+                "inode": 12097474374657750644,
+                "bytes": 15790
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 3962737312705986532,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample10/attempts/00504f7f54dd49548fec04fe2b2f38a9": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 24,
+              "record-state.json": {
+                "device": 48,
+                "inode": 13035154831820357714,
+                "bytes": 15853
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 4906229427929249636,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample2/attempts/40ac2baa18f6476ea40573737f950090": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 24,
+              "record-state.json": {
+                "device": 48,
+                "inode": 11583812564145212551,
+                "bytes": 15788
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 7432365402326440117,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample8/attempts/c184e930ecac4bfc8339232b1262262c": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 24,
+              "record-state.json": {
+                "device": 48,
+                "inode": 17853240344932029959,
+                "bytes": 15791
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 9352964954631214415,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample14/attempts/570eca1a00b847398dd7bacf5a8b08f2": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 24,
+              "record-state.json": {
+                "device": 48,
+                "inode": 1009225098352104941,
+                "bytes": 15858
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 5177704206279205996,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample6/attempts/2be8a82853164b62b23bdf1e32ef76ce": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 24,
+              "record-state.json": {
+                "device": 48,
+                "inode": 18343140111836144271,
+                "bytes": 15788
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 18074572481957834789,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample1/attempts/08bac5717e094ac9ba6d07db5fbb750b": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 24,
+              "record-state.json": {
+                "device": 48,
+                "inode": 13171511017032835683,
+                "bytes": 15790
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 13748539265614980995,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample13/attempts/41b445f121bb479490b67d570319899e": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 24,
+              "record-state.json": {
+                "device": 48,
+                "inode": 17091764734630424152,
+                "bytes": 15860
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 14657107748929446446,
+                "bytes": 0
+              }
+            }
+          },
+          "stage": "repair-2"
+        },
+        {
+          "attempts": {
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample11/attempts/378ac69cc9774a588c59485274e7a60a": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 25,
+              "record-state.json": {
+                "device": 48,
+                "inode": 3738269022977211364,
+                "bytes": 17399
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 17338324329339464264,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample9/attempts/ccc560affb2646ac81fcf61d39223175": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 25,
+              "record-state.json": {
+                "device": 48,
+                "inode": 12575363709548359993,
+                "bytes": 17330
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 1022878158807922741,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample3/attempts/aaa5fceb1a5c41f8bbf30c2b822aafce": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 25,
+              "record-state.json": {
+                "device": 48,
+                "inode": 13260415123270285095,
+                "bytes": 17328
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 4775783692405894153,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample4/attempts/de6e764bbfb64d3a8a8385f8154aaa70": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 25,
+              "record-state.json": {
+                "device": 48,
+                "inode": 14619089764355676153,
+                "bytes": 17327
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 17864212319655255230,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample0/attempts/c8da19bcef2947688be6be6063ecad01": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 49,
+              "record-state.json": {
+                "device": 48,
+                "inode": 2447579821586048750,
+                "bytes": 35333
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 872364025888377770,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample12/attempts/bc2cb69641d244ac9b68020ee7e6d1a6": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 25,
+              "record-state.json": {
+                "device": 48,
+                "inode": 7116101218231233303,
+                "bytes": 17397
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 7459688187127941441,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample15/attempts/a3f6de0abaac4f8093d01a797a1abeb8": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 25,
+              "record-state.json": {
+                "device": 48,
+                "inode": 3036940287565372342,
+                "bytes": 17398
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 2278270442306472407,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample7/attempts/f8722439c6054586a94078b0a5dfe17e": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 25,
+              "record-state.json": {
+                "device": 48,
+                "inode": 3835644696458803589,
+                "bytes": 17329
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 4106120420179558555,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample5/attempts/b4619630d257407fb9e20a1e676795b5": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 25,
+              "record-state.json": {
+                "device": 48,
+                "inode": 270104684541989049,
+                "bytes": 17325
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 3962737312705986532,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample10/attempts/00504f7f54dd49548fec04fe2b2f38a9": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 25,
+              "record-state.json": {
+                "device": 48,
+                "inode": 18009426307173000354,
+                "bytes": 17390
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 4906229427929249636,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample2/attempts/40ac2baa18f6476ea40573737f950090": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 25,
+              "record-state.json": {
+                "device": 48,
+                "inode": 15785454182218176382,
+                "bytes": 17322
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 7432365402326440117,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample8/attempts/c184e930ecac4bfc8339232b1262262c": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 25,
+              "record-state.json": {
+                "device": 48,
+                "inode": 12672536839239257693,
+                "bytes": 17328
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 9352964954631214415,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample14/attempts/570eca1a00b847398dd7bacf5a8b08f2": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 25,
+              "record-state.json": {
+                "device": 48,
+                "inode": 15831862354275183924,
+                "bytes": 17395
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 5177704206279205996,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample6/attempts/2be8a82853164b62b23bdf1e32ef76ce": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 25,
+              "record-state.json": {
+                "device": 48,
+                "inode": 1542903451949015254,
+                "bytes": 17322
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 18074572481957834789,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample1/attempts/08bac5717e094ac9ba6d07db5fbb750b": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 25,
+              "record-state.json": {
+                "device": 48,
+                "inode": 8082491921380354570,
+                "bytes": 17324
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 13748539265614980995,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample13/attempts/41b445f121bb479490b67d570319899e": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 25,
+              "record-state.json": {
+                "device": 48,
+                "inode": 10474912252867394054,
+                "bytes": 17399
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 14657107748929446446,
+                "bytes": 0
+              }
+            }
+          },
+          "stage": "cleanup-1"
+        },
+        {
+          "attempts": {
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample11/attempts/378ac69cc9774a588c59485274e7a60a": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 25,
+              "record-state.json": {
+                "device": 48,
+                "inode": 3738269022977211364,
+                "bytes": 17399
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 17338324329339464264,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample9/attempts/ccc560affb2646ac81fcf61d39223175": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 25,
+              "record-state.json": {
+                "device": 48,
+                "inode": 12575363709548359993,
+                "bytes": 17330
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 1022878158807922741,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample3/attempts/aaa5fceb1a5c41f8bbf30c2b822aafce": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 25,
+              "record-state.json": {
+                "device": 48,
+                "inode": 13260415123270285095,
+                "bytes": 17328
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 4775783692405894153,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample4/attempts/de6e764bbfb64d3a8a8385f8154aaa70": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 25,
+              "record-state.json": {
+                "device": 48,
+                "inode": 14619089764355676153,
+                "bytes": 17327
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 17864212319655255230,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample0/attempts/c8da19bcef2947688be6be6063ecad01": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 49,
+              "record-state.json": {
+                "device": 48,
+                "inode": 2447579821586048750,
+                "bytes": 35333
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 872364025888377770,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample12/attempts/bc2cb69641d244ac9b68020ee7e6d1a6": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 25,
+              "record-state.json": {
+                "device": 48,
+                "inode": 7116101218231233303,
+                "bytes": 17397
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 7459688187127941441,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample15/attempts/a3f6de0abaac4f8093d01a797a1abeb8": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 25,
+              "record-state.json": {
+                "device": 48,
+                "inode": 3036940287565372342,
+                "bytes": 17398
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 2278270442306472407,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample7/attempts/f8722439c6054586a94078b0a5dfe17e": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 25,
+              "record-state.json": {
+                "device": 48,
+                "inode": 3835644696458803589,
+                "bytes": 17329
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 4106120420179558555,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample5/attempts/b4619630d257407fb9e20a1e676795b5": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 25,
+              "record-state.json": {
+                "device": 48,
+                "inode": 270104684541989049,
+                "bytes": 17325
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 3962737312705986532,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample10/attempts/00504f7f54dd49548fec04fe2b2f38a9": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 25,
+              "record-state.json": {
+                "device": 48,
+                "inode": 18009426307173000354,
+                "bytes": 17390
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 4906229427929249636,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample2/attempts/40ac2baa18f6476ea40573737f950090": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 25,
+              "record-state.json": {
+                "device": 48,
+                "inode": 15785454182218176382,
+                "bytes": 17322
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 7432365402326440117,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample8/attempts/c184e930ecac4bfc8339232b1262262c": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 25,
+              "record-state.json": {
+                "device": 48,
+                "inode": 12672536839239257693,
+                "bytes": 17328
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 9352964954631214415,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample14/attempts/570eca1a00b847398dd7bacf5a8b08f2": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 25,
+              "record-state.json": {
+                "device": 48,
+                "inode": 15831862354275183924,
+                "bytes": 17395
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 5177704206279205996,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample6/attempts/2be8a82853164b62b23bdf1e32ef76ce": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 25,
+              "record-state.json": {
+                "device": 48,
+                "inode": 1542903451949015254,
+                "bytes": 17322
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 18074572481957834789,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample1/attempts/08bac5717e094ac9ba6d07db5fbb750b": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 25,
+              "record-state.json": {
+                "device": 48,
+                "inode": 8082491921380354570,
+                "bytes": 17324
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 13748539265614980995,
+                "bytes": 0
+              }
+            },
+            ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample13/attempts/41b445f121bb479490b67d570319899e": {
+              "directories": 1,
+              "files": 2,
+              "phase": "compacted",
+              "logical_records": 25,
+              "record-state.json": {
+                "device": 48,
+                "inode": 10474912252867394054,
+                "bytes": 17399
+              },
+              "records.lock": {
+                "device": 48,
+                "inode": 14657107748929446446,
+                "bytes": 0
+              }
+            }
+          },
+          "stage": "cleanup-2"
+        }
+      ],
+      "history_preservation": [
+        {
+          "stage": "success",
+          "records": 0,
+          "recoveries": 0,
+          "sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+          "unchanged": true
+        },
+        {
+          "stage": "repair-1",
+          "records": 0,
+          "recoveries": 0,
+          "sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+          "unchanged": true
+        },
+        {
+          "stage": "repair-2",
+          "records": 0,
+          "recoveries": 0,
+          "sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+          "unchanged": true
+        },
+        {
+          "stage": "cleanup-1",
+          "records": 0,
+          "recoveries": 0,
+          "sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+          "unchanged": true
+        },
+        {
+          "stage": "cleanup-2",
+          "records": 0,
+          "recoveries": 0,
+          "sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+          "unchanged": true
+        }
+      ],
+      "probes": {
+        "success": {
+          "status --plain": {
+            "command": [
+              "<REPO>/.conda-env/bin/python",
+              "<REPO>/tests/fixtures/planning_probe.py",
+              "<REPO>/build/validation/260/history-r3/cache-eviction-16-tasks/success-status.json",
+              "status",
+              "--plain"
+            ],
+            "counts": {
+              "startup": {
+                "stream_reads": 4,
+                "stat": 6,
+                "json_decodes": 1,
+                "json_bytes": 49,
+                "close": 56
+              },
+              "imports": {
+                "stream_reads": 285,
+                "stat": 16,
+                "listdir": 7
+              },
+              "construction": {
+                "stream_reads": 8,
+                "lstat": 13,
+                "stat": 1
+              },
+              "backend": {
+                "stream_reads": 41,
+                "stat": 72,
+                "listdir": 3,
+                "access": 2,
+                "json_decodes": 2,
+                "json_bytes": 5572,
+                "scheduler_requests": 1
+              },
+              "rendering": {
+                "stream_reads": 2
+              },
+              "planning": {
+                "lstat": 51,
+                "stat": 16751,
+                "directory_opens": 224,
+                "fstat": 1717,
+                "file_opens": 353,
+                "stream_reads": 49,
+                "json_decodes": 49,
+                "json_bytes": 509408,
+                "close": 792,
+                "dup": 288,
+                "listdir": 1
+              }
+            },
+            "seconds": {
+              "startup": 0.02481657703174278,
+              "imports": 1.694559698633384,
+              "construction": 0.1453913631848991,
+              "backend": 0.20401799958199263,
+              "rendering": 0.02785908809164539,
+              "planning": 6.578558626468293
+            },
+            "document_decodes": {
+              "<REPO>/build/validation/260/history-r3/cache-eviction-16-tasks/.gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample0/attempts/c8da19bcef2947688be6be6063ecad01/record-state.json": 2,
+              "<REPO>/build/validation/260/history-r3/cache-eviction-16-tasks/.gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample1/attempts/08bac5717e094ac9ba6d07db5fbb750b/record-state.json": 2,
+              "<REPO>/build/validation/260/history-r3/cache-eviction-16-tasks/.gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample10/attempts/00504f7f54dd49548fec04fe2b2f38a9/record-state.json": 2,
+              "<REPO>/build/validation/260/history-r3/cache-eviction-16-tasks/.gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample11/attempts/378ac69cc9774a588c59485274e7a60a/record-state.json": 2,
+              "<REPO>/build/validation/260/history-r3/cache-eviction-16-tasks/.gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample12/attempts/bc2cb69641d244ac9b68020ee7e6d1a6/record-state.json": 2,
+              "<REPO>/build/validation/260/history-r3/cache-eviction-16-tasks/.gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample13/attempts/41b445f121bb479490b67d570319899e/record-state.json": 2,
+              "<REPO>/build/validation/260/history-r3/cache-eviction-16-tasks/.gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample14/attempts/570eca1a00b847398dd7bacf5a8b08f2/record-state.json": 2,
+              "<REPO>/build/validation/260/history-r3/cache-eviction-16-tasks/.gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample15/attempts/a3f6de0abaac4f8093d01a797a1abeb8/record-state.json": 2,
+              "<REPO>/build/validation/260/history-r3/cache-eviction-16-tasks/.gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample2/attempts/40ac2baa18f6476ea40573737f950090/record-state.json": 2,
+              "<REPO>/build/validation/260/history-r3/cache-eviction-16-tasks/.gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample3/attempts/aaa5fceb1a5c41f8bbf30c2b822aafce/record-state.json": 2,
+              "<REPO>/build/validation/260/history-r3/cache-eviction-16-tasks/.gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample4/attempts/de6e764bbfb64d3a8a8385f8154aaa70/record-state.json": 2,
+              "<REPO>/build/validation/260/history-r3/cache-eviction-16-tasks/.gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample5/attempts/b4619630d257407fb9e20a1e676795b5/record-state.json": 2,
+              "<REPO>/build/validation/260/history-r3/cache-eviction-16-tasks/.gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample6/attempts/2be8a82853164b62b23bdf1e32ef76ce/record-state.json": 2,
+              "<REPO>/build/validation/260/history-r3/cache-eviction-16-tasks/.gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample7/attempts/f8722439c6054586a94078b0a5dfe17e/record-state.json": 2,
+              "<REPO>/build/validation/260/history-r3/cache-eviction-16-tasks/.gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample8/attempts/c184e930ecac4bfc8339232b1262262c/record-state.json": 2,
+              "<REPO>/build/validation/260/history-r3/cache-eviction-16-tasks/.gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample9/attempts/ccc560affb2646ac81fcf61d39223175/record-state.json": 2
+            },
+            "peak_cached_documents": 8,
+            "peak_rss_kib": 54220,
+            "traced_memory_bytes": {
+              "current": 16396067,
+              "peak": 19099698
+            },
+            "peak_opened_descriptors": 59,
+            "path_depth": 12
+          },
+          "run --dry-run": {
+            "command": [
+              "<REPO>/.conda-env/bin/python",
+              "<REPO>/tests/fixtures/planning_probe.py",
+              "<REPO>/build/validation/260/history-r3/cache-eviction-16-tasks/success-run.json",
+              "run",
+              "--dry-run"
+            ],
+            "counts": {
+              "startup": {
+                "stream_reads": 4,
+                "stat": 6,
+                "json_decodes": 1,
+                "json_bytes": 49,
+                "close": 56
+              },
+              "imports": {
+                "stream_reads": 285,
+                "stat": 16,
+                "listdir": 7
+              },
+              "construction": {
+                "stream_reads": 8,
+                "lstat": 13,
+                "stat": 1
+              },
+              "backend": {
+                "stream_reads": 41,
+                "stat": 72,
+                "listdir": 3,
+                "access": 2,
+                "json_decodes": 2,
+                "json_bytes": 5572,
+                "scheduler_requests": 1
+              },
+              "rendering": {
+                "stream_reads": 2
+              },
+              "planning": {
+                "lstat": 51,
+                "stat": 16751,
+                "directory_opens": 224,
+                "fstat": 1717,
+                "file_opens": 353,
+                "stream_reads": 49,
+                "json_decodes": 49,
+                "json_bytes": 509408,
+                "close": 792,
+                "dup": 288,
+                "listdir": 1
+              }
+            },
+            "seconds": {
+              "startup": 0.02292689197929576,
+              "imports": 1.6355843837955035,
+              "construction": 0.14556666725547984,
+              "backend": 0.19587747775949538,
+              "rendering": 0.019116717972792685,
+              "planning": 6.603807198232971
+            },
+            "document_decodes": {
+              "<REPO>/build/validation/260/history-r3/cache-eviction-16-tasks/.gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample0/attempts/c8da19bcef2947688be6be6063ecad01/record-state.json": 2,
+              "<REPO>/build/validation/260/history-r3/cache-eviction-16-tasks/.gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample1/attempts/08bac5717e094ac9ba6d07db5fbb750b/record-state.json": 2,
+              "<REPO>/build/validation/260/history-r3/cache-eviction-16-tasks/.gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample10/attempts/00504f7f54dd49548fec04fe2b2f38a9/record-state.json": 2,
+              "<REPO>/build/validation/260/history-r3/cache-eviction-16-tasks/.gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample11/attempts/378ac69cc9774a588c59485274e7a60a/record-state.json": 2,
+              "<REPO>/build/validation/260/history-r3/cache-eviction-16-tasks/.gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample12/attempts/bc2cb69641d244ac9b68020ee7e6d1a6/record-state.json": 2,
+              "<REPO>/build/validation/260/history-r3/cache-eviction-16-tasks/.gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample13/attempts/41b445f121bb479490b67d570319899e/record-state.json": 2,
+              "<REPO>/build/validation/260/history-r3/cache-eviction-16-tasks/.gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample14/attempts/570eca1a00b847398dd7bacf5a8b08f2/record-state.json": 2,
+              "<REPO>/build/validation/260/history-r3/cache-eviction-16-tasks/.gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample15/attempts/a3f6de0abaac4f8093d01a797a1abeb8/record-state.json": 2,
+              "<REPO>/build/validation/260/history-r3/cache-eviction-16-tasks/.gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample2/attempts/40ac2baa18f6476ea40573737f950090/record-state.json": 2,
+              "<REPO>/build/validation/260/history-r3/cache-eviction-16-tasks/.gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample3/attempts/aaa5fceb1a5c41f8bbf30c2b822aafce/record-state.json": 2,
+              "<REPO>/build/validation/260/history-r3/cache-eviction-16-tasks/.gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample4/attempts/de6e764bbfb64d3a8a8385f8154aaa70/record-state.json": 2,
+              "<REPO>/build/validation/260/history-r3/cache-eviction-16-tasks/.gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample5/attempts/b4619630d257407fb9e20a1e676795b5/record-state.json": 2,
+              "<REPO>/build/validation/260/history-r3/cache-eviction-16-tasks/.gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample6/attempts/2be8a82853164b62b23bdf1e32ef76ce/record-state.json": 2,
+              "<REPO>/build/validation/260/history-r3/cache-eviction-16-tasks/.gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample7/attempts/f8722439c6054586a94078b0a5dfe17e/record-state.json": 2,
+              "<REPO>/build/validation/260/history-r3/cache-eviction-16-tasks/.gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample8/attempts/c184e930ecac4bfc8339232b1262262c/record-state.json": 2,
+              "<REPO>/build/validation/260/history-r3/cache-eviction-16-tasks/.gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample9/attempts/ccc560affb2646ac81fcf61d39223175/record-state.json": 2
+            },
+            "peak_cached_documents": 8,
+            "peak_rss_kib": 54220,
+            "traced_memory_bytes": {
+              "current": 16377182,
+              "peak": 19085248
+            },
+            "peak_opened_descriptors": 59,
+            "path_depth": 12
+          }
+        },
+        "after-cleanup": {
+          "status --plain": {
+            "command": [
+              "<REPO>/.conda-env/bin/python",
+              "<REPO>/tests/fixtures/planning_probe.py",
+              "<REPO>/build/validation/260/history-r3/cache-eviction-16-tasks/after-cleanup-status.json",
+              "status",
+              "--plain"
+            ],
+            "counts": {
+              "startup": {
+                "stream_reads": 4,
+                "stat": 6,
+                "json_decodes": 1,
+                "json_bytes": 49,
+                "close": 56
+              },
+              "imports": {
+                "stream_reads": 285,
+                "stat": 16,
+                "listdir": 7
+              },
+              "construction": {
+                "stream_reads": 8,
+                "lstat": 13,
+                "stat": 1
+              },
+              "backend": {
+                "stream_reads": 41,
+                "stat": 72,
+                "listdir": 3,
+                "access": 2,
+                "json_decodes": 2,
+                "json_bytes": 5810,
+                "scheduler_requests": 1
+              },
+              "rendering": {
+                "stream_reads": 2
+              },
+              "planning": {
+                "lstat": 51,
+                "stat": 13631,
+                "directory_opens": 224,
+                "fstat": 1397,
+                "file_opens": 289,
+                "stream_reads": 49,
+                "json_decodes": 49,
+                "json_bytes": 594592,
+                "close": 664,
+                "dup": 224,
+                "listdir": 1
+              }
+            },
+            "seconds": {
+              "startup": 0.022482268046587706,
+              "imports": 1.6626351743470877,
+              "construction": 0.14692286163335666,
+              "backend": 0.19600816804450005,
+              "rendering": 0.027056815975811332,
+              "planning": 5.726804152945988
+            },
+            "document_decodes": {
+              "<REPO>/build/validation/260/history-r3/cache-eviction-16-tasks/.gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample0/attempts/c8da19bcef2947688be6be6063ecad01/record-state.json": 2,
+              "<REPO>/build/validation/260/history-r3/cache-eviction-16-tasks/.gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample1/attempts/08bac5717e094ac9ba6d07db5fbb750b/record-state.json": 2,
+              "<REPO>/build/validation/260/history-r3/cache-eviction-16-tasks/.gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample10/attempts/00504f7f54dd49548fec04fe2b2f38a9/record-state.json": 2,
+              "<REPO>/build/validation/260/history-r3/cache-eviction-16-tasks/.gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample11/attempts/378ac69cc9774a588c59485274e7a60a/record-state.json": 2,
+              "<REPO>/build/validation/260/history-r3/cache-eviction-16-tasks/.gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample12/attempts/bc2cb69641d244ac9b68020ee7e6d1a6/record-state.json": 2,
+              "<REPO>/build/validation/260/history-r3/cache-eviction-16-tasks/.gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample13/attempts/41b445f121bb479490b67d570319899e/record-state.json": 2,
+              "<REPO>/build/validation/260/history-r3/cache-eviction-16-tasks/.gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample14/attempts/570eca1a00b847398dd7bacf5a8b08f2/record-state.json": 2,
+              "<REPO>/build/validation/260/history-r3/cache-eviction-16-tasks/.gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample15/attempts/a3f6de0abaac4f8093d01a797a1abeb8/record-state.json": 2,
+              "<REPO>/build/validation/260/history-r3/cache-eviction-16-tasks/.gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample2/attempts/40ac2baa18f6476ea40573737f950090/record-state.json": 2,
+              "<REPO>/build/validation/260/history-r3/cache-eviction-16-tasks/.gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample3/attempts/aaa5fceb1a5c41f8bbf30c2b822aafce/record-state.json": 2,
+              "<REPO>/build/validation/260/history-r3/cache-eviction-16-tasks/.gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample4/attempts/de6e764bbfb64d3a8a8385f8154aaa70/record-state.json": 2,
+              "<REPO>/build/validation/260/history-r3/cache-eviction-16-tasks/.gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample5/attempts/b4619630d257407fb9e20a1e676795b5/record-state.json": 2,
+              "<REPO>/build/validation/260/history-r3/cache-eviction-16-tasks/.gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample6/attempts/2be8a82853164b62b23bdf1e32ef76ce/record-state.json": 2,
+              "<REPO>/build/validation/260/history-r3/cache-eviction-16-tasks/.gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample7/attempts/f8722439c6054586a94078b0a5dfe17e/record-state.json": 2,
+              "<REPO>/build/validation/260/history-r3/cache-eviction-16-tasks/.gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample8/attempts/c184e930ecac4bfc8339232b1262262c/record-state.json": 2,
+              "<REPO>/build/validation/260/history-r3/cache-eviction-16-tasks/.gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample9/attempts/ccc560affb2646ac81fcf61d39223175/record-state.json": 2
+            },
+            "peak_cached_documents": 8,
+            "peak_rss_kib": 54220,
+            "traced_memory_bytes": {
+              "current": 16393173,
+              "peak": 19138648
+            },
+            "peak_opened_descriptors": 59,
+            "path_depth": 12
+          },
+          "run --dry-run": {
+            "command": [
+              "<REPO>/.conda-env/bin/python",
+              "<REPO>/tests/fixtures/planning_probe.py",
+              "<REPO>/build/validation/260/history-r3/cache-eviction-16-tasks/after-cleanup-run.json",
+              "run",
+              "--dry-run"
+            ],
+            "counts": {
+              "startup": {
+                "stream_reads": 4,
+                "stat": 6,
+                "json_decodes": 1,
+                "json_bytes": 49,
+                "close": 56
+              },
+              "imports": {
+                "stream_reads": 285,
+                "stat": 16,
+                "listdir": 7
+              },
+              "construction": {
+                "stream_reads": 8,
+                "lstat": 13,
+                "stat": 1
+              },
+              "backend": {
+                "stream_reads": 41,
+                "stat": 72,
+                "listdir": 3,
+                "access": 2,
+                "json_decodes": 2,
+                "json_bytes": 5810,
+                "scheduler_requests": 1
+              },
+              "rendering": {
+                "stream_reads": 2
+              },
+              "planning": {
+                "lstat": 51,
+                "stat": 13631,
+                "directory_opens": 224,
+                "fstat": 1397,
+                "file_opens": 289,
+                "stream_reads": 49,
+                "json_decodes": 49,
+                "json_bytes": 594592,
+                "close": 664,
+                "dup": 224,
+                "listdir": 1
+              }
+            },
+            "seconds": {
+              "startup": 0.023321430024225265,
+              "imports": 1.6383523968979716,
+              "construction": 0.1510567890945822,
+              "backend": 0.1922541168751195,
+              "rendering": 0.01822114799870178,
+              "planning": 5.788838100153953
+            },
+            "document_decodes": {
+              "<REPO>/build/validation/260/history-r3/cache-eviction-16-tasks/.gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample0/attempts/c8da19bcef2947688be6be6063ecad01/record-state.json": 2,
+              "<REPO>/build/validation/260/history-r3/cache-eviction-16-tasks/.gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample1/attempts/08bac5717e094ac9ba6d07db5fbb750b/record-state.json": 2,
+              "<REPO>/build/validation/260/history-r3/cache-eviction-16-tasks/.gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample10/attempts/00504f7f54dd49548fec04fe2b2f38a9/record-state.json": 2,
+              "<REPO>/build/validation/260/history-r3/cache-eviction-16-tasks/.gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample11/attempts/378ac69cc9774a588c59485274e7a60a/record-state.json": 2,
+              "<REPO>/build/validation/260/history-r3/cache-eviction-16-tasks/.gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample12/attempts/bc2cb69641d244ac9b68020ee7e6d1a6/record-state.json": 2,
+              "<REPO>/build/validation/260/history-r3/cache-eviction-16-tasks/.gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample13/attempts/41b445f121bb479490b67d570319899e/record-state.json": 2,
+              "<REPO>/build/validation/260/history-r3/cache-eviction-16-tasks/.gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample14/attempts/570eca1a00b847398dd7bacf5a8b08f2/record-state.json": 2,
+              "<REPO>/build/validation/260/history-r3/cache-eviction-16-tasks/.gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample15/attempts/a3f6de0abaac4f8093d01a797a1abeb8/record-state.json": 2,
+              "<REPO>/build/validation/260/history-r3/cache-eviction-16-tasks/.gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample2/attempts/40ac2baa18f6476ea40573737f950090/record-state.json": 2,
+              "<REPO>/build/validation/260/history-r3/cache-eviction-16-tasks/.gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample3/attempts/aaa5fceb1a5c41f8bbf30c2b822aafce/record-state.json": 2,
+              "<REPO>/build/validation/260/history-r3/cache-eviction-16-tasks/.gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample4/attempts/de6e764bbfb64d3a8a8385f8154aaa70/record-state.json": 2,
+              "<REPO>/build/validation/260/history-r3/cache-eviction-16-tasks/.gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample5/attempts/b4619630d257407fb9e20a1e676795b5/record-state.json": 2,
+              "<REPO>/build/validation/260/history-r3/cache-eviction-16-tasks/.gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample6/attempts/2be8a82853164b62b23bdf1e32ef76ce/record-state.json": 2,
+              "<REPO>/build/validation/260/history-r3/cache-eviction-16-tasks/.gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample7/attempts/f8722439c6054586a94078b0a5dfe17e/record-state.json": 2,
+              "<REPO>/build/validation/260/history-r3/cache-eviction-16-tasks/.gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample8/attempts/c184e930ecac4bfc8339232b1262262c/record-state.json": 2,
+              "<REPO>/build/validation/260/history-r3/cache-eviction-16-tasks/.gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample9/attempts/ccc560affb2646ac81fcf61d39223175/record-state.json": 2
+            },
+            "peak_cached_documents": 8,
+            "peak_rss_kib": 54220,
+            "traced_memory_bytes": {
+              "current": 16374987,
+              "peak": 19124401
+            },
+            "peak_opened_descriptors": 59,
+            "path_depth": 12
+          }
+        }
+      },
+      "final_footprint": {
+        "categories": {
+          "validation_fixture": {
+            "files": 12,
+            "bytes": 1544095,
+            "directories": 1
+          },
+          "data": {
+            "directories": 34,
+            "files": 16,
+            "bytes": 96
+          },
+          "workflow_bookkeeping": {
+            "directories": 4,
+            "files": 4,
+            "bytes": 12552
+          },
+          "logs_and_aliases": {
+            "directories": 1,
+            "symlinks": 96,
+            "files": 100,
+            "bytes": 0
+          },
+          "staging_data": {
+            "directories": 17
+          },
+          "task_bookkeeping": {
+            "directories": 33,
+            "files": 16,
+            "bytes": 2422
+          },
+          "attempt_metadata": {
+            "directories": 16,
+            "files": 32,
+            "bytes": 295646
+          }
+        },
+        "attempts": {
+          ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample11/attempts/378ac69cc9774a588c59485274e7a60a": {
+            "directories": 1,
+            "files": 2,
+            "phase": "compacted",
+            "logical_records": 25,
+            "record-state.json": {
+              "device": 48,
+              "inode": 3738269022977211364,
+              "bytes": 17399
+            },
+            "records.lock": {
+              "device": 48,
+              "inode": 17338324329339464264,
+              "bytes": 0
+            }
+          },
+          ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample9/attempts/ccc560affb2646ac81fcf61d39223175": {
+            "directories": 1,
+            "files": 2,
+            "phase": "compacted",
+            "logical_records": 25,
+            "record-state.json": {
+              "device": 48,
+              "inode": 12575363709548359993,
+              "bytes": 17330
+            },
+            "records.lock": {
+              "device": 48,
+              "inode": 1022878158807922741,
+              "bytes": 0
+            }
+          },
+          ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample3/attempts/aaa5fceb1a5c41f8bbf30c2b822aafce": {
+            "directories": 1,
+            "files": 2,
+            "phase": "compacted",
+            "logical_records": 25,
+            "record-state.json": {
+              "device": 48,
+              "inode": 13260415123270285095,
+              "bytes": 17328
+            },
+            "records.lock": {
+              "device": 48,
+              "inode": 4775783692405894153,
+              "bytes": 0
+            }
+          },
+          ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample4/attempts/de6e764bbfb64d3a8a8385f8154aaa70": {
+            "directories": 1,
+            "files": 2,
+            "phase": "compacted",
+            "logical_records": 25,
+            "record-state.json": {
+              "device": 48,
+              "inode": 14619089764355676153,
+              "bytes": 17327
+            },
+            "records.lock": {
+              "device": 48,
+              "inode": 17864212319655255230,
+              "bytes": 0
+            }
+          },
+          ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample0/attempts/c8da19bcef2947688be6be6063ecad01": {
+            "directories": 1,
+            "files": 2,
+            "phase": "compacted",
+            "logical_records": 49,
+            "record-state.json": {
+              "device": 48,
+              "inode": 2447579821586048750,
+              "bytes": 35333
+            },
+            "records.lock": {
+              "device": 48,
+              "inode": 872364025888377770,
+              "bytes": 0
+            }
+          },
+          ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample12/attempts/bc2cb69641d244ac9b68020ee7e6d1a6": {
+            "directories": 1,
+            "files": 2,
+            "phase": "compacted",
+            "logical_records": 25,
+            "record-state.json": {
+              "device": 48,
+              "inode": 7116101218231233303,
+              "bytes": 17397
+            },
+            "records.lock": {
+              "device": 48,
+              "inode": 7459688187127941441,
+              "bytes": 0
+            }
+          },
+          ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample15/attempts/a3f6de0abaac4f8093d01a797a1abeb8": {
+            "directories": 1,
+            "files": 2,
+            "phase": "compacted",
+            "logical_records": 25,
+            "record-state.json": {
+              "device": 48,
+              "inode": 3036940287565372342,
+              "bytes": 17398
+            },
+            "records.lock": {
+              "device": 48,
+              "inode": 2278270442306472407,
+              "bytes": 0
+            }
+          },
+          ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample7/attempts/f8722439c6054586a94078b0a5dfe17e": {
+            "directories": 1,
+            "files": 2,
+            "phase": "compacted",
+            "logical_records": 25,
+            "record-state.json": {
+              "device": 48,
+              "inode": 3835644696458803589,
+              "bytes": 17329
+            },
+            "records.lock": {
+              "device": 48,
+              "inode": 4106120420179558555,
+              "bytes": 0
+            }
+          },
+          ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample5/attempts/b4619630d257407fb9e20a1e676795b5": {
+            "directories": 1,
+            "files": 2,
+            "phase": "compacted",
+            "logical_records": 25,
+            "record-state.json": {
+              "device": 48,
+              "inode": 270104684541989049,
+              "bytes": 17325
+            },
+            "records.lock": {
+              "device": 48,
+              "inode": 3962737312705986532,
+              "bytes": 0
+            }
+          },
+          ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample10/attempts/00504f7f54dd49548fec04fe2b2f38a9": {
+            "directories": 1,
+            "files": 2,
+            "phase": "compacted",
+            "logical_records": 25,
+            "record-state.json": {
+              "device": 48,
+              "inode": 18009426307173000354,
+              "bytes": 17390
+            },
+            "records.lock": {
+              "device": 48,
+              "inode": 4906229427929249636,
+              "bytes": 0
+            }
+          },
+          ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample2/attempts/40ac2baa18f6476ea40573737f950090": {
+            "directories": 1,
+            "files": 2,
+            "phase": "compacted",
+            "logical_records": 25,
+            "record-state.json": {
+              "device": 48,
+              "inode": 15785454182218176382,
+              "bytes": 17322
+            },
+            "records.lock": {
+              "device": 48,
+              "inode": 7432365402326440117,
+              "bytes": 0
+            }
+          },
+          ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample8/attempts/c184e930ecac4bfc8339232b1262262c": {
+            "directories": 1,
+            "files": 2,
+            "phase": "compacted",
+            "logical_records": 25,
+            "record-state.json": {
+              "device": 48,
+              "inode": 12672536839239257693,
+              "bytes": 17328
+            },
+            "records.lock": {
+              "device": 48,
+              "inode": 9352964954631214415,
+              "bytes": 0
+            }
+          },
+          ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample14/attempts/570eca1a00b847398dd7bacf5a8b08f2": {
+            "directories": 1,
+            "files": 2,
+            "phase": "compacted",
+            "logical_records": 25,
+            "record-state.json": {
+              "device": 48,
+              "inode": 15831862354275183924,
+              "bytes": 17395
+            },
+            "records.lock": {
+              "device": 48,
+              "inode": 5177704206279205996,
+              "bytes": 0
+            }
+          },
+          ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample6/attempts/2be8a82853164b62b23bdf1e32ef76ce": {
+            "directories": 1,
+            "files": 2,
+            "phase": "compacted",
+            "logical_records": 25,
+            "record-state.json": {
+              "device": 48,
+              "inode": 1542903451949015254,
+              "bytes": 17322
+            },
+            "records.lock": {
+              "device": 48,
+              "inode": 18074572481957834789,
+              "bytes": 0
+            }
+          },
+          ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample1/attempts/08bac5717e094ac9ba6d07db5fbb750b": {
+            "directories": 1,
+            "files": 2,
+            "phase": "compacted",
+            "logical_records": 25,
+            "record-state.json": {
+              "device": 48,
+              "inode": 8082491921380354570,
+              "bytes": 17324
+            },
+            "records.lock": {
+              "device": 48,
+              "inode": 13748539265614980995,
+              "bytes": 0
+            }
+          },
+          ".gwf/gwflow/owners/511160a6877e4af380fc66082dff82f5/tasks/sample13/attempts/41b445f121bb479490b67d570319899e": {
+            "directories": 1,
+            "files": 2,
+            "phase": "compacted",
+            "logical_records": 25,
+            "record-state.json": {
+              "device": 48,
+              "inode": 10474912252867394054,
+              "bytes": 17399
+            },
+            "records.lock": {
+              "device": 48,
+              "inode": 14657107748929446446,
+              "bytes": 0
+            }
+          }
+        }
+      }
+    }
+  ],
+  "commands": [
+    [
+      "<REPO>/.conda-env/bin/python",
+      "tests/validate_compaction_scale.py",
+      "--root",
+      "build/validation/260/history-r3",
+      "--targets",
+      "--histories",
+      "4",
+      "16",
+      "64"
+    ],
+    [
+      "<REPO>/.conda-env/bin/python",
+      "tests/validate_compaction_scale.py",
+      "--root",
+      "build/validation/260/scale",
+      "--targets",
+      "1",
+      "32",
+      "128",
+      "--histories",
+      "4",
+      "16",
+      "64"
+    ]
+  ],
+  "result_scope": "The final history/cache invocation passed all four cases. Three target-count cases passed in the first invocation before its history cases exposed a runner-only assumption about historical failed local jobs. The corrected history run uses current Reuse eligibility. No production change was needed.",
+  "evidence_metadata": {
+    "date": "2026-10-24",
+    "production_commit": "986dca3e054e0973ea3ea1ffcaef393ee8464382",
+    "validation_commit": "9232a4509da474ae2dae2e52a1195818c946e7ea",
+    "footprint_counter_commit": "7ffb3a5824e6ba8bdda5c2d5ea22b7330ca7c73b",
+    "path_placeholders": {
+      "<REPO>": "Checkout root",
+      "<HOME>": "Validation operator home directory, if present"
+    },
+    "selection": "All seven completed cases, per-stage attempt counts, phase counters, decode counts, memory/descriptors, and probe commands. final_footprint recounts each retained tree with staging data separate from workflow bookkeeping. Original per-stage category totals and per-path OS counters remain raw; no numeric field in the selected record was changed.",
+    "normalization": "Only path substitutions and this explanatory metadata were added; reverse substitution equals selected raw JSON."
+  }
+}
