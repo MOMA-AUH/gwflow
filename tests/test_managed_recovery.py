@@ -8,6 +8,8 @@ import subprocess
 import sys
 import shlex
 
+from record_fixtures import record_path, remove_record
+
 from support import FIXTURES, GWFLOW
 import test_managed
 
@@ -236,13 +238,7 @@ class ManagedCoordinationTests(LocalBackendTestCase):
         self.run_complete()
         # Intent deletion is an explicit persistence fault, not a way to
         # inspect ordinary lifecycle behavior.
-        for path in (self.work / ".gwf/gwflow").rglob("*-intent.json"):
-            value = json.loads(path.read_text())
-            if "__write__" in value.get("submission", ""):
-                path.unlink()
-                break
-        else:
-            self.fail("No computation intent was available for fault injection")
+        remove_record(record_path(self.work, "sample", "submissions/*/write-intent.json"))
         self.assertIn("unresolved submission", self.cli("run", success=False))
         self.assertEqual((self.work / "results/sample/report.txt").read_text(), "hello")
 

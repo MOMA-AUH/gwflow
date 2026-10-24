@@ -7,6 +7,8 @@ import shlex
 import shutil
 import tempfile
 
+from record_fixtures import record_path
+
 from support import TASK_FACTORY, FIXTURES, LocalBackendTestCase
 import test_managed
 import test_managed_recovery
@@ -94,7 +96,7 @@ class StoragePlacementTests(LocalBackendTestCase):
             return value
         for path in root.rglob("*.json"):
             path.write_text(json.dumps(legacy(json.loads(path.read_text()))))
-        attempt = next(root.glob("owners/*/tasks/a/attempts/*/attempt.json")).parent.name
+        attempt = record_path(self.work, "a", "attempt.json").parent.name
         before = self.storage_snapshot()
         for command in (("status", "--details"), ("run", "--dry-run"), ("run",),
                         ("run", "--force"), ("clean", "--delete"),

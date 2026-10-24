@@ -1,5 +1,8 @@
 # Validation
 
+The [automatic compaction acceptance record](automatic-compaction/README.md) covers
+installed workers, recovery, concurrent writes, and the retained metadata bound.
+
 Run checks for the current checkout using the procedures below. The feature
 directories preserve historical acceptance evidence, including tested versions,
 source identifiers, commands, outcomes, and deployment limits. Their results

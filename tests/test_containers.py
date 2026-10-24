@@ -10,6 +10,8 @@ from unittest.mock import patch
 from gwf.exceptions import WorkflowError
 from gwflow import Task
 
+from record_fixtures import read_record, record_path, write_record
+
 from support import TASK_FACTORY, FIXTURES, LocalBackendTestCase
 import test_managed
 import test_managed_recovery
@@ -344,10 +346,10 @@ class ContainerRuntimeTests(LocalBackendTestCase):
 
     def test_attempt_without_image_binding_is_rejected_without_deletion(self):
         self.run_complete()
-        record = next((self.work / ".gwf/gwflow").glob("owners/*/tasks/sample/attempts/*/attempt.json"))
-        contents = json.loads(record.read_text())
+        record = record_path(self.work, "sample", "attempt.json")
+        contents = read_record(record)
         del contents["structure"]["targets"]["compute"]["image"]
-        record.write_text(json.dumps(contents))
+        write_record(record, contents)
         before = self.snapshot()
         self.assertIn("unsupported managed attempt", self.cli("run", success=False))
         self.assertEqual(self.snapshot(), before)
