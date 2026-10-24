@@ -8,7 +8,7 @@ import subprocess
 import sys
 import shlex
 
-from record_fixtures import record_path, remove_record
+from record_fixtures import record_path, read_record, write_record, remove_record
 
 from support import FIXTURES, GWFLOW
 import test_managed
@@ -287,16 +287,10 @@ class ManagedCoordinationTests(LocalBackendTestCase):
 
     def test_unreadable_archive_cannot_make_an_admission_look_unsubmitted(self):
         self.run_complete()
-        paths = []
-        for path in (self.work / ".gwf/gwflow").rglob("*.json"):
-            record = json.loads(path.read_text())
-            if record.get("kind") == "gwflow.submission-intent" and "__write__" in record.get("submission", ""):
-                paths.append(path)
-        self.assertEqual(len(paths), 2)
-        for path in paths:
-            if path.name.endswith("-intent.json"):
-                path.unlink()
-            else:
-                path.write_text("{truncated")
+        selected = record_path(self.work, "sample", "submissions/*/write-intent.json")
+        intent = read_record(selected)
+        archive = selected.parents[2] / "admissions" / intent["admission"] / "intent.json"
+        remove_record(selected)
+        write_record(archive, {})
         self.assertIn("unresolved submission", self.cli("run", success=False))
         self.assertEqual((self.work / "results/sample/report.txt").read_text(), "hello")
