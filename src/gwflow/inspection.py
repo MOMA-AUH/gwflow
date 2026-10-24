@@ -13,6 +13,8 @@ def condition(task):
         return "reusable work-present" if task.work_present else "reusable work-cleaned"
     if task.action == "repair":
         return "repair-needed"
+    if task.action == "compact":
+        return "record compaction unfinished"
     if task.action == "transfer":
         return "results transfer"
     if task.action == "deferred":

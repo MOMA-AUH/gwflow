@@ -86,7 +86,7 @@ def submit_plan(plan, workflow, ctx, *, dry_run, outcomes, progress):
                 plan.store.recreate_root(key)
     selected = []
     for task in plan.tasks:
-        if task.action in ("fresh", "initialize", "prepare", "continue", "retry", "transfer", "repair"):
+        if task.action in ("fresh", "initialize", "prepare", "continue", "retry", "transfer", "repair", "compact"):
             attempt = task.attempt
             if task.action == "fresh":
                 attempt = plan.store.initialize(task, workflow._result_dirs[task.name],
@@ -111,6 +111,14 @@ def submit_plan(plan, workflow, ctx, *, dry_run, outcomes, progress):
                 if task.action == "repair":
                     observed = admission.observe(plan.store, attempt, backend, ctx.backend)
                 submitted[task.name] = observed
+                if task.action == "compact":
+                    observed = admission.observe(plan.store, attempt, backend, ctx.backend)
+                    if any(item.state in ("active", "uncertain") for item in observed.values()):
+                        raise WorkflowError(f"Task {task.name}: active or unresolved submission prevents compaction retry")
+                    if (plan.store.current(task.name, attempt["result_dir"]) != attempt
+                            or not plan.store.completed(attempt)):
+                        raise WorkflowError(f"Task {task.name}: Completion changed before compaction retry; run again")
+                    submitted[task.name] = observed
                 if task.retry:
                     observed = admission.observe(plan.store, attempt, backend, ctx.backend)
                     if any(item.state == "uncertain" for item in observed.values()):
@@ -135,6 +143,9 @@ def submit_plan(plan, workflow, ctx, *, dry_run, outcomes, progress):
                                 previous = submitted[name].get("gwflow_complete")
                                 if previous is None or previous.state in ("pending", "uncertain", "failed", "cancelled"):
                                     raise WorkflowError(f"Producer {name} has no available Completion submission")
+                                if previous.state == "complete" and not plan.store.execution_ready(
+                                        plan.store.producer_attempt(attempt, name)):
+                                    raise WorkflowError(f"Producer {name} lacks checked Completion or required record compaction")
                                 if previous.state != "complete":
                                     if previous.job_id is None:
                                         raise WorkflowError(f"Unresolved producer Completion submission: {previous.submission}")

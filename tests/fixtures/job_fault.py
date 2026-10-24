@@ -59,6 +59,8 @@ def replace(source, destination, **kwargs):
         fd = os.open(source, os.O_RDONLY, dir_fd=kwargs.get("src_dir_fd"))
         with os.fdopen(fd) as stream:
             phase = json.load(stream)["phase"]
+        if options.get("compaction_fault") == "error-before-" + phase:
+            raise OSError(errno.ENOSPC, "injected compaction publication full")
         if options.get("compaction_fault") == "before-" + phase:
             os._exit(110)
     if destination == "success.json" and options.get("crash_before_success"):
@@ -116,6 +118,9 @@ def copyfileobj(source, destination, *args, **kwargs):
 
 def unlink(path, **kwargs):
     parent = Path(os.readlink(f"/proc/self/fd/{kwargs['dir_fd']}")) if "dir_fd" in kwargs else None
+    if (options.get("compaction_fault") == "error-during-deletion" and parent is not None
+            and "attempts" in parent.parts and not str(path).startswith(".pending-")):
+        raise OSError(errno.EIO, "injected compaction deletion failure")
     result = original_unlink(path, **kwargs)
     if (options.get("compaction_fault") == "during-deletion" and parent is not None
             and "attempts" in parent.parts and not str(path).startswith(".pending-")):
@@ -167,20 +172,16 @@ def published_record(frame, event, arg):
 if options.get("gate_after_baseline") or options.get("gate_after_manifest"):
     sys.setprofile(published_record)
 if options.get("compact_completion"):
-    # Test-only activation at the existing completion-outcome boundary. Runtime
-    # activation remains a separate ticket; production uses the same primitive.
-    from gwflow import admission
-    from gwflow.lifecycle import Store
-    original_publish = Store.publish
+    # Private staged activation: workers honor only explicitly recorded
+    # obligations until automatic activation is delivered separately.
+    from gwflow import transfer
+    original_finish = transfer.finish
 
-    def publish_with_compaction(store, attempt, filename, kind, **fields):
-        if kind == "job-outcome" and fields.get("state") == "complete":
-            intent = admission.read_intent(store, attempt, "gwflow_complete")
-            store.compact(attempt, intent)
-            return
-        return original_publish(store, attempt, filename, kind, **fields)
+    def finish_with_compaction(store, attempt):
+        store.require_compaction(attempt)
+        return original_finish(store, attempt)
 
-    Store.publish = publish_with_compaction
+    transfer.finish = finish_with_compaction
 # The backend passes the original interpreter's '-m gwflow.execution' arguments.
 sys.argv = [sys.argv[3], *sys.argv[4:]]
 runpy.run_module("gwflow.execution", run_name="__main__")
