@@ -3,6 +3,9 @@
 The [automatic compaction acceptance record](automatic-compaction/README.md) covers
 installed workers, recovery, concurrent writes, and the retained metadata bound.
 
+The [compaction scale and live Slurm record](compaction-scale/README.md) covers
+metadata counts, planning I/O, cache behavior, and the shared-filesystem journey.
+
 Run checks for the current checkout using the procedures below. The feature
 directories preserve historical acceptance evidence, including tested versions,
 source identifiers, commands, outcomes, and deployment limits. Their results

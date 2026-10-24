@@ -350,3 +350,41 @@ class AttemptRecordTests(unittest.TestCase):
             with self.assertRaises(WorkflowError):
                 records.initialize()
         self.assertEqual(sorted(path.name for path in root.iterdir()), ["sentinel"])
+
+
+class ConsolidatedObservationScaleTests(unittest.TestCase):
+    def test_large_documents_are_decoded_once_and_cache_evicts_and_refreshes(self):
+        from fixtures.planning_probe import Probe
+
+        with tempfile.TemporaryDirectory() as temporary:
+            task = Path(temporary) / 'task'
+            attempts = []
+            # Storage-only fixtures isolate decoding from worker and scheduler
+            # costs. Installed scale validation creates genuine lifecycle history.
+            for index in range(12):
+                identity = {'owner': 'c' * 32, 'task': 'task', 'attempt': f'{index:032x}'}
+                records = AttemptRecords(task, identity)
+                records.initialize()
+                path = task / 'attempts' / identity['attempt'] / 'record-state.json'
+                state = json.loads(path.read_text())
+                state.update(phase='compacted', records={f'admissions/{n}/ack.json': {'job_id': n}
+                                                       for n in range(1024)})
+                path.write_text(json.dumps(state))
+                attempts.append((records, path))
+            probe = Probe()
+            with probe:
+                with _observations.planning_pass():
+                    for records, _ in attempts:
+                        for n in range(32):
+                            self.assertEqual(records.read(f'admissions/{n}/ack.json'), {'job_id': n})
+                    self.assertEqual(set(probe.document_decodes.values()), {1})
+                    first, path = attempts[0]
+                    self.assertEqual(first.read('admissions/0/ack.json'), {'job_id': 0})
+                    self.assertEqual(probe.document_decodes[str(path)], 2)
+                    first.publish('admissions/0/ack.json', {'job_id': 'late'})
+                    self.assertEqual(first.read('admissions/0/ack.json'), {'job_id': 'late'})
+                    self.assertEqual(probe.document_decodes[str(path)], 3)
+                with _observations.planning_pass():
+                    self.assertEqual(first.read('admissions/0/ack.json'), {'job_id': 'late'})
+                    self.assertEqual(probe.document_decodes[str(path)], 4)
+            self.assertLessEqual(probe.report()['peak_cached_documents'], 8)
