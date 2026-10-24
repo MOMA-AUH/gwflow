@@ -2,15 +2,16 @@
   "kind": "pre-1.0-bootstrap",
   "source": {
     "repository": "https://github.com/MOMA-AUH/gwflow.git",
-    "commit": "9d48baaff605df70ef80f552d5c4f34ecbf71885"
+    "commit": "8a380c2f1bbc1fe127325f3dabe89667d572bb2a"
   },
   "package_version": "0.8.1",
   "includes": [
     "mandatory command tracking (#211)",
     "operator recovery (#212)",
-    "authoritative attempt record-state and persistent locks (#254)"
+    "authoritative attempt record-state and persistent locks (#254)",
+    "mandatory completion compaction and operation obligations (#259)"
   ],
   "release_baseline_artifact": null,
-  "scope": "A reproducible source baseline for the current pre-1.0 record format. Issue #254 introduces mandatory record-state documents and excludes legacy-format fallback. This source baseline keeps the compatibility journeys active for the new format. It is not a released artifact or the future v1.0.0 stable baseline.",
+  "scope": "A reproducible source baseline for the current pre-1.0 record format. Issue #259 requires compaction obligations and automatic completion compaction, without legacy-format fallback. This source baseline keeps every compatibility journey active for the new format. It is not a released artifact or the future v1.0.0 stable baseline.",
   "release_requirement": "v0.8.0 preparation and publication must record the exact tested and published artifacts without establishing a stable compatibility baseline. Future v1.0.0 preparation and publication must identify its immutable artifact and checksum, then validate later 1.x candidates against that installed baseline. No future 1.x release exists at bootstrap time."
 }

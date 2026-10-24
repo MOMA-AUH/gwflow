@@ -12,6 +12,8 @@ from gwf.backends.local import Client, LocalStatus
 from gwf.exceptions import WorkflowError
 from gwflow import Task, Workflow, task_template
 
+from record_fixtures import record_path, read_record, write_record
+
 from support import GWF, TASK_FACTORY, LocalBackendTestCase
 
 
@@ -190,15 +192,14 @@ class ManagedCliTests(LocalBackendTestCase):
 
     def test_malformed_transfer_evidence_cannot_establish_completion(self):
         self.run_complete()
-        manifest = next(p for p in (self.work / ".gwf/gwflow").rglob("*.json")
-                        if json.loads(p.read_text()).get("kind") == "gwflow.manifest")
-        original = manifest.read_bytes()
-        damaged = json.loads(original)
+        manifest = record_path(self.work, "sample", "operations/*/manifest.json")
+        original = read_record(manifest)
+        damaged = {**original}
         del damaged["sources"]
-        manifest.write_text(json.dumps(damaged))
+        write_record(manifest, damaged)
         self.assertIn("blocked", self.cli("run", "--dry-run", success=False))
         self.cli("run", success=False)
-        manifest.write_bytes(original)
+        write_record(manifest, original)
         self.assertNoSubmissions(self.cli("run"))
 
     def test_runtime_work_root_substitution_cannot_redirect_managed_commit(self):

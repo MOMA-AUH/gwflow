@@ -9,6 +9,8 @@ import shlex
 import shutil
 import unittest
 
+from record_fixtures import record_path, write_record
+
 from support import TASK_FACTORY, FIXTURES, LocalBackendTestCase
 import test_containers
 import test_container_graphs
@@ -209,8 +211,8 @@ class ContainerRecoveryTests(LocalBackendTestCase):
         self.assert_blocked_without_changes("Active consumers block replacement: consumer",
                                             backend=("-b", "recovery_fixture"),
                                             env=self.inject(running_prefix="consumer"))
-        manifest = next((self.work / ".gwf/gwflow").glob("owners/*/tasks/sample/attempts/*/**/manifest.json"))
-        manifest.write_text("{truncated")
+        manifest = record_path(self.work, "sample", "operations/*/manifest.json")
+        write_record(manifest, {})
         self.assert_blocked_without_changes("ownership")
         self.assertEqual(result.read_text(), "protected damaged result")
         self.assertEqual((self.work / "results/consumer/result.txt").read_text(), "leftright")

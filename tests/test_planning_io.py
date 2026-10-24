@@ -8,6 +8,8 @@ import subprocess
 import sys
 from uuid import uuid4
 
+from record_fixtures import record_path, read_record, write_record, remove_record
+
 from support import TASK_FACTORY, FIXTURES, LocalBackendTestCase
 import test_fresh
 
@@ -35,15 +37,15 @@ class PlanningObservationTests(LocalBackendTestCase):
             with self.subTest(command=command):
                 output, report = self.probe(*command)
                 self.assertEqual(output, self.cli_result(*command).stdout)
-                ack_reads = {path: count for path, count in report["paths"]["planning"].items()
-                             if path.startswith("read:") and path.endswith("/ack.json")}
-                self.assertEqual(len(ack_reads), 6 if command[-2:] == ("--force", "a") or command[-1:] == ("c",) else 9)
-                self.assertEqual(set(ack_reads.values()), {1}, ack_reads)
+                record_reads = {path: count for path, count in report["paths"]["planning"].items()
+                                if path.startswith("read:") and path.endswith("/record-state.json")}
+                self.assertEqual(len(record_reads), 3)
+                self.assertEqual(set(record_reads.values()), {1}, record_reads)
                 self.assertEqual(report["counts"]["backend"]["scheduler_requests"], 1)
 
     def new_admission(self):
-        selected = next((self.work / ".gwf/gwflow").glob("owners/*/tasks/c/attempts/*/submissions/*/compute-intent.json"))
-        original = json.loads(selected.read_text())
+        selected = record_path(self.work, "c", "submissions/*/compute-intent.json")
+        original = read_record(selected)
         changed = {**original, "admission": uuid4().hex}
         changed["submission"] = changed["job"] + "__" + changed["admission"]
         attempt = selected.parents[2]
@@ -58,7 +60,7 @@ class PlanningObservationTests(LocalBackendTestCase):
                                 cwd=self.work, capture_output=True, text=True, timeout=30)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         report = json.loads(result.stdout)
-        self.assertEqual(report["unreached_actions"], [])
+        self.assertEqual(report["unreached_actions"], [], report["results"])
         return report["results"]
 
     def test_changed_admission_during_inspection_protects_its_producer(self):
@@ -75,15 +77,15 @@ class PlanningObservationTests(LocalBackendTestCase):
 
     def test_new_selected_execution_preparation_and_operation_are_observed(self):
         self.run_complete()
-        attempt_path = next((self.work / ".gwf/gwflow").glob("owners/*/tasks/c/attempts/*/attempt.json"))
-        original = attempt_path.read_text()
+        attempt_path = record_path(self.work, "c", "attempt.json")
+        original = json.dumps(read_record(attempt_path))
         for local, field in (("compute", "execution"), ("gwflow_prepare", "preparation"),
                              ("gwflow_complete", "operation")):
             with self.subTest(local=local):
                 attempt = json.loads(original)
                 old_generation = attempt["jobs"][local].rsplit("__", 1)[1]
                 selected = attempt_path.parent / "submissions" / old_generation / (local + "-intent.json")
-                intent = json.loads(selected.read_text())
+                intent = read_record(selected)
                 ack = attempt_path.parent / "admissions" / intent["admission"] / "ack.json"
                 generation, token = uuid4().hex, uuid4().hex
                 if field == "execution":
@@ -96,12 +98,16 @@ class PlanningObservationTests(LocalBackendTestCase):
                 writes = {str(attempt_path): attempt,
                           str(attempt_path.parent / "submissions" / generation / selected.name): intent,
                           str(attempt_path.parent / "admissions" / token / "intent.json"): intent}
+                if field == "operation":
+                    obligation_path = attempt_path.parent / "operations" / old_generation / "compaction.json"
+                    writes[str(attempt_path.parent / "operations" / generation / "compaction.json")] = {
+                        **read_record(obligation_path), "operation": generation}
                 result, = self.scenario([["run", "--dry-run", "--force"]],
                                        [{"pass": 0, "after": str(ack), "write": writes}])
                 self.assertNotEqual(result["exit_code"], 0)
                 self.assertRegex(result["output"], r"Task a\s+Blocked\s+")
                 self.assertIn("active consumers", result["output"])
-                attempt_path.write_text(original)
+                write_record(attempt_path, json.loads(original))
 
     def test_submission_rechecks_observations_after_planning_on_the_same_store(self):
         self.run_complete()
@@ -116,7 +122,7 @@ class PlanningObservationTests(LocalBackendTestCase):
     def test_changed_acknowledgement_with_the_same_admission_blocks_submission(self):
         self.run_complete()
         _, _, _, ack = self.new_admission()
-        changed = json.loads(Path(ack).read_text())
+        changed = read_record(Path(ack))
         changed["job_id"] = "different-scheduler-job"
         run, status = self.scenario([["run", "--force", "a"], ["status", "c"]],
                                    [{"pass": 0, "after": "planned", "write": {ack: changed}}])
@@ -139,7 +145,7 @@ class PlanningObservationTests(LocalBackendTestCase):
                 self.assertEqual(second["exit_code"], 0)
                 self.assertRegex(second["output"], r"(?m)^c\s+blocked")
                 self.assertIn("submission outcome unknown", second["output"])
-                selected.write_text(json.dumps(original))
+                write_record(selected, original)
 
 
 class ProducerEvidenceTests(LocalBackendTestCase):
@@ -212,15 +218,15 @@ class ProducerEvidenceTests(LocalBackendTestCase):
     def test_one_consumer_cannot_reuse_another_consumers_expected_attempt(self):
         self.configure_workflow(consumers=2)
         self.run_complete()
-        record = next((self.work / ".gwf/gwflow").glob("owners/*/tasks/sample1/attempts/*/attempt.json"))
-        attempt = json.loads(record.read_text())
+        record = record_path(self.work, "sample1", "attempt.json")
+        attempt = read_record(record)
         attempt["producers"]["reference"] = "0" * 32
-        record.write_text(json.dumps(attempt))
+        write_record(record, attempt)
         selected = record.parent / "submissions" / attempt["preparation"] / "gwflow_prepare-intent.json"
-        intent = json.loads(selected.read_text())
+        intent = read_record(selected)
         intent["producers"] = attempt["producers"]
-        selected.write_text(json.dumps(intent))
-        (record.parent / "admissions" / intent["admission"] / "intent.json").write_text(json.dumps(intent))
+        write_record(selected, intent)
+        write_record(record.parent / "admissions" / intent["admission"] / "intent.json", intent)
         output = self.cli("run", "--dry-run")
         self.assertRegex(output, r"Task sample0\s+Reuse\s+")
         self.assertRegex(output, r"Task sample1\s+Run\s+")
@@ -228,9 +234,9 @@ class ProducerEvidenceTests(LocalBackendTestCase):
 
     def test_missing_then_incompatible_completion_is_never_reused_and_next_pass_refreshes(self):
         self.run_complete()
-        completion = next((self.work / ".gwf/gwflow").glob("owners/*/tasks/sample0/attempts/*/operations/*/completion.json"))
-        original = json.loads(completion.read_text())
-        completion.unlink()
+        completion = record_path(self.work, "sample0", "operations/*/completion.json")
+        original = read_record(completion)
+        remove_record(completion)
         first, second = self.scenario([["run", "--dry-run"], ["run", "--dry-run"]], [
             {"pass": 0, "after": "missing:" + str(completion),
              "write": {str(completion): {**original, "attempt": "0" * 32}}},
@@ -260,10 +266,10 @@ class ProducerEvidenceTests(LocalBackendTestCase):
     def test_recorded_cycle_is_rejected_after_prior_producer_validation(self):
         self.run_complete()
         records = self.work / ".gwf/gwflow"
-        producer_path = next(records.glob("owners/*/tasks/reference/attempts/*/attempt.json"))
-        consumer_path = next(records.glob("owners/*/tasks/sample0/attempts/*/attempt.json"))
-        producer = json.loads(producer_path.read_text())
-        consumer = json.loads(consumer_path.read_text())
+        producer_path = record_path(self.work, "reference", "attempt.json")
+        consumer_path = record_path(self.work, "sample0", "attempt.json")
+        producer = read_record(producer_path)
+        consumer = read_record(consumer_path)
         dependency = {"task": "sample0", "output": "copy"}
         producer["structure"]["inputs"].append(dependency)
         producer["structure"]["targets"]["compute"]["inputs"].append(dependency)
@@ -272,13 +278,13 @@ class ProducerEvidenceTests(LocalBackendTestCase):
                       "commands": producer["commands"] if producer["command_tracking"] else None}
         producer["fingerprint"] = hashlib.sha256(json.dumps(definition, sort_keys=True).encode()).hexdigest()
         baseline_path = producer_path.parent / "inputs.json"
-        baseline = json.loads(baseline_path.read_text())
+        baseline = read_record(baseline_path)
         incoming = self.work / "results/sample0/copy.txt"
         info = incoming.stat()
         baseline["inputs"][str(incoming)] = {"resolved": str(incoming), "size": info.st_size, "mtime_ns": info.st_mtime_ns}
         baseline["producers"] = producer["producers"]
         intent_path = producer_path.parent / "submissions" / producer["preparation"] / "gwflow_prepare-intent.json"
-        intent = json.loads(intent_path.read_text())
+        intent = read_record(intent_path)
         intent["producers"] = producer["producers"]
         writes = {str(producer_path): producer, str(baseline_path): baseline, str(intent_path): intent,
                   str(producer_path.parent / "admissions" / intent["admission"] / "intent.json"): intent}

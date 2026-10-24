@@ -6,6 +6,8 @@ import re
 import shlex
 import shutil
 
+from record_fixtures import record_path, read_record, remove_record
+
 from support import FIXTURES, LocalBackendTestCase
 from terminal_session import rendered_lines
 import test_graphs
@@ -300,12 +302,9 @@ class CancellationTests(LocalBackendTestCase):
         index = self.cli("logs", "sample", "--details")
         submissions = dict(re.findall(r"(sample__\w+): complete; submission (\S+)", index))
         # A missing selected intent is a persistence fault, not a state lookup.
-        for path in (self.work / ".gwf/gwflow").rglob("*-intent.json"):
-            if json.loads(path.read_text())["submission"] == submissions["sample__left"]:
-                path.unlink()
-                break
-        else:
-            self.fail("No current left-job intent available for fault injection")
+        path = record_path(self.work, "sample", "submissions/*/left-intent.json")
+        self.assertEqual(read_record(path)["submission"], submissions["sample__left"])
+        remove_record(path)
         environment = self.inject(job_states={"sample": "RUNNING"}, record_cancellations=True,
                                   reject_cancel_prefix="sample__right", accept_cancel_only=True)
         before = self.snapshot()

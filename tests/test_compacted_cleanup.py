@@ -22,10 +22,10 @@ class CompactedCleanupTests(LocalBackendTestCase):
     settle = test_graphs.TaskGraphTests.settle
     inject = test_graphs.TaskGraphTests.inject
 
-    def compact(self):
+    def compacted_records(self):
         store = Store(self.work)
         attempt = store.recorded_current('sample')
-        store.compact(attempt, admission.read_intent(store, attempt, 'gwflow_complete'))
+        self.assertTrue(store.compaction_succeeded(attempt))
         root = next((self.work / '.gwf/gwflow').glob(
             f"owners/*/tasks/sample/attempts/{attempt['attempt']}"))
         return store, attempt, root
@@ -38,7 +38,7 @@ class CompactedCleanupTests(LocalBackendTestCase):
 
     def test_interrupted_intent_publication_leaves_no_metadata_after_retry(self):
         self.run_complete()
-        store, attempt, root = self.compact()
+        store, attempt, root = self.compacted_records()
         result = self.fault('compacted_cleanup_before_intent')
         self.assertEqual(result.returncode, 114, result.stdout + result.stderr)
         self.assertIsNone(store.cleanup_record(attempt))
@@ -50,7 +50,7 @@ class CompactedCleanupTests(LocalBackendTestCase):
 
     def test_removal_progress_and_uncertainty_survive_interruption(self):
         self.run_complete()
-        store, attempt, root = self.compact()
+        store, attempt, root = self.compacted_records()
         workspace = str(store.workspace(attempt))
         interrupted = self.fault('cleanup_after_workspace_remove')
         self.assertEqual(interrupted.returncode, 104, interrupted.stdout + interrupted.stderr)
@@ -78,7 +78,7 @@ class CompactedCleanupTests(LocalBackendTestCase):
         for index, phase in enumerate(phases):
             with self.subTest(phase=phase):
                 self.run_complete(*(['--force'] if index else []))
-                store, attempt, root = self.compact()
+                store, attempt, root = self.compacted_records()
                 before = json.loads((root / 'record-state.json').read_text())
                 lock = (root / 'records.lock').stat().st_ino
                 result = self.fault(phase)
@@ -105,6 +105,7 @@ class CompactedCleanupTests(LocalBackendTestCase):
         store = Store(self.work)
         attempt = store.recorded_current('sample')
         intent = admission.read_intent(store, attempt, 'gwflow_complete')
+        store.records(attempt).restore()
         with patch('os.rmdir', side_effect=OSError('interrupted conversion')):
             with self.assertRaisesRegex(WorkflowError, 'interrupted conversion'):
                 store.compact(attempt, intent)
@@ -123,7 +124,7 @@ class CompactedCleanupTests(LocalBackendTestCase):
 
     def test_activity_results_and_ownership_protections_survive_compaction(self):
         self.run_complete()
-        store, attempt, root = self.compact()
+        store, attempt, root = self.compacted_records()
         for options, reason, success in (
                 ({'job_states': {'sample__left': 'SUBMITTED'}}, 'active work', True),
                 ({'conflicting_tracking_prefix': 'sample__left'}, 'unresolved submission', False)):
@@ -153,7 +154,7 @@ class CompactedCleanupTests(LocalBackendTestCase):
         self.assertIn('Reuse', self.cli('run', '--dry-run'))
         history = self.cli('logs', 'sample', '--history', '--details')
         logs = self.cli('logs', 'sample__left', '--no-pager')
-        store, attempt, root = self.compact()
+        store, attempt, root = self.compacted_records()
         records = json.loads((root / 'record-state.json').read_text())['records']
         self.assertTrue(any(name.startswith('recoveries/') for name in records))
         self.cli('clean', '--delete', 'sample')
@@ -164,9 +165,9 @@ class CompactedCleanupTests(LocalBackendTestCase):
 
     def test_default_and_explicit_selection_keep_their_meaning(self):
         self.run_complete()
-        store, old, old_root = self.compact()
+        store, old, old_root = self.compacted_records()
         self.run_complete('--force')
-        store, current, current_root = self.compact()
+        store, current, current_root = self.compacted_records()
         self.assertIn('superseded attempt', self.cli('clean', 'sample'))
         self.cli('clean', '--delete', 'sample', 'sam*')
         self.assertTrue(store.workspace(old).exists())
@@ -195,7 +196,7 @@ class CompactedProducerCleanupTests(LocalBackendTestCase):
         self.assertGreater(len(store.records(attempt).names('operations')), 1)
         directories = store.staging_directories(attempt)
         self.assertGreater(len(directories), 2)
-        store.compact(attempt, admission.read_intent(store, attempt, 'gwflow_complete'))
+        self.assertTrue(store.compaction_succeeded(attempt))
         root = next((self.work / '.gwf/gwflow').glob(
             f"owners/*/tasks/a/attempts/{attempt['attempt']}"))
         history = self.cli('logs', 'a', '--history', '--details')

@@ -55,7 +55,7 @@ def link(source, destination, **kwargs):
 
 def replace(source, destination, **kwargs):
     phase = None
-    if destination == "record-state.json" and options.get("compact_completion"):
+    if destination == "record-state.json" and options.get("compaction_fault"):
         fd = os.open(source, os.O_RDONLY, dir_fd=kwargs.get("src_dir_fd"))
         with os.fdopen(fd) as stream:
             phase = json.load(stream)["phase"]
@@ -151,6 +151,16 @@ if options.get("device_offset"):
             return SimpleNamespace(**fields)
         return observe
     os.stat, os.fstat = shifted_stat(os.stat), shifted_stat(os.fstat)
+if options.get("gate_before_compaction"):
+    from gwflow.lifecycle import Store
+    original_compact = Store.compact
+
+    def gated_compact(store, attempt, intent):
+        gate(attempt["task"] + "-compaction")
+        return original_compact(store, attempt, intent)
+
+    Store.compact = gated_compact
+
 if options.get("gate_before_preparation"):
     gate("preparation")
 if "execution_path" in options:
@@ -171,17 +181,6 @@ def published_record(frame, event, arg):
 
 if options.get("gate_after_baseline") or options.get("gate_after_manifest"):
     sys.setprofile(published_record)
-if options.get("compact_completion"):
-    # Private staged activation: workers honor only explicitly recorded
-    # obligations until automatic activation is delivered separately.
-    from gwflow import transfer
-    original_finish = transfer.finish
-
-    def finish_with_compaction(store, attempt):
-        store.require_compaction(attempt)
-        return original_finish(store, attempt)
-
-    transfer.finish = finish_with_compaction
 # The backend passes the original interpreter's '-m gwflow.execution' arguments.
 sys.argv = [sys.argv[3], *sys.argv[4:]]
 runpy.run_module("gwflow.execution", run_name="__main__")

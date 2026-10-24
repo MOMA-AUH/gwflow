@@ -5,11 +5,12 @@ requires forward compatibility from the future v1.0.0 baseline for public
 workflows and valid managed work. The project remains under the pre-1.0 policy.
 These journeys test current behavior and prepare for the stable baseline.
 The [baseline descriptor](baseline.json) pins source that includes the mandatory
-record-state document and persistent attempt lock from issue #254.
+record-state document, persistent attempt lock, and mandatory automatic
+compaction obligations from issues #254 and #259.
 Its package metadata is `0.8.1`. The commit identifies the exact source.
 
-Issue #254 changes the stored format and excludes legacy-format fallback.
-The previous pre-1.0 source baseline lacks the required state documents.
+Issue #259 requires compaction for every operation and excludes legacy-format
+fallback. The previous pre-1.0 source baseline lacks the required obligations.
 The new baseline keeps all compatibility journeys enabled with the new format.
 Earlier validation records still describe the earlier source and remain unchanged.
 

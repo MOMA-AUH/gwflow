@@ -8,6 +8,8 @@ import shlex
 import shutil
 import unittest
 
+from record_fixtures import read_record, record_path, write_record
+
 from support import TASK_FACTORY, FIXTURES, LocalBackendTestCase
 import test_managed
 import test_managed_recovery
@@ -185,8 +187,8 @@ class ContainerGraphTests(LocalBackendTestCase):
     def test_image_change_cannot_remove_results_with_damaged_ownership(self):
         self.write_workflow()
         self.run_complete()
-        manifest = next((self.work / ".gwf/gwflow").glob("owners/*/tasks/producer/attempts/*/**/manifest.json"))
-        manifest.write_text("{truncated")
+        manifest = record_path(self.work, "producer", "operations/*/manifest.json")
+        write_record(manifest, {})
         self.change_image()
         self.assert_blocked_without_changes("ownership")
 
@@ -196,17 +198,17 @@ class ContainerGraphTests(LocalBackendTestCase):
         (self.work / "job-fault.json").write_text(json.dumps({"gate_before_preparation": True}))
         self.cli("-b", "recovery_fixture", "run", env=self.inject(job_fault="consumer__read"))
         self.wait_for(lambda: (self.work / "preparation-held").exists())
-        record = next((self.work / ".gwf/gwflow").glob("owners/*/tasks/producer/attempts/*/**/completion.json"))
-        saved = record.read_bytes()
-        wrong = json.loads(saved)
+        record = record_path(self.work, "producer", "operations/*/completion.json")
+        saved = read_record(record)
+        wrong = {**saved}
         wrong["attempt"] = "0" * 32
-        record.write_text(json.dumps(wrong))
+        write_record(record, wrong)
         (self.work / "preparation-release").touch()
         self.settle()
         self.assertNotIn("consumer", self.counts())
         self.assertIn("Expected producer producer", self.cli("logs", "consumer__read", "--stderr", "--no-pager"))
         self.assertEqual((self.work / "results/producer/result.txt").read_text(), "start:first:second")
-        record.write_bytes(saved)
+        write_record(record, saved)
         self.cli("run")
         self.settle()
         self.assertEqual((self.work / "results/consumer/result.txt").read_text(), "start:first:second")

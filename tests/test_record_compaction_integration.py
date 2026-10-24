@@ -23,7 +23,7 @@ class RecordCompactionIntegrationTests(LocalBackendTestCase):
     def scheduled_compaction(self, fault=None, **injection):
         shutil.copy(FIXTURES / 'job_fault.py', self.work)
         (self.work / 'job-fault.json').write_text(json.dumps(
-            dict(compact_completion=True, compaction_fault=fault)))
+            dict(compaction_fault=fault)))
         env = self.inject(job_fault='sample__gwflow_complete', **injection)
         self.cli('-b', 'recovery_fixture', 'run', env=env)
         return env
@@ -36,9 +36,7 @@ class RecordCompactionIntegrationTests(LocalBackendTestCase):
         return store, attempt, intent, root
 
     def test_real_completion_worker_compacts_before_late_frontend_acknowledgement(self):
-        shutil.copy(FIXTURES / 'job_fault.py', self.work)
-        (self.work / 'job-fault.json').write_text(json.dumps(dict(compact_completion=True)))
-        env = self.inject(job_fault='sample__gwflow_complete', hold_after_acceptance='sample__gwflow_complete')
+        env = self.inject(hold_after_acceptance='sample__gwflow_complete')
         submitter, output = self.launch('-b', 'recovery_fixture', 'run', env=env)
         self.wait_for(lambda: (self.work / 'acceptance-held').exists())
         try:
@@ -132,6 +130,7 @@ class RecordCompactionIntegrationTests(LocalBackendTestCase):
     def test_compaction_failure_diagnostic_survives_failure_to_record_it(self):
         self.run_complete()
         store, attempt, intent, root = self.records()
+        store.records(attempt).restore()
         with patch('os.rmdir', side_effect=OSError('directory removal unavailable')):
             with self.assertRaisesRegex(WorkflowError, 'directory removal'):
                 store.compact(attempt, intent)
@@ -161,4 +160,4 @@ class RecordCompactionIntegrationTests(LocalBackendTestCase):
         (self.work / 'results/sample/result.txt').write_text('changed')
         with self.assertRaisesRegex(WorkflowError, 'checked Completion'):
             store.compact(attempt, intent)
-        self.assertEqual(json.loads((root / 'record-state.json').read_text())['phase'], 'individual')
+        self.assertEqual(json.loads((root / 'record-state.json').read_text())['phase'], 'compacted')

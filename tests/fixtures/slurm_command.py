@@ -3,6 +3,7 @@
 import io
 import json
 import os
+import shlex
 from pathlib import Path
 import sys
 
@@ -16,6 +17,11 @@ port = int(os.environ["GWF_SLURM_FIXTURE_PORT"])
 if command == "sbatch":
     script = sys.stdin.read()
     target = deserialize(io.StringIO(script))
+    fault_job = os.environ.get("GWFLOW_TEST_SLURM_JOB_FAULT")
+    if fault_job and target.name.startswith(fault_job + "__"):
+        original = shlex.split(target.spec.removeprefix("exec "))
+        target.spec = "exec " + shlex.join([
+            sys.executable, str(work / "job_fault.py"), str(work), *original[1:]])
     dependencies = []
     for argument in sys.argv[1:]:
         if argument.startswith("--dependency=afterok:"):

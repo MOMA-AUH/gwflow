@@ -10,6 +10,8 @@ from unittest.mock import patch
 from gwf.exceptions import WorkflowError
 from gwflow import Task
 
+from record_fixtures import record_path, write_record
+
 from support import TASK_FACTORY, LocalBackendTestCase
 import test_containers
 import test_managed_recovery
@@ -201,8 +203,8 @@ class ContainerStagingTests(LocalBackendTestCase):
                     backend, env = ("-b", "recovery_fixture"), self.inject(queued_prefix="sample")
                     reason = "work blocks replacement"
                 else:
-                    manifest = next((self.work / ".gwf/gwflow").glob("owners/*/tasks/sample/attempts/*/**/manifest.json"))
-                    manifest.write_text("{truncated")
+                    manifest = record_path(self.work, "sample", "operations/*/manifest.json")
+                    write_record(manifest, {})
                     backend, env, reason = (), None, "ownership"
                 before = self.snapshot()
                 for arguments, success in ((("run", "--dry-run", "--details"), False), (("status", "--details"), True),

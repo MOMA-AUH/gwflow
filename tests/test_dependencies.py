@@ -5,6 +5,8 @@ import json
 import shlex
 import shutil
 
+from record_fixtures import read_record, record_path, write_record
+
 from support import TASK_FACTORY, FIXTURES, LocalBackendTestCase
 import test_managed
 import test_managed_recovery
@@ -125,17 +127,17 @@ class TaskDependencyTests(LocalBackendTestCase):
         (self.work / "job-fault.json").write_text(json.dumps({"gate_before_preparation": True}))
         self.cli("-b", "recovery_fixture", "run", env=self.inject(job_fault="c__" + job))
         self.wait_for(lambda: (self.work / "preparation-held").exists())
-        record = next((self.work / ".gwf/gwflow").glob("owners/*/tasks/a/attempts/*/**/completion.json"))
-        saved = record.read_bytes()
-        wrong = json.loads(saved)
+        record = record_path(self.work, "a", "operations/*/completion.json")
+        saved = read_record(record)
+        wrong = {**saved}
         wrong["attempt"] = "0" * 32
-        record.write_text(json.dumps(wrong))
+        write_record(record, wrong)
         (self.work / "preparation-release").touch()
         self.settle()
         self.assertNotIn("consumer", (self.work / "trace").read_text().splitlines())
         self.assertEqual((self.work / "retained data/first producer/nested/public.txt").read_text(), "data")
         self.assertIn("Expected producer a", self.cli("logs", "c__" + job, "--stderr", "--no-pager"))
-        record.write_bytes(saved)
+        write_record(record, saved)
         self.cli("run")
         self.settle()
         self.assertEqual((self.work / "retained data/c/result.txt").read_text(), "datadata")

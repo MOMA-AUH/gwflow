@@ -2,6 +2,8 @@
 
 import re
 
+from record_fixtures import restore_individual
+
 from support import LocalBackendTestCase
 import test_graphs
 import test_fresh
@@ -44,6 +46,7 @@ class TaskPresentationTests(LocalBackendTestCase):
 
     def test_damaged_record_keeps_paths_in_details_and_preserves_evidence(self):
         self.run_complete()
+        restore_individual(self.work, "sample")
         damaged = next((self.work / ".gwf/gwflow").rglob("completion.json"))
         damaged.unlink()
         damaged.mkdir()
@@ -59,10 +62,10 @@ class TaskPresentationTests(LocalBackendTestCase):
                 detailed = self.cli_result(*command, "--details", success=success).stdout
                 if command[0] == "status":
                     self.assertNotIn(str(damaged), detailed)
-                    self.assertRegex(detailed, r"(?m)^sample\s+blocked\s+5/5")
+                    self.assertRegex(detailed, r"(?m)^sample\s+blocked\s+4/5")
                 else:
                     self.assertIn(str(damaged), detailed)
-                    self.assertIn("State: blocked; Jobs completed: 5/5", detailed)
+                    self.assertIn("State: blocked; Jobs completed: 4/5", detailed)
                 self.assertEqual(self.snapshot(), before)
                 self.assertTrue(damaged.is_dir())
 

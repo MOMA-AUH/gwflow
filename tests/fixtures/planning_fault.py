@@ -9,6 +9,9 @@ import sys
 from click.testing import CliRunner
 from gwflow.cli import main
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from record_fixtures import write_record, remove_record
+
 
 scenario = json.loads(Path(sys.argv[1]).read_text())
 actions = scenario["actions"]
@@ -27,6 +30,9 @@ def fault(frame, event, arg):
         boundary = "image:" + str(frame.f_locals["path"])
     elif module == "gwflow._files" and name == "read_json" and arg is None:
         boundary = "missing:" + str(frame.f_locals["path"])
+    elif module == "gwflow._records" and frame.f_code.co_qualname == "AttemptRecords.read":
+        records = frame.f_locals["self"]
+        boundary = ("missing:" if arg is None else "") + str(records._root / frame.f_locals["name"])
     elif module == "gwflow._files" and name == "metadata" and arg:
         boundary = "metadata:" + str(Path(frame.f_locals["root"]) / next(iter(arg)))
     elif module == "json" and name == "load":
@@ -40,10 +46,17 @@ def fault(frame, event, arg):
         actions.remove(action)
         for path, value in action.get("write", {}).items():
             destination = Path(path)
-            destination.parent.mkdir(parents=True, exist_ok=True)
-            destination.write_text(json.dumps(value))
+            if any((root / "record-state.json").is_file() for root in destination.parents):
+                write_record(destination, value)
+            else:
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                destination.write_text(json.dumps(value))
         for path in action.get("remove", []):
-            Path(path).unlink()
+            destination = Path(path)
+            if any((root / "record-state.json").is_file() for root in destination.parents):
+                remove_record(destination)
+            else:
+                destination.unlink()
         for source, destination in action.get("rename", {}).items():
             Path(source).rename(destination)
         for path, target in action.get("symlink", {}).items():

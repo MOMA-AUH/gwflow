@@ -183,15 +183,13 @@ def success_evidence(store, attempt, local, intent):
     token = intent["admission"]
     if local == "gwflow_prepare":
         record = store.input_baseline(attempt)
-    elif local == "gwflow_complete":
-        record = store.read(attempt, "completion.json", "completion", operation=attempt["operation"])
     else:
         record = store.checked_target(attempt, local, check_files=False)
     return record is not None and record.get("admission") == token
 
 
 def succeeded(store, attempt, local, intent):
-    if local == "gwflow_complete" and store.compaction_required(attempt):
+    if local == "gwflow_complete":
         return store.compaction_succeeded(attempt, intent)
     outcome = store.read(attempt, f"admissions/{intent['admission']}/outcome.json", "job-outcome", **identity(intent))
     if outcome is not None and outcome.get("state") == "complete":
@@ -306,12 +304,10 @@ def _observe(store, attempt, backend, name, intents, *, tolerate_state_errors=Fa
                 # Archived diagnostics describe that operation's outcome, not its
                 # eligibility to satisfy the currently selected completion work.
                 operation = {**attempt, "operation": intent["operation"]}
-                if store.compaction_required(operation):
-                    checked = (outcome is not None and outcome.get("state") == "complete"
-                               and outcome.get("compaction") is True
-                               and outcome.get("operation") == intent["operation"])
-                else:
-                    checked = succeeded(store, operation, local, intent)
+                store.check_compaction_obligation(operation)
+                checked = (outcome is not None and outcome.get("state") == "complete"
+                           and outcome.get("compaction") is True
+                           and outcome.get("operation") == intent["operation"])
             else:
                 checked = succeeded(store, attempt, local, intent)
         # Preparation fallback can inspect producer paths, so it must happen

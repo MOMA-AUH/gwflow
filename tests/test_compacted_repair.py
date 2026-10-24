@@ -19,7 +19,10 @@ class CompactedRepairTests(LocalBackendTestCase):
     separate_filesystem = test_transfer.TransferRecoveryTests.separate_filesystem
 
     def complete_compacted(self, **faults):
-        self.cli('-b', 'recovery_fixture', 'run', env=self.fault(compact_completion=True, **faults))
+        if faults:
+            self.cli('-b', 'recovery_fixture', 'run', env=self.fault(**faults))
+        else:
+            self.cli('run')
         self.settle()
         store = Store(self.work)
         attempt = store.recorded_current('a')
@@ -142,7 +145,7 @@ class CompactedRepairTests(LocalBackendTestCase):
     # Reuse existing installed-command protection journeys with genuinely
     # compacted initial attempts and completion workers on every normal run.
     def run_complete(self, *args):
-        self.cli('-b', 'recovery_fixture', 'run', *args, env=self.fault(compact_completion=True))
+        self.cli('run', *args)
         self.settle()
         attempt = Store.for_job(self.work / '.gwf/gwflow/owner.json').recorded_current('a')
         root = next((self.work / '.gwf/gwflow').glob(f"owners/*/tasks/a/attempts/{attempt['attempt']}"))
