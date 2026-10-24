@@ -46,9 +46,17 @@ def fault(frame, event, arg):
         actions.remove(action)
         for path, value in action.get("write", {}).items():
             destination = Path(path)
-            write_record(destination, value)
+            if any((root / "record-state.json").is_file() for root in destination.parents):
+                write_record(destination, value)
+            else:
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                destination.write_text(json.dumps(value))
         for path in action.get("remove", []):
-            remove_record(Path(path))
+            destination = Path(path)
+            if any((root / "record-state.json").is_file() for root in destination.parents):
+                remove_record(destination)
+            else:
+                destination.unlink()
         for source, destination in action.get("rename", {}).items():
             Path(source).rename(destination)
         for path, target in action.get("symlink", {}).items():
