@@ -480,6 +480,7 @@ class Store:
         """Select a new finishing operation only after its repair intent is durable."""
         if self.current(attempt["task"], attempt["result_dir"]) != attempt:
             raise WorkflowError("Task selection changed before repair")
+        self.records(attempt).restore()
         previous, removal = attempt["operation"], self.result_removal(attempt)
         attempt = deepcopy(attempt)
         attempt["repair_from"] = previous

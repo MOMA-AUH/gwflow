@@ -287,6 +287,13 @@ class AttemptRecords:
             validate()
             compact(self, state, self._name(outcome_name), outcome)
 
+    def restore(self):
+        """Durably restore individual records before admitting Repair workers."""
+        from ._restoration import restore
+        with self.access(write=True) as state:
+            self._verify_access(state)
+            restore(self, state)
+
     def exists(self, name):
         """Presence is independent of whether loose evidence is readable."""
         name = self._name(name)
