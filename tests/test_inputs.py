@@ -4,6 +4,8 @@ import json
 import os
 import shutil
 
+from record_fixtures import read_record
+
 from support import TASK_FACTORY, FIXTURES, LocalBackendTestCase
 import test_managed
 import test_managed_recovery
@@ -120,7 +122,7 @@ class ExternalInputTests(LocalBackendTestCase):
         # above establishes its meaning, this check enforces immutability.
         baselines = [path for path, content in evidence.items() if json.loads(content).get("kind") == "gwflow.inputs"]
         self.assertEqual(len(baselines), 1)
-        self.assertEqual(baselines[0].read_bytes(), evidence[baselines[0]])
+        self.assertEqual(read_record(baselines[0]), json.loads(evidence[baselines[0]]))
 
     def test_size_and_backward_mtime_changes_are_detected_without_preview_writes(self):
         self.run_complete()

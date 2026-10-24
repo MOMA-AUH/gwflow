@@ -217,6 +217,26 @@ installation of the complete retained-output set. File existence, timestamps,
 or scheduler success alone are insufficient. The Completion record supports
 later Reuse after work cleanup. These checks do not certify scientific output
 correctness, and metadata observations are not content hashes or input snapshots.
+Every completion job also compacts its records automatically. Record compaction
+preserves the logical evidence in one document and removes redundant metadata.
+Success leaves at most two metadata files in one directory per attempt. Logs and
+work, result, and staging data are outside this bound.
+
+A compaction error fails the completion job and blocks dependent work, even when
+retained outputs and Completion evidence are valid. Status reports
+`record compaction unfinished`. After resolving the storage error, use
+`gwflow run --dry-run --details` to inspect the retry, then `gwflow run`.
+The retry preserves the attempt and valid computation. It does not recopy valid
+installed results. Changed inputs or outputs still follow normal recovery rules.
+There is no compaction flag or separate maintenance command.
+
+Work cleanup keeps records compacted and preserves results and history. Cleanup
+still gives up source work needed for later Repair. When sources remain valid,
+Repair restores individual metadata temporarily and compacts it again on success.
+Failed or interrupted Repair can leave individual records until retry succeeds.
+Compaction does not establish scheduler inactivity or override known failure or
+cancellation.
+
 The [glossary](../CONTEXT.md) and [lifecycle reference](reference.md#lifecycle-and-recovery)
 define these terms consistently.
 

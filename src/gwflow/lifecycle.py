@@ -480,7 +480,6 @@ class Store:
         """Select a new finishing operation only after its repair intent is durable."""
         if self.current(attempt["task"], attempt["result_dir"]) != attempt:
             raise WorkflowError("Task selection changed before repair")
-        compaction_required = self.compaction_required(attempt)
         self.records(attempt).restore()
         previous, removal = attempt["operation"], self.result_removal(attempt)
         attempt = deepcopy(attempt)
@@ -489,8 +488,7 @@ class Store:
         attempt["jobs"]["gwflow_complete"] = f"{attempt['task']}__gwflow_complete__{attempt['operation']}"
         self.publish(attempt, "repair.json", "repair", operation=attempt["operation"], previous=previous,
                      result_identity=removal, destination=str(self.result_dir(attempt)), sources=sources)
-        if compaction_required:
-            self.require_compaction(attempt)
+        self.publish(attempt, "compaction.json", "compaction", operation=attempt["operation"])
         self.records(attempt).publish("attempt.json", attempt)
         return attempt
 
@@ -776,29 +774,15 @@ class Store:
             return False
         return _files.metadata(self.result_dir(attempt), destinations) == completion["outputs"]
 
-    def require_compaction(self, attempt):
-        """Record an explicit operation obligation; automatic activation is separate."""
-        with self.records(attempt).access(write=True):
-            if not self.compaction_required(attempt):
-                self.publish(attempt, "compaction.json", "compaction", operation=attempt["operation"])
-
-    @_records.observing
-    def compaction_required(self, attempt):
-        def observe():
-            record = self.read(attempt, "compaction.json", "compaction", operation=attempt["operation"])
-            if record is None and self.exists(attempt, "compaction.json"):
-                raise WorkflowError("Malformed record compaction obligation")
-            return record is not None
-
-        # Every cooperating writer changes this revision. Reuse only within
-        # the bounded observation, including repeated checks of one producer.
-        key = (self, attempt["task"], attempt["attempt"], attempt["operation"], self.records(attempt).version())
-        return _observations.reuse("compaction-obligation", key, observe)
+    def check_compaction_obligation(self, attempt):
+        if self.read(attempt, "compaction.json", "compaction", operation=attempt["operation"]) is None:
+            raise WorkflowError("Missing or malformed record compaction obligation")
 
     def compaction_succeeded(self, attempt, intent=None):
         from . import admission
 
         with self.records(attempt).access() as state:
+            self.check_compaction_obligation(attempt)
             selected = admission.read_intent(self, attempt, "gwflow_complete")
             if selected is None or intent is not None and intent != selected:
                 return False
@@ -809,15 +793,10 @@ class Store:
 
     def execution_ready(self, attempt):
         """Checked results alone cannot satisfy unfinished completion work."""
-        return (self.completed(attempt)
-                and (not self.compaction_required(attempt) or self.compaction_succeeded(attempt)))
+        return self.completed(attempt) and self.compaction_succeeded(attempt)
 
     def compact(self, attempt, intent):
-        """Finish record conversion for one admitted, checked completion.
-
-        This internal entry point deliberately remains separate from worker
-        automatic activation; workers honor explicit operation obligations.
-        """
+        """Publish completion-job success only after required record conversion."""
         from . import admission
 
         def validate():
@@ -827,7 +806,7 @@ class Store:
                 raise WorkflowError("Current attempt, operation or completion admission changed before compaction")
             if not self._completion_records(attempt):
                 raise WorkflowError("Record compaction requires checked Completion")
-            self.require_compaction(attempt)
+            self.check_compaction_obligation(attempt)
 
         # Producer observations happen before the exclusive local lock.
         if not self.completed(attempt):
@@ -912,6 +891,7 @@ class Store:
         _files.mkdir(self.workspace(attempt))
         for local in ordered_targets(attempt["structure"]):
             self.write_execution(attempt, local, attempt["commands"][local], tracking=attempt["command_tracking"])
+        self.publish(attempt, "compaction.json", "compaction", operation=attempt["operation"])
         self.publish(attempt, "ready.json", "ready", workspace=str(self.workspace(attempt)),
                      workspace_identity=_files.identity(self.workspace(attempt)))
         return attempt

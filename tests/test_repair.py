@@ -5,6 +5,8 @@ import shutil
 import subprocess
 import sys
 
+from record_fixtures import record_path, write_record
+
 from support import FIXTURES, LocalBackendTestCase
 import test_transfer
 
@@ -92,8 +94,8 @@ class ResultsRepairTests(LocalBackendTestCase):
                 elif damage == "corrupt":
                     current.write_text("invalid source")
                 elif damage == "evidence":
-                    success = [path for path in (self.work / ".gwf/gwflow").rglob("success.json") if before.split()[-1] in str(path)][0]
-                    success.write_text('{}')
+                    success = record_path(self.work, "a", "executions/*/success.json")
+                    write_record(success, {})
                 else:
                     shutil.rmtree(self.work / "work")
                 preview = self.cli("run", "--dry-run")

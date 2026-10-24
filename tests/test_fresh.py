@@ -8,6 +8,8 @@ import shutil
 import subprocess
 import sys
 
+from record_fixtures import read_record, record_path, write_record
+
 from support import TASK_FACTORY, FIXTURES, LocalBackendTestCase
 import test_managed
 import test_managed_recovery
@@ -293,12 +295,12 @@ class FreshAttemptTests(LocalBackendTestCase):
 
     def test_unknown_result_ownership_blocks_all_requested_removal(self):
         self.run_complete()
-        manifest = next((self.work / ".gwf/gwflow").glob("owners/*/tasks/b/attempts/*/**/manifest.json"))
-        original = json.loads(manifest.read_text())
+        manifest = record_path(self.work, "b", "operations/*/manifest.json")
+        original = read_record(manifest)
         missing_metadata = {key: value for key, value in original.items() if key != "outputs"}
-        for contents in ("{truncated", json.dumps(missing_metadata)):
+        for contents in ({}, missing_metadata):
             with self.subTest(contents=contents):
-                manifest.write_text(contents)
+                write_record(manifest, contents)
                 self.assertIn("ownership", self.cli("run", "--force", success=False))
                 for name, expected in (("a", "a"), ("b", "b"), ("c", "a")):
                     self.assertEqual((self.work / "results" / name / "result.txt").read_text(), expected)

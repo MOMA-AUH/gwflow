@@ -7,6 +7,8 @@ import shlex
 import subprocess
 import sys
 
+from record_fixtures import record_path, read_record, write_record
+
 from support import FIXTURES, LocalBackendTestCase
 import test_cleanup
 import test_graphs
@@ -202,11 +204,10 @@ class ExplicitCleanupTests(LocalBackendTestCase):
     def test_missing_workspace_ownership_refuses_all_selected_deletion(self):
         self.run_complete()
         a, b = self.attempt("a"), self.attempt("b")
-        ready = next(path for path in (self.work / ".gwf/gwflow").rglob("ready.json")
-                     if json.loads(path.read_text())["attempt"] == b)
-        record = json.loads(ready.read_text())
+        ready = record_path(self.work, "b", "ready.json")
+        record = read_record(ready)
         del record["workspace_identity"]
-        ready.write_text(json.dumps(record))
+        write_record(ready, record)
         output = self.cli("clean", "--delete", "--attempt", a, "--attempt", b, success=False)
         self.assertIn("workspace ownership", output)
         for name, attempt in (("a", a), ("b", b)):
