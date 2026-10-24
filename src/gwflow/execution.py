@@ -104,13 +104,19 @@ def main():
         elif operation == "prepare":
             store.prepare(attempt)
         elif operation == "finish":
-            finish(store, attempt)
+            if not (store.compaction_required(attempt) and store.completed(attempt)):
+                finish(store, attempt)
         else:
             raise WorkflowError("Unknown managed job operation")
     except BaseException:
         store.publish(attempt, f"admissions/{token}/outcome.json", "job-outcome", **admission.identity(intent), state="failed")
         raise
-    store.publish(attempt, f"admissions/{token}/outcome.json", "job-outcome", **admission.identity(intent), state="complete")
+    if operation == "finish" and store.compaction_required(attempt):
+        # Compaction publishes success atomically with the final storage state,
+        # and preserves its own failure diagnostic if publication fails.
+        store.compact(attempt, intent)
+    else:
+        store.publish(attempt, f"admissions/{token}/outcome.json", "job-outcome", **admission.identity(intent), state="complete")
 
 
 if __name__ == "__main__":

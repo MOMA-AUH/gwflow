@@ -26,7 +26,7 @@ _GROUP_RECORDS = {
     'operations': {'staging.json': 'staging-directory', 'transfer.json': 'transfer',
                    'manifest.json': 'manifest', 'installed.json': 'installed',
                    'completion.json': 'completion', 'repair.json': 'repair',
-                   'installation.json': 'installation'},
+                   'installation.json': 'installation', 'compaction.json': 'compaction'},
     'executions': {'definition.json': 'execution', 'success.json': 'target-success'},
     'admissions': {'intent.json': 'submission-intent', 'ack.json': 'submission-ack',
                    'outcome.json': 'job-outcome', 'rejected.json': 'submission-rejected'},

@@ -191,6 +191,8 @@ def success_evidence(store, attempt, local, intent):
 
 
 def succeeded(store, attempt, local, intent):
+    if local == "gwflow_complete" and store.compaction_required(attempt):
+        return store.compaction_succeeded(attempt, intent)
     outcome = store.read(attempt, f"admissions/{intent['admission']}/outcome.json", "job-outcome", **identity(intent))
     if outcome is not None and outcome.get("state") == "complete":
         return True
@@ -299,7 +301,7 @@ def _observe(store, attempt, backend, name, intents, *, tolerate_state_errors=Fa
             rejection = store.read(attempt, f"admissions/{token}/rejected.json", "submission-rejected", **identity(intent))
             outcome = store.read(attempt, f"admissions/{token}/outcome.json", "job-outcome", **identity(intent))
         recovery = None
-        checked = (outcome is not None and outcome.get("state") == "complete") or succeeded(store, attempt, local, intent)
+        checked = succeeded(store, attempt, local, intent)
         target = Target(intent["submission"], [], [], {})
         tracked_id, state = None, BackendStatus.UNKNOWN
         same_backend = backend is not None and intent["backend"] == backend_identity(backend, name)
@@ -327,6 +329,8 @@ def _observe(store, attempt, backend, name, intents, *, tolerate_state_errors=Fa
             status = "uncertain"
         elif state in (BackendStatus.SUBMITTED, BackendStatus.RUNNING):
             status = "active"
+        elif local == "gwflow_complete" and state in (BackendStatus.FAILED, BackendStatus.CANCELLED):
+            status = "cancelled" if state == BackendStatus.CANCELLED else "failed"
         elif checked:
             status = "complete"
         elif rejection is not None:

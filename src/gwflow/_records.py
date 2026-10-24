@@ -28,7 +28,7 @@ _STATE = "record-state.json"
 _LOCK = "records.lock"
 _PHASES = {"individual", "consolidating", "compacted", "restoring"}
 _OPERATION_RECORDS = {"staging.json", "transfer.json", "manifest.json", "installed.json",
-                      "completion.json", "repair.json", "installation.json"}
+                      "completion.json", "repair.json", "installation.json", "compaction.json"}
 _current = ContextVar("gwflow_attempt_records", default=None)
 
 

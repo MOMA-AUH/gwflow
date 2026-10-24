@@ -158,6 +158,18 @@ def completed_observation(store, observation):
     except (WorkflowError, OSError):
         completed = False
     if completed:
+        finishing = observation.submissions["gwflow_complete"]
+        if (store.compaction_required(observation.attempt)
+                and (not store.compaction_succeeded(observation.attempt)
+                     or finishing.state in ("failed", "cancelled"))):
+            observation.action = "compact"
+            observation.reason = "record compaction unfinished; retry completion only with gwflow run"
+            observation.repeated_jobs.add("gwflow_complete")
+            observation.pending = ["gwflow_complete"]
+            return
+        if finishing.state in ("failed", "cancelled"):
+            recover_transfer(store, observation, observation.submissions)
+            return
         observation.action, observation.reason = "reuse", "checked completion and retained metadata match"
         return
     retained_changes = store.retained_changes(observation.attempt)
@@ -186,7 +198,7 @@ def completed_observation(store, observation):
 
 
 def awaiting_producer_metadata(store, observation):
-    if observation.action in ("blocked", "deferred", "repair", "transfer"):
+    if observation.action in ("blocked", "deferred", "repair", "transfer", "compact"):
         return True
     attempt = observation.attempt
     return (observation.action == "active" and store.repair_intent(attempt) is not None
@@ -295,7 +307,7 @@ def plan_workflow(workflow, ctx, *, selectors=(), force=False):
                             observation.pending = pending
                         elif active:
                             observation.action, observation.reason = "active", "queued/running work: " + ", ".join(active)
-                        elif store.completed(attempt):
+                        elif store.execution_ready(attempt):
                             observation.action, observation.reason = "reuse", "checked completion and retained metadata match"
                         else:
                             observation.action, observation.reason = "blocked", "incomplete attempt or damaged results; retry/recovery is not yet supported"

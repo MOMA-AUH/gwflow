@@ -480,6 +480,7 @@ class Store:
         """Select a new finishing operation only after its repair intent is durable."""
         if self.current(attempt["task"], attempt["result_dir"]) != attempt:
             raise WorkflowError("Task selection changed before repair")
+        compaction_required = self.compaction_required(attempt)
         self.records(attempt).restore()
         previous, removal = attempt["operation"], self.result_removal(attempt)
         attempt = deepcopy(attempt)
@@ -488,6 +489,8 @@ class Store:
         attempt["jobs"]["gwflow_complete"] = f"{attempt['task']}__gwflow_complete__{attempt['operation']}"
         self.publish(attempt, "repair.json", "repair", operation=attempt["operation"], previous=previous,
                      result_identity=removal, destination=str(self.result_dir(attempt)), sources=sources)
+        if compaction_required:
+            self.require_compaction(attempt)
         self.records(attempt).publish("attempt.json", attempt)
         return attempt
 
@@ -630,8 +633,8 @@ class Store:
         checking.add(attempt["task"])
         try:
             for name in attempt["producers"]:
-                if not self.completed(self.producer_attempt(attempt, name)):
-                    raise WorkflowError(f"Expected producer {name} attempt {attempt['producers'][name]} lacks checked Completion")
+                if not self.execution_ready(self.producer_attempt(attempt, name)):
+                    raise WorkflowError(f"Expected producer {name} attempt {attempt['producers'][name]} lacks checked Completion or required record compaction")
         finally:
             checking.remove(attempt["task"])
 
@@ -773,11 +776,40 @@ class Store:
             return False
         return _files.metadata(self.result_dir(attempt), destinations) == completion["outputs"]
 
+    def require_compaction(self, attempt):
+        """Record an explicit operation obligation; automatic activation is separate."""
+        with self.records(attempt).access(write=True):
+            if not self.compaction_required(attempt):
+                self.publish(attempt, "compaction.json", "compaction", operation=attempt["operation"])
+
+    def compaction_required(self, attempt):
+        record = self.read(attempt, "compaction.json", "compaction", operation=attempt["operation"])
+        if record is None and self.exists(attempt, "compaction.json"):
+            raise WorkflowError("Malformed record compaction obligation")
+        return record is not None
+
+    def compaction_succeeded(self, attempt, intent=None):
+        from . import admission
+
+        with self.records(attempt).access() as state:
+            selected = admission.read_intent(self, attempt, "gwflow_complete")
+            if selected is None or intent is not None and intent != selected:
+                return False
+            outcome = self.read(attempt, f"admissions/{selected['admission']}/outcome.json", "job-outcome",
+                                **admission.identity(selected), operation=attempt["operation"])
+            return (state.document["phase"] == "compacted" and outcome is not None
+                    and outcome.get("state") == "complete" and outcome.get("compaction") is True)
+
+    def execution_ready(self, attempt):
+        """Checked results alone cannot satisfy unfinished completion work."""
+        return (self.completed(attempt)
+                and (not self.compaction_required(attempt) or self.compaction_succeeded(attempt)))
+
     def compact(self, attempt, intent):
         """Finish record conversion for one admitted, checked completion.
 
         This internal entry point deliberately remains separate from worker
-        activation until planning, retry and Repair support compaction.
+        automatic activation; workers honor explicit operation obligations.
         """
         from . import admission
 
@@ -788,13 +820,14 @@ class Store:
                 raise WorkflowError("Current attempt, operation or completion admission changed before compaction")
             if not self._completion_records(attempt):
                 raise WorkflowError("Record compaction requires checked Completion")
+            self.require_compaction(attempt)
 
         # Producer observations happen before the exclusive local lock.
         if not self.completed(attempt):
             raise WorkflowError("Record compaction requires checked Completion")
         name = f"admissions/{intent['admission']}/outcome.json"
         fields = {**admission.identity(intent), "operation": attempt["operation"]}
-        outcome = _record("job-outcome", **self.identity(attempt), **fields, state="complete")
+        outcome = _record("job-outcome", **self.identity(attempt), **fields, state="complete", compaction=True)
         try:
             self.records(attempt).compact(name, outcome, validate=validate)
         except Exception as error:

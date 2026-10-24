@@ -30,7 +30,7 @@ ATTENTION = ("blocked", "failed", "canceled")
 DIAGNOSTIC_JOBS = ("failed", "canceled", "running", "queued")
 NEXT_ACTIONS = {
     "fresh": "Run", "initialize": "Run", "continue": "Continue",
-    "retry": "Retry", "prepare": "Retry", "transfer": "Finish", "repair": "Repair",
+    "retry": "Retry", "compact": "Finish", "prepare": "Retry", "transfer": "Finish", "repair": "Repair",
     "reuse": "Reuse", "active": "Wait", "deferred": "Defer", "blocked": "Blocked",
 }
 
@@ -169,6 +169,8 @@ def task_row(task):
         detail.append("work present" if task.work_present else "work cleaned")
     elif task.action == "repair":
         detail.append("retained results need repair")
+    elif task.action == "compact":
+        detail.append("record compaction unfinished; retry with gwflow run")
     elif task.action == "transfer":
         detail.append("results transfer needs recovery")
     if task.action == "deferred":
@@ -480,6 +482,8 @@ class Report:
                 detail = []
                 if state == "blocked":
                     detail.append(blocking_detail(row.task.reason))
+                if row.task.action == "compact":
+                    detail.append(row.task.reason)
                 detail.extend(job_diagnostics(jobs, state))
                 if unavailable:
                     detail.append("observations incomplete")

@@ -2,6 +2,7 @@
 
 import json
 import shutil
+import shlex
 from unittest.mock import patch
 
 from gwf.exceptions import WorkflowError
@@ -85,6 +86,48 @@ class RecordCompactionIntegrationTests(LocalBackendTestCase):
                 self.assertEqual(sorted(path.name for path in root.iterdir()), ['record-state.json', 'records.lock'])
                 # Scheduler failure remains visible even with checked outputs.
                 self.assertIn(intent['submission'], self.cli('logs', 'sample', '--history', '--details'))
+
+    def test_ordinary_run_retries_only_compaction_after_publication_failure(self):
+        for index, fault in enumerate(('before-consolidating', 'after-consolidating',
+                                       'during-deletion', 'before-compacted', 'after-compacted')):
+            with self.subTest(fault=fault):
+                self.configure_workflow(left_command=f'echo case{index} >> {shlex.quote(str(self.work / "trace"))}; printf left > same.txt')
+                (self.work / 'backend-acceptances.jsonl').unlink(missing_ok=True)
+                self.check_ordinary_retry(fault)
+
+    def check_ordinary_retry(self, fault):
+        self.scheduled_compaction(fault)
+        self.settle()
+        store, attempt, intent, root = self.records()
+        baseline = store.read(attempt, 'inputs.json', 'inputs')
+        completion = store.read(attempt, 'completion.json', 'completion')
+        result = self.work / 'results/sample/result.txt'
+        before = result.stat()
+        trace = (self.work / 'trace').read_text()
+        preview = self.cli('run', '--dry-run', '--details')
+        self.assertIn('compaction', preview.lower())
+        self.assertNotIn('Next action: Reuse', preview)
+        self.assertIn('compaction', self.cli('status', '--plain').lower())
+        env = self.inject(record_acceptances=True)
+        output = self.cli('-b', 'recovery_fixture', 'run', env=env)
+        self.assertIn('Submitted 1 job across 1 Task', output)
+        self.settle()
+        self.assertIn('Reuse', self.cli('run', '--dry-run'))
+        current = store.recorded_current('sample')
+        self.assertEqual(current, attempt)
+        self.assertEqual(store.read(current, 'inputs.json', 'inputs'), baseline)
+        self.assertEqual(store.read(current, 'completion.json', 'completion'), completion)
+        self.assertEqual((self.work / 'trace').read_text(), trace)
+        self.assertEqual((result.stat().st_ino, result.stat().st_mtime_ns),
+                         (before.st_ino, before.st_mtime_ns))
+        accepted = [json.loads(line) for line in (self.work / 'backend-acceptances.jsonl').read_text().splitlines()]
+        self.assertEqual(len(accepted), 1)
+        self.assertTrue(accepted[0]['name'].startswith('sample__gwflow_complete__'))
+        self.assertNotEqual(accepted[0]['name'], intent['submission'])
+        history = self.cli('logs', 'sample', '--history', '--details')
+        self.assertIn(intent['submission'], history)
+        self.assertIn(accepted[0]['name'], history)
+        self.assertEqual(sorted(path.name for path in root.iterdir()), ['record-state.json', 'records.lock'])
 
     def test_compaction_failure_diagnostic_survives_failure_to_record_it(self):
         self.run_complete()
