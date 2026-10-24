@@ -7,6 +7,7 @@ Run with an installed candidate. All workflows and raw probe reports stay below
 import argparse
 from collections import Counter
 import importlib.metadata
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -145,6 +146,31 @@ class ScaleCase(LocalBackendTestCase):
             reports[' '.join(arguments)] = {'command': command, **measured}
         self.evidence.setdefault('probes', {})[stage] = reports
 
+    def historical_records(self):
+        store = Store(self.work)
+        records = store.records(store.recorded_current('sample0'))
+        history = {}
+        def visit(namespace):
+            for child in records.names(namespace):
+                name = namespace + '/' + child
+                if name.endswith('.json'):
+                    history[name] = records.read(name)
+                else:
+                    visit(name)
+        with records.access():
+            for namespace in ('admissions', 'recoveries'):
+                visit(namespace)
+        return history
+
+    def assert_history(self, expected, stage):
+        actual = self.historical_records()
+        self.assertEqual({name: actual.get(name) for name in expected}, expected)
+        self.evidence.setdefault('history_preservation', []).append(dict(
+            stage=stage, records=len(expected),
+            recoveries=sum(name.startswith('recoveries/') for name in expected),
+            sha256=hashlib.sha256(json.dumps(expected, sort_keys=True).encode()).hexdigest(),
+            unchanged=True))
+
     def runTest(self):
         self.evidence = dict(targets_per_task=self.target_count, tasks=self.task_count,
                              retries=self.retries, recoveries=self.recoveries, snapshots=[])
@@ -158,9 +184,13 @@ class ScaleCase(LocalBackendTestCase):
                     self.cli('run')
                     self.settle()
                 (self.work / 'fail').unlink()
+            history = {}
             if self.retries or self.recoveries:
                 self.snapshot('before-success', compacted=False)
+                history = self.historical_records()
+                self.assertEqual(sum(name.startswith('recoveries/') for name in history), self.recoveries)
             self.run_complete()
+            self.assert_history(history, 'success')
             self.snapshot('success')
             self.measure('success')
             store = Store(self.work)
@@ -175,9 +205,11 @@ class ScaleCase(LocalBackendTestCase):
                 self.assertEqual(current['executions'], attempt['executions'])
                 self.assertEqual((self.work / 'trace').read_text(), trace)
                 self.snapshot(f'repair-{cycle + 1}')
+                self.assert_history(history, f'repair-{cycle + 1}')
             for cycle in range(2):
                 self.cli('clean', '--delete')
                 self.snapshot(f'cleanup-{cycle + 1}')
+                self.assert_history(history, f'cleanup-{cycle + 1}')
             self.assertIn('Reuse', self.cli('run', '--dry-run'))
             self.measure('after-cleanup')
         finally:

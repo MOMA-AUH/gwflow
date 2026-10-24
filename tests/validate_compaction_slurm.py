@@ -117,9 +117,13 @@ class Journey:
             self.wait(lambda: self.accounting().get(completion['job']) == 'FAILED')
             assert (self.work / 'results/sample/value.txt').read_text() == 'value\n'
             assert (self.work / 'trace').read_text().splitlines() == ['sample']
-            self.evidence['blocked_queue'] = self.command(['squeue', '--noheader', '-j', consumer['job'], '-o', '%i|%T|%r|%E'])
+            def dependency_blocked():
+                self.evidence['blocked_queue'] = self.command([
+                    'squeue', '--noheader', '-j', consumer['job'], '-o', '%i|%T|%r|%E'])
+                return (self.accounting().get(consumer['job']) == 'CANCELLED'
+                        or 'DependencyNeverSatisfied' in self.evidence['blocked_queue'])
+            self.wait(dependency_blocked)
             cancelled = self.accounting().get(consumer['job']) == 'CANCELLED'
-            assert cancelled or 'DependencyNeverSatisfied' in self.evidence['blocked_queue']
             self.evidence['worker_identity'] = json.loads((self.work / 'worker-identity.json').read_text())
             assert self.evidence['worker_identity']['inode'] == self.evidence['frontend_identity']['inode']
             store = Store(self.work)
