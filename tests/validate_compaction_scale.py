@@ -39,6 +39,8 @@ def footprint(work):
                 category = 'transient_conversion'
         elif parts[:2] == ('.gwf', 'logs'):
             category = 'logs_and_aliases'
+        elif parts[:3] == ('.gwf', 'gwflow', 'staging'):
+            category = 'staging_data'
         elif parts[0] in ('work', 'results'):
             category = 'data'
         elif parts[:2] == ('.gwf', 'gwflow') and 'tasks' in parts:
