@@ -9,7 +9,6 @@ from gwf.exceptions import WorkflowError
 from gwflow import _observations, admission
 from gwflow.lifecycle import Store
 
-from record_fixtures import consolidate
 from support import LocalBackendTestCase
 import test_graphs
 import test_managed_recovery
@@ -27,11 +26,12 @@ class ConsolidatedRecordTests(LocalBackendTestCase):
     launch = test_managed_recovery.ManagedCoordinationTests.launch
     terminal = test_interactive_status.InteractiveStatusTests.terminal
 
-    def compact_fixture(self, name="sample", *, remove=True, phase="compacted"):
+    def compact_fixture(self, name="sample"):
         store = Store(self.work)
         attempt = store.recorded_current(name)
         root = next((self.work / ".gwf/gwflow").glob(f"owners/*/tasks/{name}/attempts/{attempt['attempt']}"))
-        state = consolidate(store.records(attempt), root, remove=remove, phase=phase)
+        state = json.loads((root / "record-state.json").read_text())
+        self.assertEqual(state["phase"], "compacted")
         return store, attempt, root, state
 
     def test_inspection_logs_and_superseded_attempt_keep_exact_history(self):
@@ -66,14 +66,15 @@ class ConsolidatedRecordTests(LocalBackendTestCase):
     def test_recoveries_and_worker_outcomes_update_consolidated_records(self):
         self.interrupt_computation()
         self.cli("-b", "recovery_fixture", "recover", "sample", env=self.inject(job_states={"sample": "UNKNOWN"}))
-        _, _, root, state = self.compact_fixture(phase="restoring")
-        recoveries = {name: value for name, value in state["records"].items() if name.startswith("recoveries/")}
-        self.assertEqual(len(recoveries), 3)
         self.cli("run")
         self.settle()
+        _, _, root, state = self.compact_fixture()
+        recoveries = {name: value for name, value in state["records"].items() if name.startswith("recoveries/")}
+        self.assertEqual(len(recoveries), 3)
+        self.cli("clean", "--delete", "sample")
         self.assertIn("Reuse", self.cli("run", "--dry-run"))
         updated = json.loads((root / "record-state.json").read_text())
-        self.assertEqual(updated["phase"], "restoring")
+        self.assertEqual(updated["phase"], "compacted")
         self.assertEqual({name: updated["records"][name] for name in recoveries}, recoveries)
         self.assertGreater(len(updated["records"]), len(state["records"]))
         self.assertEqual(sorted(path.name for path in root.iterdir()), ["record-state.json", "records.lock"])
@@ -87,7 +88,9 @@ class ConsolidatedRecordTests(LocalBackendTestCase):
     def test_changed_loose_evidence_refreshes_completion_and_admissions_in_one_store(self):
         self.run_complete()
         store = Store(self.work)
-        self.assert_observation_refreshes(store, store.recorded_current("sample"))
+        attempt = store.recorded_current("sample")
+        store.records(attempt).restore()
+        self.assert_observation_refreshes(store, attempt)
 
     def assert_observation_refreshes(self, store, attempt):
         peer = Store(self.work)
@@ -105,7 +108,10 @@ class ConsolidatedRecordTests(LocalBackendTestCase):
 
     def test_malformed_or_missing_authority_never_uses_redundant_records(self):
         self.run_complete()
-        _, _, root, _ = self.compact_fixture(remove=False)
+        store, attempt, root, state = self.compact_fixture()
+        # Leave stale originals under a damaged authority to prove no fallback.
+        store.records(attempt).restore()
+        (root / "record-state.json").write_text(json.dumps(state))
         path = root / "record-state.json"
         original = path.read_bytes()
         for damaged in (b"{broken", None):

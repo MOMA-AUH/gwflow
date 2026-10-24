@@ -54,6 +54,11 @@ def replace(source, destination, **kwargs):
     if selected and destination == "cleanup.json" and phase == "cleanup_before_completion":
         if json.loads((parent / source).read_text()).get("state") == "removed":
             os._exit(105)
+    if selected and destination == "record-state.json" and phase in (
+            "cleanup_before_completion", "cleanup_before_remove", "gate_cleanup"):
+        cleanup = json.loads((parent / source).read_text()).get("records", {}).get("cleanup.json")
+        if cleanup and phase == "cleanup_before_completion" and cleanup["state"] == "removed":
+            os._exit(105)
     compacted_cleanup = None
     if selected and destination == "record-state.json" and phase.startswith("compacted_cleanup_"):
         compacted_cleanup = json.loads((parent / source).read_text()).get("records", {}).get("cleanup.json")
@@ -92,9 +97,12 @@ def replace(source, destination, **kwargs):
         job = json.loads((parent / destination).read_text())["job"]
         if f"__{phase.split(':', 1)[1]}__" in job:
             os._exit(111)
-    if selected and destination == "cleanup.json" and phase == "cleanup_before_remove":
+    cleanup_written = selected and (destination == "cleanup.json" or (
+        destination == "record-state.json" and phase in ("cleanup_before_remove", "gate_cleanup")
+        and json.loads((parent / destination).read_text()).get("records", {}).get("cleanup.json")))
+    if cleanup_written and phase == "cleanup_before_remove":
         os._exit(102)
-    if selected and destination == "cleanup.json" and phase == "gate_cleanup":
+    if cleanup_written and phase == "gate_cleanup":
         gate("cleanup")
     if selected and destination == "attempt.json" and phase == "after_repair_selection":
         os._exit(101)

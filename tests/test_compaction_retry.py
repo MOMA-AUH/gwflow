@@ -154,7 +154,7 @@ class CompactionRetryTests(LocalBackendTestCase):
         # A known failed scheduler result requires another completion submission,
         # even though the previous worker managed to publish its final document.
         (self.work / 'job-fault.json').write_text(json.dumps(dict(
-            compact_completion=True, compaction_fault='before-compacted')))
+            compaction_fault='before-compacted')))
         env = self.inject(job_fault='sample__gwflow_complete',
                           submission_states={successful['submission']: 'FAILED'})
         self.cli('-b', 'recovery_fixture', 'run', env=env)

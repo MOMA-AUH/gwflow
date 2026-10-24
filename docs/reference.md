@@ -468,7 +468,9 @@ The primary states are pending, queued, preparing, running, finishing, reusable,
 repairable, deferred, failed, canceled, and blocked. Blockage takes precedence
 over failure, then cancellation, then ongoing work. Diagnostics still include
 jobs running inside a failed, canceled, or blocked Task. Historical backend
-failures do not override valid Completion and Reuse.
+failures of superseded submissions do not override current successful completion.
+A known failure or cancellation of the selected completion submission requires
+a completion retry, even when retained outputs are valid.
 
 `--details` places each Task's preparation, computation, and completion jobs below
 its row. Child rows show job names and states. In a static report, this does not
@@ -1007,7 +1009,7 @@ copy from checked work; a fully prepared set can be installed directly. After
 installation, recovery checks the exact operation, directory ownership, complete
 file set, and separately recorded destination metadata before recording
 Completion. With this evidence intact, it can finish even after work removal.
-Consumers still wait for final Completion.
+Consumers wait for valid Completion and successful record compaction.
 
 When installed association or copied metadata is insufficient, recovery rebuilds
 the whole set from valid work only after checking inactivity and consumer
@@ -1017,6 +1019,25 @@ or a fresh attempt starts when the previous finishing state cannot be continued.
 Changed tracked inputs, commands, or structure also follow the fresh-attempt
 rules. `status` and dry-run identify transfer recovery without
 restarting copying or changing records. Unknown submissions remain protected.
+
+Every completion operation requires record compaction, including Repair and
+completion retries. The completion job first establishes valid Completion. It
+then consolidates all logical records, removes redundant files and empty metadata
+directories, and publishes success with the compacted state. Each successful
+attempt retains at most `record-state.json` and `records.lock` in its attempt
+directory. Shared workflow bookkeeping, logs, and data directories are counted
+separately. Failed submissions, operator recovery, exact submission names, and
+historical log references remain available after scheduler history expires.
+Late acknowledgements and cleanup update the compacted document directly.
+
+If compaction fails, the completion job exits nonzero and dependent jobs remain
+blocked. Valid retained outputs alone cannot authorize Reuse. Status and dry-run
+report `record compaction unfinished`; ordinary `gwflow run` retries only
+completion under the same attempt once activity and uncertainty checks permit it.
+The retry rechecks inputs, outputs, producers, and definitions. Valid computation
+and installed results are preserved. A known scheduler failure or cancellation
+still requires retry, even if the worker published compacted records before it
+stopped. Compaction is automatic, with no opt-out or maintenance command.
 
 Results and bookkeeping must survive work removal. An unchanged completed Task
 can be reused without its work. A subsequent fresh attempt recreates an absent

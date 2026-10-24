@@ -25,7 +25,7 @@ class CompactedCleanupTests(LocalBackendTestCase):
     def compact(self):
         store = Store(self.work)
         attempt = store.recorded_current('sample')
-        store.compact(attempt, admission.read_intent(store, attempt, 'gwflow_complete'))
+        self.assertTrue(store.compaction_succeeded(attempt))
         root = next((self.work / '.gwf/gwflow').glob(
             f"owners/*/tasks/sample/attempts/{attempt['attempt']}"))
         return store, attempt, root
@@ -105,6 +105,7 @@ class CompactedCleanupTests(LocalBackendTestCase):
         store = Store(self.work)
         attempt = store.recorded_current('sample')
         intent = admission.read_intent(store, attempt, 'gwflow_complete')
+        store.records(attempt).restore()
         with patch('os.rmdir', side_effect=OSError('interrupted conversion')):
             with self.assertRaisesRegex(WorkflowError, 'interrupted conversion'):
                 store.compact(attempt, intent)
@@ -195,7 +196,7 @@ class CompactedProducerCleanupTests(LocalBackendTestCase):
         self.assertGreater(len(store.records(attempt).names('operations')), 1)
         directories = store.staging_directories(attempt)
         self.assertGreater(len(directories), 2)
-        store.compact(attempt, admission.read_intent(store, attempt, 'gwflow_complete'))
+        self.assertTrue(store.compaction_succeeded(attempt))
         root = next((self.work / '.gwf/gwflow').glob(
             f"owners/*/tasks/a/attempts/{attempt['attempt']}"))
         history = self.cli('logs', 'a', '--history', '--details')

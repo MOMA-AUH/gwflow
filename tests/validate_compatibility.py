@@ -59,6 +59,18 @@ class InstalledCompatibilityTests(LocalBackendTestCase):
                      "stdout": result.stdout, "stderr": result.stderr})
         return result
 
+    def logical_records(self, kind):
+        records = {}
+        for path in (self.work / ".gwf/gwflow").rglob("record-state.json"):
+            state = json.loads(path.read_text())
+            collection = state["records"]
+            if state["phase"] == "individual":
+                collection = {str(record.relative_to(path.parent)): json.loads(record.read_text())
+                              for record in path.parent.rglob("*.json") if record != path}
+            records.update({str(path.parent.relative_to(self.work) / name): value
+                            for name, value in collection.items() if value.get("kind") == "gwflow." + kind})
+        return records
+
     def snapshot(self):
         return {str(path.relative_to(self.work)): {
             "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
@@ -87,7 +99,7 @@ class CompletedCompatibilityTests(InstalledCompatibilityTests):
         self.assertEqual(self.trace(), Counter({name: 1 for name in names}))
         self.assertFalse(list((self.work / "work/cleaned").iterdir()))
         self.assertTrue(list((self.work / "work/completed").iterdir()))
-        records = list((self.work / ".gwf/gwflow").rglob("recovery.json"))
+        records = self.logical_records("operator-recovery")
         self.assertEqual(len(records), 1)
         before = self.snapshot()
         identities = {str(path): {"device": path.stat().st_dev, "inode": path.stat().st_ino}
@@ -235,7 +247,7 @@ class PartialCompatibilityTests(IncompleteCompatibilityTests):
         attempts = self.task_attempts()
         output = self.cli("recover", "sample", env=self.inject(job_states={"sample": "UNKNOWN"}))
         self.assertEqual(output.count("Resolved submission"), 3, output)
-        records = {path: path.read_bytes() for path in (self.work / ".gwf/gwflow").rglob("recovery.json")}
+        records = self.logical_records("operator-recovery")
         self.assertEqual(len(records), 3)
         self.assertFalse((self.work / "results/sample").exists())
         self.handoff()
@@ -249,13 +261,13 @@ class PartialCompatibilityTests(IncompleteCompatibilityTests):
         self.cli("run", env=self.inject(reject_prefix="sample__right"), success=False)
         self.inject()
         self.assertIn("unresolved submission", self.cli("run", success=False))
-        self.assertEqual({path: path.read_bytes() for path in records}, records)
+        self.assertEqual({name: self.logical_records("operator-recovery")[name] for name in records}, records)
         output = self.cli("recover", "sample")
         self.assertEqual(output.count("Resolved submission"), 1, output)
-        self.assertEqual(len(list((self.work / ".gwf/gwflow").rglob("recovery.json"))), 4)
+        self.assertEqual(len(self.logical_records("operator-recovery")), 4)
         self.cli("run")
         self.finish()
-        self.assertEqual({path: path.read_bytes() for path in records}, records)
+        self.assertEqual({name: self.logical_records("operator-recovery")[name] for name in records}, records)
         self.assert_preserved(attempts, {"left": 1, "right": 1, "join": 1},
                               {self.work / "results/sample/result.txt": "leftright"})
         self.record({"preserved_recovery_records": len(records), "new_recovery_records": 1})
@@ -300,14 +312,13 @@ class PreparationCompatibilityTests(IncompleteCompatibilityTests):
         self.settle()
         attempts = self.task_attempts()
         self.assertFalse((self.work / "trace").exists())
-        inputs = {path: path.read_bytes() for path in (self.work / ".gwf/gwflow").rglob("*.json")
-                  if json.loads(path.read_text()).get("kind") == "gwflow.inputs"}
+        inputs = self.logical_records("inputs")
         self.assertEqual(len(inputs), 1 if phase == "crash_after_baseline" else 0)
         self.handoff()
         self.assertRegex(self.cli("run", "--dry-run"), r"Task sample\s+Retry\s+")
         self.cli("run")
         self.finish()
-        self.assertEqual({path: path.read_bytes() for path in inputs}, inputs)
+        self.assertEqual({name: self.logical_records("inputs")[name] for name in inputs}, inputs)
         self.assert_preserved(attempts, {"read": 1}, {self.work / "results/sample/result.txt": "hello\n",
                               self.work / "results/sample/alias.txt": str(self.work / "input.txt") + "\n"})
 
@@ -410,7 +421,11 @@ class FinishingCompatibilityTests(IncompleteCompatibilityTests):
         attempts = self.task_attempts()
         result = self.work / "results/samples/a/report"
         (result / "renamed.txt").unlink()
-        next((self.work / ".gwf/gwflow").rglob("success.json")).unlink()
+        state_path = next((self.work / ".gwf/gwflow").rglob("record-state.json"))
+        state = json.loads(state_path.read_text())
+        name = next(name for name in state["records"] if name.endswith("/success.json"))
+        del state["records"][name]
+        state_path.write_text(json.dumps(state))
         self.handoff()
         self.assertRegex(self.cli("run", "--dry-run"), r"Task a\s+Run\s+")
         self.cli("run")

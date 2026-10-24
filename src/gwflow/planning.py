@@ -159,16 +159,12 @@ def completed_observation(store, observation):
         completed = False
     if completed:
         finishing = observation.submissions["gwflow_complete"]
-        if (store.compaction_required(observation.attempt)
-                and (not store.compaction_succeeded(observation.attempt)
-                     or finishing.state in ("failed", "cancelled"))):
+        if (not store.compaction_succeeded(observation.attempt)
+                or finishing.state in ("failed", "cancelled")):
             observation.action = "compact"
             observation.reason = "record compaction unfinished; retry completion only with gwflow run"
             observation.repeated_jobs.add("gwflow_complete")
             observation.pending = ["gwflow_complete"]
-            return
-        if finishing.state in ("failed", "cancelled"):
-            recover_transfer(store, observation, observation.submissions)
             return
         observation.action, observation.reason = "reuse", "checked completion and retained metadata match"
         return

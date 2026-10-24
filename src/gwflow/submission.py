@@ -99,6 +99,10 @@ def submit_plan(plan, workflow, ctx, *, dry_run, outcomes, progress):
             elif task.action == "repair":
                 attempt = plan.store.start_repair(attempt, transfer.inspect_repair(plan.store, attempt).sources)
             selected.append((task, attempt))
+        elif task.action == "reuse" and any(item.reconcile for item in task.submissions.values()):
+            # A fast completion can finish before its frontend saves the ack.
+            # Reconcile it even when no further jobs need submission.
+            selected.append((task, task.attempt))
     if not selected:
         return
     submitted = {task.name: dict(task.submissions) for task in plan.tasks}
@@ -108,7 +112,7 @@ def submit_plan(plan, workflow, ctx, *, dry_run, outcomes, progress):
                 if admission.superseded_activity(plan.store, attempt, backend, ctx.backend):
                     raise WorkflowError(f"Task {task.name}: unresolved or active recovered submissions prevent submission")
                 observed = {} if task.action == "fresh" else dict(task.submissions)
-                if task.action == "repair":
+                if task.action in ("repair", "reuse"):
                     observed = admission.observe(plan.store, attempt, backend, ctx.backend)
                 submitted[task.name] = observed
                 if task.action == "compact":
