@@ -56,12 +56,12 @@ def replace(source, destination, **kwargs):
             os._exit(105)
     if selected and destination == "record-state.json" and phase in (
             "cleanup_before_completion", "cleanup_before_remove", "gate_cleanup"):
-        cleanup = json.loads((parent / source).read_text()).get("records", {}).get("cleanup.json")
+        cleanup = (json.loads((parent / source).read_text()).get("records") or {}).get("cleanup.json")
         if cleanup and phase == "cleanup_before_completion" and cleanup["state"] == "removed":
             os._exit(105)
     compacted_cleanup = None
     if selected and destination == "record-state.json" and phase.startswith("compacted_cleanup_"):
-        compacted_cleanup = json.loads((parent / source).read_text()).get("records", {}).get("cleanup.json")
+        compacted_cleanup = (json.loads((parent / source).read_text()).get("records") or {}).get("cleanup.json")
         if compacted_cleanup:
             boundary = "intent" if compacted_cleanup["state"] == "removing" else "outcome"
             if phase == "compacted_cleanup_error_before_" + boundary:
@@ -99,7 +99,7 @@ def replace(source, destination, **kwargs):
             os._exit(111)
     cleanup_written = selected and (destination == "cleanup.json" or (
         destination == "record-state.json" and phase in ("cleanup_before_remove", "gate_cleanup")
-        and json.loads((parent / destination).read_text()).get("records", {}).get("cleanup.json")))
+        and (json.loads((parent / destination).read_text()).get("records") or {}).get("cleanup.json")))
     if cleanup_written and phase == "cleanup_before_remove":
         os._exit(102)
     if cleanup_written and phase == "gate_cleanup":
