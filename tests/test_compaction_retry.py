@@ -206,3 +206,34 @@ class CompactionRetryTests(LocalBackendTestCase):
                 self.cli('run')
                 self.settle()
                 self.assertIn('Reuse', self.cli('run', '--dry-run'))
+
+    def test_successful_historical_completion_survives_repair_and_scheduler_expiry(self):
+        self.scheduled_compaction()
+        self.settle()
+        store, attempt, successful, root = self.records()
+        (self.work / 'results/sample/result.txt').unlink()
+        self.cli('run')
+        self.settle()
+        expected = f"sample__gwflow_complete: complete (historical); submission {successful['submission']}"
+        self.assertIn(expected, self.cli('logs', 'sample', '--history', '--details'))
+        env = self.inject(job_states={'sample': 'UNKNOWN'})
+        self.assertIn(expected, self.cli('-b', 'recovery_fixture', 'logs', 'sample', '--history', '--details', env=env))
+
+    def test_canceled_compaction_retry_remains_retryable_without_recomputing(self):
+        store, attempt, intent, root = self.failed_compaction()
+        (self.work / 'job-fault.json').write_text(json.dumps(dict(gate_before_preparation=True)))
+        self.cli('-b', 'recovery_fixture', 'run', env=self.inject(job_fault='sample__gwflow_complete'))
+        self.wait_for(lambda: (self.work / 'preparation-held').exists())
+        try:
+            self.assertIn('Wait', self.cli('run', '--dry-run'))
+            self.cli('cancel', 'sample')
+            self.settle()
+            self.assertIn('canceled', self.cli('status', 'sample', '--plain'))
+            self.assertIn('compaction', self.cli('run', '--dry-run'))
+        finally:
+            (self.work / 'preparation-release').touch()
+        self.cli('run')
+        self.settle()
+        self.assertEqual(store.recorded_current('sample'), attempt)
+        self.assertTrue(store.compaction_succeeded(attempt))
+        self.assertEqual(len((self.work / 'trace').read_text().splitlines()), 3)

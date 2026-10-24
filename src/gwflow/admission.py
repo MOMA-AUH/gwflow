@@ -240,7 +240,7 @@ def observe_submissions(store, attempt, backend, name, *, tolerate_state_errors=
         local = intent["job"].removeprefix(attempt["task"] + "__").rsplit("__", 1)[0]
         with observation_deadline() if tolerate_state_errors else nullcontext():
             observations.extend(_observe(store, attempt, backend, name, {local: intent},
-                                         tolerate_state_errors=tolerate_state_errors).values())
+                                         tolerate_state_errors=tolerate_state_errors, historical=True).values())
     return observations
 
 
@@ -289,7 +289,7 @@ def activity(store, attempt, backend, name):
     return current + superseded_activity(store, attempt, backend, name)
 
 
-def _observe(store, attempt, backend, name, intents, *, tolerate_state_errors=False):
+def _observe(store, attempt, backend, name, intents, *, tolerate_state_errors=False, historical=False):
     observations = {}
     for local, intent in intents.items():
         if intent is None:
@@ -301,7 +301,18 @@ def _observe(store, attempt, backend, name, intents, *, tolerate_state_errors=Fa
             rejection = store.read(attempt, f"admissions/{token}/rejected.json", "submission-rejected", **identity(intent))
             outcome = store.read(attempt, f"admissions/{token}/outcome.json", "job-outcome", **identity(intent))
         recovery = None
-        checked = succeeded(store, attempt, local, intent)
+        if historical and local == "gwflow_complete":
+            # Archived diagnostics describe that operation's outcome, not its
+            # eligibility to satisfy the currently selected completion work.
+            operation = {**attempt, "operation": intent["operation"]}
+            if store.compaction_required(operation):
+                checked = (outcome is not None and outcome.get("state") == "complete"
+                           and outcome.get("compaction") is True
+                           and outcome.get("operation") == intent["operation"])
+            else:
+                checked = succeeded(store, operation, local, intent)
+        else:
+            checked = succeeded(store, attempt, local, intent)
         target = Target(intent["submission"], [], [], {})
         tracked_id, state = None, BackendStatus.UNKNOWN
         same_backend = backend is not None and intent["backend"] == backend_identity(backend, name)
