@@ -3,6 +3,8 @@
 import re
 import shlex
 
+from record_fixtures import restore_individual
+
 from support import LocalBackendTestCase
 import test_run_selection
 import test_registry_images
@@ -39,14 +41,16 @@ class StatusScopeTests(LocalBackendTestCase):
     def test_blocker_preview_hints_preserve_workflow_context_and_selected_scope(self):
         self.cli("run", "c")
         self.finish()
-        damaged = self.work / "results/a/value.txt"
+        restore_individual(self.work, "a")
+        damaged = next(path for path in (self.work / ".gwf/gwflow").rglob("completion.json")
+                       if "a" in path.parts)
         damaged.unlink()
         damaged.mkdir()
         workflow = self.work / "workflow.py"
         workflow.write_text(workflow.read_text() + "pipeline = gwf\n")
         workflow.rename(self.work / "selected workflow.py")
-        environment = self.state_backend({})
-        options = ("--file", "selected workflow.py:pipeline", "--backend", "state_fixture",
+        environment = None
+        options = ("--file", "selected workflow.py:pipeline", "--backend", "local",
                    "--verbose", "warning")
         before = self.task_evidence("a", "b", "c", "d", "e")
         for selectors in (("c",), ("[bc]",)):
