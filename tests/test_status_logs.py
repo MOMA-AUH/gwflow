@@ -54,7 +54,7 @@ class StatusLogInteractionTests(LocalBackendTestCase, unittest.IsolatedAsyncioTe
         async with app.run_test(size=(100, 30)) as pilot:
             await self.shown(app, pilot, '5/5')
             inspected = app.snapshot['finished']
-            await pilot.press('down', 'down', 'down', 'l')
+            await pilot.press('down', 'down', 'l')
             await self.shown(app, pilot, 'Choose log stream', timeout=3)
             await pilot.press('enter')
             await self.shown(app, pilot, 'selected-stdout')

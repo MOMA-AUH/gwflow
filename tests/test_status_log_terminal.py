@@ -26,7 +26,7 @@ class StatusLogTerminalTests(LocalBackendTestCase):
                                 env=self.inject(record_status=True), size=(120, 40))
         session.wait_for('5/5')
         observations = (self.work / 'backend-observations.jsonl').read_bytes()
-        checkpoint = session.send('\x1b[B' * 3 + 'l')
+        checkpoint = session.send('\x1b[B' * 2 + 'l')
         session.wait_for('Choose log stream', after=checkpoint)
         checkpoint = session.send('\r')
         session.wait_for('TTYOUT', after=checkpoint)
@@ -64,7 +64,7 @@ class StatusLogTerminalTests(LocalBackendTestCase):
         for expected in ('Instance', 'Jobs completed:'):
             checkpoint = session.send('\r')
             session.wait_for(expected, after=checkpoint)
-        checkpoint = session.send('\x1b[B' * 2 + 'l')
+        checkpoint = session.send('\x1b[Bl')
         session.wait_for('Choose log stream', after=checkpoint)
         checkpoint = session.send('\r')
         session.wait_for('ORIGINAL_STREAM', after=checkpoint)
@@ -101,7 +101,7 @@ class StatusLogTerminalTests(LocalBackendTestCase):
             'GWFLOW_LOG_READ_STARTED': str(started),
         })
         session.wait_for('5/5')
-        checkpoint = session.send('\x1b[B' * 3 + 'l')
+        checkpoint = session.send('\x1b[B' * 2 + 'l')
         session.wait_for('Choose log stream', after=checkpoint)
         checkpoint = session.send('\r')
         session.wait_for('Reading log...', after=checkpoint)

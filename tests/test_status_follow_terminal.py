@@ -39,7 +39,7 @@ class StatusFollowTerminalTests(LocalBackendTestCase):
                                      'GWFLOW_LOG_READ_STARTED': str(started)}, size=(100, 30))
         session.wait_for('5/5')
         observed = (self.work / 'backend-observations.jsonl').read_bytes()
-        checkpoint = session.send('\x1b[B' * 3 + 'l')
+        checkpoint = session.send('\x1b[B' * 2 + 'l')
         session.wait_for('Choose log stream', after=checkpoint)
         checkpoint = session.send('\r')
         session.wait_for('FOLLOWLINE 0500', after=checkpoint)
@@ -101,7 +101,7 @@ class StatusFollowTerminalTests(LocalBackendTestCase):
         for expected in ('Instance', 'Jobs completed:'):
             checkpoint = session.send('\r')
             session.wait_for(expected, after=checkpoint)
-        checkpoint = session.send('\x1b[B' * 2 + 'l')
+        checkpoint = session.send('\x1b[Bl')
         session.wait_for('Choose log stream', after=checkpoint)
         checkpoint = session.send('\r')
         session.wait_for('ORIGINAL_FOLLOW_STREAM', after=checkpoint)
