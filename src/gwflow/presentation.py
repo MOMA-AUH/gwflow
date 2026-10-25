@@ -825,8 +825,13 @@ class Report:
             self.status_line(f"  {unattempted} planned job{'s' if unattempted != 1 else ''} not attempted")
             self.status_line("Already submitted jobs may continue; submission was not rolled back.")
         elif confirmed:
-            self.line(f"Submitted {jobs} job{'s' if jobs != 1 else ''} across {tasks} Task{'s' if tasks != 1 else ''}.",
-                      style="bold green")
+            summary = Text.assemble('Submitted ', (str(jobs), 'bold'),
+                                    f" job{'s' if jobs != 1 else ''} across ", (str(tasks), 'bold'),
+                                    f" Task{'s' if tasks != 1 else ''}.")
+            if self.plain:
+                self.line(summary.plain)
+            else:
+                self.console.print(Text.assemble(('✓', 'green'), ' ', summary))
         else:
             self.line("No new jobs were submitted.")
         receipts = outcomes if details else [outcome for outcome in outcomes
