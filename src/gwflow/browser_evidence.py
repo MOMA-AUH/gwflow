@@ -386,9 +386,10 @@ class LogView(PinnedView):
     def scroll_to_latest_display(self):
         pane = self.query_one('#log-pane')
         horizontal_position = pane.scroll_x
-        # Anchor only overflowing text: scrollbar layout can temporarily report
-        # overflow even for short content. Anchoring also resets the X position.
-        pane.anchor(self.query_one('#log-text').size.height > pane.scrollable_content_region.height)
+        # Wrapped content may still report its old height while layout settles.
+        # Keep its tail anchored through reflow. Unwrapped short text should not
+        # anchor on transient scrollbar overflow. Anchoring resets the X position.
+        pane.anchor(self.wrap or self.query_one('#log-text').size.height > pane.scrollable_content_region.height)
         pane.scroll_to(x=horizontal_position, animate=False, release_anchor=False)
         pane.scroll_end(animate=False, x_axis=False)
 
