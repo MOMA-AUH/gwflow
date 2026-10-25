@@ -104,7 +104,7 @@ def pending_submissions(attempt, jobs):
     return pending
 
 
-def fresh_observation(store, observation, reason):
+def fresh_observation(store, observation, reason, *, details=None):
     observation.restart_required = True
     active = [item.submission for item in observation.submissions.values() if item.state in ("active", "uncertain")]
     if active:
@@ -112,12 +112,14 @@ def fresh_observation(store, observation, reason):
     inputs.observe([value for value in observation.structure["inputs"] if isinstance(value, str)], store.locations)
     observation.removal = store.result_removal(observation.attempt) if observation.attempt else None
     observation.action, observation.reason = "fresh", reason + "; fresh attempt required"
+    observation.reason_details = [reason] if details is None else details
     if observation.removal is not None:
         observation.reason += f"; remove previous results at {store.result_dir(observation.attempt)} before submission"
     observation.pending = lifecycle_jobs(ordered_targets(observation.structure))
 
 
-def input_metadata_changes(store, attempt):
+def input_metadata_changes(store, observation):
+    attempt = observation.attempt
     if not store.exists(attempt, "inputs.json"):
         return []
     baseline = store.input_baseline(attempt)
@@ -131,6 +133,7 @@ def input_metadata_changes(store, attempt):
         fields = [f"{key}: {previous[key]!r} -> {value!r}" for key, value in metadata.items() if previous[key] != value]
         if fields:
             changes.append(f"{path} ({', '.join(fields)})")
+            observation.input_changes[path] = {"previous": previous, "current": metadata}
     return changes
 
 
@@ -173,12 +176,13 @@ def completed_observation(store, observation):
         # A discarded baseline can explain a change when still readable, but
         # cannot be required to start fresh after explicit cleanup.
         try:
-            changes = input_metadata_changes(store, observation.attempt)
+            changes = input_metadata_changes(store, observation)
         except (WorkflowError, OSError):
             changes = []
         reason = ("input metadata changed: " + "; ".join(changes) if changes else
                   "work marked for cleanup")
-        fresh_observation(store, observation, "; ".join([reason, *retained_changes]))
+        fresh_observation(store, observation, "; ".join([reason, *retained_changes]),
+                          details=retained_changes if changes else None)
         return
     try:
         repair = transfer.inspect_repair(store, observation.attempt)
@@ -273,8 +277,8 @@ def plan_workflow(workflow, ctx, *, selectors=(), force=False):
                             observation.action, observation.reason = "deferred", "producer results need recovery; a later invocation must replan input validity after restored metadata is available"
                         elif not active and store.cleanup_record(attempt) is not None:
                             completed_observation(store, observation)
-                        elif changes := input_metadata_changes(store, attempt):
-                            fresh_observation(store, observation, "input metadata changed: " + "; ".join(changes))
+                        elif changes := input_metadata_changes(store, observation):
+                            fresh_observation(store, observation, "input metadata changed: " + "; ".join(changes), details=[])
                         elif not active and store.read(attempt, "completion.json", "completion", operation=attempt["operation"]) is not None:
                             completed_observation(store, observation)
                         elif not active and store.repair_intent(attempt) is not None:

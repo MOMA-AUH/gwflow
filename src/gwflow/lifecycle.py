@@ -263,6 +263,8 @@ class TaskObservation:
     observations_available: bool = False
     restart_required: bool = False
     repeated_jobs: set[str] = field(default_factory=set)
+    input_changes: dict = field(default_factory=dict)
+    reason_details: list[str] | None = None
 
 
 class Store:

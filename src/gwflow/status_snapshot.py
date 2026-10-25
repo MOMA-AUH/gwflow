@@ -14,7 +14,7 @@ from gwf.core import pass_context
 from ._frontend import _submission_guard, load_workflow
 from .activity import observe_activity
 from .planning import plan_workflow
-from .presentation import NEXT_ACTIONS, Report, observed_job_state, selected_rows, task_groups, task_order
+from .presentation import NEXT_ACTIONS, Report, observed_job_state, plan_reason, selected_rows, task_groups, task_order
 from .status import status_selection
 
 
@@ -60,7 +60,12 @@ def capture_snapshot(ctx, destination, selectors):
                           "attempt": task.attempt['attempt'] if task.attempt else None,
                           "state": row.state, "completed": row.completed,
                           "total": row.total, "detail": row.detail, "jobs": jobs,
-                          "next_action": NEXT_ACTIONS[task.action], "reason": task.reason})
+                          "next_action": NEXT_ACTIONS[task.action], "reason": task.reason,
+                          "reason_summary": plan_reason(task), "input_changes": task.input_changes,
+                          "reason_details": task.reason_details if task.action == 'fresh' else [task.reason],
+                          "fresh_attempt_required": task.action == 'fresh',
+                          "previous_results": str(plan.store.result_dir(task.attempt))
+                          if task.restart_required and task.removal is not None else None})
         with redirect_stdout(io.StringIO()) as notices:
             Report(plan.store, plain=True).workflow_notices(task_order(workflow, plan), rows, include_reasons=True)
         snapshot = {
