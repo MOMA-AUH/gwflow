@@ -30,7 +30,7 @@ class InteractiveStatusTests(LocalBackendTestCase):
         session.wait_for('sample')
         self.assertIsNone(session.process.poll())
         self.assertIn(b'\x1b[?1049h', session.output)
-        self.assertRegex(session.output.decode(), r'\x1b\[(?:[0-9;]*;)?(?:3[0-7]|38);')
+        self.assertRegex(session.output, rb'\x1b\[(?:[0-9;]*;)?(?:3[0-7]|38);')
         session.send('q')
         self.assertEqual(session.finish(), 0, session.text)
         self.assertIn(b'\x1b[?1049l', session.output)
