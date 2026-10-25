@@ -25,7 +25,7 @@ from textual.widgets._collapsible import CollapsibleTitle
 from textual.widgets.option_list import Option
 
 from .diagnostics import error_message
-from .presentation import ACTIVE, STATES, _VISUALS, format_reason, progress_display
+from .presentation import ACTIVE, STATES, _VISUALS, progress_display
 
 
 def state_text(state):
@@ -564,6 +564,7 @@ class TaskView(BrowserView):
     DEFAULT_CSS = """
     TaskView .jobs-panel { min-height: 3; max-height: 50%; }
     TaskView .jobs-panel:focus-within { border: round $accent; }
+    TaskView.compact .reason-evidence { max-height: 5; }
     """
 
     def __init__(self, task, breadcrumb):
@@ -576,11 +577,11 @@ class TaskView(BrowserView):
             ("State:", "bold"), " ", state_text(task["state"]),
             ("\nJobs completed:", "bold"), " ", progress_display(task['completed'], task['total']),
             ("\nNext action:", "bold"), f" {task['next_action']}",
-            ("\nReason:", "bold"), f" {format_reason(task['reason'])}",
         )
 
     def compose(self) -> ComposeResult:
         from .browser_evidence import HistoryPanel
+        from .browser_reason import TaskReason
         task = self.observation
         yield self.heading()
         with VerticalScroll(id='task-notices', classes='notice-pane', can_focus=False) as notices:
@@ -590,6 +591,7 @@ class TaskView(BrowserView):
             with Vertical(classes="detail-panel") as panel:
                 panel.border_title = "Task"
                 yield Static(self.summary(), id='task-summary')
+                yield TaskReason(task, self.snapshot.get('storage'))
             columns = JobColumns(task['jobs'])
             jobs = self.listing([Option(JobPrompt(job, columns), id="job:" + job["name"]) for job in task['jobs']],
                                 columns, "Jobs", classes="jobs-panel", list_id='task-jobs')
@@ -631,9 +633,11 @@ class TaskView(BrowserView):
         self.history.reload()
 
     async def refresh_contents(self, navigation=None):
+        from .browser_reason import TaskReason
         navigation = self.capture_navigation() if navigation is None else navigation
         self.query_one('.breadcrumb', Static).update(Breadcrumb(self.breadcrumb))
         self.query_one('#task-summary', Static).update(self.summary())
+        await self.query_one(TaskReason).update_reason(self.observation, self.snapshot.get('storage'))
         notices = self.query_one('#task-notices')
         notices.display = bool(self.snapshot.get('notices'))
         notices.query_one(Static).update(Text(self.snapshot.get('notices', ''), style='yellow'))
