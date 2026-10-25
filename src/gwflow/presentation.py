@@ -122,7 +122,7 @@ def observed_job_state(task, local):
 
 def job_states(task):
     states = {}
-    for local in lifecycle_jobs(task.structure["targets"]):
+    for local in lifecycle_jobs(ordered_targets(task.structure)):
         state = observed_job_state(task, local)
         if task.restart_required and task.action != "reuse" and state not in {"queued", "running"}:
             state = "pending"

@@ -7,7 +7,7 @@ import xml.etree.ElementTree as ET
 
 from gwflow.browser import StatusBrowser
 from rich.cells import cell_len
-from support import LocalBackendTestCase
+from support import LocalBackendTestCase, TASK_FACTORY
 import test_graphs
 import test_grouped_status
 
@@ -45,6 +45,43 @@ class BrowserInteractionTests(LocalBackendTestCase, unittest.IsolatedAsyncioTest
                 return text
             await asyncio.sleep(0.05)
         self.fail(f'{expected!r} not visible:\n{text}')
+
+    async def test_jobs_follow_dependency_rounds_in_expanded_and_task_views(self):
+        names = ['z_prepare_data', 'a_analyze', 'm_report', 'a_branch', 'z_branch',
+                 'a_join', 'zz_disconnected']
+        dependencies = {'a_analyze': ['z_prepare_data'], 'm_report': ['a_analyze'],
+                        'a_join': ['a_branch', 'z_branch']}
+        expected = ['gwflow_prepare', 'a_branch', 'z_branch', 'z_prepare_data',
+                    'zz_disconnected', 'a_analyze', 'a_join', 'm_report', 'gwflow_complete']
+
+        def assert_order(text):
+            displayed = [word for line in text.splitlines() for word in line.split() if word in expected]
+            self.assertEqual(displayed, expected, text)
+
+        for declaration in (names, list(reversed(names))):
+            with self.subTest(declaration=declaration):
+                (self.work / 'workflow.py').write_text(
+                    TASK_FACTORY + 'from gwflow import Workflow\ngwf = Workflow()\n'
+                    'task = empty_task(inputs=[])\ntargets = {}\n' +
+                    ''.join(f"targets[{name!r}] = task.target({name!r}, inputs=[], outputs=['out.txt'])\n"
+                            f"targets[{name!r}] << 'printf done > out.txt'\n" for name in declaration) +
+                    ''.join(f"targets[{name!r}].inputs = [" +
+                            ', '.join(f"targets[{dependency!r}].output('out.txt')" for dependency in inputs) +
+                            ']\n' for name, inputs in dependencies.items()) +
+                    "gwf.task(task, alias='ordered')\n")
+                app = self.browser(details=True)
+                async with app.run_test(size=(120, 40)) as pilot:
+                    assert_order(await self.shown(app, pilot, 'gwflow_complete'))
+                    await pilot.press('enter')
+                    assert_order(await self.shown(app, pilot, 'Jobs completed:'))
+                    self.cli('run')
+                    self.finish()
+                    await pilot.press('r')
+                    assert_order(await self.shown(app, pilot, '9/9'))
+                    await pilot.press('escape')
+                    assert_order(await self.shown(app, pilot, '9/9'))
+                    await pilot.press('q')
+                assert_order(self.cli('status', '--plain', '--details').replace('ordered__', ''))
 
     async def test_group_instances_use_declared_keys_and_keep_full_task_identity(self):
         test_grouped_status.GroupedStatusTests.configure_workflow(self)
