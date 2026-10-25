@@ -5,6 +5,9 @@ import re
 import subprocess
 import sys
 
+from rich.console import Console
+from rich.text import Text
+
 from support import FIXTURES, LocalBackendTestCase
 from terminal_session import TerminalSession, rendered_lines
 import test_fresh
@@ -38,6 +41,7 @@ class SubmissionReportTests(LocalBackendTestCase):
         self.assertTrue(result.stdout.startswith("Execution plan\n"))
         self.assertIn("Planned submissions: 9 jobs across 3 Tasks.", result.stdout)
         self.assertIn("Submitted 9 jobs across 3 Tasks.", result.stdout)
+        self.assertNotIn("✓ Submitted", result.stdout)
         self.assertNotIn("Submission outcomes:", result.stdout)
         self.assertNotIn("\x1b[", result.stdout)
         self.assertNotIn("Submitted 9 jobs", result.stderr)
@@ -54,7 +58,7 @@ class SubmissionReportTests(LocalBackendTestCase):
     def test_terminal_progress_counts_confirmed_acceptances_while_backend_waits(self):
         environment = self.inject(record_acceptances=True, hold_submission_prefix="a__compute")
         terminal = TerminalSession([self.executable, "-b", "recovery_fixture", "run"],
-                                   cwd=self.work, env=environment, size=(100, 24))
+                                   cwd=self.work, env={**environment, "NO_COLOR": ""}, size=(100, 24))
         self.addCleanup(terminal.close)
         try:
             self.wait_for((self.work / "submission-held").exists)
@@ -67,6 +71,19 @@ class SubmissionReportTests(LocalBackendTestCase):
         self.assertEqual(terminal.finish(), 0, terminal.text)
         self.assertIn("9/9 confirmed", terminal.text)
         self.assertIn("Submitted 9 jobs across 3 Tasks.", terminal.text)
+        visible = rendered_lines(terminal.output.decode())
+        self.assertRegex(visible, r"9/9 confirmed[^\n]*\n✓ Submitted 9 jobs across 3 Tasks\.")
+        summary = next(line for line in Text.from_ansi(terminal.output.decode().replace('\r\n', '\n')).split('\n')
+                       if 'Submitted 9 jobs' in line.plain)
+        self.assertEqual(summary.plain, '✓ Submitted 9 jobs across 3 Tasks.')
+        console = Console()
+        for index, char in enumerate(summary.plain):
+            style = summary.get_style_at_offset(console, index)
+            self.assertEqual(bool(style.bold), char.isdigit(), (char, style))
+            if char == '✓':
+                self.assertEqual(style.color.number, 2, 'Only the checkmark uses standard green')
+            else:
+                self.assertIsNone(style.color, (char, style))
         self.assertEqual(len(self.acceptances()), 9)
         for accepted in self.acceptances():
             self.assertNotIn(accepted["name"], terminal.text)
@@ -136,6 +153,7 @@ class SubmissionReportTests(LocalBackendTestCase):
         environment = self.inject(record_acceptances=True)
         redirected = self.cli_result("-b", "recovery_fixture", "run", "a", env=environment)
         self.assertIn("Submitted 3 jobs across 1 Task.", redirected.stdout)
+        self.assertNotIn("✓ Submitted", redirected.stdout)
         self.assertNotIn("Submitting jobs", redirected.stdout)
         self.assertNotIn("\x1b[", redirected.stdout + redirected.stderr)
         self.assertNotIn("Submitted target", redirected.stderr)
@@ -147,6 +165,7 @@ class SubmissionReportTests(LocalBackendTestCase):
                 result = self.terminal_cli("-b", "recovery_fixture", "run", "a", "--force", *options,
                                            env={**environment, **extra}, width=40, merge_stderr=True)
                 self.assertIn("Submitted 3 jobs across 1 Task.", result.stdout)
+                self.assertNotIn("✓ Submitted", result.stdout)
                 self.assertNotIn("Submitting jobs", result.stdout)
                 self.assertNotIn("\x1b[", result.stdout)
                 self.finish()
