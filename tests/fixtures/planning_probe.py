@@ -3,6 +3,9 @@
 Usage: python planning_probe.py report.json status [CLI arguments...]
 Counts are attempted OS calls and Python stream reads, not kernel syscalls.
 Phase times include instrumentation overhead and are not latency benchmarks.
+json_bytes counts UTF-8 input bytes consumed by JSON decoders, not physical disk
+traffic. RSS is the process high-water mark in KiB on Linux. Set
+GWFLOW_PROBE_MEMORY=1 for optional Python allocation tracing (with extra overhead).
 """
 
 from collections import Counter, defaultdict
@@ -11,6 +14,8 @@ import json
 import os
 from pathlib import Path
 import sys
+import resource
+import tracemalloc
 import time
 
 
@@ -25,6 +30,8 @@ class Probe:
         self.fds = {}
         self.peak = 0
         self.originals = {}
+        self.document_decodes = Counter()
+        self.peak_cached_documents = 0
 
     def switch(self, phase):
         now = time.perf_counter()
@@ -35,6 +42,19 @@ class Probe:
         if event == "call":
             module = frame.f_globals.get("__name__", "")
             name = frame.f_code.co_name
+            if module == "json" and name == "loads":
+                payload = frame.f_locals["s"]
+                self.counts[self.phase]["json_decodes"] += 1
+                self.counts[self.phase]["json_bytes"] += len(payload.encode("utf-8") if isinstance(payload, str) else payload)
+                caller = frame.f_back
+                if caller.f_globals.get("__name__") == "json" and caller.f_code.co_name == "load":
+                    stream = caller.f_locals["fp"]
+                    try:
+                        path = self.fds.get(stream.fileno(), str(getattr(stream, "name", "unknown")))
+                    except (OSError, ValueError, io.UnsupportedOperation):
+                        path = str(getattr(stream, "name", "unknown"))
+                    if path.endswith("/record-state.json"):
+                        self.document_decodes[path] += 1
             phase = None
             if module == "gwflow.planning" and name == "plan_workflow":
                 phase = "planning"
@@ -54,6 +74,9 @@ class Probe:
             if phase is not None:
                 self.frames[id(frame)] = self.phase
                 self.switch(phase)
+        elif (event == "return" and frame.f_globals.get("__name__") == "gwflow._records"
+              and frame.f_code.co_name == "read" and type(frame.f_locals.get("self")).__name__ == "_Documents"):
+            self.peak_cached_documents = max(self.peak_cached_documents, len(frame.f_locals["self"].values))
         elif event == "return" and id(frame) in self.frames:
             self.switch(self.frames.pop(id(frame)))
         elif event == "c_call" and getattr(arg, "__name__", "") in ("read", "readinto", "readline"):
@@ -114,11 +137,17 @@ class Probe:
 
     def report(self):
         return {"counts": dict(self.counts), "paths": dict(self.paths), "seconds": dict(self.seconds),
+                "document_decodes": dict(self.document_decodes),
+                "peak_cached_documents": self.peak_cached_documents,
+                "peak_rss_kib": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss,
+                "traced_memory_bytes": dict(zip(("current", "peak"), tracemalloc.get_traced_memory())) if tracemalloc.is_tracing() else None,
                 "peak_opened_descriptors": self.peak, "path_depth": len(Path.cwd().parts) - 1}
 
 
 if __name__ == "__main__":
     output, *arguments = sys.argv[1:]
+    if os.environ.get("GWFLOW_PROBE_MEMORY"):
+        tracemalloc.start()
     probe = Probe()
     try:
         with probe:

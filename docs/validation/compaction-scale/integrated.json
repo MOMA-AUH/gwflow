@@ -1,0 +1,219 @@
+{
+  "command": [
+    "<REPO>/.conda-env/bin/python",
+    "tests/validate_automatic_compaction.py",
+    "--root",
+    "build/validation/260/integrated"
+  ],
+  "python": "3.12.14",
+  "packages": {
+    "gwflow": "0.8.1",
+    "gwf": "2.1.1",
+    "rich": "15.0.0",
+    "textual": "8.2.8"
+  },
+  "tests": [
+    "test_automatic_compaction.AutomaticCompactionTests.test_lost_completion_acknowledgement_reconciles_in_compacted_storage",
+    "test_automatic_compaction.AutomaticCompactionTests.test_simultaneous_completions_and_producer_reads_keep_independent_records",
+    "test_automatic_compaction.AutomaticCompactionTests.test_pinned_slurm_blocks_dependents_after_compaction_failure_and_retries",
+    "test_record_compaction_integration.RecordCompactionIntegrationTests.test_real_completion_worker_compacts_before_late_frontend_acknowledgement",
+    "test_record_compaction_integration.RecordCompactionIntegrationTests.test_ordinary_run_retries_only_compaction_after_publication_failure",
+    "test_compacted_cleanup.CompactedProducerCleanupTests.test_historical_transfer_cleanup_gives_up_repair_and_allows_new_consumers",
+    "test_compacted_repair.CompactedRepairTests.test_repeated_repair_restores_before_submission_and_recompacts_history"
+  ],
+  "tests_run": 7,
+  "failures": 0,
+  "errors": 0,
+  "root_device": 48,
+  "attempts": [
+    {
+      "path": "<REPO>/build/validation/260/integrated/test_historical_transfer_cleanup_gives_up_repair_and_allows_new_consumers/.gwf/gwflow/owners/42e550f35b8846c2a2f0f6f955ba2770/tasks/a/attempts/7d8c4462152d48a7b2b4dee86423ed52",
+      "phase": "compacted",
+      "files": [
+        "record-state.json",
+        "records.lock"
+      ],
+      "logical_records": 37,
+      "lock_device": 48,
+      "lock_inode": 506833427809393896
+    },
+    {
+      "path": "<REPO>/build/validation/260/integrated/test_historical_transfer_cleanup_gives_up_repair_and_allows_new_consumers/.gwf/gwflow/owners/42e550f35b8846c2a2f0f6f955ba2770/tasks/b/attempts/58f527a04a0a49f385ab0c15ce6a0d1c",
+      "phase": "compacted",
+      "files": [
+        "record-state.json",
+        "records.lock"
+      ],
+      "logical_records": 24,
+      "lock_device": 48,
+      "lock_inode": 5576712689681034221
+    },
+    {
+      "path": "<REPO>/build/validation/260/integrated/test_historical_transfer_cleanup_gives_up_repair_and_allows_new_consumers/.gwf/gwflow/owners/42e550f35b8846c2a2f0f6f955ba2770/tasks/c/attempts/0805f0e8334243458b1d2ebdb473eff5",
+      "phase": "compacted",
+      "files": [
+        "record-state.json",
+        "records.lock"
+      ],
+      "logical_records": 24,
+      "lock_device": 48,
+      "lock_inode": 6348681270370436741
+    },
+    {
+      "path": "<REPO>/build/validation/260/integrated/test_lost_completion_acknowledgement_reconciles_in_compacted_storage/.gwf/gwflow/owners/94430ad95f884034a7b05e9c632e87a5/tasks/sample/attempts/6956a50b3556486fbc6a7ef098df3e52",
+      "phase": "compacted",
+      "files": [
+        "record-state.json",
+        "records.lock"
+      ],
+      "logical_records": 36,
+      "lock_device": 48,
+      "lock_inode": 3168733731082309625
+    },
+    {
+      "path": "<REPO>/build/validation/260/integrated/test_ordinary_run_retries_only_compaction_after_publication_failure/.gwf/gwflow/owners/9cb4ce20395d4f81b9029ae2f84ff0d1/tasks/sample/attempts/2d055abad7454b63bc4609cbf90df800",
+      "phase": "compacted",
+      "files": [
+        "record-state.json",
+        "records.lock"
+      ],
+      "logical_records": 39,
+      "lock_device": 48,
+      "lock_inode": 16520633907342377556
+    },
+    {
+      "path": "<REPO>/build/validation/260/integrated/test_ordinary_run_retries_only_compaction_after_publication_failure/.gwf/gwflow/owners/9cb4ce20395d4f81b9029ae2f84ff0d1/tasks/sample/attempts/3d6afb1c53994a6fb08f544801b73fdb",
+      "phase": "compacted",
+      "files": [
+        "record-state.json",
+        "records.lock"
+      ],
+      "logical_records": 39,
+      "lock_device": 48,
+      "lock_inode": 4729923587633066921
+    },
+    {
+      "path": "<REPO>/build/validation/260/integrated/test_ordinary_run_retries_only_compaction_after_publication_failure/.gwf/gwflow/owners/9cb4ce20395d4f81b9029ae2f84ff0d1/tasks/sample/attempts/60e1eb794b7a4c95b258815c4a654483",
+      "phase": "compacted",
+      "files": [
+        "record-state.json",
+        "records.lock"
+      ],
+      "logical_records": 39,
+      "lock_device": 48,
+      "lock_inode": 6390567931774142511
+    },
+    {
+      "path": "<REPO>/build/validation/260/integrated/test_ordinary_run_retries_only_compaction_after_publication_failure/.gwf/gwflow/owners/9cb4ce20395d4f81b9029ae2f84ff0d1/tasks/sample/attempts/a71b2427da8541608d8b596591ff7b9f",
+      "phase": "compacted",
+      "files": [
+        "record-state.json",
+        "records.lock"
+      ],
+      "logical_records": 39,
+      "lock_device": 48,
+      "lock_inode": 5429063268107967745
+    },
+    {
+      "path": "<REPO>/build/validation/260/integrated/test_ordinary_run_retries_only_compaction_after_publication_failure/.gwf/gwflow/owners/9cb4ce20395d4f81b9029ae2f84ff0d1/tasks/sample/attempts/fbfd7849564a448fa22de7ca65e60449",
+      "phase": "compacted",
+      "files": [
+        "record-state.json",
+        "records.lock"
+      ],
+      "logical_records": 38,
+      "lock_device": 48,
+      "lock_inode": 10094043497155232007
+    },
+    {
+      "path": "<REPO>/build/validation/260/integrated/test_pinned_slurm_blocks_dependents_after_compaction_failure_and_retries/.gwf/gwflow/owners/c6fe6b8f3c9547158bb0e97c0eccbbf1/tasks/consumer/attempts/c687066a9e884eef949cbaa2e15eb376",
+      "phase": "compacted",
+      "files": [
+        "record-state.json",
+        "records.lock"
+      ],
+      "logical_records": 32,
+      "lock_device": 48,
+      "lock_inode": 596593383962336389
+    },
+    {
+      "path": "<REPO>/build/validation/260/integrated/test_pinned_slurm_blocks_dependents_after_compaction_failure_and_retries/.gwf/gwflow/owners/c6fe6b8f3c9547158bb0e97c0eccbbf1/tasks/sample/attempts/2ef2f46d5e7a43e29ebf9444a6b6d4e2",
+      "phase": "compacted",
+      "files": [
+        "record-state.json",
+        "records.lock"
+      ],
+      "logical_records": 39,
+      "lock_device": 48,
+      "lock_inode": 15198536801446381423
+    },
+    {
+      "path": "<REPO>/build/validation/260/integrated/test_real_completion_worker_compacts_before_late_frontend_acknowledgement/.gwf/gwflow/owners/6c34e0918c25477c86b4673caca70761/tasks/sample/attempts/ed0afe404adc41f08e5e8569bca1353e",
+      "phase": "compacted",
+      "files": [
+        "record-state.json",
+        "records.lock"
+      ],
+      "logical_records": 36,
+      "lock_device": 48,
+      "lock_inode": 17319595295803641132
+    },
+    {
+      "path": "<REPO>/build/validation/260/integrated/test_repeated_repair_restores_before_submission_and_recompacts_history/.gwf/gwflow/owners/5dc3d8b0ff80473fb86d285d6d8b0f7f/tasks/a/attempts/8074bf975a714d5eb62117bdb4def31e",
+      "phase": "compacted",
+      "files": [
+        "record-state.json",
+        "records.lock"
+      ],
+      "logical_records": 52,
+      "lock_device": 48,
+      "lock_inode": 7027363477933176804
+    },
+    {
+      "path": "<REPO>/build/validation/260/integrated/test_simultaneous_completions_and_producer_reads_keep_independent_records/.gwf/gwflow/owners/86e8ed784e8d4401ae3a141ecd594095/tasks/consumer/attempts/b5bbe87cec624f1b82ee1be06cedf2ad",
+      "phase": "compacted",
+      "files": [
+        "record-state.json",
+        "records.lock"
+      ],
+      "logical_records": 24,
+      "lock_device": 48,
+      "lock_inode": 13435979816007023429
+    },
+    {
+      "path": "<REPO>/build/validation/260/integrated/test_simultaneous_completions_and_producer_reads_keep_independent_records/.gwf/gwflow/owners/86e8ed784e8d4401ae3a141ecd594095/tasks/peer/attempts/618ffe95d7c2422fa2fb8bfe66e20bef",
+      "phase": "compacted",
+      "files": [
+        "record-state.json",
+        "records.lock"
+      ],
+      "logical_records": 36,
+      "lock_device": 48,
+      "lock_inode": 16815077662391484158
+    },
+    {
+      "path": "<REPO>/build/validation/260/integrated/test_simultaneous_completions_and_producer_reads_keep_independent_records/.gwf/gwflow/owners/86e8ed784e8d4401ae3a141ecd594095/tasks/sample/attempts/323b61265d9e447191603d8fa11368d0",
+      "phase": "compacted",
+      "files": [
+        "record-state.json",
+        "records.lock"
+      ],
+      "logical_records": 36,
+      "lock_device": 48,
+      "lock_inode": 10911995293469890209
+    }
+  ],
+  "scope": "Real local workers on the selected filesystem; pinned gwf Slurm command fixture, not a live Slurm scheduler. Process interruption and I/O faults do not establish power-loss durability.",
+  "evidence_metadata": {
+    "date": "2026-10-24",
+    "production_commit": "986dca3e054e0973ea3ea1ffcaef393ee8464382",
+    "validation_commit": "9232a4509da474ae2dae2e52a1195818c946e7ea",
+    "footprint_counter_commit": "7ffb3a5824e6ba8bdda5c2d5ea22b7330ca7c73b",
+    "path_placeholders": {
+      "<REPO>": "Checkout root",
+      "<HOME>": "Validation operator home directory, if present"
+    },
+    "selection": "Complete raw installed-worker acceptance summary. This runner uses real local workers and a controlled Slurm command fixture; slurm.json separately records the live scheduler journey.",
+    "normalization": "Only path substitutions and this explanatory metadata were added; reverse substitution equals selected raw JSON."
+  }
+}

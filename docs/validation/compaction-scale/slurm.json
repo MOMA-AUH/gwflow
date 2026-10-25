@@ -1,0 +1,579 @@
+{
+  "command": [
+    "<REPO>/.conda-env/bin/python",
+    "tests/validate_compaction_slurm.py",
+    "--root",
+    "build/validation/260/slurm-r3",
+    "--queue",
+    "short"
+  ],
+  "python": "3.12.14",
+  "packages": {
+    "gwflow": "0.8.1",
+    "gwf": "2.1.1",
+    "rich": "15.0.0",
+    "textual": "8.2.8"
+  },
+  "snapshots": [
+    {
+      "attempts": {
+        ".gwf/gwflow/owners/a5209f6fbc7e4cf286299ed36e37b4b4/tasks/consumer/attempts/8b721fcbeb8543948730f583d03de7ee": {
+          "directories": 1,
+          "files": 2,
+          "phase": "compacted",
+          "logical_records": 32,
+          "record-state.json": {
+            "device": 48,
+            "inode": 1348058724178382250,
+            "bytes": 20854
+          },
+          "records.lock": {
+            "device": 48,
+            "inode": 2972279365664258537,
+            "bytes": 0
+          }
+        },
+        ".gwf/gwflow/owners/a5209f6fbc7e4cf286299ed36e37b4b4/tasks/sample/attempts/38f27c02dab84a89a954e1873ea55243": {
+          "directories": 1,
+          "files": 2,
+          "phase": "compacted",
+          "logical_records": 27,
+          "record-state.json": {
+            "device": 48,
+            "inode": 9610986026631201353,
+            "bytes": 17724
+          },
+          "records.lock": {
+            "device": 48,
+            "inode": 6977948465259481367,
+            "bytes": 0
+          }
+        }
+      },
+      "stage": "ordinary-retry-and-late-ack"
+    },
+    {
+      "attempts": {
+        ".gwf/gwflow/owners/a5209f6fbc7e4cf286299ed36e37b4b4/tasks/consumer/attempts/8b721fcbeb8543948730f583d03de7ee": {
+          "directories": 1,
+          "files": 2,
+          "phase": "compacted",
+          "logical_records": 32,
+          "record-state.json": {
+            "device": 48,
+            "inode": 1348058724178382250,
+            "bytes": 20854
+          },
+          "records.lock": {
+            "device": 48,
+            "inode": 2972279365664258537,
+            "bytes": 0
+          }
+        },
+        ".gwf/gwflow/owners/a5209f6fbc7e4cf286299ed36e37b4b4/tasks/sample/attempts/38f27c02dab84a89a954e1873ea55243": {
+          "directories": 1,
+          "files": 2,
+          "phase": "compacted",
+          "logical_records": 39,
+          "record-state.json": {
+            "device": 48,
+            "inode": 254370381902206483,
+            "bytes": 25682
+          },
+          "records.lock": {
+            "device": 48,
+            "inode": 6977948465259481367,
+            "bytes": 0
+          }
+        }
+      },
+      "stage": "repair-1"
+    },
+    {
+      "attempts": {
+        ".gwf/gwflow/owners/a5209f6fbc7e4cf286299ed36e37b4b4/tasks/consumer/attempts/8b721fcbeb8543948730f583d03de7ee": {
+          "directories": 1,
+          "files": 2,
+          "phase": "compacted",
+          "logical_records": 32,
+          "record-state.json": {
+            "device": 48,
+            "inode": 1348058724178382250,
+            "bytes": 20854
+          },
+          "records.lock": {
+            "device": 48,
+            "inode": 2972279365664258537,
+            "bytes": 0
+          }
+        },
+        ".gwf/gwflow/owners/a5209f6fbc7e4cf286299ed36e37b4b4/tasks/sample/attempts/38f27c02dab84a89a954e1873ea55243": {
+          "directories": 1,
+          "files": 2,
+          "phase": "compacted",
+          "logical_records": 51,
+          "record-state.json": {
+            "device": 48,
+            "inode": 7291096439735210025,
+            "bytes": 33563
+          },
+          "records.lock": {
+            "device": 48,
+            "inode": 6977948465259481367,
+            "bytes": 0
+          }
+        }
+      },
+      "stage": "repair-2"
+    },
+    {
+      "attempts": {
+        ".gwf/gwflow/owners/a5209f6fbc7e4cf286299ed36e37b4b4/tasks/consumer/attempts/8b721fcbeb8543948730f583d03de7ee": {
+          "directories": 1,
+          "files": 2,
+          "phase": "compacted",
+          "logical_records": 33,
+          "record-state.json": {
+            "device": 48,
+            "inode": 2273821797911327722,
+            "bytes": 22311
+          },
+          "records.lock": {
+            "device": 48,
+            "inode": 2972279365664258537,
+            "bytes": 0
+          }
+        },
+        ".gwf/gwflow/owners/a5209f6fbc7e4cf286299ed36e37b4b4/tasks/sample/attempts/38f27c02dab84a89a954e1873ea55243": {
+          "directories": 1,
+          "files": 2,
+          "phase": "compacted",
+          "logical_records": 52,
+          "record-state.json": {
+            "device": 48,
+            "inode": 9435407561554809105,
+            "bytes": 36382
+          },
+          "records.lock": {
+            "device": 48,
+            "inode": 6977948465259481367,
+            "bytes": 0
+          }
+        }
+      },
+      "stage": "repeated-cleanup"
+    }
+  ],
+  "checks": [
+    "post-publication deletion failure blocks real afterok dependency",
+    "ordinary run retries completion without computation or result replacement; late acknowledgement preserved",
+    "repeated Repair and cleanup preserve bound, computation and historical logs"
+  ],
+  "commands": [
+    {
+      "command": [
+        "sbatch",
+        "--version"
+      ],
+      "exit": 0,
+      "stdout": "slurm 25.11.6\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "df",
+        "-T",
+        "<REPO>/build/validation/260/slurm-r3"
+      ],
+      "exit": 0,
+      "stdout": "Filesystem     Type        1K-blocks           Used     Available Use% Mounted on\nbeegfs_nodev   beegfs 32057146278912 27630906383360 4426239895552  87% /faststorage\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "<REPO>/.conda-env/bin/python",
+        "<REPO>/tests/fixtures/live_slurm_compaction.py",
+        "run"
+      ],
+      "exit": 0,
+      "stdout": "Execution plan\nExecution scope: 2 Tasks (selected Tasks and required upstream Tasks).\nTask                              Next action    Why\nTask sample                       Run            no completed managed attempt; fresh attempt required\nTask consumer                     Run            no completed managed attempt; fresh attempt required\nPlanned submissions: 6 jobs across 2 Tasks.\nSubmitted 6 jobs across 2 Tasks.\n",
+      "stderr": "Inspecting workflow...\nPreparing Task inspection...\nWaiting for scheduler...\nInspecting Tasks...\nChecking Task dependencies...\nWaiting for scheduler...\n"
+    },
+    {
+      "command": [
+        "squeue",
+        "--noheader",
+        "-j",
+        "5909384",
+        "-o",
+        "%i|%T|%r|%E"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "<REPO>/.conda-env/bin/python",
+        "<REPO>/tests/fixtures/live_slurm_compaction.py",
+        "status",
+        "--plain"
+      ],
+      "exit": 0,
+      "stdout": "2 of 2 Tasks selected\n1 failed, 1 canceled\n\nGroup     Reusable  Other states\nsample         0/1  1 failed\nconsumer       0/1  1 canceled\n\nNeeds attention\nFailed: 1 Task\n  Jobs: 1 failed\n  sample  record compaction unfinished; retry completion only with gwflow run; 1 job failed\n\nAll failed Tasks:\n  gwflow status '*' --plain --status failed\n\nCanceled: 1 Task\n  Jobs: 3 canceled\n  consumer  3 jobs canceled\n\nAll canceled Tasks:\n  gwflow status '*' --plain --status canceled\n\n\nGroups summarize Tasks; selectors match Task names.\n  gwflow status '*' --static --plain\n",
+      "stderr": "Inspecting workflow...\nPreparing Task inspection...\nWaiting for scheduler...\nInspecting Tasks...\nChecking Task dependencies...\n"
+    },
+    {
+      "command": [
+        "<REPO>/.conda-env/bin/python",
+        "<REPO>/tests/fixtures/live_slurm_compaction.py",
+        "run",
+        "--dry-run"
+      ],
+      "exit": 0,
+      "stdout": "Run preview \u2014 no jobs will be submitted\nExecution scope: 2 Tasks (selected Tasks and required upstream Tasks).\nTask                              Next action    Why\nTask sample                       Finish         record compaction unfinished; retry completion only with gwflow run\nTask consumer                     Retry          preparation interrupted; restart in the same attempt\nWould submit 4 jobs across 2 Tasks.\n",
+      "stderr": "Inspecting workflow...\nPreparing Task inspection...\nWaiting for scheduler...\nInspecting Tasks...\nChecking Task dependencies...\n"
+    },
+    {
+      "command": [
+        "<REPO>/.conda-env/bin/python",
+        "<REPO>/tests/fixtures/live_slurm_compaction.py",
+        "run"
+      ],
+      "exit": 0,
+      "stdout": "Execution plan\nExecution scope: 2 Tasks (selected Tasks and required upstream Tasks).\nTask                              Next action    Why\nTask sample                       Finish         record compaction unfinished; retry completion only with gwflow run\nTask consumer                     Retry          preparation interrupted; restart in the same attempt\nPlanned submissions: 4 jobs across 2 Tasks.\nSubmitted 4 jobs across 2 Tasks.\n",
+      "stderr": "Inspecting workflow...\nPreparing Task inspection...\nWaiting for scheduler...\nInspecting Tasks...\nChecking Task dependencies...\nWaiting for scheduler...\n"
+    },
+    {
+      "command": [
+        "<REPO>/.conda-env/bin/python",
+        "<REPO>/tests/fixtures/live_slurm_compaction.py",
+        "run",
+        "--dry-run",
+        "sample"
+      ],
+      "exit": 0,
+      "stdout": "Run preview \u2014 no jobs will be submitted\nExecution scope: 1 Task (selected Tasks and required upstream Tasks).\nWould remove previous retained results for Tasks: sample when this plan is run.\nTask                              Next action    Why\nTask sample                       Repair         retained results missing or changed; restore from valid work\nWould submit 1 job across 1 Task.\n",
+      "stderr": "Inspecting workflow...\nPreparing Task inspection...\nWaiting for scheduler...\nInspecting Tasks...\nChecking Task dependencies...\n"
+    },
+    {
+      "command": [
+        "<REPO>/.conda-env/bin/python",
+        "<REPO>/tests/fixtures/live_slurm_compaction.py",
+        "run",
+        "sample"
+      ],
+      "exit": 0,
+      "stdout": "Execution plan\nExecution scope: 1 Task (selected Tasks and required upstream Tasks).\nWill remove previous retained results for Tasks: sample during execution of this plan.\nTask                              Next action    Why\nTask sample                       Repair         retained results missing or changed; restore from valid work\nPlanned submissions: 1 job across 1 Task.\nSubmitted 1 job across 1 Task.\n",
+      "stderr": "Inspecting workflow...\nPreparing Task inspection...\nWaiting for scheduler...\nInspecting Tasks...\nChecking Task dependencies...\nWaiting for scheduler...\nWaiting for scheduler...\n"
+    },
+    {
+      "command": [
+        "<REPO>/.conda-env/bin/python",
+        "<REPO>/tests/fixtures/live_slurm_compaction.py",
+        "run",
+        "--dry-run",
+        "sample"
+      ],
+      "exit": 0,
+      "stdout": "Run preview \u2014 no jobs will be submitted\nExecution scope: 1 Task (selected Tasks and required upstream Tasks).\nWould remove previous retained results for Tasks: sample when this plan is run.\nTask                              Next action    Why\nTask sample                       Repair         retained results missing or changed; restore from valid work\nWould submit 1 job across 1 Task.\n",
+      "stderr": "Inspecting workflow...\nPreparing Task inspection...\nWaiting for scheduler...\nInspecting Tasks...\nChecking Task dependencies...\n"
+    },
+    {
+      "command": [
+        "<REPO>/.conda-env/bin/python",
+        "<REPO>/tests/fixtures/live_slurm_compaction.py",
+        "run",
+        "sample"
+      ],
+      "exit": 0,
+      "stdout": "Execution plan\nExecution scope: 1 Task (selected Tasks and required upstream Tasks).\nWill remove previous retained results for Tasks: sample during execution of this plan.\nTask                              Next action    Why\nTask sample                       Repair         retained results missing or changed; restore from valid work\nPlanned submissions: 1 job across 1 Task.\nSubmitted 1 job across 1 Task.\n",
+      "stderr": "Inspecting workflow...\nPreparing Task inspection...\nWaiting for scheduler...\nInspecting Tasks...\nChecking Task dependencies...\nWaiting for scheduler...\nWaiting for scheduler...\n"
+    },
+    {
+      "command": [
+        "<REPO>/.conda-env/bin/python",
+        "<REPO>/tests/fixtures/live_slurm_compaction.py",
+        "clean",
+        "--delete"
+      ],
+      "exit": 0,
+      "stdout": "Cleanup outcomes \u2014 2 removed\nTask consumer\n  Removed \u2014 removed owned disposable work; results and bookkeeping preserved\n    Attempt: 8b721fcbeb8543948730f583d03de7ee\n    Workspace: <REPO>/build/validation/260/slurm-r3/workflow/work/consumer/8b721fcbeb8543948730f583d03de7ee\n    Staging group: <REPO>/build/validation/260/slurm-r3/workflow/.gwf/gwflow/staging/8b721fcbeb8543948730f583d03de7ee\n    Staging: <REPO>/build/validation/260/slurm-r3/workflow/.gwf/gwflow/staging/8b721fcbeb8543948730f583d03de7ee/b5be6f87b1e14b7cb6f1d0de46e45f35\n    Staging: <REPO>/build/validation/260/slurm-r3/workflow/.gwf/gwflow/staging/8b721fcbeb8543948730f583d03de7ee/.staging-a47920f63b1f435e829f5dd0f7063324\n    Known removed: <REPO>/build/validation/260/slurm-r3/workflow/work/consumer/8b721fcbeb8543948730f583d03de7ee\n    Known removed: <REPO>/build/validation/260/slurm-r3/workflow/.gwf/gwflow/staging/8b721fcbeb8543948730f583d03de7ee/b5be6f87b1e14b7cb6f1d0de46e45f35\nTask sample\n  Removed \u2014 removed owned disposable work; results and bookkeeping preserved\n    Attempt: 38f27c02dab84a89a954e1873ea55243\n    Workspace: <REPO>/build/validation/260/slurm-r3/workflow/work/sample/38f27c02dab84a89a954e1873ea55243\n    Staging group: <REPO>/build/validation/260/slurm-r3/workflow/.gwf/gwflow/staging/38f27c02dab84a89a954e1873ea55243\n    Staging: <REPO>/build/validation/260/slurm-r3/workflow/.gwf/gwflow/staging/38f27c02dab84a89a954e1873ea55243/4f9fda7f1b2e4ab78adc7f614b110a49\n    Staging: <REPO>/build/validation/260/slurm-r3/workflow/.gwf/gwflow/staging/38f27c02dab84a89a954e1873ea55243/.staging-5fa49705ad994b40b1bf75e9e002c2fc\n    Staging: <REPO>/build/validation/260/slurm-r3/workflow/.gwf/gwflow/staging/38f27c02dab84a89a954e1873ea55243/cbdd471dd99a43e4bb7ac2b9f3183324\n    Staging: <REPO>/build/validation/260/slurm-r3/workflow/.gwf/gwflow/staging/38f27c02dab84a89a954e1873ea55243/.staging-60f123eb906140498906a926577d9cbd\n    Staging: <REPO>/build/validation/260/slurm-r3/workflow/.gwf/gwflow/staging/38f27c02dab84a89a954e1873ea55243/f1fee0b1580f4abaa5abf49ff762737a\n    Staging: <REPO>/build/validation/260/slurm-r3/workflow/.gwf/gwflow/staging/38f27c02dab84a89a954e1873ea55243/.staging-5c72d9ce6f1b46759c201d192f339324\n    Known removed: <REPO>/build/validation/260/slurm-r3/workflow/work/sample/38f27c02dab84a89a954e1873ea55243\n    Known removed: <REPO>/build/validation/260/slurm-r3/workflow/.gwf/gwflow/staging/38f27c02dab84a89a954e1873ea55243/4f9fda7f1b2e4ab78adc7f614b110a49\n    Known removed: <REPO>/build/validation/260/slurm-r3/workflow/.gwf/gwflow/staging/38f27c02dab84a89a954e1873ea55243/cbdd471dd99a43e4bb7ac2b9f3183324\n    Known removed: <REPO>/build/validation/260/slurm-r3/workflow/.gwf/gwflow/staging/38f27c02dab84a89a954e1873ea55243/f1fee0b1580f4abaa5abf49ff762737a\n",
+      "stderr": "Inspecting workflow...\nWaiting for scheduler...\nRechecking scheduler before deletion...\n"
+    },
+    {
+      "command": [
+        "<REPO>/.conda-env/bin/python",
+        "<REPO>/tests/fixtures/live_slurm_compaction.py",
+        "clean",
+        "--delete"
+      ],
+      "exit": 0,
+      "stdout": "Cleanup outcomes \u2014 2 already removed\nNo files removed.\nTask consumer\n  Already removed \u2014 work already removed\n    Attempt: 8b721fcbeb8543948730f583d03de7ee\n    Workspace: <REPO>/build/validation/260/slurm-r3/workflow/work/consumer/8b721fcbeb8543948730f583d03de7ee\n    Staging group: <REPO>/build/validation/260/slurm-r3/workflow/.gwf/gwflow/staging/8b721fcbeb8543948730f583d03de7ee\n    Staging: <REPO>/build/validation/260/slurm-r3/workflow/.gwf/gwflow/staging/8b721fcbeb8543948730f583d03de7ee/b5be6f87b1e14b7cb6f1d0de46e45f35\n    Staging: <REPO>/build/validation/260/slurm-r3/workflow/.gwf/gwflow/staging/8b721fcbeb8543948730f583d03de7ee/.staging-a47920f63b1f435e829f5dd0f7063324\nTask sample\n  Already removed \u2014 work already removed\n    Attempt: 38f27c02dab84a89a954e1873ea55243\n    Workspace: <REPO>/build/validation/260/slurm-r3/workflow/work/sample/38f27c02dab84a89a954e1873ea55243\n    Staging group: <REPO>/build/validation/260/slurm-r3/workflow/.gwf/gwflow/staging/38f27c02dab84a89a954e1873ea55243\n    Staging: <REPO>/build/validation/260/slurm-r3/workflow/.gwf/gwflow/staging/38f27c02dab84a89a954e1873ea55243/4f9fda7f1b2e4ab78adc7f614b110a49\n    Staging: <REPO>/build/validation/260/slurm-r3/workflow/.gwf/gwflow/staging/38f27c02dab84a89a954e1873ea55243/.staging-5fa49705ad994b40b1bf75e9e002c2fc\n    Staging: <REPO>/build/validation/260/slurm-r3/workflow/.gwf/gwflow/staging/38f27c02dab84a89a954e1873ea55243/cbdd471dd99a43e4bb7ac2b9f3183324\n    Staging: <REPO>/build/validation/260/slurm-r3/workflow/.gwf/gwflow/staging/38f27c02dab84a89a954e1873ea55243/.staging-60f123eb906140498906a926577d9cbd\n    Staging: <REPO>/build/validation/260/slurm-r3/workflow/.gwf/gwflow/staging/38f27c02dab84a89a954e1873ea55243/f1fee0b1580f4abaa5abf49ff762737a\n    Staging: <REPO>/build/validation/260/slurm-r3/workflow/.gwf/gwflow/staging/38f27c02dab84a89a954e1873ea55243/.staging-5c72d9ce6f1b46759c201d192f339324\n",
+      "stderr": "Inspecting workflow...\nWaiting for scheduler...\nRechecking scheduler before deletion...\n"
+    },
+    {
+      "command": [
+        "<REPO>/.conda-env/bin/python",
+        "<REPO>/tests/fixtures/live_slurm_compaction.py",
+        "run",
+        "--dry-run"
+      ],
+      "exit": 0,
+      "stdout": "Run preview \u2014 no jobs will be submitted\nExecution scope: 2 Tasks (selected Tasks and required upstream Tasks).\nTask                              Next action    Why\nTask sample                       Reuse          checked completion and retained metadata match\nTask consumer                     Reuse          checked completion and retained metadata match\nWould submit 0 jobs across 0 Tasks.\n",
+      "stderr": "Inspecting workflow...\nPreparing Task inspection...\nWaiting for scheduler...\nInspecting Tasks...\nChecking Task dependencies...\n"
+    },
+    {
+      "command": [
+        "<REPO>/.conda-env/bin/python",
+        "<REPO>/tests/fixtures/live_slurm_compaction.py",
+        "logs",
+        "sample",
+        "--history",
+        "--details"
+      ],
+      "exit": 0,
+      "stdout": "Task sample: current attempt 38f27c02dab84a89a954e1873ea55243\n  sample__gwflow_prepare: complete; submission sample__gwflow_prepare__4f5d3a221e55491baa646b2895e11c0f__23a29b5a7f7140dfab8c373f3d82ee25\n    Backend: {\"name\": \"slurm\"}\n    Backend job: 5909380\n    stdout: available\n      Path: <REPO>/build/validation/260/slurm-r3/workflow/.gwf/logs/sample__gwflow_prepare__4f5d3a221e55491baa646b2895e11c0f__23a29b5a7f7140dfab8c373f3d82ee25.stdout\n      gwflow logs sample__gwflow_prepare__4f5d3a221e55491baa646b2895e11c0f__23a29b5a7f7140dfab8c373f3d82ee25 --no-pager\n    stderr: available\n      Path: <REPO>/build/validation/260/slurm-r3/workflow/.gwf/logs/sample__gwflow_prepare__4f5d3a221e55491baa646b2895e11c0f__23a29b5a7f7140dfab8c373f3d82ee25.stderr\n      gwflow logs sample__gwflow_prepare__4f5d3a221e55491baa646b2895e11c0f__23a29b5a7f7140dfab8c373f3d82ee25 --stderr --no-pager\n  sample__compute: complete; submission sample__compute__4174ae117ffc4a13a4fd0ba4a72345f8__7a19e74ff7814791a6e71c679c650955\n    Backend: {\"name\": \"slurm\"}\n    Backend job: 5909381\n    stdout: available\n      Path: <REPO>/build/validation/260/slurm-r3/workflow/.gwf/logs/sample__compute__4174ae117ffc4a13a4fd0ba4a72345f8__7a19e74ff7814791a6e71c679c650955.stdout\n      gwflow logs sample__compute__4174ae117ffc4a13a4fd0ba4a72345f8__7a19e74ff7814791a6e71c679c650955 --no-pager\n    stderr: available\n      Path: <REPO>/build/validation/260/slurm-r3/workflow/.gwf/logs/sample__compute__4174ae117ffc4a13a4fd0ba4a72345f8__7a19e74ff7814791a6e71c679c650955.stderr\n      gwflow logs sample__compute__4174ae117ffc4a13a4fd0ba4a72345f8__7a19e74ff7814791a6e71c679c650955 --stderr --no-pager\n  sample__gwflow_complete: complete; submission sample__gwflow_complete__4f9fda7f1b2e4ab78adc7f614b110a49__b44e6c7b000d437eb7152266286cb41a\n    Backend: {\"name\": \"slurm\"}\n    Backend job: 5909410\n    stdout: available\n      Path: <REPO>/build/validation/260/slurm-r3/workflow/.gwf/logs/sample__gwflow_complete__4f9fda7f1b2e4ab78adc7f614b110a49__b44e6c7b000d437eb7152266286cb41a.stdout\n      gwflow logs sample__gwflow_complete__4f9fda7f1b2e4ab78adc7f614b110a49__b44e6c7b000d437eb7152266286cb41a --no-pager\n    stderr: available\n      Path: <REPO>/build/validation/260/slurm-r3/workflow/.gwf/logs/sample__gwflow_complete__4f9fda7f1b2e4ab78adc7f614b110a49__b44e6c7b000d437eb7152266286cb41a.stderr\n      gwflow logs sample__gwflow_complete__4f9fda7f1b2e4ab78adc7f614b110a49__b44e6c7b000d437eb7152266286cb41a --stderr --no-pager\n  Read a job's logs (stdout, then stderr):\n    gwflow logs sample__gwflow_prepare --no-pager\n    gwflow logs sample__gwflow_prepare --stderr --no-pager\n  Historical submissions in current attempt 38f27c02dab84a89a954e1873ea55243:\n    sample__gwflow_complete: failed (historical); submission sample__gwflow_complete__cbdd471dd99a43e4bb7ac2b9f3183324__84b46008af2e4843bc72eb5243516a79\n      Backend: {\"name\": \"slurm\"}\n      Backend job: 5909383\n      stdout: available\n        Path: <REPO>/build/validation/260/slurm-r3/workflow/.gwf/logs/sample__gwflow_complete__cbdd471dd99a43e4bb7ac2b9f3183324__84b46008af2e4843bc72eb5243516a79.stdout\n        gwflow logs sample__gwflow_complete__cbdd471dd99a43e4bb7ac2b9f3183324__84b46008af2e4843bc72eb5243516a79 --no-pager\n      stderr: available\n        Path: <REPO>/build/validation/260/slurm-r3/workflow/.gwf/logs/sample__gwflow_complete__cbdd471dd99a43e4bb7ac2b9f3183324__84b46008af2e4843bc72eb5243516a79.stderr\n        gwflow logs sample__gwflow_complete__cbdd471dd99a43e4bb7ac2b9f3183324__84b46008af2e4843bc72eb5243516a79 --stderr --no-pager\n    sample__gwflow_complete: complete (historical); submission sample__gwflow_complete__cbdd471dd99a43e4bb7ac2b9f3183324__329c4631294840cfae5267f81b997db2\n      Backend: {\"name\": \"slurm\"}\n      Backend job: 5909395\n      stdout: available\n        Path: <REPO>/build/validation/260/slurm-r3/workflow/.gwf/logs/sample__gwflow_complete__cbdd471dd99a43e4bb7ac2b9f3183324__329c4631294840cfae5267f81b997db2.stdout\n        gwflow logs sample__gwflow_complete__cbdd471dd99a43e4bb7ac2b9f3183324__329c4631294840cfae5267f81b997db2 --no-pager\n      stderr: available\n        Path: <REPO>/build/validation/260/slurm-r3/workflow/.gwf/logs/sample__gwflow_complete__cbdd471dd99a43e4bb7ac2b9f3183324__329c4631294840cfae5267f81b997db2.stderr\n        gwflow logs sample__gwflow_complete__cbdd471dd99a43e4bb7ac2b9f3183324__329c4631294840cfae5267f81b997db2 --stderr --no-pager\n    sample__gwflow_complete: complete (historical); submission sample__gwflow_complete__f1fee0b1580f4abaa5abf49ff762737a__aa857333c75b46d3998fd5bbd5ba25da\n      Backend: {\"name\": \"slurm\"}\n      Backend job: 5909404\n      stdout: available\n        Path: <REPO>/build/validation/260/slurm-r3/workflow/.gwf/logs/sample__gwflow_complete__f1fee0b1580f4abaa5abf49ff762737a__aa857333c75b46d3998fd5bbd5ba25da.stdout\n        gwflow logs sample__gwflow_complete__f1fee0b1580f4abaa5abf49ff762737a__aa857333c75b46d3998fd5bbd5ba25da --no-pager\n      stderr: available\n        Path: <REPO>/build/validation/260/slurm-r3/workflow/.gwf/logs/sample__gwflow_complete__f1fee0b1580f4abaa5abf49ff762737a__aa857333c75b46d3998fd5bbd5ba25da.stderr\n        gwflow logs sample__gwflow_complete__f1fee0b1580f4abaa5abf49ff762737a__aa857333c75b46d3998fd5bbd5ba25da --stderr --no-pager\n  Public job names follow the current submission; exact submission names keep the same log after a retry.\n  Next action and reason: gwflow run sample --dry-run --details\n",
+      "stderr": "Inspecting workflow...\nWaiting for scheduler...\n"
+    }
+  ],
+  "passed": true,
+  "frontend_identity": {
+    "host": "cn-1009",
+    "device": 48,
+    "inode": 4976249665396267711
+  },
+  "slurm_version": "slurm 25.11.6",
+  "filesystem": "Filesystem     Type        1K-blocks           Used     Available Use% Mounted on\nbeegfs_nodev   beegfs 32057146278912 27630906383360 4426239895552  87% /faststorage\n",
+  "accounting": "5909380|sample__gwflow_prepare__4f5d3a221e55491baa646b2895e11c0f__23a29b5a7f7140dfab8c373f3d82ee25|COMPLETED|0:0|cn-1090\n5909381|sample__compute__4174ae117ffc4a13a4fd0ba4a72345f8__7a19e74ff7814791a6e71c679c650955|COMPLETED|0:0|cn-1056\n5909383|sample__gwflow_complete__cbdd471dd99a43e4bb7ac2b9f3183324__84b46008af2e4843bc72eb5243516a79|FAILED|1:0|cn-1048\n5909384|consumer__gwflow_prepare__e5aaabaef64642ab81bdf4b636da973b__a3270be48d6b40efb904a708054c7519|CANCELLED|0:0|None assigned\n5909385|consumer__compute__63d86588083840ae995d7d41a47377a9__de91d48dd9fd4eeca13ea45692985e0d|CANCELLED|0:0|None assigned\n5909386|consumer__gwflow_complete__b5be6f87b1e14b7cb6f1d0de46e45f35__9dfca256616c4eeab2e697479335665f|CANCELLED|0:0|None assigned\n5909395|sample__gwflow_complete__cbdd471dd99a43e4bb7ac2b9f3183324__329c4631294840cfae5267f81b997db2|COMPLETED|0:0|cn-1090\n5909397|consumer__gwflow_prepare__e5aaabaef64642ab81bdf4b636da973b__bda22e1faf8a46acadaaddc12bdc42c2|COMPLETED|0:0|cn-1090\n5909398|consumer__compute__c0749c8e570d45a5b32f65c9103ee9ac__106448f32bd5460a9beecd46bfc55346|COMPLETED|0:0|cn-1090\n5909399|consumer__gwflow_complete__b5be6f87b1e14b7cb6f1d0de46e45f35__8fdda3536a34474f98c22db8f5ffd454|COMPLETED|0:0|cn-1090\n5909404|sample__gwflow_complete__f1fee0b1580f4abaa5abf49ff762737a__aa857333c75b46d3998fd5bbd5ba25da|COMPLETED|0:0|cn-1046\n5909410|sample__gwflow_complete__4f9fda7f1b2e4ab78adc7f614b110a49__b44e6c7b000d437eb7152266286cb41a|COMPLETED|0:0|cn-1042\n",
+  "blocked_queue": "",
+  "worker_identity": {
+    "host": "cn-1056",
+    "device": 47,
+    "inode": 4976249665396267711
+  },
+  "failed_footprint": {
+    "attempts": {
+      ".gwf/gwflow/owners/a5209f6fbc7e4cf286299ed36e37b4b4/tasks/consumer/attempts/8b721fcbeb8543948730f583d03de7ee": {
+        "directories": 13,
+        "files": 16,
+        "phase": "individual",
+        "logical_records": null,
+        "record-state.json": {
+          "device": 48,
+          "inode": 5502926898012349664,
+          "bytes": 298
+        },
+        "records.lock": {
+          "device": 48,
+          "inode": 2972279365664258537,
+          "bytes": 0
+        }
+      },
+      ".gwf/gwflow/owners/a5209f6fbc7e4cf286299ed36e37b4b4/tasks/sample/attempts/38f27c02dab84a89a954e1873ea55243": {
+        "directories": 13,
+        "files": 25,
+        "phase": "consolidating",
+        "logical_records": 24,
+        "record-state.json": {
+          "device": 48,
+          "inode": 3100342050423935944,
+          "bytes": 20692
+        },
+        "records.lock": {
+          "device": 48,
+          "inode": 6977948465259481367,
+          "bytes": 0
+        }
+      }
+    }
+  },
+  "result_before_retry": {
+    "device": 48,
+    "inode": 10623597816386797575,
+    "mtime_ns": 1792863104000000000
+  },
+  "result_after_retry": {
+    "device": 48,
+    "inode": 10623597816386797575,
+    "mtime_ns": 1792863104000000000
+  },
+  "accepted": [
+    {
+      "job": "5909380",
+      "name": "sample__gwflow_prepare__4f5d3a221e55491baa646b2895e11c0f__23a29b5a7f7140dfab8c373f3d82ee25",
+      "dependencies": []
+    },
+    {
+      "job": "5909381",
+      "name": "sample__compute__4174ae117ffc4a13a4fd0ba4a72345f8__7a19e74ff7814791a6e71c679c650955",
+      "dependencies": [
+        "5909380"
+      ]
+    },
+    {
+      "job": "5909383",
+      "name": "sample__gwflow_complete__cbdd471dd99a43e4bb7ac2b9f3183324__84b46008af2e4843bc72eb5243516a79",
+      "dependencies": [
+        "5909381"
+      ]
+    },
+    {
+      "job": "5909384",
+      "name": "consumer__gwflow_prepare__e5aaabaef64642ab81bdf4b636da973b__a3270be48d6b40efb904a708054c7519",
+      "dependencies": [
+        "5909383"
+      ]
+    },
+    {
+      "job": "5909385",
+      "name": "consumer__compute__63d86588083840ae995d7d41a47377a9__de91d48dd9fd4eeca13ea45692985e0d",
+      "dependencies": [
+        "5909384"
+      ]
+    },
+    {
+      "job": "5909386",
+      "name": "consumer__gwflow_complete__b5be6f87b1e14b7cb6f1d0de46e45f35__9dfca256616c4eeab2e697479335665f",
+      "dependencies": [
+        "5909385"
+      ]
+    },
+    {
+      "job": "5909395",
+      "name": "sample__gwflow_complete__cbdd471dd99a43e4bb7ac2b9f3183324__329c4631294840cfae5267f81b997db2",
+      "dependencies": []
+    },
+    {
+      "job": "5909397",
+      "name": "consumer__gwflow_prepare__e5aaabaef64642ab81bdf4b636da973b__bda22e1faf8a46acadaaddc12bdc42c2",
+      "dependencies": [
+        "5909395"
+      ]
+    },
+    {
+      "job": "5909398",
+      "name": "consumer__compute__c0749c8e570d45a5b32f65c9103ee9ac__106448f32bd5460a9beecd46bfc55346",
+      "dependencies": [
+        "5909397"
+      ]
+    },
+    {
+      "job": "5909399",
+      "name": "consumer__gwflow_complete__b5be6f87b1e14b7cb6f1d0de46e45f35__8fdda3536a34474f98c22db8f5ffd454",
+      "dependencies": [
+        "5909398"
+      ]
+    },
+    {
+      "job": "5909404",
+      "name": "sample__gwflow_complete__f1fee0b1580f4abaa5abf49ff762737a__aa857333c75b46d3998fd5bbd5ba25da",
+      "dependencies": []
+    },
+    {
+      "job": "5909410",
+      "name": "sample__gwflow_complete__4f9fda7f1b2e4ab78adc7f614b110a49__b44e6c7b000d437eb7152266286cb41a",
+      "dependencies": []
+    }
+  ],
+  "final_footprint": {
+    "categories": {
+      "validation_fixture": {
+        "files": 10,
+        "bytes": 30604,
+        "directories": 1
+      },
+      "data": {
+        "directories": 6,
+        "files": 2,
+        "bytes": 12
+      },
+      "workflow_bookkeeping": {
+        "directories": 4,
+        "files": 4,
+        "bytes": 3703
+      },
+      "logs_and_aliases": {
+        "directories": 1,
+        "files": 18,
+        "bytes": 221,
+        "symlinks": 12
+      },
+      "staging_data": {
+        "directories": 3
+      },
+      "task_bookkeeping": {
+        "directories": 5,
+        "files": 2,
+        "bytes": 302
+      },
+      "attempt_metadata": {
+        "directories": 2,
+        "files": 4,
+        "bytes": 58693
+      }
+    },
+    "attempts": {
+      ".gwf/gwflow/owners/a5209f6fbc7e4cf286299ed36e37b4b4/tasks/consumer/attempts/8b721fcbeb8543948730f583d03de7ee": {
+        "directories": 1,
+        "files": 2,
+        "phase": "compacted",
+        "logical_records": 33,
+        "record-state.json": {
+          "device": 48,
+          "inode": 2273821797911327722,
+          "bytes": 22311
+        },
+        "records.lock": {
+          "device": 48,
+          "inode": 2972279365664258537,
+          "bytes": 0
+        }
+      },
+      ".gwf/gwflow/owners/a5209f6fbc7e4cf286299ed36e37b4b4/tasks/sample/attempts/38f27c02dab84a89a954e1873ea55243": {
+        "directories": 1,
+        "files": 2,
+        "phase": "compacted",
+        "logical_records": 52,
+        "record-state.json": {
+          "device": 48,
+          "inode": 9435407561554809105,
+          "bytes": 36382
+        },
+        "records.lock": {
+          "device": 48,
+          "inode": 6977948465259481367,
+          "bytes": 0
+        }
+      }
+    }
+  },
+  "accounting_command": {
+    "command": [
+      "sacct",
+      "-X",
+      "-n",
+      "-P",
+      "-S",
+      "2026-10-24T19:30:33",
+      "-j",
+      "5909380,5909381,5909383,5909384,5909385,5909386,5909395,5909397,5909398,5909399,5909404,5909410",
+      "--format=JobIDRaw,JobName%150,State,ExitCode,NodeList"
+    ],
+    "exit": 0,
+    "stdout": "5909380|sample__gwflow_prepare__4f5d3a221e55491baa646b2895e11c0f__23a29b5a7f7140dfab8c373f3d82ee25|COMPLETED|0:0|cn-1090\n5909381|sample__compute__4174ae117ffc4a13a4fd0ba4a72345f8__7a19e74ff7814791a6e71c679c650955|COMPLETED|0:0|cn-1056\n5909383|sample__gwflow_complete__cbdd471dd99a43e4bb7ac2b9f3183324__84b46008af2e4843bc72eb5243516a79|FAILED|1:0|cn-1048\n5909384|consumer__gwflow_prepare__e5aaabaef64642ab81bdf4b636da973b__a3270be48d6b40efb904a708054c7519|CANCELLED|0:0|None assigned\n5909385|consumer__compute__63d86588083840ae995d7d41a47377a9__de91d48dd9fd4eeca13ea45692985e0d|CANCELLED|0:0|None assigned\n5909386|consumer__gwflow_complete__b5be6f87b1e14b7cb6f1d0de46e45f35__9dfca256616c4eeab2e697479335665f|CANCELLED|0:0|None assigned\n5909395|sample__gwflow_complete__cbdd471dd99a43e4bb7ac2b9f3183324__329c4631294840cfae5267f81b997db2|COMPLETED|0:0|cn-1090\n5909397|consumer__gwflow_prepare__e5aaabaef64642ab81bdf4b636da973b__bda22e1faf8a46acadaaddc12bdc42c2|COMPLETED|0:0|cn-1090\n5909398|consumer__compute__c0749c8e570d45a5b32f65c9103ee9ac__106448f32bd5460a9beecd46bfc55346|COMPLETED|0:0|cn-1090\n5909399|consumer__gwflow_complete__b5be6f87b1e14b7cb6f1d0de46e45f35__8fdda3536a34474f98c22db8f5ffd454|COMPLETED|0:0|cn-1090\n5909404|sample__gwflow_complete__f1fee0b1580f4abaa5abf49ff762737a__aa857333c75b46d3998fd5bbd5ba25da|COMPLETED|0:0|cn-1046\n5909410|sample__gwflow_complete__4f9fda7f1b2e4ab78adc7f614b110a49__b44e6c7b000d437eb7152266286cb41a|COMPLETED|0:0|cn-1042\n",
+    "stderr": ""
+  },
+  "evidence_metadata": {
+    "date": "2026-10-24",
+    "production_commit": "986dca3e054e0973ea3ea1ffcaef393ee8464382",
+    "validation_commit": "9232a4509da474ae2dae2e52a1195818c946e7ea",
+    "footprint_counter_commit": "7ffb3a5824e6ba8bdda5c2d5ea22b7330ca7c73b",
+    "path_placeholders": {
+      "<REPO>": "Checkout root",
+      "<HOME>": "Validation operator home directory, if present"
+    },
+    "selection": "All CLI commands/results, per-stage attempt counts, scheduler acceptances and dependency IDs, failure observations and final accounting. final_footprint recounts the retained tree with staging data separate from workflow bookkeeping. Original per-stage category totals and repeated accounting polls remain raw.",
+    "normalization": "Only path substitutions and this explanatory metadata were added; reverse substitution equals selected raw JSON."
+  }
+}
