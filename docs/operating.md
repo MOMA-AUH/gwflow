@@ -8,9 +8,9 @@ command options, storage requirements, and detailed lifecycle behavior.
 
 ## Compatibility boundary
 
-The current release work targets **v0.8.0**, which remains under the pre-1.0
-policy: there is no general cross-version compatibility guarantee. The existing
-installed compatibility journeys check specific baseline/candidate pairs.
+gwflow remains under the pre-1.0 compatibility policy. There is no general
+cross-version compatibility guarantee. The installed compatibility tests cover
+specific baseline and candidate versions.
 
 The future stable compatibility baseline starts with **v1.0.0**. Across forward
 upgrades within 1.x, the public authoring API and CLI remain supported. An unchanged
@@ -244,9 +244,5 @@ The [compatibility suite](validation/compatibility/README.md) exercises installe
 versions against unchanged storage, including completed and partial work.
 Current automated local/container checks and historical live-Slurm observations
 are identified separately in the [validation index](validation/README.md).
-Representative production-pipeline acceptance on the actual cluster remains
-follow-up work; these records do not claim it has been performed for a v0.8.0
-candidate. The [final CLI presentation review (#213)](https://github.com/MOMA-AUH/gwflow/issues/213)
-and its resulting work remain a release milestone. See the
-[release acceptance plan](releasing.md#release-acceptance); this guide does not
-settle final terminal layouts or declare the release ready.
+The validation records identify the tested versions and environments. They do
+not establish representative production-pipeline acceptance on the actual cluster.
