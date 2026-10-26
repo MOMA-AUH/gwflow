@@ -1367,9 +1367,10 @@ supported; these guarantees are not universal power-loss certification.
 
 ## Compatibility
 
-The current release work targets v0.8.0 and follows the pre-1.0 policy below.
-The installed compatibility checks do not establish a stable release baseline
-or a general guarantee across pre-1.0 versions.
+gwflow remains under the pre-1.0 compatibility policy. There is no general
+cross-version compatibility guarantee. The installed compatibility tests cover
+specific baseline and candidate versions. They do not establish a stable release
+baseline.
 
 Starting with the future v1.0.0 baseline, forward upgrades within 1.x preserve
 the public authoring API and CLI, completed work after cleanup, and valid partial attempts without
