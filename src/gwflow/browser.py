@@ -264,6 +264,7 @@ class JobPrompt:
     def __rich_console__(self, console, options):
         state = job_state_text(self.job)
         name = self.job["local"]
+        name_style = "italic grey70" if name in ("gwflow_prepare", "gwflow_complete") else ""
         if isinstance(self.columns, ProgressColumns):
             # Expanded jobs share their parent Task's state column.
             name_width, progress_width = self.columns.widths(options.max_width)
@@ -273,9 +274,9 @@ class JobPrompt:
             indent, gap = "", 2
         if name_width + gap + state.cell_len <= options.max_width:
             name = indent + middle_name(name, name_width - len(indent))
-            yield Text(name + " " * (name_width - cell_len(name) + gap)) + state
+            yield Text.assemble((name, name_style), " " * (name_width - cell_len(name) + gap), state)
         else:
-            yield Text(indent + middle_name(name, options.max_width - len(indent)) + "\n") + state
+            yield Text.assemble((indent + middle_name(name, options.max_width - len(indent)), name_style), "\n", state)
 
 
 def failure_summary(failure):
