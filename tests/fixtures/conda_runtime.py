@@ -2,6 +2,7 @@
 """Controlled Conda process for runtime preservation acceptance tests."""
 
 import json
+import hashlib
 import os
 from pathlib import Path
 import sys
@@ -24,6 +25,13 @@ if arguments[0] == "create":
         subdir = "noarch" if name == "gwflow" else ("linux-64" if url.startswith("file:") else url.rsplit("/", 2)[-2])
         record = {"name": name, "version": version, "build": build, "subdir": subdir,
                   "url": url, "fn": filename, "sha256": checksum}
+        relative = f"lib/{name}.payload"
+        path = prefix / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(name + " installed payload")
+        installed_hash = hashlib.sha256(path.read_bytes()).hexdigest()
+        record.update(files=[relative], paths_data={"paths": [
+            {"_path": relative, "path_type": "hardlink", "sha256": installed_hash, "sha256_in_prefix": installed_hash}]})
         if name == os.environ.get("GWFLOW_CONDA_SUBSTITUTE"):
             record["version"] = "99.0"
         (prefix / "conda-meta" / (name + ".json")).write_text(json.dumps(record))

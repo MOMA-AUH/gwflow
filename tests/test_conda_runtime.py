@@ -37,8 +37,15 @@ class CondaRuntimeTests(unittest.TestCase):
         self.bundle = self.root / "preserved"
 
     def package(self, name, version, build, subdir, url, sha256):
+        relative = f"lib/{name}.payload"
+        path = self.prefix / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(name + " installed payload")
+        installed_hash = hashlib.sha256(path.read_bytes()).hexdigest()
         record = {"name": name, "version": version, "build": build, "subdir": subdir,
-                  "url": url, "fn": url.rsplit("/", 1)[1], "sha256": sha256}
+                  "url": url, "fn": url.rsplit("/", 1)[1], "sha256": sha256,
+                  "files": [relative], "paths_data": {"paths": [
+                      {"_path": relative, "path_type": "hardlink", "sha256": installed_hash, "sha256_in_prefix": installed_hash}]}}
         (self.prefix / "conda-meta" / (name + ".json")).write_text(json.dumps(record))
 
     def command(self, *arguments, success=True):
@@ -174,3 +181,31 @@ class CondaRuntimeTests(unittest.TestCase):
                               "--fresh-cache", str(self.root / "cache"), "--source", str(source), success=False)
         self.assertIn("fixture source", result.stderr)
         self.assertFalse(target.exists())
+
+    def test_capture_rejects_same_version_replacement_despite_unchanged_conda_inventory(self):
+        (self.prefix / "lib/gwflow.payload").write_text("same version, different pip-installed bytes")
+        result = self.capture(success=False)
+        self.assertIn("Installed file differs", result.stderr)
+        self.assertIn("gwflow", result.stderr)
+        self.assertFalse(self.bundle.exists())
+
+    def test_capture_checks_relocated_noarch_files_and_links_with_installed_hashes(self):
+        metadata = self.prefix / "conda-meta/gwflow.json"
+        package = json.loads(metadata.read_text())
+        installed = "lib/python3.12/site-packages/gwflow/__init__.py"
+        path = self.prefix / installed
+        path.parent.mkdir(parents=True)
+        (self.prefix / "lib/gwflow.payload").rename(path)
+        file = package["paths_data"]["paths"][0]
+        file.update(_path="site-packages/gwflow/__init__.py", sha256="3" * 64, prefix_placeholder="/original/build/prefix")
+        link = self.prefix / "lib/gwflow-link"
+        link.symlink_to(path)
+        package["files"] = [installed, "lib/gwflow-link"]
+        package["paths_data"]["paths"].append({"_path": "lib/gwflow-link", "path_type": "softlink", "sha256": "3" * 64})
+        metadata.write_text(json.dumps(package))
+        self.capture()
+        self.assertTrue((self.bundle / "runtime.json").is_file())
+        self.bundle = self.root / "incomplete-capture"
+        package["paths_data"]["paths"].pop()
+        metadata.write_text(json.dumps(package))
+        self.assertIn("Incomplete installed-file", self.capture(success=False).stderr)

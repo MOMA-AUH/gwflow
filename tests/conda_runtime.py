@@ -68,7 +68,49 @@ def installed_inventory(conda: str, prefix: Path, fixtures: dict[str, str]) -> d
             raise ValueError(f"Unsupported runtime package source: {item['name']}")
     if not {"python", "gwflow"} <= set(records):
         raise ValueError("The tested runtime must include Conda Python and gwflow")
+    verify_installed_files(prefix, records)
     return records
+
+
+def verify_installed_files(prefix: Path, records: dict[str, dict]) -> None:
+    python_version = ".".join(records["python"]["version"].split(".")[:2])
+    paths = {}
+    for name, record in records.items():
+        if "paths_data" not in record:
+            raise ValueError(f"Missing installed-file integrity metadata: {name}")
+        recorded_paths = set()
+        for item in record["paths_data"]["paths"]:
+            relative = item["_path"]
+            if relative.startswith("site-packages/"):
+                relative = f"lib/python{python_version}/" + relative
+            elif relative.startswith("python-scripts/"):
+                relative = "bin/" + relative.removeprefix("python-scripts/")
+            if Path(relative).is_absolute() or ".." in Path(relative).parts:
+                raise ValueError(f"Invalid installed file path: {name}")
+            recorded_paths.add(relative)
+            paths[prefix / relative] = (name, item)
+        if recorded_paths != set(record["files"]):
+            raise ValueError(f"Incomplete installed-file integrity metadata: {name}")
+    for path, (name, item) in paths.items():
+        kind = item["path_type"]
+        if kind in ("pyc_file", "unix_python_entry_point"):
+            # Conda generates these during installation without package-file hashes.
+            continue
+        if kind == "softlink":
+            target = paths.get(path.resolve())
+            if (not path.is_symlink() or target is None
+                    or target[1].get("sha256") != item.get("sha256")):
+                raise ValueError(f"Installed link differs from its Conda artifact: {name}: {path.relative_to(prefix)}")
+            continue
+        if kind != "hardlink":
+            raise ValueError(f"Unsupported installed-file metadata: {name}: {kind}")
+        expected = item.get("sha256_in_prefix")
+        if expected is None and not item.get("prefix_placeholder"):
+            expected = item.get("sha256")
+        if not isinstance(expected, str) or not re.fullmatch(r"[0-9a-f]{64}", expected):
+            raise ValueError(f"Missing installed-file SHA-256: {name}: {path.relative_to(prefix)}")
+        if path.is_symlink() or not path.is_file() or digest(path) != expected:
+            raise ValueError(f"Installed file differs from its Conda artifact: {name}: {path.relative_to(prefix)}")
 
 
 def package_entry(record: dict, target: str, *, local: bool = False) -> str:
@@ -246,8 +288,16 @@ def qualify(conda: str, bundle: Path, prefix: Path, fresh_cache: Path, source: P
         "assert Path(gwflow.__file__).resolve().is_relative_to(Path(sys.prefix).resolve()), 'gwflow is outside the restored environment'",
         environment=environment)
     with tempfile.TemporaryDirectory(prefix="gwflow-fixtures-") as directory:
-        wheel_directory = Path(directory)
-        packages = [str(source / "examples/packaged/packages" / name) for name in ("summary-task", "report-task")]
+        clean_source = Path(directory) / "source"
+        for name, expected in record["fixtures"].items():
+            copied = clean_source / name
+            copied.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(source / name, copied)
+            if digest(copied) != expected:
+                raise ValueError(f"Example fixture source changed while copying: {name}")
+        wheel_directory = Path(directory) / "wheels"
+        wheel_directory.mkdir()
+        packages = [str(clean_source / "examples/packaged/packages" / name) for name in ("summary-task", "report-task")]
         run(python, "-m", "pip", "wheel", "--no-deps", "--disable-pip-version-check", "--wheel-dir", str(wheel_directory),
             *packages, environment=environment, show_output=True)
         wheels = sorted(wheel_directory.glob("*.whl"))
