@@ -2,6 +2,7 @@
 
 import argparse
 import hashlib
+from importlib.util import source_from_cache
 import json
 import os
 from pathlib import Path
@@ -96,6 +97,15 @@ def verify_installed_files(prefix: Path, records: dict[str, dict]) -> None:
         if kind in ("pyc_file", "unix_python_entry_point"):
             # Conda generates these during installation without package-file hashes.
             continue
+        if path.suffix == ".pyc":
+            try:
+                source = paths.get(Path(source_from_cache(str(path))))
+            except ValueError:
+                source = None
+            if source is not None and source[1]["path_type"] == "hardlink":
+                # Python also regenerates caches shipped as ordinary Conda files
+                # when their owned source is relocated. The source is checked below.
+                continue
         if kind == "softlink":
             target = path.resolve()
             # Conda's link hash describes the build-time target, which can come

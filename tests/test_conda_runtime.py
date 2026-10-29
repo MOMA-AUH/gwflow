@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import py_compile
 import shutil
 import subprocess
 import sys
@@ -213,3 +214,32 @@ class CondaRuntimeTests(unittest.TestCase):
         package["paths_data"]["paths"].pop()
         metadata.write_text(json.dumps(package))
         self.assertIn("Incomplete installed-file", self.capture(success=False).stderr)
+
+    def test_capture_accepts_regenerated_bytecode_for_verified_relocated_python_source(self):
+        metadata = self.prefix / "conda-meta/python.json"
+        package = json.loads(metadata.read_text())
+        source = self.prefix / "lib/python3.12/_sysconfigdata_runtime.py"
+        source.parent.mkdir(parents=True, exist_ok=True)
+        source.write_text("prefix = '/original/build/prefix'\n")
+        original_source = hashlib.sha256(source.read_bytes()).hexdigest()
+        cache = Path(py_compile.compile(str(source), doraise=True))
+        original_cache = hashlib.sha256(cache.read_bytes()).hexdigest()
+        source.write_text("prefix = " + repr(str(self.prefix)) + "\n")
+        py_compile.compile(str(source), doraise=True)
+        self.assertNotEqual(hashlib.sha256(cache.read_bytes()).hexdigest(), original_cache)
+        package["files"].extend(str(path.relative_to(self.prefix)) for path in (source, cache))
+        package["paths_data"]["paths"].extend([
+            {"_path": str(source.relative_to(self.prefix)), "path_type": "hardlink", "sha256": original_source,
+             "sha256_in_prefix": hashlib.sha256(source.read_bytes()).hexdigest(), "prefix_placeholder": "/original/build/prefix"},
+            {"_path": str(cache.relative_to(self.prefix)), "path_type": "hardlink", "sha256": original_cache,
+             "sha256_in_prefix": original_cache}])
+        metadata.write_text(json.dumps(package))
+        self.capture()
+        self.bundle = self.root / "changed-source-capture"
+        source.write_text("prefix = 'unrecorded source change'\n")
+        self.assertIn("_sysconfigdata_runtime.py", self.capture(success=False).stderr)
+        package["files"].remove(str(source.relative_to(self.prefix)))
+        package["paths_data"]["paths"] = [item for item in package["paths_data"]["paths"]
+                                           if item["_path"] != str(source.relative_to(self.prefix))]
+        metadata.write_text(json.dumps(package))
+        self.assertIn("_sysconfigdata_runtime.cpython-", self.capture(success=False).stderr)
