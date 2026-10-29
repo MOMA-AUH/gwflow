@@ -62,14 +62,19 @@ def validate_attempt(store, task, observations):
 def observe_task(task):
     failures = [local for local, item in task.submissions.items() if item.state in ('failed', 'cancelled')]
     unknown = any(item.state == 'uncertain' for item in task.submissions.values())
+    missing = [local for local, item in task.submissions.items() if item.state == 'pending']
     reason = task.reason
+    if missing:
+        reason = 'Jobs require submission: ' + ', '.join(missing) + '; ' + reason
     if failures:
         reason = 'Jobs failed or canceled: ' + ', '.join(failures) + '; ' + reason
+    waiting_on_jobs = (task.action == 'active' or
+                       task.reason_code in ('submission_unresolved', 'activity_conflict')
+                       and (unknown or bool(task.superseded_submissions)))
     return {'name': task.name, 'attempt': task.attempt['attempt'] if task.attempt else None,
             'state': task_row(task).state, 'reason': reason,
             'complete': task.action == 'reuse' and not failures,
-            'pending': not failures and (task.action == 'active' or
-                                        task.reason_code == 'submission_unresolved' and unknown)}
+            'pending': not failures and not missing and waiting_on_jobs}
 
 
 if __name__ == '__main__':

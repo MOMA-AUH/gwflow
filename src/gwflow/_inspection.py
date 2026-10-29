@@ -37,9 +37,13 @@ class InspectionProcess:
     def completed(self):
         return self.process.poll() is not None
 
-    def outcome(self):
+    def output(self):
         output = (self.root / "stdout").read_text(errors="replace")
         diagnostics = (self.root / "stderr").read_text(errors="replace")
+        return output, diagnostics
+
+    def outcome(self):
+        output, diagnostics = self.output()
         if self.process.returncode:
             return None, diagnostics or "Inspection failed without diagnostics.", output
         snapshot = json.loads(self.result.read_text())
@@ -47,7 +51,7 @@ class InspectionProcess:
         snapshot["inspection_diagnostics"] = diagnostics
         return snapshot, "", output
 
-    def close(self):
+    def stop(self):
         try:
             self.process.send_signal(signal.SIGTERM)
         except ProcessLookupError:
@@ -62,5 +66,10 @@ class InspectionProcess:
             except ProcessLookupError:
                 pass
             self.process.wait()
-        self.directory.cleanup()
+
+    def close(self):
+        try:
+            self.stop()
+        finally:
+            self.directory.cleanup()
 

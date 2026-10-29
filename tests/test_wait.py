@@ -262,6 +262,8 @@ class WaitTests(LocalBackendTestCase):
                  "signal.signal(signal.SIGTERM, signal.SIG_IGN)\n"
                  "Path('detached-pid').write_text(str(os.getpid()))\ntime.sleep(60)\n")
         workflow.write_text("import os, subprocess, sys, time\nfrom pathlib import Path\n"
+                            "print('loading stdout', flush=True)\nprint('loading stderr', file=sys.stderr, flush=True)\n"
+                            "os.write(1, b'loading descriptor\\n')\n"
                             "Path('inspection-root').write_text(str(Path(sys.pycache_prefix).parent))\n"
                             f"subprocess.Popen([sys.executable, '-c', {child!r}], start_new_session=True)\n"
                             "time.sleep(60)\n" + workflow.read_text())
@@ -273,6 +275,8 @@ class WaitTests(LocalBackendTestCase):
         self.assertEqual(process.wait(timeout=10), 130, self.wait_messages())
         self.assertFalse(Path(f'/proc/{pid}').exists())
         self.assertFalse(root.exists())
+        for message in ('loading stdout', 'loading stderr', 'loading descriptor'):
+            self.assertIn(message, self.wait_messages())
         self.assertEqual((self.work / 'wait.stdout').read_text(), '')
 
     def test_interrupt_during_frontend_lock_and_scheduler_query_cleans_inspection(self):
@@ -363,3 +367,34 @@ class WaitTests(LocalBackendTestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn('injected tracking lookup failure', result.stderr)
         self.assertNotIn('Scheduler unavailable', result.stderr)
+
+    def test_unknown_outcome_does_not_hide_required_missing_submission(self):
+        self.gate_computation()
+        self.cli('-b', 'recovery_fixture', 'run', 'a', success=False,
+                 env=self.inject(reject_prefix='a__compute'))
+        environment = self.inject(job_states={'a__compute': 'UNKNOWN'})
+        process = self.start_wait('-b', 'recovery_fixture', 'wait', '--interval', '0.1', 'a', env=environment)
+        self.assertEqual(process.wait(timeout=8), 1, self.wait_messages())
+        self.assertIn('another command', self.wait_messages())
+        (self.work / 'release').touch()
+        self.finish()
+        self.assertFalse((self.work / 'results/a/result.txt').exists())
+
+    def test_active_recovered_submission_can_settle_without_another_command(self):
+        shutil.copy(FIXTURES / 'job_fault.py', self.work)
+        (self.work / 'job-fault.json').write_text(json.dumps({'crash_before_execution': True}))
+        self.cli('-b', 'recovery_fixture', 'run', 'a', env=self.inject(job_fault='a__compute'))
+        self.settle()
+        document = json.loads(self.cli_result('status', '--json', '--details', 'a').stdout)
+        old_submission = next(job['submission_name'] for job in document['tasks'][0]['jobs']
+                              if job['name'] == 'a__compute')
+        self.cli('-b', 'recovery_fixture', 'recover', 'a', env=self.inject(job_states={'a': 'UNKNOWN'}))
+        self.cli('run', 'a')
+        self.settle()
+        environment = self.inject(submission_states={old_submission: 'RUNNING'})
+        process = self.start_wait('-b', 'recovery_fixture', 'wait', '--interval', '0.1', 'a', env=environment)
+        self.wait_for(lambda: 'recovered submissions' in self.wait_messages())
+        self.assertIsNone(process.poll(), self.wait_messages())
+        self.inject()
+        self.assertEqual(process.wait(timeout=15), 0, self.wait_messages())
+        self.assertEqual((self.work / 'trace').read_text(), 'a\n')

@@ -74,6 +74,11 @@ def wait(ctx, selectors, interval):
                 raise click.exceptions.Exit(1)
             time.sleep(interval)
     except KeyboardInterrupt:
+        if inspection is not None:
+            inspection.stop()
+            output, diagnostics = inspection.output()
+            if output or diagnostics:
+                click.echo(output + diagnostics, err=True, nl=False)
         click.echo('Waiting interrupted. Submitted jobs may still be queued or running.', err=True)
         raise click.exceptions.Exit(130)
     finally:
