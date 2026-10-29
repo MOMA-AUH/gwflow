@@ -108,16 +108,21 @@ def progress_display(completed, total, width=14, *, fraction_width=0):
     return text
 
 
+def submission_state(item):
+    """Name the captured submission assessment independently of Task progress."""
+    if item.state == "active":
+        return "queued" if item.backend_state == BackendStatus.SUBMITTED else "running"
+    return {"complete": "completed", "cancelled": "canceled", "uncertain": "unknown"}.get(item.state, item.state)
+
+
 def observed_job_state(task, local):
     """Describe the captured job before applying Task repetition requirements."""
     item = task.submissions.get(local)
     if task.action == "reuse":
         return "completed"
-    if item is not None and item.state == "active":
-        return "queued" if item.backend_state == BackendStatus.SUBMITTED else "running"
     if item is None:
         return "pending" if task.observations_available else "unknown"
-    return {"complete": "completed", "cancelled": "canceled", "uncertain": "unknown"}.get(item.state, item.state)
+    return submission_state(item)
 
 
 def job_states(task):

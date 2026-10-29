@@ -75,7 +75,7 @@ def status(ctx, selectors, statuses, details, plain, static_report, json_report)
         selected = selected_rows(workflow, plan, names=names)
         rows = [row for row in selected if not statuses or row.state in statuses]
         if json_report:
-            return status_document(rows, task_order(workflow, plan))
+            return status_document(rows, task_order(workflow, plan), details=details)
         total = len(workflow._task_declarations)
         if not selectors and not details:
             report.overview(task_groups(workflow, plan), selected, total,
