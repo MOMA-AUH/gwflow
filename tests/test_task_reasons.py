@@ -186,10 +186,12 @@ class TaskReasonTests(LocalBackendTestCase, unittest.IsolatedAsyncioTestCase):
             for _ in range(200):
                 await pilot.pause(0.05)
                 fields = app.screen.query('#reason-full-paths')
-                if fields and 'size: 6 -> 18' in fields.first(Static).content.plain:
+                focused = app.screen.focused
+                if (fields and 'size: 6 -> 18' in fields.first(Static).content.plain
+                        and focused is not None and focused.parent.id == 'reason-paths'):
                     break
             else:
-                self.fail('Refreshed input evidence did not arrive')
+                self.fail('Refreshed input evidence and restored keyboard focus did not arrive')
             self.assertFalse(app.screen.query_one('#reason-details', Collapsible).collapsed)
             self.assertFalse(app.screen.query_one('#reason-paths', Collapsible).collapsed)
             self.assertIn('size: 6 -> 18', app.screen.query_one('#reason-full-paths', Static).content.plain)
