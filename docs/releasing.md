@@ -11,6 +11,9 @@ deployment-provided Apptainer 1.5.4. The
 [validation record](validation/containers/acceptance.md) documents real execution
 on both backends, the BeeGFS storage correction, and
 deployment limits. Broader runtime and backend support has not been verified.
+The [runtime capture and restoration procedure](validation/conda-runtime.md)
+checks exact dependency reconstruction before stable release preservation.
+Its qualification runs in the existing Conda CI job and does not publish a release.
 Use the [validation guide](validation/README.md) for current setup and checks,
 and its evidence index to find the relevant historical records.
 Operators should use the [operating and upgrade guide](operating.md) for force,
