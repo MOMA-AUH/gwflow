@@ -94,6 +94,25 @@ jobs:
           conda list -p "$RUNNER_TEMP/gwflow-smoke" --json | python -c 'import json, sys; package = next(p for p in json.load(sys.stdin) if p["name"] == "gwflow"); assert package["base_url"].startswith("file://"), package'
           conda run -p "$RUNNER_TEMP/gwflow-smoke" python -m unittest discover -s tests -v
           conda run -p "$RUNNER_TEMP/gwflow-smoke" python tests/release_smoke.py
+      - name: Capture and qualify the tested Conda runtime
+        shell: bash -l {0}
+        run: |
+          artifact=$(find "$RUNNER_TEMP/conda-dist/noarch" -name 'gwflow-*.conda' -print -quit)
+          test -n "$artifact"
+          python tests/conda_runtime.py capture \
+            --prefix "$RUNNER_TEMP/gwflow-smoke" --artifact "$artifact" \
+            --source "$PWD" --output "$RUNNER_TEMP/conda-runtime"
+          python tests/validate_conda_runtime.py \
+            --capture "$RUNNER_TEMP/conda-runtime" --source "$PWD" \
+            --root build/validation/conda-runtime
+      - uses: actions/upload-artifact@v7
+        with:
+          name: conda-runtime-evidence
+          path: |
+            ${{ runner.temp }}/conda-runtime/runtime.explicit.txt
+            ${{ runner.temp }}/conda-runtime/runtime.json
+            build/validation/conda-runtime/summary.json
+          if-no-files-found: error
       - uses: actions/upload-artifact@v7
         with:
           name: gwflow-conda-candidate

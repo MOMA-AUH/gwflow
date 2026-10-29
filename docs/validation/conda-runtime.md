@@ -1,0 +1,124 @@
+# Capture and restore a tested Conda runtime
+
+`tests/conda_runtime.py` preserves exact Conda package selections for release
+checks and later compatibility comparisons. It does not add a public `gwflow`
+command or publish a release. See [ADR 0018](../adr/0018-preserve-independent-compatibility-environments.md).
+
+Use Python 3.12 or newer and a Conda version that supports
+`conda list --explicit --sha256`. Pass `--conda EXECUTABLE` before the subcommand
+to select Conda explicitly. The default is `CONDA_EXE`, then `conda`.
+
+## Capture after the full tests
+
+Capture the runtime that passed the full installed-package tests. The caller
+must enforce this order. The tool does not certify an earlier test run.
+The Conda CI job calls capture after its full suite and release smoke tests pass.
+
+Supply the exact installed gwflow Conda artifact and its source checkout.
+In this example, `TESTED_PREFIX` and `TESTED_ARTIFACT` are placeholders for those
+paths. The source checkout must contain Git metadata and matching example
+packages. The output directory must not exist.
+
+```sh
+python tests/conda_runtime.py capture \
+  --prefix TESTED_PREFIX --artifact TESTED_ARTIFACT \
+  --source . --output build/validation/runtime-capture
+```
+
+Capture produces three files:
+
+- `runtime.explicit.txt` contains the native Conda dependency list, target
+  platform, and exact artifact URLs with SHA-256 checksums.
+- The original gwflow package keeps its filename and bytes.
+- `runtime.json` records the package and manifest checksums, source commit,
+  fixture identities, target platform, and tool versions.
+
+The manifest includes Python and every direct, indirect, and native Conda
+dependency. It excludes only gwflow, whose temporary build-channel URL cannot
+serve as a durable package location. Capture compares the export with the
+installed Conda records and package inventory. Missing entries, URLs, hashes,
+unsupported package sources, and mismatched artifacts fail.
+
+The two example packages are separate validation fixtures. Their installed
+versions must match the supplied source. Other pip-managed runtime packages
+fail capture and need another preservation design. The source hashes in
+`runtime.json` identify the fixture files to rebuild.
+
+## Restore exact artifacts
+
+Keep the three capture files together. The identity record `runtime.json`
+supplies the expected package and manifest checksums. Callers that download
+these files must obtain trusted identities from their pinned release or
+compatibility descriptor. The tool does not authenticate an untrusted identity
+record. Use a new environment prefix.
+
+```sh
+python tests/conda_runtime.py restore \
+  --capture build/validation/runtime-capture \
+  --prefix build/validation/runtime-restored \
+  --fresh-cache build/validation/runtime-cache
+```
+
+The optional cache path must not exist. The tool creates it and sets
+`CONDA_PKGS_DIRS` for installation. This prevents other caches from hiding
+unavailable downloads. Without `--fresh-cache`, Conda can use configured caches.
+Existing target prefixes are rejected.
+
+Restoration checks both preserved checksums and the host platform before
+installation. A manifest comment alone cannot enforce platform compatibility.
+Conda installs the explicit selection without a dependency solve or default
+packages and checks dependency downloads against their SHA-256 values.
+The tool compares installed names, versions, builds, platforms, filenames, and
+hashes with that selection. Missing downloads, corrupt bytes, or changed
+inventory return nonzero.
+
+Successful restoration writes `gwflow-runtime.json` inside the new environment
+with status `restored`. This does not claim that smoke tests ran. After a failed
+installation, preserve its logs and inspect the partial prefix. Use another
+new prefix for the next attempt.
+
+For a permanently missing dependency, recover an identical copy from a trusted
+source. Keep its original filename and pass `--recovered PACKAGE` to `restore`.
+Repeat the option for multiple packages. Each copy must match the original
+SHA-256. The tool leaves the manifest unchanged and records recovered packages.
+A different build requires a documented replacement manifest and validation
+under ADR 0018. It does not recreate the original environment exactly.
+
+## Qualify reconstruction
+
+Qualification requires the source-matched example files recorded during capture.
+The source can be a checkout or an archive of that revision. Both the environment
+and cache paths below must be new.
+
+```sh
+python tests/conda_runtime.py qualify \
+  --capture build/validation/runtime-capture \
+  --prefix build/validation/runtime-qualified \
+  --fresh-cache build/validation/runtime-qualified-cache \
+  --source .
+```
+
+Qualification restores the runtime and builds example wheels with pip's isolated
+build tooling. It installs those wheels with `--no-deps --no-index` and compares
+the Conda inventory and runtime files before and after installation. Generated
+Python bytecode is excluded from the file comparison. It runs `pip check` and
+the existing `tests/release_smoke.py` journeys for composition and Reuse,
+troubleshooting, and operator recovery. It does not repeat the full suite.
+
+Only success changes the evidence status to `qualified`. The evidence records
+unchanged runtime dependencies and the smoke command's zero exit status.
+The Conda CI job also uses `tests/validate_conda_runtime.py` to test controlled
+missing and corrupt HTTP downloads with empty caches before real qualification.
+Raw logs stay under ignored `build/validation/conda-runtime/`.
+The `conda-runtime-evidence` artifact contains the manifest, capture record, and
+qualification summary. The existing candidate artifact retains the gwflow
+package. These CI artifacts do not establish a published stable release.
+
+## Limits
+
+Upstream artifacts must remain available, or identical copies must be recovered.
+The manifest does not preserve the host operating system, kernel, filesystem,
+scheduler, external container runtime, or separate fixture build tooling.
+Explicit restoration does not extend the supported platform policy.
+Do not commit package archives, caches, runtime manifests, or raw local logs.
+Preserve stable release attachments through the release procedure.
