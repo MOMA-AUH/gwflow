@@ -586,8 +586,8 @@ class StatusLogWindowTests(unittest.IsolatedAsyncioTestCase):
             style = text.get_style_at_offset(Console(), text.plain.index('red bold'))
             self.assertTrue(style.bold)
             self.assertEqual(style.color.number, 1)
-            self.assertIn('Undecodable UTF-8', test_browser_interaction.visible_text(app))
-            self.assertIn('Terminal controls', test_browser_interaction.visible_text(app))
+            notices = await self.shown(app, pilot, 'Terminal controls')
+            self.assertIn('Undecodable UTF-8', notices)
             self.assertEqual(self.stdout.read_bytes(), original)
             await pilot.press('q')
 
@@ -778,9 +778,9 @@ class StatusLogWindowTests(unittest.IsolatedAsyncioTestCase):
                         await pilot.press('down')
                     await pilot.press('enter')
                     state = app.screen.job['observed_state']
-                    await self.shown(app, pilot, f'No {stream} log available.')
-                    rendered = test_browser_interaction.visible_text(app)
-                    self.assertIn('This submission may not have started, or its log may have been removed.', rendered)
+                    rendered = await self.shown(app, pilot,
+                        'This submission may not have started, or its log may have been removed.')
+                    self.assertIn(f'No {stream} log available.', rendered)
                     self.assertIn('Attempt:', rendered)
                     self.assertIn('Path:', rendered)
                     self.assertIn(str(self.root / f'exact.{stream}'), rendered)
