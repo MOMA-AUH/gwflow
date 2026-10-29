@@ -220,6 +220,17 @@ def identities(records: dict[str, dict]) -> dict[str, dict]:
     return {name: {field: record.get(field) for field in fields} for name, record in records.items()}
 
 
+def read_dependency_manifest(manifest: Path, target: str) -> tuple[list[str], dict[str, dict]]:
+    lines = [line.strip() for line in manifest.read_text().splitlines() if line.strip() and not line.startswith("#")]
+    if not lines or lines.pop(0) != "@EXPLICIT":
+        raise ValueError("Expected a native Conda explicit manifest")
+    dependencies = [explicit_identity(line, target) for line in lines]
+    expected = {item["name"]: item for item in dependencies}
+    if len(expected) != len(dependencies) or "gwflow" in expected or "python" not in expected:
+        raise ValueError("Dependency manifest has duplicate packages, includes gwflow, or omits Python")
+    return lines, expected
+
+
 def restore(conda: str, bundle: Path, prefix: Path, fresh_cache: Path | None = None,
             recovered: tuple[Path, ...] = ()) -> dict:
     record = json.loads((bundle / "runtime.json").read_text())
@@ -229,16 +240,10 @@ def restore(conda: str, bundle: Path, prefix: Path, fresh_cache: Path | None = N
         raise ValueError("Recorded target platform does not match this host")
     artifact = preserved_file(bundle, record["artifact"], "artifact")
     manifest = preserved_file(bundle, record["manifest"], "manifest")
-    lines = [line.strip() for line in manifest.read_text().splitlines() if line.strip() and not line.startswith("#")]
-    if not lines or lines.pop(0) != "@EXPLICIT":
-        raise ValueError("Expected a native Conda explicit manifest")
-    dependencies = [explicit_identity(line, record["platform"]) for line in lines]
-    expected = {item["name"]: item for item in dependencies}
-    if len(expected) != len(dependencies) or "gwflow" in expected or "python" not in expected:
-        raise ValueError("Dependency manifest has duplicate packages, includes gwflow, or omits Python")
+    lines, expected = read_dependency_manifest(manifest, record["platform"])
     recovered_names = []
     for path in recovered:
-        matches = [item for item in dependencies if item["fn"] == path.name]
+        matches = [item for item in expected.values() if item["fn"] == path.name]
         if len(matches) != 1 or path.name in recovered_names:
             raise ValueError("Recovered dependency must identify one recorded artifact")
         dependency = matches[0]

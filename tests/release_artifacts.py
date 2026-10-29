@@ -8,7 +8,7 @@ import shutil
 import subprocess
 import tempfile
 
-from conda_runtime import digest, explicit_identity, identities, preserved_file
+from conda_runtime import digest, explicit_identity, identities, preserved_file, read_dependency_manifest
 
 
 def stable_tag(tag: str) -> bool:
@@ -41,13 +41,7 @@ def qualified_capture(capture: Path, qualification: Path, tag: str, source: str)
     for field in ("platform", "artifact", "manifest", "source_commit", "fixture_versions"):
         if evidence[field] != record[field]:
             raise ValueError(f"Qualification differs from the captured runtime: {field}")
-    lines = [line.strip() for line in manifest.read_text().splitlines() if line.strip() and not line.startswith("#")]
-    if not lines or lines.pop(0) != "@EXPLICIT":
-        raise ValueError("Expected a native Conda explicit manifest")
-    dependencies = [explicit_identity(line, record["platform"]) for line in lines]
-    expected = {item["name"]: item for item in dependencies}
-    if len(expected) != len(dependencies) or "python" not in expected or "gwflow" in expected:
-        raise ValueError("Manifest must contain distinct runtime dependencies including Python, without gwflow")
+    _, expected = read_dependency_manifest(manifest, record["platform"])
     expected["gwflow"] = package
     if evidence["packages"] != identities(expected):
         raise ValueError("Qualified package inventory differs from the release artifacts")
