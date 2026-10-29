@@ -53,6 +53,18 @@ class WaitTests(LocalBackendTestCase):
         gate = shlex.quote(str(self.work / 'release'))
         workflow.write_text(workflow.read_text().replace('echo a >>', f'while test ! -e {gate}; do sleep 0.05; done; echo a >>'))
 
+    def block_loading_with_detached_child(self):
+        workflow = self.work / 'workflow.py'
+        child = ("import os, signal, time\nfrom pathlib import Path\n"
+                 "signal.signal(signal.SIGTERM, signal.SIG_IGN)\n"
+                 "Path('detached-pid').write_text(str(os.getpid()))\ntime.sleep(60)\n")
+        workflow.write_text("import os, subprocess, sys, time\nfrom pathlib import Path\n"
+                            "print('loading stdout', flush=True)\nprint('loading stderr', file=sys.stderr, flush=True)\n"
+                            "os.write(1, b'loading descriptor\\n')\n"
+                            "Path('inspection-root').write_text(str(Path(sys.pycache_prefix).parent))\n"
+                            f"subprocess.Popen([sys.executable, '-c', {child!r}], start_new_session=True)\n"
+                            "time.sleep(60)\n" + workflow.read_text())
+
     def test_active_work_reaches_completion_without_wait_submitting_jobs(self):
         self.gate_computation()
         self.cli('run', 'a')
@@ -105,16 +117,7 @@ class WaitTests(LocalBackendTestCase):
         self.assertEqual((self.work / 'wait.stdout').read_text(), '')
 
     def test_timeout_cleans_loading_descendants_and_preserves_captured_output(self):
-        workflow = self.work / 'workflow.py'
-        child = ("import os, signal, time\nfrom pathlib import Path\n"
-                 "signal.signal(signal.SIGTERM, signal.SIG_IGN)\n"
-                 "Path('detached-pid').write_text(str(os.getpid()))\ntime.sleep(60)\n")
-        workflow.write_text("import os, subprocess, sys, time\nfrom pathlib import Path\n"
-                            "print('loading stdout', flush=True)\nprint('loading stderr', file=sys.stderr, flush=True)\n"
-                            "os.write(1, b'loading descriptor\\n')\n"
-                            "Path('inspection-root').write_text(str(Path(sys.pycache_prefix).parent))\n"
-                            f"subprocess.Popen([sys.executable, '-c', {child!r}], start_new_session=True)\n"
-                            "time.sleep(60)\n" + workflow.read_text())
+        self.block_loading_with_detached_child()
         process = self.start_wait('wait', '--timeout', '10')
         self.wait_for(lambda: (self.work / 'detached-pid').exists() or process.poll() is not None)
         self.assertTrue((self.work / 'detached-pid').exists(), self.wait_messages())
@@ -386,16 +389,7 @@ class WaitTests(LocalBackendTestCase):
         self.assertEqual((self.work / 'trace').read_text(), 'a\n')
 
     def test_interrupt_cleans_detached_loading_descendants_and_temporary_resources(self):
-        workflow = self.work / 'workflow.py'
-        child = ("import os, signal, time\nfrom pathlib import Path\n"
-                 "signal.signal(signal.SIGTERM, signal.SIG_IGN)\n"
-                 "Path('detached-pid').write_text(str(os.getpid()))\ntime.sleep(60)\n")
-        workflow.write_text("import os, subprocess, sys, time\nfrom pathlib import Path\n"
-                            "print('loading stdout', flush=True)\nprint('loading stderr', file=sys.stderr, flush=True)\n"
-                            "os.write(1, b'loading descriptor\\n')\n"
-                            "Path('inspection-root').write_text(str(Path(sys.pycache_prefix).parent))\n"
-                            f"subprocess.Popen([sys.executable, '-c', {child!r}], start_new_session=True)\n"
-                            "time.sleep(60)\n" + workflow.read_text())
+        self.block_loading_with_detached_child()
         process = self.start_wait('wait', '--timeout', '60')
         self.wait_for((self.work / 'detached-pid').exists)
         pid = int((self.work / 'detached-pid').read_text())
