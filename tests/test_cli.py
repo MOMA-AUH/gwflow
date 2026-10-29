@@ -14,6 +14,18 @@ GWFLOW = str(Path(sys.executable).with_name("gwflow"))
 
 
 class StartupTests(unittest.TestCase):
+    def test_unknown_backend_names_remain_usage_errors(self):
+        with tempfile.TemporaryDirectory(prefix="gwflow backend choice ") as directory:
+            for command in ('wait', 'status', 'run'):
+                with self.subTest(command=command):
+                    result = subprocess.run([GWFLOW, '--backend', 'unknown_backend', command], cwd=directory,
+                                            capture_output=True, text=True, timeout=30)
+                    self.assertEqual(result.returncode, 2, result.stderr)
+                    self.assertIn('--backend', result.stderr)
+                    self.assertIn('local', result.stderr)
+                    self.assertEqual(result.stdout, '')
+            self.assertEqual(list(Path(directory).iterdir()), [])
+
     def test_help_version_and_missing_workflow_without_state(self):
         with tempfile.TemporaryDirectory(prefix="gwflow startup ") as directory:
             work = Path(directory)

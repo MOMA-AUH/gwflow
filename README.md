@@ -105,20 +105,28 @@ completion jobs, including record compaction.
 
 The first inspection starts immediately. Later inspections pause for 60 seconds.
 Use `gwflow wait hello --interval 5` to change the pause to five seconds. Waiting
-has no time limit. Scheduler-query failures and unknown job outcomes keep waiting
+has no time limit by default. Scheduler-query failures and unknown job outcomes keep waiting
 until sufficient observations or checked execution evidence resolve them. Known
 failures and invalidated attempts still end the wait promptly. Other loading or
 inspection errors also end the wait.
+
+Use `gwflow wait hello --timeout 300` to limit the whole command to five minutes.
+The limit starts at command startup. It includes configuration and workflow loading,
+lock waits, scheduler queries, other inspection work, and pauses. Scheduler failures
+and unknown job outcomes do not reset the limit. Pauses stop when the remaining
+time expires. The timeout must be a finite number greater than zero.
 
 Waiting reports state changes, scheduler problems and recovery, and a final result.
 Unchanged inspections stay silent. All messages, including output from workflow
 loading, go to stderr. Stdout stays empty. Use `gwflow wait hello 2>wait.log` to
 capture the messages. Exit codes are `0` for completion, `1` for failed work or
-another waiting error, `2` for invalid command usage, and `130` for Ctrl+C.
+another waiting error, `2` for invalid command usage, `124` for timeout, and `130`
+for Ctrl+C.
 
 If completion needs another command, waiting returns `1`. This includes Tasks
-without attempts, deferred work, and work that needs retry or repair. Ctrl+C stops
-waiting and its inspection processes. Submitted jobs can remain queued or running
+without attempts, deferred work, and work that needs retry or repair. Timeout and
+Ctrl+C stop waiting and clean up its inspection processes, temporary resources,
+and locks. Timeout does not establish Task failure. Submitted jobs can remain queued or running
 after any unsuccessful wait. A nonzero exit does not establish that jobs stopped.
 
 To stop a task's jobs, preview with `gwflow cancel hello --dry-run`, then request

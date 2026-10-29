@@ -41,7 +41,9 @@ def capture(ctx, destination, selectors):
             for task in tasks:
                 if task['attempt'] != awaited[task['name']]:
                     raise WorkflowError(f"Awaited Task attempt replaced: {task['name']}")
-    destination.write_text(json.dumps({'tasks': tasks, 'scheduler_errors': sorted(set(scheduler_errors))}))
+    options = ['--file', f'{ctx.workflow_file}:{ctx.workflow_obj}', '--backend', ctx.backend]
+    destination.write_text(json.dumps({'tasks': tasks, 'scheduler_errors': sorted(set(scheduler_errors)),
+                                      'inspection_options': options}))
 
 
 def validate_attempt(store, task, observations):

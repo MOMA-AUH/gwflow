@@ -98,6 +98,24 @@ class RegistryTestCase(LocalBackendTestCase):
 
 
 class RegistryImageTests(RegistryTestCase):
+    def test_wait_timeout_interrupts_image_inspection_and_releases_acquisition_resources(self):
+        self.options(gate="timeout")
+        result = self.cli_result('wait', '--timeout', '10', success=False)
+        self.assertEqual(result.returncode, 124, result.stderr)
+        self.assertEqual(result.stdout, '')
+        self.assertTrue((self.controller / 'timeout-held').exists())
+        self.assertIn('timed out', result.stderr)
+        self.assertEqual(self.calls('pull-success'), [])
+        partial = Path(self.calls('pull')[0]['destination'])
+        self.assertFalse(partial.parent.exists())
+        self.assertEqual(self.cached_images(), [])
+        self.options()
+        result = self.cli_result('wait', '--timeout', '20', success=False)
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn('another command', result.stderr)
+        self.assertEqual(len(self.cached_images()), 1)
+        self.assertFalse((self.work / 'work').exists())
+
     def test_status_reports_pull_before_acquisition_finishes(self):
         self.options(gate="progress")
         progress = self.work / "pull-progress.log"

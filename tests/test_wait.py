@@ -1,5 +1,6 @@
 """Observe existing Task attempts through the installed waiting command."""
 
+import errno
 import fcntl
 import json
 import os
@@ -30,12 +31,12 @@ class WaitTests(LocalBackendTestCase):
         self.assertEqual(self.task_attempts(), attempts)
         self.assertFalse((self.work / 'results/b').exists())
 
-    def start_wait(self, *args, env=None):
+    def start_wait(self, *args, env=None, cwd=None):
         output = (self.work / 'wait.stdout').open('w')
         errors = (self.work / 'wait.stderr').open('w')
         self.addCleanup(output.close)
         self.addCleanup(errors.close)
-        process = subprocess.Popen([self.executable, *args], cwd=self.work, stdout=output, stderr=errors, env=env)
+        process = subprocess.Popen([self.executable, *args], cwd=cwd or self.work, stdout=output, stderr=errors, env=env)
         self.addCleanup(self.stop_wait, process)
         return process
 
@@ -52,6 +53,18 @@ class WaitTests(LocalBackendTestCase):
         gate = shlex.quote(str(self.work / 'release'))
         workflow.write_text(workflow.read_text().replace('echo a >>', f'while test ! -e {gate}; do sleep 0.05; done; echo a >>'))
 
+    def block_loading_with_detached_child(self):
+        workflow = self.work / 'workflow.py'
+        child = ("import os, signal, time\nfrom pathlib import Path\n"
+                 "signal.signal(signal.SIGTERM, signal.SIG_IGN)\n"
+                 "Path('detached-pid').write_text(str(os.getpid()))\ntime.sleep(60)\n")
+        workflow.write_text("import os, subprocess, sys, time\nfrom pathlib import Path\n"
+                            "print('loading stdout', flush=True)\nprint('loading stderr', file=sys.stderr, flush=True)\n"
+                            "os.write(1, b'loading descriptor\\n')\n"
+                            "Path('inspection-root').write_text(str(Path(sys.pycache_prefix).parent))\n"
+                            f"subprocess.Popen([sys.executable, '-c', {child!r}], start_new_session=True)\n"
+                            "time.sleep(60)\n" + workflow.read_text())
+
     def test_active_work_reaches_completion_without_wait_submitting_jobs(self):
         self.gate_computation()
         self.cli('run', 'a')
@@ -63,6 +76,182 @@ class WaitTests(LocalBackendTestCase):
         self.assertEqual(process.wait(timeout=20), 0, self.wait_messages())
         self.assertEqual((self.work / 'wait.stdout').read_text(), '')
         self.assertEqual(self.task_attempts(), attempts)
+        self.assertEqual((self.work / 'trace').read_text(), 'a\n')
+
+    def test_timeout_caps_polling_pause_without_canceling_submitted_work(self):
+        self.gate_computation()
+        self.cli('run', 'a')
+        attempts = self.task_attempts()
+        process = self.start_wait('wait', '--interval', '60', '--timeout', '10', 'a')
+        self.assertEqual(process.wait(timeout=18), 124, self.wait_messages())
+        self.assertIn('a: running', self.wait_messages())
+        self.assertIn('timed out', self.wait_messages())
+        self.assertIn('may still be queued or running', self.wait_messages())
+        self.assertEqual((self.work / 'wait.stdout').read_text(), '')
+        (self.work / 'release').touch()
+        self.finish()
+        self.assertEqual(self.task_attempts(), attempts)
+        self.assertEqual((self.work / 'trace').read_text(), 'a\n')
+
+    def test_timeout_includes_blocked_configuration_loading(self):
+        configuration = self.work / '.gwfconf.json'
+        configuration.unlink()
+        os.mkfifo(configuration)
+        process = self.start_wait('wait', '--timeout', '10')
+        writer = []
+
+        def configuration_reader_started():
+            try:
+                writer.append(os.open(configuration, os.O_WRONLY | os.O_NONBLOCK))
+            except OSError as error:
+                if error.errno != errno.ENXIO:
+                    raise
+                return False
+            self.addCleanup(os.close, writer[0])
+            return True
+
+        self.wait_for(lambda: configuration_reader_started() or process.poll() is not None)
+        self.assertTrue(writer, self.wait_messages())
+        self.assertEqual(process.wait(timeout=15), 124, self.wait_messages())
+        self.assertIn('timed out', self.wait_messages())
+        self.assertEqual((self.work / 'wait.stdout').read_text(), '')
+
+    def test_timeout_cleans_loading_descendants_and_preserves_captured_output(self):
+        self.block_loading_with_detached_child()
+        process = self.start_wait('wait', '--timeout', '10')
+        self.wait_for(lambda: (self.work / 'detached-pid').exists() or process.poll() is not None)
+        self.assertTrue((self.work / 'detached-pid').exists(), self.wait_messages())
+        pid = int((self.work / 'detached-pid').read_text())
+        root = Path((self.work / 'inspection-root').read_text())
+        self.assertEqual(process.wait(timeout=15), 124, self.wait_messages())
+        self.assertFalse(Path(f'/proc/{pid}').exists())
+        self.assertFalse(root.exists())
+        for message in ('loading stdout', 'loading stderr', 'loading descriptor', 'timed out'):
+            self.assertIn(message, self.wait_messages())
+        self.assertEqual((self.work / 'wait.stdout').read_text(), '')
+
+    def test_timeout_owns_backend_plugin_import_and_its_detached_descendants(self):
+        child = ("import os, signal, time\nfrom pathlib import Path\n"
+                 "signal.signal(signal.SIGTERM, signal.SIG_IGN)\n"
+                 "Path('plugin-child-pid').write_text(str(os.getpid()))\ntime.sleep(60)\n")
+        (self.work / 'slow_backend.py').write_text(
+            "import os, subprocess, sys, time\nfrom pathlib import Path\n"
+            "Path('plugin-pid').write_text(str(os.getpid()))\n"
+            "print('backend import output', flush=True)\n"
+            f"subprocess.Popen([sys.executable, '-c', {child!r}], start_new_session=True)\n"
+            "time.sleep(60)\n")
+        metadata = self.work / 'slow_backend-1.0.dist-info'
+        metadata.mkdir()
+        (metadata / 'entry_points.txt').write_text('[gwf.backends]\nslow_fixture = slow_backend:setup\n')
+        process = self.start_wait('wait', '--timeout', '10', env={**os.environ, 'PYTHONPATH': str(self.work)})
+        self.wait_for(lambda: (self.work / 'plugin-child-pid').exists() or process.poll() is not None)
+        self.assertTrue((self.work / 'plugin-child-pid').exists(), self.wait_messages())
+        child_pid = int((self.work / 'plugin-child-pid').read_text())
+        self.addCleanup(self.stop_plugin_child, child_pid)
+        self.assertEqual(process.wait(timeout=15), 124, self.wait_messages())
+        self.assertFalse(Path(f'/proc/{child_pid}').exists())
+        self.assertFalse(Path(f"/proc/{(self.work / 'plugin-pid').read_text()}").exists())
+        self.assertIn('backend import output', self.wait_messages())
+        self.assertEqual((self.work / 'wait.stdout').read_text(), '')
+
+    def stop_plugin_child(self, pid):
+        try:
+            # A failing pre-fix parent can leave this fixture child unowned.
+            # Check its unique fixture directory before signaling a live PID.
+            if Path(f'/proc/{pid}/cwd').resolve(strict=True) == self.work:
+                os.kill(pid, signal.SIGKILL)
+        except (FileNotFoundError, ProcessLookupError):
+            pass
+
+    def test_timeout_interrupts_lock_and_scheduler_waits_and_releases_inspection_lock(self):
+        self.gate_computation()
+        self.cli('run', 'a')
+        workflow = self.work / 'workflow.py'
+        workflow.write_text(workflow.read_text() +
+                            "\nimport os, sys\nfrom pathlib import Path\n"
+                            "Path('inspection-pid').write_text(str(os.getpid()))\n"
+                            "Path('inspection-root').write_text(str(Path(sys.pycache_prefix).parent))\n")
+        with (self.work / '.gwf/gwflow-submission.lock').open('a') as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            process = self.start_wait('wait', '--timeout', '10', 'a')
+            self.wait_for(lambda: 'Waiting for frontend' in self.wait_messages() or process.poll() is not None)
+            self.assertEqual(process.wait(timeout=15), 124, self.wait_messages())
+            self.assertIn('Waiting for frontend', self.wait_messages())
+        # The wait process owns a fresh inspection for the blocked query. This
+        # inspection acquires the frontend lock before contacting the backend.
+        environment = self.inject(hold_observation=True)
+        process = self.start_wait('-b', 'recovery_fixture', 'wait', '--timeout', '10', 'a', env=environment)
+        self.wait_for(lambda: (self.work / 'observation-held').exists() or process.poll() is not None)
+        self.assertTrue((self.work / 'observation-held').exists(), self.wait_messages())
+        pid = int((self.work / 'inspection-pid').read_text())
+        root = Path((self.work / 'inspection-root').read_text())
+        self.assertEqual(process.wait(timeout=15), 124, self.wait_messages())
+        self.assertFalse(Path(f'/proc/{pid}').exists())
+        self.assertFalse(root.exists())
+        with (self.work / '.gwf/gwflow-submission.lock').open('a') as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        self.assertEqual((self.work / 'wait.stdout').read_text(), '')
+        (self.work / 'release').touch()
+        self.finish()
+        self.assertEqual((self.work / 'trace').read_text(), 'a\n')
+
+    def test_scheduler_failures_and_unknown_outcomes_do_not_restart_timeout(self):
+        self.gate_computation()
+        self.cli('run', 'a')
+        for options, message in (({'fail_status_prefix': 'a__compute'}, 'Scheduler unavailable'),
+                                 ({'job_states': {'a__compute': 'UNKNOWN'}}, 'unresolved submission')):
+            with self.subTest(options=options):
+                process = self.start_wait('-b', 'recovery_fixture', 'wait', '--timeout', '15',
+                                          '--interval', '0.05', 'a', env=self.inject(**options))
+                self.assertEqual(process.wait(timeout=22), 124, self.wait_messages())
+                self.assertIn(message, self.wait_messages())
+                self.assertIn('timed out', self.wait_messages())
+                self.assertEqual(self.wait_messages().count(message), 1)
+                self.assertEqual((self.work / 'wait.stdout').read_text(), '')
+        (self.work / 'release').touch()
+        self.finish()
+
+    def test_completed_attempt_succeeds_within_limit_using_selected_workflow(self):
+        self.run_complete('a')
+        (self.work / 'workflow.py').rename(self.work / 'selected.py')
+        result = self.cli_result('--file', 'selected.py:gwf', 'wait', 'a', '--timeout', '20')
+        self.assertEqual(result.stdout, '')
+        self.assertIn('All awaited Task attempts are complete', result.stderr)
+        result = self.cli_result('--file', 'selected.py:gwf', 'wait', 'a', '--timeout', '1e-12', success=False)
+        self.assertEqual(result.returncode, 124, result.stderr)
+        self.assertIn('timed out', result.stderr)
+        self.assertEqual(result.stdout, '')
+
+    def test_invalid_timeout_values_are_usage_errors(self):
+        for arguments in (('--timeout',), *(('--timeout', value) for value in ('0', '-1', 'nan', 'inf', '-inf', 'text'))):
+            with self.subTest(arguments=arguments):
+                result = self.cli_result('wait', *arguments, success=False)
+                self.assertEqual(result.returncode, 2, result.stderr)
+                self.assertIn('--timeout', result.stderr)
+                self.assertEqual(result.stdout, '')
+
+    def test_later_inspections_keep_the_initially_discovered_workflow(self):
+        self.gate_computation()
+        self.cli('run', 'a')
+        nested = self.work / 'nested'
+        nested.mkdir()
+        process = self.start_wait('wait', '--interval', '0.1', '--timeout', '30', 'a', cwd=nested)
+        self.wait_for(lambda: 'a: running' in self.wait_messages() or process.poll() is not None)
+        self.assertIn('a: running', self.wait_messages())
+        (nested / 'workflow.py').write_text("raise RuntimeError('must not switch discovered workflows')\n")
+        (self.work / 'release').touch()
+        self.assertEqual(process.wait(timeout=20), 0, self.wait_messages())
+        self.assertEqual((self.work / 'trace').read_text(), 'a\n')
+
+    def test_later_inspections_keep_the_initial_default_backend_without_a_time_limit(self):
+        self.gate_computation()
+        self.cli('run', 'a')
+        process = self.start_wait('wait', '--interval', '0.1', 'a')
+        self.wait_for(lambda: 'a: running' in self.wait_messages() or process.poll() is not None)
+        self.assertIn('a: running', self.wait_messages())
+        self.configure(backend='not_the_initial_backend')
+        (self.work / 'release').touch()
+        self.assertEqual(process.wait(timeout=20), 0, self.wait_messages())
         self.assertEqual((self.work / 'trace').read_text(), 'a\n')
 
     def test_pattern_scope_does_not_expand_when_new_matching_tasks_appear(self):
@@ -257,17 +446,8 @@ class WaitTests(LocalBackendTestCase):
         self.assertEqual((self.work / 'trace').read_text(), 'a\n')
 
     def test_interrupt_cleans_detached_loading_descendants_and_temporary_resources(self):
-        workflow = self.work / 'workflow.py'
-        child = ("import os, signal, time\nfrom pathlib import Path\n"
-                 "signal.signal(signal.SIGTERM, signal.SIG_IGN)\n"
-                 "Path('detached-pid').write_text(str(os.getpid()))\ntime.sleep(60)\n")
-        workflow.write_text("import os, subprocess, sys, time\nfrom pathlib import Path\n"
-                            "print('loading stdout', flush=True)\nprint('loading stderr', file=sys.stderr, flush=True)\n"
-                            "os.write(1, b'loading descriptor\\n')\n"
-                            "Path('inspection-root').write_text(str(Path(sys.pycache_prefix).parent))\n"
-                            f"subprocess.Popen([sys.executable, '-c', {child!r}], start_new_session=True)\n"
-                            "time.sleep(60)\n" + workflow.read_text())
-        process = self.start_wait('wait')
+        self.block_loading_with_detached_child()
+        process = self.start_wait('wait', '--timeout', '60')
         self.wait_for((self.work / 'detached-pid').exists)
         pid = int((self.work / 'detached-pid').read_text())
         root = Path((self.work / 'inspection-root').read_text())
