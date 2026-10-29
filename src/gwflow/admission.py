@@ -6,7 +6,8 @@ or cancellation requests.
 """
 
 from dataclasses import dataclass
-from contextlib import nullcontext
+from contextlib import contextmanager, nullcontext
+from contextvars import ContextVar
 import json
 import time
 from uuid import uuid4
@@ -28,6 +29,20 @@ from .lifecycle import _uuid, ordered_targets, target_dependencies
 from .workflow import lifecycle_jobs
 
 
+_wait_scheduler_errors = ContextVar("gwflow_wait_scheduler_errors", default=None)
+
+
+@contextmanager
+def waiting_observations():
+    """Retain scheduler-query failures while inspecting independent disk evidence."""
+    errors = []
+    token = _wait_scheduler_errors.set(errors)
+    try:
+        yield errors
+    finally:
+        _wait_scheduler_errors.reset(token)
+
+
 @dataclass
 class JobObservation:
     local: str
@@ -36,6 +51,7 @@ class JobObservation:
     job_id: str | int | None = None
     reconcile: bool = False
     backend_state: BackendStatus = BackendStatus.UNKNOWN
+    identity_conflict: bool = False
 
     @property
     def submission(self):
@@ -326,16 +342,21 @@ def _observe(store, attempt, backend, name, intents, *, tolerate_state_errors=Fa
         job_id = saved_id if saved_id is not None else tracked_id
         if same_backend:
             try:
-                state = backend.status(target)
-                if tracked_id is None and job_id is not None and isinstance(backend, TrackingBackend):
-                    with report_activity("Waiting for scheduler..."):
-                        state = backend.ops.get_job_states([job_id]).get(job_id, BackendStatus.UNKNOWN)
+                with observation_deadline() if _wait_scheduler_errors.get() is not None else nullcontext():
+                    state = backend.status(target)
+                    if tracked_id is None and job_id is not None and isinstance(backend, TrackingBackend):
+                        with report_activity("Waiting for scheduler..."):
+                            state = backend.ops.get_job_states([job_id]).get(job_id, BackendStatus.UNKNOWN)
             except Exception as error:
-                if not tolerate_state_errors:
+                errors = _wait_scheduler_errors.get()
+                if errors is not None:
+                    errors.append(str(error))
+                elif not tolerate_state_errors:
                     recovery = read_recovery(store, attempt, intent)
                     if recovery is None:
                         raise
-                report_error(error, f"Observing submission {intent['submission']}")
+                if errors is None:
+                    report_error(error, f"Observing submission {intent['submission']}")
                 state = BackendStatus.UNKNOWN
         if mismatch and recovery is None:
             recovery = read_recovery(store, attempt, intent)
@@ -362,7 +383,8 @@ def _observe(store, attempt, backend, name, intents, *, tolerate_state_errors=Fa
             recovery = recovery or read_recovery(store, attempt, intent)
             status = "failed" if recovery is not None else "uncertain"
         observations[local] = JobObservation(local, status, intent, job_id,
-                                             saved_id is None and job_id is not None and not mismatch, state)
+                                             saved_id is None and job_id is not None and not mismatch, state,
+                                             mismatch and recovery is None)
     return observations
 
 

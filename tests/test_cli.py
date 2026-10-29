@@ -19,17 +19,17 @@ class StartupTests(unittest.TestCase):
             work = Path(directory)
             for arguments in (("--help",), ("--version",),
                               *((command, "--help") for command in
-                                ("run", "status", "logs", "cancel", "recover", "clean", "config", "workers"))):
+                                ("run", "status", "logs", "cancel", "recover", "clean", "config", "workers", "wait"))):
                 result = subprocess.run([GWFLOW, *arguments], cwd=work, input="",
                                         capture_output=True, text=True, timeout=30)
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
                 if arguments == ("--help",):
                     commands = {line.split()[0] for line in result.stdout.split("Commands:")[1].splitlines() if line.strip()}
-                    self.assertEqual(commands, {"run", "status", "logs", "cancel", "recover", "clean", "config", "workers"})
+                    self.assertEqual(commands, {"run", "status", "logs", "cancel", "recover", "clean", "config", "workers", "wait"})
                 if arguments == ("--version",):
                     self.assertIn("gwflow", result.stdout)
                     self.assertIn(importlib.metadata.version("gwflow"), result.stdout)
-            for command in ("run", "status", "clean", "logs", "cancel", "recover"):
+            for command in ("run", "status", "clean", "logs", "cancel", "recover", "wait"):
                 arguments = [command, "sample"] if command in ("logs", "cancel", "recover") else [command]
                 result = subprocess.run([GWFLOW, *arguments], cwd=work, input="",
                                         capture_output=True, text=True, timeout=30)
@@ -75,7 +75,7 @@ class StartupTests(unittest.TestCase):
             self.assertEqual((work / "loads.txt").read_text(), "load\n" * 3)
             self.assertFalse((nested / ".gwf").exists())
             (work / "ordinary.py").write_text("from gwf import Workflow\ngwf = Workflow()\n")
-            for command in (("run",), ("status",), ("clean", "--delete"), ("logs", "anything"), ("cancel", "anything"), ("recover", "anything")):
+            for command in (("run",), ("status",), ("wait",), ("clean", "--delete"), ("logs", "anything"), ("cancel", "anything"), ("recover", "anything")):
                 result = subprocess.run([GWFLOW, "--file", "ordinary.py", *command], cwd=nested,
                                         capture_output=True, text=True, timeout=30)
                 self.assertNotEqual(result.returncode, 0)
@@ -123,7 +123,7 @@ class StartupTests(unittest.TestCase):
                 for reverse in (False, True):
                     (work / "workflow.py").write_text(
                         declaration + "".join(reversed(registrations) if reverse else registrations))
-                    for command in (("run",), ("status",), ("logs", name), ("cancel", name), ("recover", name), ("clean", "--delete")):
+                    for command in (("run",), ("status",), ("wait",), ("logs", name), ("cancel", name), ("recover", name), ("clean", "--delete")):
                         with self.subTest(local=local, reverse=reverse, command=command):
                             result = subprocess.run([GWFLOW, *command], cwd=work, input="",
                                                     capture_output=True, text=True, timeout=30)

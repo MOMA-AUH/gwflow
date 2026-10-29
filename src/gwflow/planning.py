@@ -272,6 +272,7 @@ def plan_workflow(workflow, ctx, *, selectors=(), force=False):
                         observation.submissions = jobs
                         observation.observations_available = True
                         superseded = admission.superseded_activity(store, attempt, backend, ctx.backend)
+                        observation.superseded_submissions = superseded
                         uncertain = [item.submission for item in jobs.values() if item.state == "uncertain"]
                         active = [item.submission for item in jobs.values() if item.state == "active"]
                         pending = pending_submissions(attempt, jobs)

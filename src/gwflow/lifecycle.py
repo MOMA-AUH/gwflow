@@ -256,6 +256,7 @@ class TaskObservation:
     attempt: dict | None = None
     work_present: bool = False
     submissions: dict = field(default_factory=dict)
+    superseded_submissions: list = field(default_factory=list)
     pending: list = field(default_factory=list)
     retry: list = field(default_factory=list)
     consumers: dict = field(default_factory=dict)
