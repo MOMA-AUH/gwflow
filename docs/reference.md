@@ -208,6 +208,7 @@ retained work. Missing images can still be acquired under ordinary cache rules.
 ```sh
 gwflow status 'mapping__*' --json > status.json
 gwflow status --json --status failed --status blocked
+gwflow status report --json --details
 ```
 
 A successful report has integer `schema_version: 1`, a flat `tasks` array, and a
@@ -222,11 +223,59 @@ Whole-workflow, exact-name, and pattern selections use the same Task layout.
 | `next_action` | String planned treatment within the inspected Execution scope. |
 | `progress` | Object with integer-or-null `completed` and integer `total`. |
 | `reason` | Object with string `code` and readable string `message`. |
+| `jobs` | Array of job records, present only with `--details`. |
 
 Summary reports omit `jobs`. Requested unavailable values use null. Null differs
 from an omitted, unrequested section. The recorded attempt ID remains visible
 when fresh work is planned. Inspection allocates no replacement identity.
 Retry, Repair, and resumed initialization retain the recorded identity.
+
+With `--details`, every Task has a `jobs` array. Each job has all six fields:
+
+| Job field | Type and meaning |
+| --- | --- |
+| `name` | String Public job name, stable across attempts and retries. |
+| `submission_name` | String name of the recorded submission, or null if unavailable. |
+| `backend_id` | String job ID in Slurm or another execution backend, or null if unavailable. Numeric IDs become strings. |
+| `state` | String current job state, after ordinary repetition rules. |
+| `observed_state` | String assessed outcome of the recorded submission before repetition rules, or null if unavailable. |
+| `in_current_definition` | Boolean that is true for current computation and lifecycle jobs, and false for surviving removed jobs. |
+
+Job states are `pending`, `queued`, `running`, `completed`, `failed`, `canceled`,
+and `unknown`. An observed state combines scheduler information with checked
+execution evidence. It is not a raw scheduler state. Checked evidence can
+establish completion even when the scheduler reports UNKNOWN.
+Null means that no recorded submission or observation is available.
+`unknown` means that inspection could not resolve a submission's outcome.
+
+For example, an earlier successful job that must repeat can appear as:
+
+```json
+{
+  "name": "report__compute",
+  "submission_name": "report__compute__0123456789abcdef0123456789abcdef__abcdef0123456789abcdef0123456789",
+  "backend_id": "12345",
+  "state": "pending",
+  "observed_state": "completed",
+  "in_current_definition": true
+}
+```
+
+The identifiers in this example are illustrative. The recorded identifiers
+still refer to the earlier submission. Inspection allocates no future retry
+identifiers. A retry creates a new Submission name while retaining the Public
+job name. Use the Submission name to select its exact logs. Its presence alone
+does not establish that the scheduler accepted the job.
+Equal `state` and `observed_state` values do not prove that repetition is
+unnecessary. For example, a failed job can need a retry while both fields remain
+`failed`.
+
+The array also includes removed jobs from the currently recorded attempt while
+they remain queued, running, or unresolved. Their states describe the surviving
+submissions without repetition rules from the new definition. Removed jobs do
+not count toward current progress. Once their outcome is known to be inactive,
+they disappear from the array. The array does not enumerate earlier attempts
+or every historical submission.
 
 Progress counts current computation targets plus preparation and completion jobs.
 It excludes removed jobs and work that must repeat. Unknown completion counts

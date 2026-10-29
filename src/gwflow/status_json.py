@@ -8,7 +8,7 @@ import sys
 import click
 
 from .diagnostics import error_message
-from .presentation import NEXT_ACTIONS, needs_later_finish
+from .presentation import NEXT_ACTIONS, needs_later_finish, submission_state
 
 
 @contextmanager
@@ -92,11 +92,27 @@ def workflow_notices(tasks):
     return notices
 
 
-def status_document(rows, tasks):
+def job_records(row):
+    states = dict(row.jobs)
+    states.update({local: submission_state(item) for local, item in row.task.submissions.items()
+                   if local not in states and item.state in ("active", "uncertain")})
+    jobs = []
+    for local, state in states.items():
+        item = row.task.submissions.get(local)
+        submission = item.submission if item else None
+        jobs.append({"name": f"{row.task.name}__{local}", "submission_name": submission,
+                     "backend_id": str(item.job_id) if item and item.job_id is not None else None,
+                     "state": state, "observed_state": submission_state(item) if submission else None,
+                     "in_current_definition": local in row.jobs})
+    return jobs
+
+
+def status_document(rows, tasks, *, details=False):
     return {"schema_version": 1, "tasks": [
         {"name": row.task.name,
          "attempt_id": row.task.attempt["attempt"] if row.task.attempt else None,
          "state": row.state, "next_action": NEXT_ACTIONS[row.task.action].lower(),
          "progress": {"completed": row.completed, "total": row.total},
-         "reason": {"code": row.task.reason_code, "message": row.task.reason}}
+         "reason": {"code": row.task.reason_code, "message": row.task.reason},
+         **({"jobs": job_records(row)} if details else {})}
         for row in rows], "notices": workflow_notices(tasks)}
