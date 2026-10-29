@@ -97,9 +97,11 @@ def verify_installed_files(prefix: Path, records: dict[str, dict]) -> None:
             # Conda generates these during installation without package-file hashes.
             continue
         if kind == "softlink":
-            target = paths.get(path.resolve())
-            if (not path.is_symlink() or target is None
-                    or target[1].get("sha256") != item.get("sha256")):
+            target = path.resolve()
+            # Conda's link hash describes the build-time target, which can come
+            # from a different dependency build than this runtime selected.
+            if (not path.is_symlink() or not target.is_relative_to(prefix) or not target.exists()
+                    or (not target.is_dir() and target not in paths)):
                 raise ValueError(f"Installed link differs from its Conda artifact: {name}: {path.relative_to(prefix)}")
             continue
         if kind != "hardlink":
@@ -109,7 +111,7 @@ def verify_installed_files(prefix: Path, records: dict[str, dict]) -> None:
             expected = item.get("sha256")
         if not isinstance(expected, str) or not re.fullmatch(r"[0-9a-f]{64}", expected):
             raise ValueError(f"Missing installed-file SHA-256: {name}: {path.relative_to(prefix)}")
-        if path.is_symlink() or not path.is_file() or digest(path) != expected:
+        if path.is_symlink() or not path.resolve().is_relative_to(prefix) or not path.is_file() or digest(path) != expected:
             raise ValueError(f"Installed file differs from its Conda artifact: {name}: {path.relative_to(prefix)}")
 
 

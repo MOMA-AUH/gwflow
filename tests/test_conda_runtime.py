@@ -200,8 +200,12 @@ class CondaRuntimeTests(unittest.TestCase):
         file.update(_path="site-packages/gwflow/__init__.py", sha256="3" * 64, prefix_placeholder="/original/build/prefix")
         link = self.prefix / "lib/gwflow-link"
         link.symlink_to(path)
-        package["files"] = [installed, "lib/gwflow-link"]
-        package["paths_data"]["paths"].append({"_path": "lib/gwflow-link", "path_type": "softlink", "sha256": "3" * 64})
+        directory = self.prefix / "lib/gwflow-directory"
+        directory.symlink_to(path.parent, target_is_directory=True)
+        package["files"] = [installed, "lib/gwflow-link", "lib/gwflow-directory"]
+        package["paths_data"]["paths"].extend([
+            {"_path": "lib/gwflow-link", "path_type": "softlink", "sha256": "4" * 64},
+            {"_path": "lib/gwflow-directory", "path_type": "softlink", "sha256": "5" * 64}])
         metadata.write_text(json.dumps(package))
         self.capture()
         self.assertTrue((self.bundle / "runtime.json").is_file())
