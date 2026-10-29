@@ -12,6 +12,7 @@ from ._frontend import _submission_guard, load_workflow
 from .planning import plan_workflow
 from .presentation import STATES, Report, inspection_command, output_options, selected_rows, task_groups, task_order
 from .selection import task_selection
+from .status_json import StatusCommand, status_document
 from .terminal import supports_decoration, supports_keyboard
 
 
@@ -41,12 +42,13 @@ def status_selection(workflow, selectors):
 
 
 @output_options
-@click.command(name="status")
+@click.command(name="status", cls=StatusCommand)
 @click.argument("selectors", nargs=-1)
 @click.option("-s", "--status", "statuses", multiple=True, type=_StatusChoice(STATES))
 @click.option("--static", "static_report", is_flag=True, help="Print one formatted report; --plain takes precedence.")
+@click.option("--json", "json_report", is_flag=True, help="Print one machine-readable JSON status report.")
 @pass_context
-def status(ctx, selectors, statuses, details, plain, static_report):
+def status(ctx, selectors, statuses, details, plain, static_report, json_report):
     """Show a grouped overview or Task rows selected by names and quoted globs.
 
     Group labels summarize Tasks; selectors match Task names. Use '*' to list
@@ -55,7 +57,9 @@ def status(ctx, selectors, statuses, details, plain, static_report):
     Redirected output is plain; --details expands jobs. Press ? for keys and
     q to quit the browser. Inspect again to obtain newer observations.
     """
-    if not (plain or static_report) and supports_decoration(sys.stdout) and supports_keyboard(sys.stdin):
+    if json_report and (plain or static_report):
+        raise click.UsageError("--json cannot be combined with --plain or --static.")
+    if not (json_report or plain or static_report) and supports_decoration(sys.stdout) and supports_keyboard(sys.stdin):
         width, height = os.get_terminal_size(sys.stdout.fileno())
         if width >= 40 and height >= 12:
             from .browser import run_browser
@@ -70,6 +74,8 @@ def status(ctx, selectors, statuses, details, plain, static_report):
         report = Report(plan.store, plain=plain)
         selected = selected_rows(workflow, plan, names=names)
         rows = [row for row in selected if not statuses or row.state in statuses]
+        if json_report:
+            return status_document(rows, task_order(workflow, plan))
         total = len(workflow._task_declarations)
         if not selectors and not details:
             report.overview(task_groups(workflow, plan), selected, total,

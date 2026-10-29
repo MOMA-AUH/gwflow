@@ -23,6 +23,7 @@ from . import _observations, _records
 from .activity import activity as report_activity
 from ._frontend import observation_deadline
 from .diagnostics import report_error
+from .inspection_errors import InspectionBlocker
 from .lifecycle import _uuid, ordered_targets, target_dependencies
 from .workflow import lifecycle_jobs
 
@@ -112,17 +113,17 @@ def read_intent(store, attempt, local):
     record = store.read(attempt, path, "submission-intent", **store.job_identity(attempt, local))
     if record is None:
         if store.exists(attempt, path):
-            raise WorkflowError(f"Malformed submission intent for {attempt['task']}__{local}")
+            raise InspectionBlocker("submission_unresolved", f"Malformed submission intent for {attempt['task']}__{local}")
         for previous in recorded_intents(store, attempt):
             if previous["job"] == attempt["jobs"][local]:
-                raise WorkflowError(f"unresolved submission: {previous['submission']}; current intent is missing")
+                raise InspectionBlocker("submission_unresolved", f"unresolved submission: {previous['submission']}; current intent is missing")
         return None
     admission = record.get("admission")
     if (not _uuid(admission) or record.get("submission") != f"{attempt['jobs'][local]}__{admission}"
             or record.get("producers") != (attempt["producers"] if local == "gwflow_prepare" else {})
             or not isinstance(record.get("backend"), dict) or not _valid_dependencies(attempt, local, record.get("dependencies"))
             or store.read(attempt, f"admissions/{admission}/intent.json", "submission-intent") != record):
-        raise WorkflowError(f"Malformed submission intent for {attempt['task']}__{local}")
+        raise InspectionBlocker("submission_unresolved", f"Malformed submission intent for {attempt['task']}__{local}")
     return record
 
 
@@ -135,13 +136,13 @@ def recorded_intents(store, attempt):
 
 def _archived_intent(store, attempt, token):
     if not _uuid(token):
-        raise WorkflowError("Malformed admission archive")
+        raise InspectionBlocker("submission_unresolved", "Malformed admission archive")
     record = store.read(attempt, f"admissions/{token}/intent.json", "submission-intent")
     if (record is None or record.get("admission") != token
             or not _known_job(attempt, record.get("job"))
             or record.get("submission") != f"{record['job']}__{token}"
             or not isinstance(record.get("backend"), dict)):
-        raise WorkflowError(f"unresolved submission: admission {token} has unreadable history")
+        raise InspectionBlocker("submission_unresolved", f"unresolved submission: admission {token} has unreadable history")
     return record
 
 
@@ -389,6 +390,12 @@ def consumer_activity(store, backend, name, *, producers=None):
 class ReplacementActivity:
     submissions: list
     consumers: dict
+    unresolved: bool = False
+
+    @property
+    def reason_code(self):
+        uncertain = self.unresolved or any(item.state == "uncertain" for jobs in self.consumers.values() for item in jobs)
+        return "submission_unresolved" if uncertain else "activity_conflict"
 
     @property
     def reason(self):
@@ -407,7 +414,9 @@ def replacement_activity(store, attempt, backend, name, consumers):
         if attempt["attempt"] in checked:
             raise WorkflowError("Cyclic previous-attempt initialization evidence")
         checked.add(attempt["attempt"])
-        observed.submissions.extend(item.submission for item in activity(store, attempt, backend, name))
+        jobs = activity(store, attempt, backend, name)
+        observed.submissions.extend(item.submission for item in jobs)
+        observed.unresolved |= any(item.state == "uncertain" for item in jobs)
         observed.consumers.update(consumers.get((attempt["task"], attempt["attempt"]), {}))
         attempt = store.initialization_previous(attempt) if store.read(attempt, "ready.json", "ready") is None else None
     return observed
@@ -448,7 +457,7 @@ def require_retry_inactive(observations, replaced):
     if finishing.state == "active" and finishing.backend_state != BackendStatus.SUBMITTED:
         conflicting.append("gwflow_complete")
     if conflicting:
-        raise WorkflowError("Active dependent work blocks retry: " + ", ".join(conflicting))
+        raise InspectionBlocker("activity_conflict", "Active dependent work blocks retry: " + ", ".join(conflicting))
 
 
 def new_intent(store, attempt, local, dependencies, backend, name):

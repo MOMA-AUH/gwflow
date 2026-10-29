@@ -26,9 +26,18 @@ def report_error(error, summary):
 
 class CommandGroup(click.Group):
     def invoke(self, ctx):
+        arguments = list(ctx.args)
         try:
             return super().invoke(ctx)
-        except (click.ClickException, click.Abort, click.exceptions.Exit):
+        except (click.Abort, click.exceptions.Exit):
             raise
         except Exception as error:
+            # Configuration and backend selection happen before status gets its
+            # command context. Keep those caught loading failures structured too.
+            if ctx.invoked_subcommand == "status":
+                from .status_json import emit_error, json_requested
+                if json_requested(arguments):
+                    emit_error(error)
+            if isinstance(error, click.ClickException):
+                raise
             raise click.ClickException(error_message(error, ctx.invoked_subcommand or "command")) from error

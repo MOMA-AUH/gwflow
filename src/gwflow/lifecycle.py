@@ -14,6 +14,7 @@ from gwf.utils import is_valid_name
 from . import _files, _observations, _records, images, inputs, staging
 from ._records import _uuid
 from .commands import Command, shell
+from .inspection_errors import InspectionBlocker
 from .workflow import RetainedOutput, TargetOutput, relative_path, validate_destinations
 
 
@@ -265,6 +266,7 @@ class TaskObservation:
     repeated_jobs: set[str] = field(default_factory=set)
     input_changes: dict = field(default_factory=dict)
     reason_details: list[str] | None = None
+    reason_code: str = "no_attempt"
 
 
 class Store:
@@ -653,7 +655,7 @@ class Store:
         try:
             observed = self.observe_inputs(attempt)
         except WorkflowError as error:
-            raise WorkflowError(f"External inputs unavailable after preparation; a fresh attempt is required: {error}") from error
+            raise InspectionBlocker("input_unavailable", f"External inputs unavailable after preparation; a fresh attempt is required: {error}") from error
         if baseline["inputs"] != observed:
             raise WorkflowError("External inputs changed after preparation; a fresh attempt is required")
 
