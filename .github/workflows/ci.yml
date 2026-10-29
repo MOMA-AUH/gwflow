@@ -105,6 +105,14 @@ jobs:
           python tests/validate_conda_runtime.py \
             --capture "$RUNNER_TEMP/conda-runtime" --source "$PWD" \
             --root build/validation/conda-runtime
+          version=$(python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')
+          source=$(git rev-parse HEAD)
+          python tests/release_artifacts.py prepare \
+            --capture "$RUNNER_TEMP/conda-runtime" \
+            --qualification build/validation/conda-runtime/restored/gwflow-runtime.json \
+            --tag "v$version" --source "$source" --output "$RUNNER_TEMP/qualified-release"
+          python tests/release_artifacts.py verify \
+            --bundle "$RUNNER_TEMP/qualified-release" --tag "v$version" --source "$source"
       - uses: actions/upload-artifact@v7
         with:
           name: conda-runtime-evidence
@@ -112,6 +120,8 @@ jobs:
             ${{ runner.temp }}/conda-runtime/runtime.explicit.txt
             ${{ runner.temp }}/conda-runtime/runtime.json
             build/validation/conda-runtime/summary.json
+            ${{ runner.temp }}/qualified-release/release.json
+            ${{ runner.temp }}/qualified-release/SHA256SUMS
           if-no-files-found: error
       - uses: actions/upload-artifact@v7
         with:

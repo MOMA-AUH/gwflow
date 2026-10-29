@@ -11,6 +11,7 @@ import sys
 from urllib.parse import urlparse
 
 import gwflow
+from release_artifacts import stable_tag
 
 
 def main():
@@ -53,7 +54,9 @@ def main():
                      **{name: version(name) for name in ("gwflow", "gwf", "rich", "textual")}},
         "platform": {"system": platform.system(), "machine": platform.machine()},
         "verification": "Fresh channel installation matches the tested artifact; release smoke checks passed.",
-        "scope": "Pre-1.0 publication provenance; not the future v1.0.0 stable compatibility baseline.",
+        "scope": ("Stable package provenance; baseline selection also requires qualified attachments and a published GitHub release."
+                  if stable_tag(args.tag) else
+                  "Pre-1.0 or prerelease publication provenance; not a preserved stable compatibility baseline."),
     }
     args.output.write_text(json.dumps(record, indent=2) + "\n")
     print(json.dumps(record, indent=2))
