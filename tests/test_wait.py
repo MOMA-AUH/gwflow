@@ -31,12 +31,12 @@ class WaitTests(LocalBackendTestCase):
         self.assertEqual(self.task_attempts(), attempts)
         self.assertFalse((self.work / 'results/b').exists())
 
-    def start_wait(self, *args, env=None):
+    def start_wait(self, *args, env=None, cwd=None):
         output = (self.work / 'wait.stdout').open('w')
         errors = (self.work / 'wait.stderr').open('w')
         self.addCleanup(output.close)
         self.addCleanup(errors.close)
-        process = subprocess.Popen([self.executable, *args], cwd=self.work, stdout=output, stderr=errors, env=env)
+        process = subprocess.Popen([self.executable, *args], cwd=cwd or self.work, stdout=output, stderr=errors, env=env)
         self.addCleanup(self.stop_wait, process)
         return process
 
@@ -130,6 +130,39 @@ class WaitTests(LocalBackendTestCase):
             self.assertIn(message, self.wait_messages())
         self.assertEqual((self.work / 'wait.stdout').read_text(), '')
 
+    def test_timeout_owns_backend_plugin_import_and_its_detached_descendants(self):
+        child = ("import os, signal, time\nfrom pathlib import Path\n"
+                 "signal.signal(signal.SIGTERM, signal.SIG_IGN)\n"
+                 "Path('plugin-child-pid').write_text(str(os.getpid()))\ntime.sleep(60)\n")
+        (self.work / 'slow_backend.py').write_text(
+            "import os, subprocess, sys, time\nfrom pathlib import Path\n"
+            "Path('plugin-pid').write_text(str(os.getpid()))\n"
+            "print('backend import output', flush=True)\n"
+            f"subprocess.Popen([sys.executable, '-c', {child!r}], start_new_session=True)\n"
+            "time.sleep(60)\n")
+        metadata = self.work / 'slow_backend-1.0.dist-info'
+        metadata.mkdir()
+        (metadata / 'entry_points.txt').write_text('[gwf.backends]\nslow_fixture = slow_backend:setup\n')
+        process = self.start_wait('wait', '--timeout', '10', env={**os.environ, 'PYTHONPATH': str(self.work)})
+        self.wait_for(lambda: (self.work / 'plugin-child-pid').exists() or process.poll() is not None)
+        self.assertTrue((self.work / 'plugin-child-pid').exists(), self.wait_messages())
+        child_pid = int((self.work / 'plugin-child-pid').read_text())
+        self.addCleanup(self.stop_plugin_child, child_pid)
+        self.assertEqual(process.wait(timeout=15), 124, self.wait_messages())
+        self.assertFalse(Path(f'/proc/{child_pid}').exists())
+        self.assertFalse(Path(f"/proc/{(self.work / 'plugin-pid').read_text()}").exists())
+        self.assertIn('backend import output', self.wait_messages())
+        self.assertEqual((self.work / 'wait.stdout').read_text(), '')
+
+    def stop_plugin_child(self, pid):
+        try:
+            # A failing pre-fix parent can leave this fixture child unowned.
+            # Check its unique fixture directory before signaling a live PID.
+            if Path(f'/proc/{pid}/cwd').resolve(strict=True) == self.work:
+                os.kill(pid, signal.SIGKILL)
+        except (FileNotFoundError, ProcessLookupError):
+            pass
+
     def test_timeout_interrupts_lock_and_scheduler_waits_and_releases_inspection_lock(self):
         self.gate_computation()
         self.cli('run', 'a')
@@ -196,6 +229,30 @@ class WaitTests(LocalBackendTestCase):
                 self.assertEqual(result.returncode, 2, result.stderr)
                 self.assertIn('--timeout', result.stderr)
                 self.assertEqual(result.stdout, '')
+
+    def test_later_inspections_keep_the_initially_discovered_workflow(self):
+        self.gate_computation()
+        self.cli('run', 'a')
+        nested = self.work / 'nested'
+        nested.mkdir()
+        process = self.start_wait('wait', '--interval', '0.1', '--timeout', '30', 'a', cwd=nested)
+        self.wait_for(lambda: 'a: running' in self.wait_messages() or process.poll() is not None)
+        self.assertIn('a: running', self.wait_messages())
+        (nested / 'workflow.py').write_text("raise RuntimeError('must not switch discovered workflows')\n")
+        (self.work / 'release').touch()
+        self.assertEqual(process.wait(timeout=20), 0, self.wait_messages())
+        self.assertEqual((self.work / 'trace').read_text(), 'a\n')
+
+    def test_later_inspections_keep_the_initial_default_backend_without_a_time_limit(self):
+        self.gate_computation()
+        self.cli('run', 'a')
+        process = self.start_wait('wait', '--interval', '0.1', 'a')
+        self.wait_for(lambda: 'a: running' in self.wait_messages() or process.poll() is not None)
+        self.assertIn('a: running', self.wait_messages())
+        self.configure(backend='not_the_initial_backend')
+        (self.work / 'release').touch()
+        self.assertEqual(process.wait(timeout=20), 0, self.wait_messages())
+        self.assertEqual((self.work / 'trace').read_text(), 'a\n')
 
     def test_pattern_scope_does_not_expand_when_new_matching_tasks_appear(self):
         self.gate_computation()

@@ -7,11 +7,10 @@ from pathlib import Path
 import time
 
 import click
-from gwf.backends import guess_backend, list_backends
-from gwf.cli import LOGGING_FORMATS, get_level
+from gwf.backends import guess_backend
 from gwf.conf import FileConfig
 from gwf.plugins.config import config
-from gwf.utils import find_workflow
+from gwf.utils import entry_points, find_workflow
 
 from ._frontend import ManagedContext
 from .activity import DiagnosticHandler
@@ -29,7 +28,8 @@ from .wait import wait
 @click.group(cls=CommandGroup)
 @click.version_option(version=version("gwflow"), prog_name="gwflow")
 @click.option("-f", "--file", default="workflow.py:gwf", help="Workflow file and optional :OBJECT to load.")
-@click.option("-b", "--backend", type=click.Choice(list_backends()), help="Backend used to run workflow.")
+@click.option("-b", "--backend", type=click.Choice(sorted({ep.name for ep in entry_points(group="gwf.backends")})),
+              help="Backend used to run workflow.")
 @click.option("-v", "--verbose", type=click.Choice(("warning", "debug", "info", "error")), default="info")
 @click.pass_context
 def main(ctx, file, backend, verbose):
@@ -43,6 +43,10 @@ def main(ctx, file, backend, verbose):
         # so even blocked command startup remains interruptible by the parent.
         ctx.meta['wait_started'] = time.monotonic()
         return
+    # Importing gwf.cli executes backend and command plugins. Waiting owns that
+    # work in its inspection child, including any descendants the imports start.
+    from gwf.cli import LOGGING_FORMATS, get_level
+
     logging.basicConfig(level=get_level(verbose), format=LOGGING_FORMATS[verbose], handlers=[DiagnosticHandler()])
     try:
         path, obj_name = find_workflow(file)

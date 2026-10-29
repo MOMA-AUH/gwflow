@@ -48,8 +48,10 @@ def wait(ctx, selectors, interval, timeout):
     options = ['--file', root.params['file']]
     if root.params['backend'] is not None:
         options.extend(('--backend', root.params['backend']))
+    verbosity = []
     if root.get_parameter_source('verbose') == click.core.ParameterSource.COMMANDLINE:
-        options.extend(('--verbose', root.params['verbose']))
+        verbosity = ['--verbose', root.params['verbose']]
+    options.extend(verbosity)
     click.echo('Waiting for existing Task attempts.', err=True)
     inspection = None
     previous = {}
@@ -84,6 +86,7 @@ def wait(ctx, selectors, interval, timeout):
                     click.echo('Scheduler observations recovered.', err=True)
                 scheduler_errors = errors
             if awaited is None:
+                options = snapshot['inspection_options'] + verbosity
                 awaited = {task['name']: task['attempt'] for task in snapshot['tasks']}
                 selectors = tuple(awaited)
             for task in snapshot['tasks']:
