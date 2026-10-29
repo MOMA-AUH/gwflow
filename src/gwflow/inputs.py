@@ -7,6 +7,7 @@ import stat
 from gwf.exceptions import WorkflowError
 
 from . import _observations
+from .inspection_errors import InspectionBlocker
 
 
 def declared_path(value, working_dir):
@@ -31,14 +32,14 @@ def observe(paths, locations, *, refresh=False):
                 validate_location(path, resolved, locations)
                 info = resolved.stat()
                 if not stat.S_ISREG(info.st_mode):
-                    raise WorkflowError(f"External input must resolve to a regular file: {alias}")
+                    raise InspectionBlocker("input_unavailable", f"External input must resolve to a regular file: {alias}")
                 return {"resolved": str(resolved), "size": info.st_size, "mtime_ns": info.st_mtime_ns}
             # Failed observations are never retained, so acquisition/publication
             # after an absence can be observed immediately in this pass.
             result[alias] = _observations.reuse("external-input", (alias, tuple(sorted(locations.items()))),
                                               read, refresh=refresh)
         except (OSError, RuntimeError) as error:
-            raise WorkflowError(f"Cannot observe external input {alias}: {error}") from error
+            raise InspectionBlocker("input_unavailable", f"Cannot observe external input {alias}: {error}") from error
     return result
 
 

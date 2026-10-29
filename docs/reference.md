@@ -192,6 +192,119 @@ selected run. Shared-storage ownership and active or uncertain consumer
 protections still apply outside the scope, including recorded consumers removed
 from current declarations.
 
+### JSON status
+
+`gwflow status --json` prints one JSON document, including in a terminal.
+It uses the same Task selectors, repeated `--status` filters, inspection rules,
+and scoped image acquisition as ordinary status. It does not open the browser.
+The `cancelled` filter alias selects `canceled` Tasks. A valid selection with no
+matching states succeeds with an empty `tasks` array.
+
+Use JSON without `--plain` or `--static`. Those explicit combinations are usage
+errors. Workflow prints, child-process output, and diagnostics go to stderr.
+Stdout contains only the JSON document. Inspection preserves Task attempts and
+retained work. Missing images can still be acquired under ordinary cache rules.
+
+```sh
+gwflow status 'mapping__*' --json > status.json
+gwflow status --json --status failed --status blocked
+```
+
+A successful report has integer `schema_version: 1`, a flat `tasks` array, and a
+`notices` array. Both arrays are present, even when empty. It has no `error`.
+Whole-workflow, exact-name, and pattern selections use the same Task layout.
+
+| Task field | Type and meaning |
+| --- | --- |
+| `name` | String Task name accepted by selectors. |
+| `attempt_id` | String recorded Task attempt ID, or null if unavailable. |
+| `state` | String primary Task state. |
+| `next_action` | String planned treatment within the inspected Execution scope. |
+| `progress` | Object with integer-or-null `completed` and integer `total`. |
+| `reason` | Object with string `code` and readable string `message`. |
+
+Summary reports omit `jobs`. Requested unavailable values use null. Null differs
+from an omitted, unrequested section. The recorded attempt ID remains visible
+when fresh work is planned. Inspection allocates no replacement identity.
+Retry, Repair, and resumed initialization retain the recorded identity.
+
+Progress counts current computation targets plus preparation and completion jobs.
+It excludes removed jobs and work that must repeat. Unknown completion counts
+use null. Full counts can accompany blocked or deferred Tasks and do not prove
+Reuse. A Next action describes a plan. Scope blockers and later reassessment can
+still prevent submission.
+
+Task states are `pending`, `queued`, `preparing`, `running`, `finishing`,
+`reusable`, `repairable`, `deferred`, `failed`, `canceled`, and `blocked`.
+They follow the ordinary [status and progress rules](#status-views-and-progress).
+Next actions and their reason codes are:
+
+| Next action | Reason code | Meaning |
+| --- | --- | --- |
+| `run` | `no_attempt` | No recorded attempt exists. |
+| `run` | `definition_requires_refresh` | Structure, commands, or command evidence require a fresh attempt. |
+| `run` | `inputs_changed` | Tracked external-input properties changed. |
+| `run` | `upstream_attempt_changed` | An upstream attempt changed or will be replaced. |
+| `run` | `prior_work_unusable` | Existing work cannot restore valid results. |
+| `run` | `initialization_incomplete` | Resume initialization with its selected attempt ID. |
+| `continue` | `submissions_pending` | Submit remaining jobs without repeating admitted work. |
+| `retry` | `jobs_require_retry` | Repeat failed, canceled, or invalid jobs, including interrupted preparation. |
+| `finish` | `completion_pending` | Finish installation, recovery, or record compaction. |
+| `repair` | `results_need_repair` | Restore retained results from valid work. |
+| `reuse` | `results_valid` | Completion evidence and retained results satisfy Reuse checks. |
+| `wait` | `jobs_active` | Existing jobs are queued or running. |
+| `defer` | `upstream_recovery_pending` | Reassess inputs after upstream result recovery. |
+| `blocked` | `image_unavailable` | A required image cannot be acquired or checked. |
+| `blocked` | `input_unavailable` | A required input is missing or cannot be checked. |
+| `blocked` | `submission_unresolved` | A submission identity or outcome cannot be established. |
+| `blocked` | `activity_conflict` | Known queued or running work prevents the change. |
+| `blocked` | `validation_failed` | Another validation problem prevents proceeding. |
+
+Each notice has string `code`, string `message`, and a `task_names` array of
+strings. Notices cover selected Tasks and required upstream Tasks. Filters do
+not hide notices, and unrelated blockers stay outside the inspected scope.
+A Task can appear in more than one notice.
+
+| Notice code | Meaning |
+| --- | --- |
+| `workflow_blocked` | Named blocking Tasks prevent new submissions within the scope. |
+| `upstream_recovery_pending` | Named Tasks need a later invocation after upstream recovery. |
+| `completion_followup_required` | Retrying Tasks need another invocation after their previous queued completion job settles. |
+| `submission_investigation_required` | Current recorded submissions have unresolved outcomes. |
+
+Ordinary completion activity does not create a retry follow-up notice. An
+investigation notice does not establish that recovery is safe or necessary.
+Before `gwflow recover`, establish whole-Task inactivity, including computation,
+preparation, and completion jobs. Cancellation requests alone do not establish
+inactivity.
+
+Successful inspection returns exit code 0, including reports of blocked or
+failed Tasks. Failed inspection returns an error document without partial Task
+rows or notices:
+
+```json
+{"schema_version": 1, "error": {"code": "usage_error", "message": "No Tasks match: missing"}}
+```
+
+`usage_error` returns exit code 2 for invalid status arguments or options,
+including parser failures. `inspection_failed` returns exit code 1 for caught
+workflow-loading or inspection failures. Both include a readable string message.
+This error boundary does not cover every malformed global invocation. Existing
+explicit exits and interruption behavior remain in effect.
+
+The schema version is independent of the gwflow version. Readers must ignore
+unfamiliar fields. New state, action, reason, notice, and error codes are
+compatible additions. Preserve unfamiliar values and readable messages. Treat
+unfamiliar states conservatively without inferring success, failure, or
+inactivity. Use generic fallbacks for unfamiliar reasons and notices. Treat
+unfamiliar error codes as inspection failures.
+
+Existing fields and code meanings remain stable within a schema version.
+Removing or renaming fields or values, or changing their types or meanings,
+requires a new schema version. Once stable 1.x includes this interface, a
+breaking change also requires a future major gwflow release. The pre-1.0 policy
+still applies before stability.
+
 ### Status views and progress
 
 `status` opens an interactive browser when stdout supports terminal decoration,
@@ -199,7 +312,7 @@ keyboard input is available, and the terminal is at least 40 columns by 12 rows.
 The browser uses full color, including when `NO_COLOR` is set. `status --static`
 prints one formatted report with progress bars and numeric fractions. `--plain`
 prints an undecorated report and wins if both options are supplied. Redirected
-or piped output is always plain. Unavailable keyboard input selects a formatted
+or piped text output is always plain. Unavailable keyboard input selects a formatted
 static report; unsupported terminals and encodings select plain output. A
 terminal too small for automatic browser entry gets a brief stderr explanation
 and a plain static report.
