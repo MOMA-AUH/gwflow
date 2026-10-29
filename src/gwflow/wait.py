@@ -4,28 +4,50 @@ import math
 import time
 
 import click
-from gwf.core import pass_context
 
 from ._inspection import InspectionProcess
+
+
+class _WaitTimeout(Exception):
+    """The command's overall waiting limit expired."""
 
 
 @click.command(name='wait')
 @click.argument('selectors', nargs=-1)
 @click.option('--interval', type=click.FloatRange(min=0, min_open=True), default=60, show_default=True,
               help='Seconds between inspections.')
-@pass_context
-def wait(ctx, selectors, interval):
+@click.option('--timeout', type=click.FloatRange(min=0, min_open=True), metavar='SECONDS',
+              help='Limit the whole command, including loading, lock waits, and inspections. No limit by default.')
+@click.pass_context
+def wait(ctx, selectors, interval, timeout):
     """Observe existing Tasks selected by exact names or quoted patterns.
 
     Include required upstream Tasks. Submit, retry, and cancel no work.
     Inspect immediately, then pause between checks. Messages use stderr;
     stdout stays empty. Exit 0 on completion, 1 on failure or required action,
-    2 on invalid usage, or 130 on Ctrl+C. Jobs can continue after waiting stops.
+    2 on invalid usage, 124 on timeout, or 130 on Ctrl+C. A timeout does not
+    establish Task failure. Jobs can continue after waiting stops.
     """
     if not math.isfinite(interval):
         raise click.BadParameter('must be a finite number greater than zero', param_hint='--interval')
-    options = ['--file', f'{ctx.workflow_file}:{ctx.workflow_obj}', '--backend', ctx.backend]
-    root = click.get_current_context().find_root()
+    if timeout is not None and not math.isfinite(timeout):
+        raise click.BadParameter('must be a finite number greater than zero', param_hint='--timeout')
+    root = ctx.find_root()
+    deadline = root.meta['wait_started'] + timeout if timeout is not None else None
+
+    def pause(seconds):
+        if deadline is not None:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise _WaitTimeout
+            seconds = min(seconds, remaining)
+        time.sleep(seconds)
+        if deadline is not None and time.monotonic() >= deadline:
+            raise _WaitTimeout
+
+    options = ['--file', root.params['file']]
+    if root.params['backend'] is not None:
+        options.extend(('--backend', root.params['backend']))
     if root.get_parameter_source('verbose') == click.core.ParameterSource.COMMANDLINE:
         options.extend(('--verbose', root.params['verbose']))
     click.echo('Waiting for existing Task attempts.', err=True)
@@ -36,9 +58,11 @@ def wait(ctx, selectors, interval):
     previous_output = None
     try:
         while True:
+            pause(0)
             inspection = InspectionProcess((options, selectors), module='gwflow.wait_snapshot', command='wait-snapshot', request=awaited)
             while not inspection.completed():
-                time.sleep(0.025)
+                pause(0.025)
+            pause(0)
             snapshot, failure, output = inspection.outcome()
             returncode = inspection.process.returncode
             inspection.close()
@@ -47,6 +71,7 @@ def wait(ctx, selectors, interval):
             if captured and captured != previous_output:
                 click.echo(captured, err=True, nl=False)
             previous_output = captured
+            pause(0)
             if failure:
                 click.echo(failure, err=True)
                 click.echo('Waiting failed. Submitted jobs may still be queued or running.', err=True)
@@ -66,21 +91,23 @@ def wait(ctx, selectors, interval):
                 if previous.get(task['name']) != message:
                     click.echo(message, err=True)
                     previous[task['name']] = message
+            pause(0)
             if not errors and all(task['complete'] for task in snapshot['tasks']):
                 click.echo('All awaited Task attempts are complete.', err=True)
                 return
             if any(not (task['complete'] or task['pending']) for task in snapshot['tasks']):
                 click.echo('Waiting cannot complete; another command is required. Submitted jobs may still be queued or running.', err=True)
                 raise click.exceptions.Exit(1)
-            time.sleep(interval)
-    except KeyboardInterrupt:
+            pause(interval)
+    except (KeyboardInterrupt, _WaitTimeout) as error:
         if inspection is not None:
             inspection.stop()
             output, diagnostics = inspection.output()
             if output or diagnostics:
                 click.echo(output + diagnostics, err=True, nl=False)
-        click.echo('Waiting interrupted. Submitted jobs may still be queued or running.', err=True)
-        raise click.exceptions.Exit(130)
+        message = 'Waiting interrupted.' if isinstance(error, KeyboardInterrupt) else f'Waiting timed out after {timeout:g} seconds.'
+        click.echo(message + ' Submitted jobs may still be queued or running.', err=True)
+        raise click.exceptions.Exit(130 if isinstance(error, KeyboardInterrupt) else 124)
     finally:
         if inspection is not None:
             inspection.close()

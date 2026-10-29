@@ -4,6 +4,7 @@ from importlib.metadata import version
 import logging
 import os
 from pathlib import Path
+import time
 
 import click
 from gwf.backends import guess_backend, list_backends
@@ -37,6 +38,11 @@ def main(ctx, file, backend, verbose):
     NO_COLOR disables static colors while retaining layout and bars. --verbose
     controls diagnostic logging; --details controls command report depth.
     """
+    if ctx.invoked_subcommand == 'wait':
+        # Its disposable inspection owns configuration and backend loading too,
+        # so even blocked command startup remains interruptible by the parent.
+        ctx.meta['wait_started'] = time.monotonic()
+        return
     logging.basicConfig(level=get_level(verbose), format=LOGGING_FORMATS[verbose], handlers=[DiagnosticHandler()])
     try:
         path, obj_name = find_workflow(file)
