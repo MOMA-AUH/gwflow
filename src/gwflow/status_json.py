@@ -14,16 +14,20 @@ from .presentation import NEXT_ACTIONS, needs_later_finish
 @contextmanager
 def diagnostics_on_stderr():
     """Include inherited child-process output in the diagnostic stream."""
-    sys.stdout.flush()
+    original = sys.stdout
+    original.flush()
     saved = os.dup(1)
     try:
         os.dup2(2, 1)
         with redirect_stdout(sys.stderr):
             yield
-            sys.stderr.flush()
     finally:
-        os.dup2(saved, 1)
-        os.close(saved)
+        try:
+            sys.stderr.flush()
+            original.flush()
+        finally:
+            os.dup2(saved, 1)
+            os.close(saved)
 
 
 def emit_error(error):
@@ -37,7 +41,7 @@ def emit_error(error):
 
 def json_requested(args):
     options = args[:args.index("--")] if "--" in args else args
-    return "--json" in options
+    return any(argument.partition("=")[0] == "--json" for argument in options)
 
 
 class StatusCommand(click.Command):

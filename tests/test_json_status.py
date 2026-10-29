@@ -57,16 +57,20 @@ class JsonStatusTests(LocalBackendTestCase):
                 self.assertIn("Error:", result.stderr)
         self.assertEqual(self.report("--status", "cancelled")["tasks"], [])
         self.cli("status", "--plain", "--static")
+        result = self.cli_result("status", "--json=true", success=False)
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(json.loads(result.stdout)["error"]["code"], "usage_error")
 
     def test_workflow_and_child_output_use_stderr_and_loading_failure_has_no_rows(self):
         workflow = self.work / "workflow.py"
         workflow.write_text(workflow.read_text() +
-                            "\nimport os, subprocess\nprint('workflow print')\n"
+                            "\nimport os, subprocess, sys\nprint('workflow print')\n"
+                            "sys.__stdout__.write('original stdout print\\n')\n"
                             "os.write(1, b'workflow descriptor\\n')\n"
                             "subprocess.run(['printf', 'child print\\n'], check=True)\n")
         result = self.cli_result("status", "--json")
         self.assertEqual(len(json.loads(result.stdout)["tasks"]), 3)
-        for message in ("workflow print", "workflow descriptor", "child print"):
+        for message in ("workflow print", "original stdout print", "workflow descriptor", "child print"):
             self.assertIn(message, result.stderr)
         workflow.write_text(workflow.read_text() + "\nraise RuntimeError('loading failed')\n")
         result = self.cli_result("status", "--json", success=False)
@@ -76,6 +80,7 @@ class JsonStatusTests(LocalBackendTestCase):
         self.assertEqual(document["error"]["code"], "inspection_failed")
         self.assertIn("loading failed", document["error"]["message"])
         self.assertIn("child print", result.stderr)
+        self.assertIn("original stdout print", result.stderr)
 
     def test_terminal_json_is_one_shot(self):
         result = self.terminal_cli("status", "--json", width=100)
