@@ -84,12 +84,42 @@ gwflow run 'hello*'
 gwflow status                      # interactive view in a capable terminal
 gwflow status --static             # print one report
 gwflow status hello                # inspect one task
+gwflow wait hello                  # wait for existing work to complete
 gwflow logs hello --history        # include earlier retries and attempts
 ```
 
 A selected run includes its required upstream tasks and reuses valid results.
 The preview shows the planned jobs. Submission does not mean computation has finished.
 Use status to follow progress. Redirected reports are plain text.
+
+`gwflow wait` observes existing Task attempts without submitting, retrying, recovering,
+or canceling work. Exact names and quoted patterns select Tasks and their required
+upstream Tasks. No selectors means all declared Tasks. Downstream and unrelated
+Tasks stay outside the selected scope.
+
+Waiting fixes the Task set and attempt identities at startup. Each inspection
+loads the current workflow and inputs. A replaced attempt, removed Task, or tracked
+change that invalidates the awaited work ends the wait. Newly declared Tasks do
+not expand the scope. Success requires valid retained results and successful
+completion jobs, including record compaction.
+
+The first inspection starts immediately. Later inspections pause for 60 seconds.
+Use `gwflow wait hello --interval 5` to change the pause to five seconds. Waiting
+has no time limit. Scheduler-query failures and unknown job outcomes keep waiting
+until sufficient observations or checked execution evidence resolve them. Known
+failures and invalidated attempts still end the wait promptly. Other loading or
+inspection errors also end the wait.
+
+Waiting reports state changes, scheduler problems and recovery, and a final result.
+Unchanged inspections stay silent. All messages, including output from workflow
+loading, go to stderr. Stdout stays empty. Use `gwflow wait hello 2>wait.log` to
+capture the messages. Exit codes are `0` for completion, `1` for failed work or
+another waiting error, `2` for invalid command usage, and `130` for Ctrl+C.
+
+If completion needs another command, waiting returns `1`. This includes Tasks
+without attempts, deferred work, and work that needs retry or repair. Ctrl+C stops
+waiting and its inspection processes. Submitted jobs can remain queued or running
+after any unsuccessful wait. A nonzero exit does not establish that jobs stopped.
 
 To stop a task's jobs, preview with `gwflow cancel hello --dry-run`, then request
 with `gwflow cancel hello`. Wait for the jobs to stop before retrying with

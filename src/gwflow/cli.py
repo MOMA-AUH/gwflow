@@ -22,6 +22,7 @@ from .recover import recover
 from .run import run
 from .status import status
 from .workers import workers
+from .wait import wait
 
 
 @click.group(cls=CommandGroup)
@@ -53,5 +54,5 @@ def main(ctx, file, backend, verbose):
                              workflow_file=path, workflow_obj=obj_name)
 
 
-for command in (run, status, logs, cancel, recover, clean_work, config, workers):
+for command in (run, status, logs, cancel, recover, clean_work, config, workers, wait):
     main.add_command(command)

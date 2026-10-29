@@ -1,5 +1,6 @@
 # Local planning and investigation notes.
 /docs/notes/
+/docs/agents/wiki/
 
 # Python builds and test runs.
 __pycache__/

@@ -49,7 +49,7 @@ def main():
 
     signal.signal(signal.SIGTERM, stop)
     try:
-        process = subprocess.Popen([sys.executable, "-m", "gwflow.status_snapshot", *sys.argv[1:]])
+        process = subprocess.Popen([sys.executable, "-m", sys.argv[1], *sys.argv[2:]])
         while process.poll() is None and not stopping:
             time.sleep(0.025)
         return 1 if stopping else process.returncode
