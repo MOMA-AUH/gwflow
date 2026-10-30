@@ -8,6 +8,69 @@ These journeys test current behavior and prepare for the stable baseline.
 requires preserved artifacts and independent runtimes for stable comparisons.
 The candidate uses its own supported Python and dependency versions.
 
+## Select pinned releases in CI
+
+The [baseline descriptor](baseline.json) uses schema version 2. Its `stable`
+field selects the comparison mode. Before the first stable publication,
+`stable: null` selects the existing source comparison at `source.commit`.
+The source pin must identify a complete Git commit. This provisional comparison
+keeps every journey active without claiming an independent stable baseline.
+
+After stable publication, `stable` contains `original`, `latest`, and an
+`intermediate` array. Each release reference contains `version`, `source_commit`,
+and `assets`. Versions use final tags from `v1.0.0` onward. Each asset maps its
+exact filename to an object with its `url` and expected `sha256`.
+Include the Conda package and all six metadata attachments listed in
+[the release procedure](../../releasing.md#stable-release-attachments).
+The package and manifest checksums must agree with the qualified release bundle.
+The publication record must identify the same package and source.
+Store these references in Git. Keep packages and downloaded manifests outside Git.
+
+The routine matrix contains the original and latest releases. When both references
+identify the same release, the tool runs it once and records both roles.
+Conflicting identities for one version fail selection. An intermediate reference
+also needs a nonempty `coverage` reason describing a distinct compatibility case.
+Do not add every historical release. Review the reason with the descriptor change.
+
+Run selection without downloading artifacts:
+
+```sh
+python tests/select_compatibility.py plan \
+  --descriptor docs/validation/compatibility/baseline.json \
+  --output build/validation/compatibility-plan.json
+```
+
+CI reads only the descriptor in its checkout. It never asks GitHub for a moving
+latest release. After stable publication, the Conda job downloads each selected
+bundle and checks every pinned checksum before restoration. It then invokes the
+independent runner for all 15 journeys per selected baseline. The source job
+runs the provisional comparison only while `stable` remains null.
+The existing controlled runtime checks continue to test restoration before the
+first stable publication. They do not create or publish releases.
+
+To run the stable matrix, first install the candidate independently as described
+below. Use the driver interpreter, candidate variables, and a new evidence root:
+
+```sh
+DRIVER_PYTHON tests/select_compatibility.py run \
+  --descriptor docs/validation/compatibility/baseline.json \
+  --candidate-python CANDIDATE_PYTHON --candidate-artifact CANDIDATE_ARTIFACT \
+  --candidate-source CANDIDATE_SOURCE \
+  --root build/validation/pinned-compatibility
+```
+
+Each selected release has separate evidence and failures identify its version.
+CI retains the selection and normalized comparison records even when a check fails.
+Raw downloads and logs remain under the ignored evidence root. A failed download,
+restoration, or journey fails the matrix. It cannot produce a passing skipped case.
+
+An old checkout retains its original selection when rerun. It does not gain
+coverage of later releases. Exact reconstruction also depends on upstream
+dependency availability, host compatibility, and the recorded tools still working.
+Before preparing a new candidate, merge the descriptor update for the latest
+successfully published stable release. The release procedure defines that review.
+Do not change an old descriptor merely to make its rerun select newer releases.
+
 ## Compare independent runtimes
 
 A runtime contains Python, installed packages, and native dependencies.
@@ -48,8 +111,8 @@ After stable artifacts exist, use `--baseline-kind preserved-release` with a
 complete [release bundle](../../releasing.md). The tool requires a bundle eligible
 as a stable baseline from v1.0.0 onward. Obtain its identities from trusted release
 attachments and pinned references. The tool does not authenticate untrusted
-release metadata. Stable baseline selection belongs in the descriptor once
-preserved stable releases exist.
+release metadata. The selection tool checks the complete bundle against its
+repository-pinned identities before invoking this runner.
 
 Each installation must satisfy its own package metadata requirements. Python and
 dependency versions do not need to match between installations. Each runtime
@@ -99,6 +162,15 @@ runs the same journeys. Successful replacement evidence sets
 dependency installation. CI also tests this route with a controlled replacement
 capture and requires all 15 journeys to pass. That fixture does not claim an
 actual dependency loss or establish a stable baseline.
+
+For a selected stable release, first use `select_compatibility.py fetch` with
+`--descriptor` and a new `--root` to retain its verified original bundle.
+Use that bundle with `compare_runtime.py` and the recovery options above.
+Retain the original descriptor and manifest with the replacement proposal and its
+full passing comparison evidence. Review the proposal before changing CI to use it.
+The pinned matrix intentionally continues to fail until the exact dependency is
+available again or a reviewed replacement is explicitly connected to CI.
+Changing an expected checksum to accept different bytes is not recovery.
 
 ## Run the provisional source comparison
 
@@ -182,8 +254,9 @@ to reject unsupported ownership evidence; no migration path is introduced.
 Each invocation requires a new evidence root and writes `environment.json`,
 `transcript.jsonl`, and `summary.json`, retaining its workflow and storage for
 inspection. Failed runs return nonzero and are not compatibility evidence.
-The CI `tests` job runs all compatibility journeys before its full suite; both CI package suites
-continue to cover ownership and unsupported-state rejection.
+Before stable publication, the CI `tests` job runs all compatibility journeys
+before its full suite. Afterward, the Conda job runs them for each pinned stable
+baseline. Both CI package suites cover ownership and unsupported-state rejection.
 
 The incomplete-attempt journeys use the existing graph, external-input,
 transfer, Repair, and recovery fixtures. They cover successful siblings alongside
