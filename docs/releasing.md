@@ -89,7 +89,16 @@ attach the three files from `gwflow-publication-evidence`. Follow the previous
 release notes' style: a short overview, a Highlights list, relevant compatibility
 and deployment limits, and the verified setup and publication result. Link to the
 tagged README and validation record, and to the MOMA-AUH Anaconda.org package.
+Keep each prose paragraph and list item on one source line in the notes file.
+GitHub release descriptions display source newlines as line breaks, including
+newlines after links. Use blank lines between paragraphs. Preserve separate
+lines for headings, list items, and commands inside fenced code blocks.
 Publish the reviewed draft only after its artifact checks pass.
+
+For every published release, store the final notes in `docs/releases/<tag>.md`,
+including patch releases and prereleases. Replace preparation text with the
+verified publication results before saving the final copy. Keep the repository
+copy and GitHub release description synchronized when either changes.
 
 The `publish` job requires a repository Actions secret named
 `ANACONDA_API_TOKEN` with permission to upload to the `MOMA-AUH` organization.
