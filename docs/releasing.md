@@ -60,16 +60,16 @@ The workflow verifies the downloaded artifact's SHA256 before upload and matches
 the fresh installation's Conda metadata to that same artifact afterward.
 The independently solved channel installation proves published package identity.
 It does not replace the captured and reconstructed dependency environment.
-Download `gwflow-conda-release` and `gwflow-publication-evidence` from the successful
-tag run to inspect the package, `SHA256SUMS`, and `publication.json`.
-For pre-1.0 and prerelease versions, retain the existing provenance attachments
-when creating the GitHub release. They do not establish a stable baseline.
+Download `gwflow-publication-evidence` from the successful tag run to obtain
+the three public release assets described below. `gwflow-conda-release` retains
+the original flat bundle used between workflow jobs. Pre-1.0 and prerelease
+versions do not establish a stable baseline.
 
 After the tag workflow has successfully uploaded and installed the published
-package, prepare the GitHub release notes for that existing tag. For a stable
-version, use the draft that the workflow creates with its checked attachments.
-For pre-1.0 or prerelease versions, create the release and attach the provenance
-files from the successful workflow. Follow the previous
+package, prepare the GitHub release notes for that existing tag. For a final
+version, including pre-1.0 versions, use the draft that the workflow creates with
+its checked attachments. For prerelease versions, create a GitHub prerelease and
+attach the three files from `gwflow-publication-evidence`. Follow the previous
 release notes' style: a short overview, a Highlights list, relevant compatibility
 and deployment limits, and the verified setup and publication result. Link to the
 tagged README and validation record, and to the MOMA-AUH Anaconda.org package.
@@ -80,7 +80,7 @@ The `publish` job requires a repository Actions secret named
 Store the token in GitHub Actions secrets, not in the repository. Until that
 secret is configured, the reviewable build and tests can run, but the tag
 workflow cannot complete publication.
-Stable attachment preparation also uses the job-scoped GitHub token with
+Draft attachment preparation also uses the job-scoped GitHub token with
 `contents: write`. It cannot create a missing tag. It does not publish the draft.
 
 ## Stable release attachments
@@ -91,16 +91,20 @@ onward. Pre-1.0 tags, release candidates, development versions, and GitHub
 prereleases do not establish stable baselines. A draft is not a published baseline.
 This procedure does not choose a next version or extend the v1.0.0 scope.
 
-After the published-channel identity check passes, the workflow retains these
+After the published-channel identity check passes, the workflow retains three
 files on the matching non-prerelease GitHub draft:
 
 - The exact tested and published `gwflow-*.conda` package.
-- `runtime.explicit.txt`, the tested dependency manifest.
-- `SHA256SUMS`, the checksums for the package and complete qualified bundle.
-- `runtime.json`, the capture identity, source revision, and fixture hashes.
-- `qualification.json`, the successful restoration and smoke evidence.
-- `release.json`, the tag, source, and eligibility for stable preservation.
-- `publication.json`, the proof that channel package bytes match the tested package.
+- `gwflow-VERSION-validation.tar.gz`, containing the validation records.
+- `SHA256SUMS`, covering the package and validation archive.
+
+The archive contains the original `runtime.explicit.txt`, `runtime.json`,
+`qualification.json`, `release.json`, `publication.json`, and inner `SHA256SUMS`.
+Their bytes remain unchanged. The inner checksums cover the original qualified
+bundle, including the separate package. The native manifest remains usable for
+runtime restoration after unpacking. The publication record proves that the
+channel package matches the tested package. The archive uses fixed timestamps
+and file attributes so the same records produce identical archive bytes.
 
 The tool rechecks qualification and publication identities before any GitHub
 operation. It downloads existing draft assets and accepts them only when their
@@ -108,12 +112,21 @@ bytes match. It never replaces a different asset or mutates a published release.
 If attachment preparation fails, inspect the failure before publishing the draft.
 Do not bypass the failure by uploading different files or removing checks.
 
-Before publishing the draft, download its attachments into an empty directory.
-Run `sha256sum --check SHA256SUMS` there. Make sure that `release.json`,
-`runtime.json`, and `publication.json` identify the intended tag and source commit.
-Make sure that `qualification.json` reports `qualified`, a fresh cache, unchanged
-runtime dependencies, and smoke exit status zero. Then publish the reviewed notes.
-The GitHub release retains these assets after the Actions artifacts expire.
+Before publishing the draft, download its three attachments into an empty
+`DOWNLOADED_ASSETS` directory. Use the intended tag and full source commit below;
+`RESTORED_BUNDLE` must not exist yet:
+
+```sh
+python tests/release_artifacts.py unpack \
+  --bundle DOWNLOADED_ASSETS --output RESTORED_BUNDLE \
+  --tag TAG --source SOURCE_COMMIT
+```
+
+This checks both checksum lists, safe archive contents, qualification, and
+publication identity before exposing the restored bundle. Review the notes, then
+publish the draft. The GitHub release retains these assets after Actions artifacts
+expire. CI downloads the three pinned assets and unpacks them before restoring a
+stable runtime.
 
 After successful stable publication, update the latest reference in
 `docs/validation/compatibility/baseline.json` through a normal PR. Record the
@@ -147,6 +160,34 @@ failed qualification and provenance, byte preservation, and non-stable cases.
 These checks use no real release or tag publication. Keep package archives,
 dependency manifests, caches, and raw logs outside Git history. This procedure
 adds no dependency archives, release images, or installation method.
+
+## Repackage an existing pre-1.0 release
+
+For a mutable, published pre-1.0 final release with the old seven-file layout,
+`tests/migrate_release_assets.py` can create the three-asset layout without
+rebuilding the package or changing its tag. Published stable baselines and
+immutable releases are excluded. This maintenance operation removes the five
+loose metadata attachments, so their old download URLs stop working. Update
+release notes to link to the archive before applying it.
+
+Save the revised notes in `build/validation/release-assets/notes.md`. Preview the
+migration with the intended repository, tag, and full source commit:
+
+```sh
+python tests/migrate_release_assets.py \
+  --repo MOMA-AUH/gwflow --tag TAG --source SOURCE_COMMIT \
+  --backup build/validation/release-assets/backup \
+  --notes-file build/validation/release-assets/notes.md
+```
+
+The preview saves the original assets and release metadata, verifies GitHub's
+asset digests, and confirms that unpacking preserves every original byte.
+Repeat the command with `--apply` to upload and verify the archive, replace the
+outer checksums, update the notes, and remove the loose metadata. The package
+attachment is never replaced. The tool downloads and verifies the final assets.
+If interrupted, rerun with the same backup directory and notes file. Keep the
+backup under the ignored `build/validation/` directory until the migration has
+been checked.
 
 ## v0.8.0 acceptance scope
 

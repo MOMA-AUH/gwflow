@@ -122,17 +122,20 @@ jobs:
           conda run -p "$RUNNER_TEMP/gwflow-published-test" python tests/release_provenance.py \
             --artifacts conda-dist --source "$GITHUB_SHA" --tag "$GITHUB_REF_NAME" \
             --output conda-dist/publication.json
-      - name: Preserve stable attachments in the GitHub release draft
+      - name: Package validation records for release
+        run: |
+          python tests/release_artifacts.py pack \
+            --bundle conda-dist --publication conda-dist/publication.json \
+            --tag "$GITHUB_REF_NAME" --source "$GITHUB_SHA" --output release-assets
+      - name: Preserve attachments in the GitHub release draft
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           python tests/release_artifacts.py attach \
-            --bundle conda-dist --publication conda-dist/publication.json \
+            --bundle release-assets \
             --tag "$GITHUB_REF_NAME" --source "$GITHUB_SHA" --repo "$GITHUB_REPOSITORY"
       - uses: actions/upload-artifact@v7
         with:
           name: gwflow-publication-evidence
-          path: |
-            conda-dist/publication.json
-            conda-dist/SHA256SUMS
+          path: release-assets/*
           if-no-files-found: error
