@@ -113,13 +113,22 @@ jobs:
           if-no-files-found: error
 
   conda-suite:
+    name: Conda tests (${{ matrix.group }}/4)
     needs: build
     runs-on: ubuntu-24.04
     strategy:
       # Preserve all results and allow a failed shard to be retried independently.
       fail-fast: false
       matrix:
-        shard: [0, 1, 2, 3]
+        include:
+          - shard: 0
+            group: 1
+          - shard: 1
+            group: 2
+          - shard: 2
+            group: 3
+          - shard: 3
+            group: 4
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/restore-ci-runtime
