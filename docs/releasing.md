@@ -13,7 +13,8 @@ on both backends, the BeeGFS storage correction, and
 deployment limits. Broader runtime and backend support has not been verified.
 The [runtime capture and restoration procedure](validation/conda-runtime.md)
 checks exact dependency reconstruction before stable release preservation.
-Its qualification runs in the existing Conda CI job and does not publish a release.
+Its qualification runs in the existing Conda CI job and the tag workflow.
+Pull-request validation does not publish a release.
 Use the [validation guide](validation/README.md) for current setup and checks,
 and its evidence index to find the relevant historical records.
 Operators should use the [operating and upgrade guide](operating.md) for force,
@@ -37,8 +38,19 @@ version differs from `pyproject.toml` or whose commit is absent from `master`.
 It builds a Conda artifact without automatic upload, installs that artifact in
 a fresh environment, and runs the full local-backend test suite plus the
 small-file cleanup/reuse and troubleshooting/cancellation/recovery smoke checks.
-Only then does the separate `publish` job
-upload the same artifact to the `MOMA-AUH` Anaconda.org channel. It creates
+The tag workflow then captures that fully tested installation. It records Python
+and all Conda dependencies in a native explicit manifest with exact URLs and
+SHA-256 hashes. It keeps the tested gwflow package separate from those dependencies.
+It restores the capture into a new prefix with an empty package cache, installs
+the source-matched fixtures without changing runtime dependencies, and runs the
+existing smoke journeys. This adds one installation and smoke run, not another
+full suite. Capture, reconstruction, integrity, or smoke failure stops the workflow
+before publication.
+
+After qualification, `tests/release_artifacts.py prepare` creates a checked bundle
+for transfer to the `publish` job. That job verifies all bundle files and matches
+the tag, source, package, manifest, and qualified dependency inventory before upload.
+It uploads the same artifact to the `MOMA-AUH` Anaconda.org channel. It creates
 another fresh environment from the published channel and repeats those smoke
 checks. A failed upload or published-package check fails the release
 workflow; do not claim publication from a successful build alone.
@@ -46,23 +58,77 @@ The smoke runner includes unresolved submission, `recover`, preview, and retry,
 checking that successful siblings and original submission evidence survive.
 The workflow verifies the downloaded artifact's SHA256 before upload and matches
 the fresh installation's Conda metadata to that same artifact afterward.
+The independently solved channel installation proves published package identity.
+It does not replace the captured and reconstructed dependency environment.
 Download `gwflow-conda-release` and `gwflow-publication-evidence` from the successful
-tag run to retain the package, `SHA256SUMS`, and `publication.json`. Attach the
-provenance files to the GitHub release so its source commit, package URL, checksum,
-runtime versions, and workflow result remain discoverable after Actions artifacts
-expire. These identities describe the pre-1.0 release, not a stable baseline.
+tag run to inspect the package, `SHA256SUMS`, and `publication.json`.
+For pre-1.0 and prerelease versions, retain the existing provenance attachments
+when creating the GitHub release. They do not establish a stable baseline.
 
 After the tag workflow has successfully uploaded and installed the published
-package, create the GitHub release for that existing tag. Follow the previous
+package, prepare the GitHub release notes for that existing tag. For a stable
+version, use the draft that the workflow creates with its checked attachments.
+For pre-1.0 or prerelease versions, create the release and attach the provenance
+files from the successful workflow. Follow the previous
 release notes' style: a short overview, a Highlights list, relevant compatibility
 and deployment limits, and the verified setup and publication result. Link to the
 tagged README and validation record, and to the MOMA-AUH Anaconda.org package.
+Publish the reviewed draft only after its artifact checks pass.
 
 The `publish` job requires a repository Actions secret named
 `ANACONDA_API_TOKEN` with permission to upload to the `MOMA-AUH` organization.
 Store the token in GitHub Actions secrets, not in the repository. Until that
 secret is configured, the reviewable build and tests can run, but the tag
 workflow cannot complete publication.
+Stable attachment preparation also uses the job-scoped GitHub token with
+`contents: write`. It cannot create a missing tag. It does not publish the draft.
+
+## Stable release attachments
+
+Final tags of the form `vMAJOR.MINOR.PATCH`, with a major version of at least one,
+are eligible for stable preservation. This includes patch releases from v1.0.0
+onward. Pre-1.0 tags, release candidates, development versions, and GitHub
+prereleases do not establish stable baselines. A draft is not a published baseline.
+This procedure does not choose a next version or extend the v1.0.0 scope.
+
+After the published-channel identity check passes, the workflow retains these
+files on the matching non-prerelease GitHub draft:
+
+- The exact tested and published `gwflow-*.conda` package.
+- `runtime.explicit.txt`, the tested dependency manifest.
+- `SHA256SUMS`, the checksums for the package and complete qualified bundle.
+- `runtime.json`, the capture identity, source revision, and fixture hashes.
+- `qualification.json`, the successful restoration and smoke evidence.
+- `release.json`, the tag, source, and eligibility for stable preservation.
+- `publication.json`, the proof that channel package bytes match the tested package.
+
+The tool rechecks qualification and publication identities before any GitHub
+operation. It downloads existing draft assets and accepts them only when their
+bytes match. It never replaces a different asset or mutates a published release.
+If attachment preparation fails, inspect the failure before publishing the draft.
+Do not bypass the failure by uploading different files or removing checks.
+
+Before publishing the draft, download its attachments into an empty directory.
+Run `sha256sum --check SHA256SUMS` there. Make sure that `release.json`,
+`runtime.json`, and `publication.json` identify the intended tag and source commit.
+Make sure that `qualification.json` reports `qualified`, a fresh cache, unchanged
+runtime dependencies, and smoke exit status zero. Then publish the reviewed notes.
+The GitHub release retains these assets after the Actions artifacts expire.
+
+After successful stable publication, update the latest reference in
+`docs/validation/compatibility/baseline.json` through a normal PR. Record the
+published package and manifest URLs with their expected checksums. Retain the
+original stable reference. For the first stable publication, establish both
+references from that published release. Do not select a draft or prerelease,
+invent historical artifacts, or treat the provisional source comparison as an
+independent preserved environment. See [ADR 0018](adr/0018-preserve-independent-compatibility-environments.md).
+
+Current-candidate CI exercises the same preparation and transfer checks after
+real runtime qualification. Controlled release fixtures test stable attachments,
+failed qualification and provenance, byte preservation, and non-stable cases.
+These checks use no real release or tag publication. Keep package archives,
+dependency manifests, caches, and raw logs outside Git history. This procedure
+adds no dependency archives, release images, or installation method.
 
 ## v0.8.0 acceptance scope
 

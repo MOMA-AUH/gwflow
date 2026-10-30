@@ -45,29 +45,45 @@ jobs:
           conda list -p "$RUNNER_TEMP/gwflow-release-test" --json | python -c 'import json, sys; package = next(p for p in json.load(sys.stdin) if p["name"] == "gwflow"); assert package["base_url"].startswith("file://"), package'
           conda run -p "$RUNNER_TEMP/gwflow-release-test" python -m unittest discover -s tests -v
           conda run -p "$RUNNER_TEMP/gwflow-release-test" python tests/release_smoke.py
-      - name: Record tested artifact identity
-        working-directory: ${{ runner.temp }}/conda-dist/noarch
-        run: sha256sum gwflow-*.conda > SHA256SUMS
+      - name: Capture and qualify the fully tested runtime
+        shell: bash -l {0}
+        run: |
+          artifact=$(find "$RUNNER_TEMP/conda-dist/noarch" -name 'gwflow-*.conda' -print -quit)
+          test -n "$artifact"
+          python tests/conda_runtime.py capture \
+            --prefix "$RUNNER_TEMP/gwflow-release-test" --artifact "$artifact" \
+            --source "$PWD" --output "$RUNNER_TEMP/conda-runtime"
+          python tests/conda_runtime.py qualify \
+            --capture "$RUNNER_TEMP/conda-runtime" --source "$PWD" \
+            --prefix "$RUNNER_TEMP/gwflow-release-restored" --fresh-cache "$RUNNER_TEMP/gwflow-release-cache"
+          python tests/release_artifacts.py prepare \
+            --capture "$RUNNER_TEMP/conda-runtime" \
+            --qualification "$RUNNER_TEMP/gwflow-release-restored/gwflow-runtime.json" \
+            --tag "$GITHUB_REF_NAME" --source "$GITHUB_SHA" --output "$RUNNER_TEMP/qualified-release"
       - uses: actions/upload-artifact@v7
         with:
           name: gwflow-conda-release
-          path: |
-            ${{ runner.temp }}/conda-dist/noarch/gwflow-*.conda
-            ${{ runner.temp }}/conda-dist/noarch/SHA256SUMS
+          path: ${{ runner.temp }}/qualified-release/*
           if-no-files-found: error
 
   publish:
     needs: verify
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
       - uses: actions/download-artifact@v8
         with:
           name: gwflow-conda-release
           path: conda-dist
-      - name: Verify downloaded artifact identity
-        working-directory: conda-dist
-        run: sha256sum --check SHA256SUMS
+      - name: Verify downloaded artifact and qualification identities
+        run: |
+          python tests/release_artifacts.py verify \
+            --bundle conda-dist --tag "$GITHUB_REF_NAME" --source "$GITHUB_SHA"
       - uses: conda-incubator/setup-miniconda@v4
         with:
           miniforge-version: latest
@@ -106,6 +122,13 @@ jobs:
           conda run -p "$RUNNER_TEMP/gwflow-published-test" python tests/release_provenance.py \
             --artifacts conda-dist --source "$GITHUB_SHA" --tag "$GITHUB_REF_NAME" \
             --output conda-dist/publication.json
+      - name: Preserve stable attachments in the GitHub release draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python tests/release_artifacts.py attach \
+            --bundle conda-dist --publication conda-dist/publication.json \
+            --tag "$GITHUB_REF_NAME" --source "$GITHUB_SHA" --repo "$GITHUB_REPOSITORY"
       - uses: actions/upload-artifact@v7
         with:
           name: gwflow-publication-evidence

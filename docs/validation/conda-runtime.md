@@ -118,7 +118,10 @@ missing and corrupt HTTP downloads with empty caches before real qualification.
 Raw logs stay under ignored `build/validation/conda-runtime/`.
 The `conda-runtime-evidence` artifact contains the manifest, capture record, and
 qualification summary. The existing candidate artifact retains the gwflow
-package. These CI artifacts do not establish a published stable release.
+package. CI also prepares and verifies a release bundle from the qualified
+candidate. These CI artifacts do not establish a published stable release.
+The [release procedure](../releasing.md) uses the same capture and qualification
+after the full tag tests, then retains checked stable attachments on GitHub.
 
 ## Limits
 
