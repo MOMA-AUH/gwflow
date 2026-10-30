@@ -18,16 +18,19 @@ _current = ContextVar("gwflow_activity", default=None)
 _report = ContextVar("gwflow_live_report", default=None)
 _phase = ContextVar("gwflow_activity_phase", default=None)
 _observer = ContextVar("gwflow_activity_observer", default=None)
+_display = ContextVar("gwflow_activity_display", default=True)
 
 
 @contextmanager
-def observe_activity(callback):
-    """Receive current phase and counts, including restoration after nested waits."""
+def observe_activity(callback, *, display=True):
+    """Observe phases and counts; optionally let the observer own their display."""
     token = _observer.set(callback)
+    display_token = _display.set(display)
     try:
         yield
     finally:
         _observer.reset(token)
+        _display.reset(display_token)
 
 
 class ActivityProgress(ProgressColumn):
@@ -129,6 +132,9 @@ def activity(phase, *, total=None):
 
 @contextmanager
 def _display_activity(phase, total):
+    if not _display.get():
+        yield lambda completed: None
+        return
     context = click.get_current_context(silent=True)
     if context is None:
         yield lambda completed: None

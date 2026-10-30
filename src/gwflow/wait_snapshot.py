@@ -9,6 +9,7 @@ import click
 from gwf.core import pass_context
 from gwf.exceptions import WorkflowError
 
+from .activity import observe_activity
 from .admission import waiting_observations
 from ._frontend import _submission_guard, load_workflow
 from .planning import definition_change, input_metadata_changes, plan_workflow
@@ -20,6 +21,22 @@ from .presentation import task_row
 @click.argument('selectors', nargs=-1)
 @pass_context
 def capture(ctx, destination, selectors):
+    previous_phase = None
+
+    def publish_activity(state):
+        nonlocal previous_phase
+        if state is not None and state['phase'] != previous_phase:
+            previous_phase = state['phase']
+            path = destination.with_suffix('.phase')
+            temporary = path.with_suffix('.tmp')
+            temporary.write_text(state['phase'])
+            temporary.replace(path)
+
+    with observe_activity(publish_activity, display=False):
+        capture_snapshot(ctx, destination, selectors)
+
+
+def capture_snapshot(ctx, destination, selectors):
     sys.pycache_prefix = str(destination.parent / 'pycache')
     sys.dont_write_bytecode = True
     request_path = destination.parent / "request.json"
@@ -73,8 +90,11 @@ def observe_task(task):
     waiting_on_jobs = (task.action == 'active' or
                        task.reason_code in ('submission_unresolved', 'activity_conflict')
                        and (unknown or bool(task.superseded_submissions)))
+    row = task_row(task)
     return {'name': task.name, 'attempt': task.attempt['attempt'] if task.attempt else None,
-            'state': task_row(task).state, 'reason': reason,
+            'state': row.state, 'reason': reason,
+            'completed': row.completed, 'total': row.total, 'detail': row.detail,
+            'routine': task.action in ('active', 'reuse') and not failures and not missing and row.completed is not None,
             'complete': task.action == 'reuse' and not failures,
             'pending': not failures and not missing and waiting_on_jobs}
 
