@@ -9,7 +9,10 @@ from gwflow import Task, Workflow, shell, task_template
 
 trace = str(Path(__file__).with_name("trace.txt"))
 runtime_probe = "python -c " + shlex.quote(
-    "import gwflow,json,sys; print(json.dumps(dict(prefix=sys.prefix,package=gwflow.__file__)))"
+    "import gwflow,gwf,rich,json,sys,platform,importlib.metadata as m; "
+    "print(json.dumps(dict(prefix=sys.prefix,package=gwflow.__file__,python=platform.python_version(),"
+    "imports={name: module.__file__ for name,module in [('gwflow',gwflow),('gwf',gwf),('rich',rich)]},"
+    "versions={name:m.version(name) for name in ('gwflow','gwf','rich')})))"
 ) + " > {runtime}"
 
 

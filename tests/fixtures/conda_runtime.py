@@ -17,6 +17,8 @@ if arguments[0] == "create":
     explicit = Path(arguments[arguments.index("--file") + 1]).read_text().splitlines()
     if explicit[0] != "@EXPLICIT" or "--no-default-packages" not in arguments:
         sys.exit("Fixture requires explicit installation without a solve or default packages")
+    if os.environ.get("GWFLOW_CONDA_UNAVAILABLE"):
+        sys.exit("Fixture dependency artifact unavailable (controlled 404)")
     (prefix / "conda-meta").mkdir(parents=True)
     for entry in explicit[1:]:
         url, checksum = entry.rsplit("#", 1)

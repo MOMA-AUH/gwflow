@@ -88,6 +88,9 @@ Repeat the option for multiple packages. Each copy must match the original
 SHA-256. The tool leaves the manifest unchanged and records recovered packages.
 A different build requires a documented replacement manifest and validation
 under ADR 0018. It does not recreate the original environment exactly.
+The [independent compatibility procedure](compatibility/README.md) restores
+these captures and tests upgrades against a separate candidate installation.
+It also tests documented replacement captures while retaining the original manifest.
 
 ## Qualify reconstruction
 
