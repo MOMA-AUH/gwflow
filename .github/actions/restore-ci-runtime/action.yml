@@ -1,0 +1,37 @@
+name: Restore CI runtime
+description: Restore the shared exact Conda build and optionally prepare real container tests.
+inputs:
+  containers:
+    description: Prepare the three pinned Apptainer test images.
+    default: "false"
+runs:
+  using: composite
+  steps:
+    - uses: conda-incubator/setup-miniconda@v4
+      with:
+        miniforge-version: latest
+        channels: conda-forge
+        conda-remove-defaults: "true"
+    - uses: actions/download-artifact@v8
+      with:
+        name: gwflow-ci-runtime
+        path: ${{ runner.temp }}/ci-runtime
+    - name: Restore the exact build runtime and install fixtures
+      shell: bash -l {0}
+      run: |
+        python tests/ci_suite.py install \
+          --bundle "$RUNNER_TEMP/ci-runtime" --prefix "$RUNNER_TEMP/gwflow-smoke"
+    - name: Prepare real Apptainer container tests
+      if: inputs.containers == 'true'
+      shell: bash
+      run: |
+        curl -fsSL -o "$RUNNER_TEMP/apptainer.deb" https://github.com/apptainer/apptainer/releases/download/v1.5.4/apptainer_1.5.4_amd64.deb
+        sudo apt-get update
+        sudo apt-get install -y "$RUNNER_TEMP/apptainer.deb"
+        apptainer --version
+        apptainer build "$RUNNER_TEMP/gwflow-test.sif" tests/fixtures/container.def
+        echo "GWFLOW_TEST_SIF=$RUNNER_TEMP/gwflow-test.sif" >> "$GITHUB_ENV"
+        apptainer build "$RUNNER_TEMP/summary.sif" examples/packaged/images/summary.def
+        apptainer build "$RUNNER_TEMP/report.sif" examples/packaged/images/report.def
+        echo "GWFLOW_TEST_SUMMARY_SIF=$RUNNER_TEMP/summary.sif" >> "$GITHUB_ENV"
+        echo "GWFLOW_TEST_REPORT_SIF=$RUNNER_TEMP/report.sif" >> "$GITHUB_ENV"

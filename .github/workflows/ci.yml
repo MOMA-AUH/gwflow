@@ -5,6 +5,14 @@ on:
     branches: [master]
   pull_request:
 
+permissions:
+  contents: read
+
+# Superseded PRs can stop. Keep master runs available for exact-commit releases.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   tests:
     # The pinned Apptainer .deb requires libraries unavailable on Ubuntu 26.04.
@@ -49,38 +57,27 @@ jobs:
             --baseline-source "$baseline_source" --candidate-source "$(git rev-parse HEAD)" \
             --root build/validation/compatibility
           cat build/validation/compatibility/environment.json build/validation/compatibility/summary.json
-      - name: Prepare real Apptainer container tests
-        run: |
-          curl -fsSL -o "$RUNNER_TEMP/apptainer.deb" https://github.com/apptainer/apptainer/releases/download/v1.5.4/apptainer_1.5.4_amd64.deb
-          sudo apt-get update
-          sudo apt-get install -y "$RUNNER_TEMP/apptainer.deb"
-          apptainer --version
-          apptainer build "$RUNNER_TEMP/gwflow-test.sif" tests/fixtures/container.def
-          echo "GWFLOW_TEST_SIF=$RUNNER_TEMP/gwflow-test.sif" >> "$GITHUB_ENV"
-          apptainer build "$RUNNER_TEMP/summary.sif" examples/packaged/images/summary.def
-          apptainer build "$RUNNER_TEMP/report.sif" examples/packaged/images/report.def
-          echo "GWFLOW_TEST_SUMMARY_SIF=$RUNNER_TEMP/summary.sif" >> "$GITHUB_ENV"
-          echo "GWFLOW_TEST_REPORT_SIF=$RUNNER_TEMP/report.sif" >> "$GITHUB_ENV"
-      - name: Run installed-package and local-backend tests
+      - name: Check pip installation and representative behavior
         shell: bash -l {0}
         run: |
-          conda run -n gwflow-tests python -m unittest discover -s tests -v
+          conda run -n gwflow-tests python -m pip check
+          conda run -n gwflow-tests python -I -c 'import gwflow, gwflow.browser, gwflow.cli'
+          conda run -n gwflow-tests python -m unittest discover -s tests -p test_cli.py -v
+          conda run -n gwflow-tests python -m unittest discover -s tests -p test_browser_interaction.py -k test_normal_compact_and_large_views_survive_resize_without_reinspection -v
           conda run -n gwflow-tests python tests/release_smoke.py
-          conda run -n gwflow-tests python tests/validate_containers.py --backend local --root "$RUNNER_TEMP/container-acceptance"
       - uses: actions/upload-artifact@v7
         if: always()
         with:
+          overwrite: true
           name: installed-source-evidence
           path: |
             build/validation/compatibility-plan.json
             build/validation/compatibility/environment.json
             build/validation/compatibility/summary.json
-            ${{ runner.temp }}/container-acceptance/environment.json
-            ${{ runner.temp }}/container-acceptance/summary.json
           if-no-files-found: error
 
-  conda:
-    runs-on: ubuntu-latest
+  build:
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
       - uses: conda-incubator/setup-miniconda@v4
@@ -88,9 +85,110 @@ jobs:
           miniforge-version: latest
           channels: conda-forge
           conda-remove-defaults: "true"
-      - name: Install conda-build
+      - name: Build and install the candidate once
         shell: bash -l {0}
-        run: conda install -y -n base conda-build -c conda-forge
+        run: |
+          conda install -y -n base conda-build -c conda-forge
+          conda build conda-recipe --no-anaconda-upload -c gwforg -c conda-forge --output-folder "$RUNNER_TEMP/conda-dist"
+          version=$(python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')
+          artifact=$(find "$RUNNER_TEMP/conda-dist/noarch" -name "gwflow-${version}-*.conda" -print -quit)
+          test -n "$artifact"
+          conda create -y -p "$RUNNER_TEMP/gwflow-build" python=3.12 "gwflow=$version" -c "file://$RUNNER_TEMP/conda-dist" -c gwforg -c conda-forge
+          conda run -p "$RUNNER_TEMP/gwflow-build" python -m pip install --no-deps ./examples/packaged/packages/summary-task ./examples/packaged/packages/report-task
+          # This transfer capture is unqualified until every suite shard passes.
+          python tests/conda_runtime.py capture \
+            --prefix "$RUNNER_TEMP/gwflow-build" --artifact "$artifact" \
+            --source "$PWD" --output "$RUNNER_TEMP/ci-runtime"
+      - uses: actions/upload-artifact@v7
+        with:
+          overwrite: true
+          name: gwflow-ci-runtime
+          path: ${{ runner.temp }}/ci-runtime/*
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v7
+        with:
+          overwrite: true
+          name: gwflow-ci-channel
+          path: ${{ runner.temp }}/conda-dist/**
+          if-no-files-found: error
+
+  conda-suite:
+    needs: build
+    runs-on: ubuntu-24.04
+    strategy:
+      # Preserve all results and allow a failed shard to be retried independently.
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/restore-ci-runtime
+        with:
+          containers: "true"
+      - name: Run one partition of the full installed Conda suite
+        shell: bash -l {0}
+        env:
+          CI_SHARD: ${{ matrix.shard }}
+        run: |
+          conda run -p "$RUNNER_TEMP/gwflow-smoke" python tests/ci_suite.py run \
+            --bundle "$RUNNER_TEMP/ci-runtime" --prefix "$RUNNER_TEMP/gwflow-smoke" \
+            --index "$CI_SHARD" --count 4 --output "build/validation/ci-suite/shard-$CI_SHARD.json"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          overwrite: true
+          name: conda-suite-${{ matrix.shard }}
+          path: build/validation/ci-suite/shard-*.json
+          if-no-files-found: warn
+
+  containers:
+    needs: build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/restore-ci-runtime
+        with:
+          containers: "true"
+      - name: Run consolidated container acceptance against the Conda package
+        shell: bash -l {0}
+        run: |
+          conda run -p "$RUNNER_TEMP/gwflow-smoke" python tests/validate_containers.py \
+            --backend local --root "$RUNNER_TEMP/container-acceptance"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          overwrite: true
+          name: container-acceptance-evidence
+          path: |
+            ${{ runner.temp }}/container-acceptance/environment.json
+            ${{ runner.temp }}/container-acceptance/summary.json
+          if-no-files-found: warn
+
+  conda:
+    # Keep the existing required check. It cannot pass if a prerequisite fails.
+    if: always()
+    needs: [build, conda-suite, containers]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Require every Conda prerequisite to pass
+        env:
+          PREREQUISITE_RESULTS: ${{ toJSON(needs) }}
+        run: |
+          python -c 'import json, os; results = json.loads(os.environ["PREREQUISITE_RESULTS"]); assert all(job["result"] == "success" for job in results.values()), results'
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/restore-ci-runtime
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: conda-suite-*
+          merge-multiple: true
+          path: build/validation/ci-suite
+      - name: Verify complete suite coverage in the exact runtime
+        shell: bash -l {0}
+        run: |
+          conda run -p "$RUNNER_TEMP/gwflow-smoke" python tests/ci_suite.py verify \
+            --bundle "$RUNNER_TEMP/ci-runtime" --prefix "$RUNNER_TEMP/gwflow-smoke" \
+            --count 4 --records build/validation/ci-suite
+          conda run -p "$RUNNER_TEMP/gwflow-smoke" python tests/release_smoke.py
       - name: Select checkout-pinned compatibility baselines
         id: compatibility
         shell: bash -l {0}
@@ -100,25 +198,10 @@ jobs:
             --output build/validation/compatibility-plan.json
           mode=$(python -c 'import json; print(json.load(open("build/validation/compatibility-plan.json"))["mode"])')
           echo "mode=$mode" >> "$GITHUB_OUTPUT"
-      - name: Build artifact
-        shell: bash -l {0}
-        run: conda build conda-recipe --no-anaconda-upload -c gwforg -c conda-forge --output-folder "$RUNNER_TEMP/conda-dist"
-      - name: Install artifact and run local backend tests
-        shell: bash -l {0}
-        run: |
-          version=$(awk -F '"' '/set version/ {print $2}' conda-recipe/meta.yaml)
-          test -n "$version"
-          artifact=$(find "$RUNNER_TEMP/conda-dist" -name "gwflow-${version}-*.conda" -print -quit)
-          test -n "$artifact"
-          conda create -y -p "$RUNNER_TEMP/gwflow-smoke" python=3.12 "gwflow=$version" -c "file://$RUNNER_TEMP/conda-dist" -c gwforg -c conda-forge
-          conda run -p "$RUNNER_TEMP/gwflow-smoke" python -m pip install ./examples/packaged/packages/summary-task ./examples/packaged/packages/report-task
-          conda list -p "$RUNNER_TEMP/gwflow-smoke" --json | python -c 'import json, sys; package = next(p for p in json.load(sys.stdin) if p["name"] == "gwflow"); assert package["base_url"].startswith("file://"), package'
-          conda run -p "$RUNNER_TEMP/gwflow-smoke" python -m unittest discover -s tests -v
-          conda run -p "$RUNNER_TEMP/gwflow-smoke" python tests/release_smoke.py
       - name: Capture and qualify the tested Conda runtime
         shell: bash -l {0}
         run: |
-          artifact=$(find "$RUNNER_TEMP/conda-dist/noarch" -name 'gwflow-*.conda' -print -quit)
+          artifact=$(find "$RUNNER_TEMP/ci-runtime" -name 'gwflow-*.conda' -print -quit)
           test -n "$artifact"
           python tests/conda_runtime.py capture \
             --prefix "$RUNNER_TEMP/gwflow-smoke" --artifact "$artifact" \
@@ -134,11 +217,15 @@ jobs:
             --tag "v$version" --source "$source" --output "$RUNNER_TEMP/qualified-release"
           python tests/release_artifacts.py verify \
             --bundle "$RUNNER_TEMP/qualified-release" --tag "v$version" --source "$source"
+      - uses: actions/download-artifact@v8
+        with:
+          name: gwflow-ci-channel
+          path: ${{ runner.temp }}/conda-dist
       - name: Compare independent controlled runtimes
         shell: bash -l {0}
         run: |
           version=$(python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')
-          artifact=$(find "$RUNNER_TEMP/conda-dist/noarch" -name "gwflow-${version}-*.conda" -print -quit)
+          artifact=$(find "$RUNNER_TEMP/ci-runtime" -name "gwflow-${version}-*.conda" -print -quit)
           test -n "$artifact"
           source=$(git rev-parse HEAD)
           # A supported older Python patch exercises runtime variation in this fixture.
@@ -195,7 +282,7 @@ jobs:
         if: steps.compatibility.outputs.mode == 'preserved-release'
         shell: bash -l {0}
         run: |
-          artifact=$(find "$RUNNER_TEMP/conda-dist/noarch" -name 'gwflow-*.conda' -print -quit)
+          artifact=$(find "$RUNNER_TEMP/ci-runtime" -name 'gwflow-*.conda' -print -quit)
           test -n "$artifact"
           conda run -p "$RUNNER_TEMP/gwflow-smoke" python tests/select_compatibility.py run \
             --descriptor docs/validation/compatibility/baseline.json \
@@ -205,8 +292,10 @@ jobs:
       - uses: actions/upload-artifact@v7
         if: always()
         with:
+          overwrite: true
           name: conda-runtime-evidence
           path: |
+            build/validation/ci-suite/shard-*.json
             build/validation/compatibility-plan.json
             build/validation/pinned-compatibility/selection.json
             build/validation/pinned-compatibility/**/comparison.json
@@ -220,6 +309,8 @@ jobs:
           if-no-files-found: error
       - uses: actions/upload-artifact@v7
         with:
-          name: gwflow-conda-candidate
-          path: ${{ runner.temp }}/conda-dist/noarch/gwflow-*.conda
+          overwrite: true
+          name: gwflow-conda-release
+          path: ${{ runner.temp }}/qualified-release/*
+          retention-days: 90
           if-no-files-found: error

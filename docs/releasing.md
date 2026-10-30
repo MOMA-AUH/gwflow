@@ -20,38 +20,54 @@ and its evidence index to find the relevant historical records.
 Operators should use the [operating and upgrade guide](operating.md) for force,
 cleanup, unresolved submissions, and upgrades with all affected jobs inactive.
 
-Pull requests and pushes to `master` run the installed-package test suite and
-the Conda build and installed-artifact checks in CI. The `tests` and `conda`
-checks are required before merging into protected `master`. The `tests` job also
-executes real Apptainer containers and the consolidated local acceptance cases;
-the Conda job reports container-runtime skips explicitly. Live Slurm evidence is
-recorded separately in the validation record. Branch protection
-applies to administrators with no bypass actors, requires a pull request and
-linear history, and the repository permits squash merges only. Reviewer approval
-is optional; the branch must be up to date with `master` before merging.
+Pull requests and pushes to `master` build one Conda package. Four parallel jobs
+run separate parts of the full suite against that package, including the real
+Apptainer tests. Each job restores the same exact dependencies from a transfer
+capture. A separate job runs consolidated container acceptance. The `tests` job
+checks pip installation, CLI startup, interactive status, and the release smoke
+scenarios. It also retains the provisional source comparison until stable
+baselines exist. The `conda` job requires all Conda test jobs to pass and verifies
+that their records cover the complete discovered suite without skips. It then
+captures and qualifies the tested runtime and runs the independent comparisons.
+The transfer capture is not a qualified release or a passing test result.
+
+The `tests` and `conda` checks remain required before merging into protected
+`master`. A failed or skipped Conda prerequisite fails `conda`. New commits cancel
+superseded PR runs. Master runs remain available for release selection. Individual
+failed test groups and container checks can be retried without rerunning successful
+siblings. Test records include per-test durations for future balancing. Hash-based
+partitioning spreads cases across four runners but does not guarantee equal time.
+Live Slurm evidence remains separate. Branch protection applies to administrators
+with no bypass actors, requires a pull request and linear history, and the
+repository permits squash merges only. Reviewer approval is optional; the branch
+must be up to date with `master` before merging.
 
 For a release, ensure the version in `pyproject.toml` and
 `conda-recipe/meta.yaml` matches the intended release, updating them together if
 needed. Merge the release preparation PR through CI, then push a
 matching `v<version>` tag on `master`. The tag workflow rejects a tag whose
 version differs from `pyproject.toml` or whose commit is absent from `master`.
-It builds a Conda artifact without automatic upload, installs that artifact in
-a fresh environment, and runs the full local-backend test suite plus the
-small-file cleanup/reuse and troubleshooting/cancellation/recovery smoke checks.
-The tag workflow then captures that fully tested installation. It records Python
-and all Conda dependencies in a native explicit manifest with exact URLs and
-SHA-256 hashes. It keeps the tested gwflow package separate from those dependencies.
-It restores the capture into a new prefix with an empty package cache, installs
-the source-matched fixtures without changing runtime dependencies, and runs the
-existing smoke journeys. This adds one installation and smoke run, not another
-full suite. Capture, reconstruction, integrity, or smoke failure stops the workflow
-before publication.
+Wait for successful `master` CI at the exact release commit before pushing
+the tag. The tag workflow selects a successful push run of `ci.yml` from this
+repository at that commit. A successful PR run, another commit, a fork, or a
+matching version number alone is insufficient. It downloads the complete
+`gwflow-conda-release` bundle by its immutable artifact ID. CI retains that bundle
+for 90 days, subject to repository retention limits. Missing or expired bundles
+fail release selection. Rerun CI at that exact master commit, then retry the tag
+workflow. Do not rebuild a package in the publication workflow or substitute a
+bundle from another commit.
 
-After qualification, `tests/release_artifacts.py prepare` creates a checked bundle
-for transfer to the `publish` job. That job verifies all bundle files and matches
-the tag, source, package, manifest, and qualified dependency inventory before upload.
-It uploads the same artifact to the `MOMA-AUH` Anaconda.org channel. It creates
-another fresh environment from the published channel and repeats those smoke
+The tag workflow does not rerun the full suite or runtime qualification. It
+verifies the bundle's tag, source, package, manifest, checksums, and qualification
+before passing the same artifact ID to `publish`. Qualification already restores
+the tested package and exact dependency builds with an empty cache and runs the
+release smoke scenarios. CI runs capture after all test groups pass and checks
+that every group used the same package, fixture source, and dependency manifest.
+The release requires the entire selected CI run to succeed, including pip and
+compatibility checks.
+
+The publish job uploads the same artifact to the `MOMA-AUH` Anaconda.org channel.
+It creates another fresh environment from the published channel and repeats those smoke
 checks. A failed upload or published-package check fails the release
 workflow; do not claim publication from a successful build alone.
 The smoke runner includes unresolved submission, `recover`, preview, and retry,
@@ -61,9 +77,9 @@ the fresh installation's Conda metadata to that same artifact afterward.
 The independently solved channel installation proves published package identity.
 It does not replace the captured and reconstructed dependency environment.
 Download `gwflow-publication-evidence` from the successful tag run to obtain
-the three public release assets described below. `gwflow-conda-release` retains
-the original flat bundle used between workflow jobs. Pre-1.0 and prerelease
-versions do not establish a stable baseline.
+the three public release assets described below. Download `gwflow-conda-release`
+from the selected master CI run to obtain the original flat bundle.
+Pre-1.0 and prerelease versions do not establish a stable baseline.
 
 After the tag workflow has successfully uploaded and installed the published
 package, prepare the GitHub release notes for that existing tag. For a final

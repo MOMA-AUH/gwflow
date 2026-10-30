@@ -10,9 +10,19 @@ to select Conda explicitly. The default is `CONDA_EXE`, then `conda`.
 
 ## Capture after the full tests
 
-Capture the runtime that passed the full installed-package tests. The caller
-must enforce this order. The tool does not certify an earlier test run.
-The Conda CI job calls capture after its full suite and release smoke tests pass.
+Release capture follows the full installed-package tests. The caller must enforce
+this order. The tool does not certify an earlier test run.
+
+CI first makes an unqualified transfer capture of the built package and selected
+dependencies. Four test groups restore those exact builds in separate prefixes.
+Each group checks its runtime before and after its tests and records the shared
+source, package, manifest, and fixture identities. This transfer capture alone is
+not release qualification. The `conda` job requires all groups and container
+acceptance to pass. It checks complete suite coverage without skipped cases,
+restores the same builds, runs the release smoke tests, and generates the release
+capture. Its package and dependency manifest match every tested group. Fresh-cache
+restoration and qualification follow. The tag workflow consumes this complete
+qualified CI bundle instead of building and testing another package.
 
 Supply the exact installed gwflow Conda artifact and its source checkout.
 In this example, `TESTED_PREFIX` and `TESTED_ARTIFACT` are placeholders for those
@@ -120,11 +130,11 @@ The Conda CI job also uses `tests/validate_conda_runtime.py` to test controlled
 missing and corrupt HTTP downloads with empty caches before real qualification.
 Raw logs stay under ignored `build/validation/conda-runtime/`.
 The `conda-runtime-evidence` artifact contains the manifest, capture record, and
-qualification summary. The existing candidate artifact retains the gwflow
-package. CI also prepares and verifies a release bundle from the qualified
-candidate. These CI artifacts do not establish a published stable release.
-The [release procedure](../releasing.md) uses the same capture and qualification
-after the full tag tests, then retains checked stable attachments on GitHub.
+qualification summary and the test-group coverage records. The complete
+`gwflow-conda-release` artifact retains the package and qualified release bundle. These CI artifacts do not establish a published stable release.
+The [release procedure](../releasing.md) consumes the complete qualified bundle
+from successful master CI at the exact tagged commit. It retains checked release
+attachments on GitHub after publication.
 
 ## Limits
 
