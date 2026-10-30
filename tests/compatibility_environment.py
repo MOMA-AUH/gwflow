@@ -98,7 +98,7 @@ def installed_environment(python: Path, source: str, independent: bool = False) 
 
 def disjoint_environments(baseline: dict, candidate: dict) -> None:
     old, new = (Path(item["prefix"]).resolve() for item in (baseline, candidate))
-    if old.is_relative_to(new) or new.is_relative_to(old):
+    if old.samefile(new) or old.is_relative_to(new) or new.is_relative_to(old):
         raise ValueError("Baseline and candidate must use disjoint environment prefixes")
 
 
