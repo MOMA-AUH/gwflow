@@ -1,6 +1,8 @@
 """Pinned compatibility selection through the maintainer CLI."""
 
 import hashlib
+import io
+import tarfile
 import json
 from pathlib import Path
 import subprocess
@@ -70,9 +72,15 @@ class CompatibilitySelectionTests(unittest.TestCase):
             "release": version, "source_commit": "b" * 40,
             "artifact": {**record["artifact"], "url": "https://conda.anaconda.org/moma-auh/noarch/" + filename},
         }))
+        assets = self.root / (version + "-assets")
+        result = subprocess.run([sys.executable, str(ROOT / "tests/release_artifacts.py"), "pack",
+                                 "--bundle", str(bundle), "--publication", str(bundle / "publication.json"),
+                                 "--tag", version, "--source", "b" * 40, "--output", str(assets)],
+                                capture_output=True, text=True, timeout=30)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         return {"version": version, "source_commit": "b" * 40,
                 "assets": {path.name: {"url": path.as_uri(), "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
-                           for path in bundle.iterdir()}}
+                           for path in assets.iterdir()}}
 
     def test_original_latest_and_distinct_intermediate_use_only_checkout_pins(self):
         original, latest = self.release("v1.0.0"), self.release("v1.2.0")
@@ -110,7 +118,7 @@ class CompatibilitySelectionTests(unittest.TestCase):
                          b"controlled tested gwflow artifact v1.0.0")
         self.assertNotIn(str(self.root), (destination / "selection.json").read_text())
         # Hash failure in one baseline must not hide the independently selected latest baseline.
-        (self.root / "v1.0.0/runtime.explicit.txt").write_text("corrupt dependency selection")
+        (self.root / "v1.0.0-assets/gwflow-1.0.0-validation.tar.gz").write_text("corrupt dependency selection")
         destination = self.root / "corrupt"
         result = self.command("fetch", "--root", str(destination), success=False)
         self.assertIn("v1.0.0", result.stderr)
@@ -147,8 +155,8 @@ class CompatibilitySelectionTests(unittest.TestCase):
     def test_corrupt_package_and_manifest_fail_before_any_runtime_creation(self):
         original = self.release("v1.0.0")
         self.value["stable"] = {"original": original, "latest": original}
-        for index, filename in enumerate(("gwflow-1.0.0-py_0.conda", "runtime.explicit.txt")):
-            path = self.root / "v1.0.0" / filename
+        for index, filename in enumerate(("gwflow-1.0.0-py_0.conda", "gwflow-1.0.0-validation.tar.gz")):
+            path = self.root / "v1.0.0-assets" / filename
             saved = path.read_bytes()
             path.write_bytes(b"untrusted replacement")
             destination = self.root / f"corrupt-{index}"
@@ -180,11 +188,23 @@ class CompatibilitySelectionTests(unittest.TestCase):
 
     def test_stable_download_rejects_unpublished_package_identity_even_with_matching_pins(self):
         original = self.release("v1.0.0")
-        publication = self.root / "v1.0.0/publication.json"
-        value = json.loads(publication.read_text())
-        value["artifact"]["sha256"] = "0" * 64
-        publication.write_text(json.dumps(value))
-        original["assets"]["publication.json"]["sha256"] = hashlib.sha256(publication.read_bytes()).hexdigest()
+        assets = self.root / "v1.0.0-assets"
+        archive_path = assets / "gwflow-1.0.0-validation.tar.gz"
+        with tarfile.open(archive_path, "r:gz") as archive:
+            entries = [(entry, archive.extractfile(entry).read()) for entry in archive]
+        with tarfile.open(archive_path, "w:gz") as archive:
+            for entry, data in entries:
+                if entry.name == "publication.json":
+                    value = json.loads(data)
+                    value["artifact"]["sha256"] = "0" * 64
+                    data = json.dumps(value).encode()
+                    entry.size = len(data)
+                archive.addfile(entry, io.BytesIO(data))
+        checksums = assets / "SHA256SUMS"
+        checksums.write_text("".join(f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.name}\n"
+                                    for path in sorted(assets.iterdir()) if path != checksums))
+        for path in assets.iterdir():
+            original["assets"][path.name]["sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
         self.value["stable"] = {"original": original, "latest": original}
         destination = self.root / "unpublished"
         self.command("fetch", "--root", str(destination), success=False)

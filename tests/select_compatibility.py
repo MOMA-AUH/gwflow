@@ -8,11 +8,12 @@ import re
 import shutil
 import subprocess
 import sys
+import tarfile
 from urllib.request import urlopen
 from urllib.parse import unquote, urlsplit
 
 from compare_runtime import normalized
-from release_artifacts import stable_tag, verify as verify_release, verify_publication
+from release_artifacts import stable_tag, compact_names, unpack
 
 from conda_runtime import digest
 
@@ -25,13 +26,7 @@ def reference(value: dict) -> dict:
     version, source, assets = value["version"], value["source_commit"], value["assets"]
     if not stable_tag(version) or re.fullmatch(r"[0-9a-f]{40}", source) is None:
         raise ValueError("Stable baseline requires a final release from v1.0.0 and an exact source commit")
-    metadata = {"runtime.explicit.txt", "runtime.json", "qualification.json", "release.json", "SHA256SUMS", "publication.json"}
-    packages = set(assets) - metadata
-    if len(packages) != 1 or not metadata <= set(assets):
-        raise ValueError("Pin the exact package and complete qualified release attachments")
-    package = next(iter(packages))
-    if not package.startswith("gwflow-" + version[1:] + "-") or not package.endswith((".conda", ".tar.bz2")):
-        raise ValueError("Pinned package filename differs from the release version")
+    compact_names(set(assets), version)
     for filename, asset in assets.items():
         url = urlsplit(asset["url"])
         if (Path(filename).name != filename or filename in (".", "..") or "\\" in filename
@@ -80,17 +75,17 @@ def select(descriptor: Path) -> dict:
 
 
 def download(reference: dict, bundle: Path) -> None:
-    bundle.mkdir(parents=True)
+    downloads = bundle.parent / "downloads"
+    downloads.mkdir(parents=True)
     for filename, asset in reference["assets"].items():
-        path = bundle / filename
+        path = downloads / filename
         with urlopen(asset["url"], timeout=60) as response, path.open("wb") as destination:
             shutil.copyfileobj(response, destination)
         if digest(path) != asset["sha256"]:
             raise ValueError(f"Pinned SHA-256 mismatch for {filename}")
-    release = verify_release(bundle, reference["version"], reference["source_commit"])
+    release = unpack(downloads, bundle, reference["version"], reference["source_commit"])
     if not release["stable_baseline_eligible"]:
         raise ValueError("Downloaded release is not an eligible stable baseline")
-    verify_publication(release, json.loads((bundle / "publication.json").read_text()))
 
 
 def evidence(root: Path, descriptor: Path, selection: dict) -> None:
@@ -127,7 +122,7 @@ def fetch(descriptor: Path, root: Path) -> dict:
         try:
             download(entry, root / entry["version"] / "assets")
             entry["status"] = "verified"
-        except (ValueError, OSError, KeyError, TypeError) as error:
+        except (ValueError, OSError, KeyError, TypeError, tarfile.TarError, EOFError) as error:
             entry.update(status="failed", error=str(error))
         evidence(root, descriptor, selection)
     selection["status"] = "failed" if any(entry["status"] == "failed" for entry in selection["baselines"]) else "verified"
@@ -159,7 +154,7 @@ def run(args: argparse.Namespace, selection: dict) -> None:
                     or comparison["journeys"] != {"run": 15, "failures": 0, "errors": 0, "skips": 0}):
                 raise ValueError("Comparison did not pass all completed/incomplete upgrade journeys in the exact runtime")
             entry.update(status="passed", comparison=f"{entry['version']}/comparison/comparison.json")
-        except (ValueError, OSError, KeyError, TypeError) as error:
+        except (ValueError, OSError, KeyError, TypeError, tarfile.TarError, EOFError) as error:
             message = normalized(str(error), {
                 str(args.candidate_python.resolve().parent.parent): "<CANDIDATE>",
                 str(args.candidate_artifact.resolve().parent): "<CANDIDATE_ARTIFACTS>",
@@ -201,7 +196,7 @@ def main() -> None:
             failed = [entry["version"] for entry in selection["baselines"] if entry["status"] == "failed"]
             if failed:
                 raise ValueError("Failed baselines: " + ", ".join(failed) + "; inspect selection.json")
-    except (ValueError, OSError, KeyError, TypeError) as error:
+    except (ValueError, OSError, KeyError, TypeError, tarfile.TarError, EOFError) as error:
         parser.exit(1, f"Compatibility selection failed: {error}\n")
 
 

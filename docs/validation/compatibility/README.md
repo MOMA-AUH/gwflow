@@ -20,9 +20,12 @@ After stable publication, `stable` contains `original`, `latest`, and an
 `intermediate` array. Each release reference contains `version`, `source_commit`,
 and `assets`. Versions use final tags from `v1.0.0` onward. Each asset maps its
 exact filename to an object with its `url` and expected `sha256`.
-Include the Conda package and all six metadata attachments listed in
+Include exactly the Conda package, versioned validation archive, and outer
+`SHA256SUMS` listed in
 [the release procedure](../../releasing.md#stable-release-attachments).
-The package and manifest checksums must agree with the qualified release bundle.
+The selector verifies the three pinned downloads and safely unpacks the archive
+before restoring the runtime. The inner package and manifest checksums must agree
+with the qualified release bundle.
 The publication record must identify the same package and source.
 Store these references in Git. Keep packages and downloaded manifests outside Git.
 

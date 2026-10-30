@@ -142,8 +142,19 @@ class ReleaseArtifactsTests(unittest.TestCase):
         self.remote = self.root / "remote"
         self.environment["GWFLOW_RELEASE_FIXTURE_ROOT"] = str(self.remote)
 
+    def packed(self):
+        destination = self.root / "compact"
+        if destination.exists():
+            shutil.rmtree(destination)
+        self.command("pack", "--bundle", str(self.output), "--publication", str(self.provenance),
+                     "--tag", "v" + self.version, "--source", self.source, "--output", str(destination))
+        return destination
+
     def attach(self, success=True):
-        return self.command("attach", "--bundle", str(self.output), "--publication", str(self.provenance),
+        destination = self.root / "compact"
+        if not destination.exists():
+            self.packed()
+        return self.command("attach", "--bundle", str(destination),
                             "--tag", "v" + self.version, "--source", self.source,
                             "--repo", "MOMA-AUH/gwflow", "--gh", str(self.github), success=success)
 
@@ -153,31 +164,46 @@ class ReleaseArtifactsTests(unittest.TestCase):
         self.attach()
         state = json.loads((self.remote / "state.json").read_text())
         self.assertEqual(state, {"tagName": "v1.0.0", "isDraft": True, "isPrerelease": False})
-        for name in (self.record["artifact"]["filename"], "runtime.explicit.txt", "runtime.json",
-                     "qualification.json", "release.json", "SHA256SUMS", "publication.json"):
-            self.assertEqual((self.remote / "assets" / name).read_bytes(), (self.output / name).read_bytes())
+        for name in (self.record["artifact"]["filename"], "gwflow-1.0.0-validation.tar.gz", "SHA256SUMS"):
+            self.assertEqual((self.remote / "assets" / name).read_bytes(), (self.root / "compact" / name).read_bytes())
+        self.assertEqual(len(list((self.remote / "assets").iterdir())), 3)
 
-    def test_wrong_publication_and_nonfinal_versions_cannot_attach_stable_assets(self):
+    def test_wrong_publication_and_unqualified_records_cannot_be_packed(self):
         self.prepare()
         self.publication()
         self.published["artifact"]["sha256"] = "0" * 64
         self.provenance.write_text(json.dumps(self.published))
-        self.attach(success=False)
-        self.assertFalse(self.remote.exists())
+        arguments = ("pack", "--bundle", str(self.output), "--publication", str(self.provenance),
+                     "--tag", "v1.0.0", "--source", self.source, "--output", str(self.root / "compact"))
+        self.command(*arguments, success=False)
+        self.assertFalse((self.root / "compact").exists())
         self.published["artifact"]["sha256"] = self.record["artifact"]["sha256"]
         self.provenance.write_text(json.dumps(self.published))
         (self.output / "qualification.json").write_text("{}")
-        self.attach(success=False)
-        self.assertFalse(self.remote.exists())
-        for version in ("0.9.0", "1.0.0rc1", "1.1.0.dev1"):
+        self.command(*arguments, success=False)
+        self.assertFalse((self.root / "compact").exists())
+
+    def test_pre_one_release_also_gets_compact_draft_without_becoming_stable(self):
+        self.version = "0.10.0"
+        self.fixture()
+        self.prepare()
+        self.publication()
+        self.attach()
+        self.assertFalse(json.loads((self.output / "release.json").read_text())["stable_baseline_eligible"])
+        self.assertTrue((self.remote / "assets/gwflow-0.10.0-validation.tar.gz").exists())
+
+    def test_prerelease_can_be_packed_without_creating_a_final_release_draft(self):
+        for index, version in enumerate(("1.0.0rc1", "1.1.0.dev1")):
             with self.subTest(version=version):
                 self.version = version
+                self.output = self.root / f"prerelease-{index}"
                 self.fixture()
-                self.output = self.root / ("assets-" + version)
                 self.prepare()
                 self.publication()
+                self.packed()
                 self.attach()
-                self.assertFalse(self.remote.exists())
+                self.assertFalse((self.remote / "calls.jsonl").exists())
+                self.assertTrue((self.root / "compact" / f"gwflow-{version}-validation.tar.gz").exists())
 
     def test_draft_resumes_identical_assets_but_never_replaces_existing_bytes(self):
         self.prepare()
