@@ -189,7 +189,7 @@ class CompatibilitySelectionTests(unittest.TestCase):
         destination = self.root / "unpublished"
         self.command("fetch", "--root", str(destination), success=False)
         entry = json.loads((destination / "selection.json").read_text())["baselines"][0]
-        self.assertIn("Published package provenance differs", entry["error"])
+        self.assertIn("Published package provenance does not match", entry["error"])
 
     def test_provisional_fetch_and_run_cannot_report_a_skipped_stable_matrix_as_passing(self):
         destination = self.root / "not-a-matrix"

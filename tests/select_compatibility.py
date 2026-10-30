@@ -12,7 +12,7 @@ from urllib.request import urlopen
 from urllib.parse import unquote, urlsplit
 
 from compare_runtime import normalized
-from release_artifacts import stable_tag, verify as verify_release
+from release_artifacts import stable_tag, verify as verify_release, verify_publication
 
 from conda_runtime import digest
 
@@ -90,12 +90,7 @@ def download(reference: dict, bundle: Path) -> None:
     release = verify_release(bundle, reference["version"], reference["source_commit"])
     if not release["stable_baseline_eligible"]:
         raise ValueError("Downloaded release is not an eligible stable baseline")
-    publication = json.loads((bundle / "publication.json").read_text())
-    if (publication["release"] != reference["version"] or publication["source_commit"] != reference["source_commit"]
-            or any(publication["artifact"][field] != release["artifact"][field] for field in ("filename", "sha256"))
-            or publication["artifact"]["url"].casefold() != (
-                "https://conda.anaconda.org/moma-auh/noarch/" + release["artifact"]["filename"]).casefold()):
-        raise ValueError("Published package provenance differs from the pinned qualified release")
+    verify_publication(release, json.loads((bundle / "publication.json").read_text()))
 
 
 def evidence(root: Path, descriptor: Path, selection: dict) -> None:
