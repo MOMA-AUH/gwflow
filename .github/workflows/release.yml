@@ -6,10 +6,19 @@ on:
 
 permissions:
   contents: read
+  actions: read
+
+# Never cancel a publication in progress or run two publications for one tag.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   verify:
     runs-on: ubuntu-latest
+    outputs:
+      run_id: ${{ steps.ci.outputs.run_id }}
+      artifact_id: ${{ steps.ci.outputs.artifact_id }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -25,52 +34,30 @@ jobs:
           version=$(python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')
           test "$GITHUB_REF_NAME" = "v$version"
           grep -Fqx "{% set version = \"$version\" %}" conda-recipe/meta.yaml
-      - uses: conda-incubator/setup-miniconda@v4
-        with:
-          miniforge-version: latest
-          channels: conda-forge
-          conda-remove-defaults: "true"
-      - name: Install conda-build
-        shell: bash -l {0}
-        run: conda install -y -n base conda-build -c conda-forge
-      - name: Build release artifact
-        shell: bash -l {0}
-        run: conda build conda-recipe --no-anaconda-upload -c gwforg -c conda-forge --output-folder "$RUNNER_TEMP/conda-dist"
-      - name: Test installed artifact with local backend
-        shell: bash -l {0}
+      - name: Select successful master CI for the exact tagged commit
+        id: ci
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          version=${GITHUB_REF_NAME#v}
-          conda create -y -p "$RUNNER_TEMP/gwflow-release-test" python=3.12 "gwflow=$version" -c "file://$RUNNER_TEMP/conda-dist" -c gwforg -c conda-forge
-          conda run -p "$RUNNER_TEMP/gwflow-release-test" python -m pip install ./examples/packaged/packages/summary-task ./examples/packaged/packages/report-task
-          conda list -p "$RUNNER_TEMP/gwflow-release-test" --json | python -c 'import json, sys; package = next(p for p in json.load(sys.stdin) if p["name"] == "gwflow"); assert package["base_url"].startswith("file://"), package'
-          conda run -p "$RUNNER_TEMP/gwflow-release-test" python -m unittest discover -s tests -v
-          conda run -p "$RUNNER_TEMP/gwflow-release-test" python tests/release_smoke.py
-      - name: Capture and qualify the fully tested runtime
-        shell: bash -l {0}
-        run: |
-          artifact=$(find "$RUNNER_TEMP/conda-dist/noarch" -name 'gwflow-*.conda' -print -quit)
-          test -n "$artifact"
-          python tests/conda_runtime.py capture \
-            --prefix "$RUNNER_TEMP/gwflow-release-test" --artifact "$artifact" \
-            --source "$PWD" --output "$RUNNER_TEMP/conda-runtime"
-          python tests/conda_runtime.py qualify \
-            --capture "$RUNNER_TEMP/conda-runtime" --source "$PWD" \
-            --prefix "$RUNNER_TEMP/gwflow-release-restored" --fresh-cache "$RUNNER_TEMP/gwflow-release-cache"
-          python tests/release_artifacts.py prepare \
-            --capture "$RUNNER_TEMP/conda-runtime" \
-            --qualification "$RUNNER_TEMP/gwflow-release-restored/gwflow-runtime.json" \
-            --tag "$GITHUB_REF_NAME" --source "$GITHUB_SHA" --output "$RUNNER_TEMP/qualified-release"
-      - uses: actions/upload-artifact@v7
+          python tests/select_ci_release.py --repo "$GITHUB_REPOSITORY" \
+            --source "$GITHUB_SHA" --output "$GITHUB_OUTPUT"
+      - uses: actions/download-artifact@v8
         with:
-          name: gwflow-conda-release
-          path: ${{ runner.temp }}/qualified-release/*
-          if-no-files-found: error
+          artifact-ids: ${{ steps.ci.outputs.artifact_id }}
+          run-id: ${{ steps.ci.outputs.run_id }}
+          github-token: ${{ github.token }}
+          path: conda-dist
+      - name: Verify the tested package, source, version, and qualification
+        run: |
+          python tests/release_artifacts.py verify \
+            --bundle conda-dist --tag "$GITHUB_REF_NAME" --source "$GITHUB_SHA"
 
   publish:
     needs: verify
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      actions: read
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
@@ -78,7 +65,9 @@ jobs:
           python-version: "3.12"
       - uses: actions/download-artifact@v8
         with:
-          name: gwflow-conda-release
+          artifact-ids: ${{ needs.verify.outputs.artifact_id }}
+          run-id: ${{ needs.verify.outputs.run_id }}
+          github-token: ${{ github.token }}
           path: conda-dist
       - name: Verify downloaded artifact and qualification identities
         run: |
@@ -136,6 +125,7 @@ jobs:
             --tag "$GITHUB_REF_NAME" --source "$GITHUB_SHA" --repo "$GITHUB_REPOSITORY"
       - uses: actions/upload-artifact@v7
         with:
+          overwrite: true
           name: gwflow-publication-evidence
           path: release-assets/*
           if-no-files-found: error
