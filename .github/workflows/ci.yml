@@ -22,7 +22,17 @@ jobs:
           conda create -y -n gwflow-tests python=3.12 pip gwf=2.1.1 -c gwforg -c conda-forge
           conda run -n gwflow-tests python -m pip install .
           conda run -n gwflow-tests python -m pip install ./examples/packaged/packages/summary-task ./examples/packaged/packages/report-task
-      - name: Verify installed Task compatibility
+      - name: Select checkout-pinned compatibility baselines
+        id: compatibility
+        shell: bash -l {0}
+        run: |
+          conda run -n gwflow-tests python tests/select_compatibility.py plan \
+            --descriptor docs/validation/compatibility/baseline.json \
+            --output build/validation/compatibility-plan.json
+          mode=$(python -c 'import json; print(json.load(open("build/validation/compatibility-plan.json"))["mode"])')
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
+      - name: Verify provisional installed Task compatibility
+        if: steps.compatibility.outputs.mode == 'provisional-source'
         shell: bash -l {0}
         run: |
           baseline_source=$(python -c 'import json; print(json.load(open("docs/validation/compatibility/baseline.json"))["source"]["commit"])')
@@ -58,9 +68,11 @@ jobs:
           conda run -n gwflow-tests python tests/release_smoke.py
           conda run -n gwflow-tests python tests/validate_containers.py --backend local --root "$RUNNER_TEMP/container-acceptance"
       - uses: actions/upload-artifact@v7
+        if: always()
         with:
           name: installed-source-evidence
           path: |
+            build/validation/compatibility-plan.json
             build/validation/compatibility/environment.json
             build/validation/compatibility/summary.json
             ${{ runner.temp }}/container-acceptance/environment.json
@@ -79,6 +91,15 @@ jobs:
       - name: Install conda-build
         shell: bash -l {0}
         run: conda install -y -n base conda-build -c conda-forge
+      - name: Select checkout-pinned compatibility baselines
+        id: compatibility
+        shell: bash -l {0}
+        run: |
+          python tests/select_compatibility.py plan \
+            --descriptor docs/validation/compatibility/baseline.json \
+            --output build/validation/compatibility-plan.json
+          mode=$(python -c 'import json; print(json.load(open("build/validation/compatibility-plan.json"))["mode"])')
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
       - name: Build artifact
         shell: bash -l {0}
         run: conda build conda-recipe --no-anaconda-upload -c gwforg -c conda-forge --output-folder "$RUNNER_TEMP/conda-dist"
@@ -170,10 +191,25 @@ jobs:
               assert environment["supported_runtime"] is True, environment
           assert evidence["journeys"] == {"run": 15, "failures": 0, "errors": 0, "skips": 0}, evidence
           PY
+      - name: Compare pinned stable releases in independent runtimes
+        if: steps.compatibility.outputs.mode == 'preserved-release'
+        shell: bash -l {0}
+        run: |
+          artifact=$(find "$RUNNER_TEMP/conda-dist/noarch" -name 'gwflow-*.conda' -print -quit)
+          test -n "$artifact"
+          conda run -p "$RUNNER_TEMP/gwflow-smoke" python tests/select_compatibility.py run \
+            --descriptor docs/validation/compatibility/baseline.json \
+            --candidate-python "$RUNNER_TEMP/gwflow-compat-candidate/bin/python" \
+            --candidate-artifact "$artifact" --candidate-source "$(git rev-parse HEAD)" \
+            --root build/validation/pinned-compatibility
       - uses: actions/upload-artifact@v7
+        if: always()
         with:
           name: conda-runtime-evidence
           path: |
+            build/validation/compatibility-plan.json
+            build/validation/pinned-compatibility/selection.json
+            build/validation/pinned-compatibility/**/comparison.json
             ${{ runner.temp }}/conda-runtime/runtime.explicit.txt
             ${{ runner.temp }}/conda-runtime/runtime.json
             build/validation/conda-runtime/summary.json

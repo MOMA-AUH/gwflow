@@ -92,14 +92,17 @@ def github(gh: str, *arguments: str) -> subprocess.CompletedProcess:
     return result
 
 
-def attach(bundle: Path, publication: Path, tag: str, source: str, repo: str, gh: str) -> None:
-    release = verify(bundle, tag, source)
-    provenance = json.loads(publication.read_text())
-    if (provenance["release"] != tag or provenance["source_commit"] != source
+def verify_publication(release: dict, provenance: dict) -> None:
+    if (provenance["release"] != release["release"] or provenance["source_commit"] != release["source_commit"]
             or any(provenance["artifact"][field] != release["artifact"][field] for field in ("filename", "sha256"))
             or provenance["artifact"]["url"].casefold() != (
                 "https://conda.anaconda.org/moma-auh/noarch/" + release["artifact"]["filename"]).casefold()):
         raise ValueError("Published package provenance does not match the qualified release artifact")
+
+
+def attach(bundle: Path, publication: Path, tag: str, source: str, repo: str, gh: str) -> None:
+    release = verify(bundle, tag, source)
+    verify_publication(release, json.loads(publication.read_text()))
     if publication.name != "publication.json":
         raise ValueError("Expected publication.json provenance attachment")
     if not release["stable_baseline_eligible"]:

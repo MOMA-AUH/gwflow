@@ -117,11 +117,29 @@ The GitHub release retains these assets after the Actions artifacts expire.
 
 After successful stable publication, update the latest reference in
 `docs/validation/compatibility/baseline.json` through a normal PR. Record the
-published package and manifest URLs with their expected checksums. Retain the
-original stable reference. For the first stable publication, establish both
-references from that published release. Do not select a draft or prerelease,
+published version, source commit, and every attachment URL with its expected
+SHA-256 checksum. Use descriptor schema version 2 and the `assets` mapping
+documented in [pinned selection](validation/compatibility/README.md#select-pinned-releases-in-ci).
+Retain `stable.original` and update `stable.latest`. For the first stable
+publication, replace `stable: null` with both references to that release and an
+empty `intermediate` array. The selector runs identical original/latest references
+once. Do not select a draft or prerelease,
 invent historical artifacts, or treat the provisional source comparison as an
 independent preserved environment. See [ADR 0018](adr/0018-preserve-independent-compatibility-environments.md).
+
+Before preparing another candidate, merge this descriptor PR with passing CI.
+Reviewers must compare its latest pin with the last successful stable publication.
+Do not update the pin merely because a tag or draft exists. CI intentionally reads
+the checkout's pins without discovering releases, so this review enforces freshness.
+An old-commit rerun keeps its historical selection and cannot prove coverage of
+later releases. Dependency deletion upstream can still prevent exact restoration.
+Follow the [recovery procedure](validation/compatibility/README.md#recover-missing-dependencies)
+without silently replacing dependencies or marking an unperformed comparison passed.
+
+Stable compatibility covers forward upgrades of valid completed and incomplete
+work with all affected jobs inactive. Keep workflow and storage paths unchanged.
+It excludes live upgrades, mixed-version workers, relocation, and downgrades.
+The comparisons do not broaden the [operating contract](operating.md).
 
 Current-candidate CI exercises the same preparation and transfer checks after
 real runtime qualification. Controlled release fixtures test stable attachments,
