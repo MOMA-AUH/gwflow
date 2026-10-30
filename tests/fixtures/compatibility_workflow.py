@@ -13,7 +13,7 @@ runtime_probe = "python -c " + shlex.quote(
     "print(json.dumps(dict(prefix=sys.prefix,package=gwflow.__file__,python=platform.python_version(),"
     "imports={name: module.__file__ for name,module in [('gwflow',gwflow),('gwf',gwf),('rich',rich)]},"
     "versions={name:m.version(name) for name in ('gwflow','gwf','rich')})))"
-) + " > {runtime}"
+).replace("{", "{{").replace("}", "}}") + " > {runtime}"
 
 
 @task_template

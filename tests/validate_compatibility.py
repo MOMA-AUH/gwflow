@@ -16,7 +16,7 @@ import unittest
 from gwf.backends.local import Client, LocalStatus
 
 from support import FIXTURES, LocalBackendTestCase
-from compatibility_environment import installed_environment
+from compatibility_environment import disjoint_environments, installed_environment
 from test_managed_recovery import ManagedCoordinationTests
 from test_graphs import TaskGraphTests
 from test_inputs import ExternalInputTests
@@ -497,10 +497,9 @@ def main():
         installations = {side: installed_environment(getattr(args, side + "_python"),
                                                      getattr(args, side + "_source"), args.independent)
                          for side in ("baseline", "candidate")}
+        disjoint_environments(installations["baseline"], installations["candidate"])
     except (ValueError, OSError, subprocess.CalledProcessError) as error:
         parser.error(str(error))
-    if Path(installations["baseline"]["prefix"]).samefile(installations["candidate"]["prefix"]):
-        parser.error("Baseline and candidate must be independently installed in distinct environments")
     root = args.root.resolve()
     root.mkdir(parents=True, exist_ok=False)
     (root / "environment.json").write_text(json.dumps({"comparison_kind": "independent-runtime" if args.independent else "provisional-source",

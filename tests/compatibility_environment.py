@@ -96,6 +96,12 @@ def installed_environment(python: Path, source: str, independent: bool = False) 
             "dependency_policy": "independent" if independent else "provisional-shared-runtime", **result}
 
 
+def disjoint_environments(baseline: dict, candidate: dict) -> None:
+    old, new = (Path(item["prefix"]).resolve() for item in (baseline, candidate))
+    if old.is_relative_to(new) or new.is_relative_to(old):
+        raise ValueError("Baseline and candidate must use disjoint environment prefixes")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--python", type=Path, required=True)

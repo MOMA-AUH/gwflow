@@ -137,6 +137,8 @@ jobs:
           assert evidence["exact_baseline_runtime"] is True, evidence
           baseline = evidence["environments"]["baseline"]
           candidate = evidence["environments"]["candidate"]
+          assert baseline["prefix"] == "<BASELINE>" and candidate["prefix"] == "<CANDIDATE>", evidence
+          assert baseline["prefix_identity"] != candidate["prefix_identity"], evidence
           assert baseline["python_version"] != candidate["python_version"], (baseline, candidate)
           assert candidate["python_version"] == "3.12.14", candidate
           for environment in (baseline, candidate):
@@ -161,6 +163,8 @@ jobs:
           assert evidence["status"] == "passed", evidence
           assert evidence["baseline_kind"] == "controlled-artifact", evidence
           assert evidence["exact_baseline_runtime"] is False, evidence
+          assert evidence["replacement"]["reason"], evidence
+          assert evidence["baseline_capture"]["artifact"] == evidence["replacement"]["capture"]["artifact"], evidence
           for environment in evidence["environments"].values():
               assert environment["dependency_policy"] == "independent", environment
               assert environment["supported_runtime"] is True, environment

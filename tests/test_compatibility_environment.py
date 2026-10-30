@@ -64,6 +64,21 @@ class CompatibilityEnvironmentTests(unittest.TestCase):
                 finally:
                     metadata.write_text(original)
 
+    def test_comparison_rejects_nested_installations_before_starting_work(self):
+        nested = self.prefix / "nested"
+        subprocess.run([sys.executable, "-m", "venv", "--system-site-packages", "--without-pip", str(nested)],
+                       check=True, capture_output=True, text=True)
+        subprocess.run([str(nested / "bin/python"), "-m", "pip", "install", "--no-deps", "--ignore-installed", "--no-index",
+                        str(next((self.root / "wheels").glob("gwflow-*.whl")))], check=True, capture_output=True, text=True)
+        output = self.root / "nested-comparison"
+        result = subprocess.run([sys.executable, str(ROOT / "tests/validate_compatibility.py"),
+                                 "--baseline-python", str(nested / "bin/python"), "--candidate-python", str(self.python),
+                                 "--baseline-source", "fixture", "--candidate-source", "fixture", "--root", str(output),
+                                 "--test", "no-such-test"], capture_output=True, text=True, timeout=30)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("disjoint", result.stderr)
+        self.assertFalse(output.exists())
+
 
 if __name__ == "__main__":
     unittest.main()

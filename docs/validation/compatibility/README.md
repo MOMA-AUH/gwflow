@@ -66,6 +66,9 @@ native package inventory, and journey results. Its placeholder definitions expla
 normalized paths. The `journeys/` directory retains raw `environment.json`,
 `transcript.jsonl`, `summary.json`, and workflow storage for inspection.
 Keep raw evidence under the ignored `build/validation/` tree.
+The selected record before path normalization remains in `comparison.raw.json`.
+An explicit `--test` selection produces `focused-tests-passed` evidence. It does
+not establish that the full upgrade matrix passed.
 
 ## Recover missing dependencies
 

@@ -9,7 +9,7 @@ import subprocess
 import sys
 from urllib.parse import unquote, urlsplit
 
-from compatibility_environment import installed_environment
+from compatibility_environment import disjoint_environments, installed_environment
 from conda_runtime import (digest, fixture_inventory, identities, installed_inventory,
                            preserved_file, restore, runtime_environment, runtime_files)
 from release_artifacts import verify as verify_release
@@ -75,8 +75,7 @@ def compare(args: argparse.Namespace) -> None:
     baseline = installed_environment(restored / "bin/python", record["source_commit"], True)
     candidate = installed_environment(args.candidate_python.resolve(), args.candidate_source, True)
     candidate_prefix = Path(candidate["prefix"])
-    if restored.samefile(candidate_prefix):
-        raise ValueError("Baseline and candidate must use distinct environments")
+    disjoint_environments(baseline, candidate)
     candidate_packages = installed_inventory(args.conda, candidate_prefix, fixture_inventory(SOURCE))
     if digest(args.candidate_artifact) != candidate_packages["gwflow"]["sha256"]:
         raise ValueError("Candidate artifact SHA-256 differs from the independently installed package")
@@ -109,7 +108,8 @@ def compare(args: argparse.Namespace) -> None:
                 "restoration": json.loads((restored / "gwflow-runtime.json").read_text())}
     (root / "comparison.raw.json").write_text(json.dumps(evidence, indent=2) + "\n")
     evidence = normalized(evidence, {str(restored): "<BASELINE>", str(candidate_prefix): "<CANDIDATE>",
-                                    str(root): "<COMPARISON>", str(SOURCE): "<REPO>", str(Path(sys.prefix)): "<DRIVER>"})
+                                    str(root): "<COMPARISON>", str(SOURCE): "<REPO>", str(Path(sys.prefix)): "<DRIVER>",
+                                    "/dev/shm": "<SECOND_FILESYSTEM>"})
     evidence["path_placeholders"] = {
         "<BASELINE>": "Restored baseline installation inside the comparison root",
         "<CANDIDATE>": "Independent candidate installation",
@@ -117,6 +117,7 @@ def compare(args: argparse.Namespace) -> None:
         "<REPO>": "Checkout containing the common public-workflow journey definitions",
         "<DRIVER>": "Maintainer tooling environment, separate from the compared installations",
         "<LOCAL_ARTIFACT>": "Original local file-URL directory outside these roots; filename preserved",
+        "<SECOND_FILESYSTEM>": "Shared-memory filesystem root used by the separate-filesystem journey",
     }
     evidence["evidence_selection"] = "Full environment and handoff observations; commands retain arguments, cwd, and exit status. Raw stdout/stderr remain in journeys/transcript.jsonl. Normalization changes paths and adds this metadata only."
     (root / "comparison.json").write_text(json.dumps(evidence, indent=2) + "\n")
