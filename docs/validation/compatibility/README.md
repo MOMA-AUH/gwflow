@@ -58,6 +58,8 @@ prefix. The tool rejects reused prefixes and verifies native Conda inventory,
 package hashes, and candidate artifact identity. Both runtime installations must
 remain unchanged through the journeys. A shared download cache does not permit
 shared installed dependencies.
+The comparison rejects shared directory identities, including bind mounts.
+It permits hardlinks to individual files in a shared package cache.
 
 The tool runs all 15 existing upgrade journeys against the restored baseline and
 independent candidate. It writes normalized evidence to `comparison.json` under

@@ -8,6 +8,7 @@ import sys
 import tempfile
 import tomllib
 import unittest
+from copy import deepcopy
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -77,6 +78,40 @@ class CompatibilityEnvironmentTests(unittest.TestCase):
                                  "--test", "no-such-test"], capture_output=True, text=True, timeout=30)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("disjoint", result.stderr)
+        self.assertFalse(output.exists())
+
+    def test_independent_comparison_rejects_shared_observed_runtime_directory(self):
+        observed = json.loads(self.command().stdout)
+        # Model two bind-mount views of the same real site-packages directory.
+        # Only the external interpreter observation is controlled; no mount is needed.
+        shared = Path(sys.prefix) / f"lib/python{sys.version_info.major}.{sys.version_info.minor}/site-packages"
+        identity = {"device": shared.stat().st_dev, "inode": shared.stat().st_ino}
+        interpreters = []
+        for side in ("baseline", "candidate"):
+            prefix = self.root / ("observed-" + side)
+            prefix.mkdir()
+            record = deepcopy(observed)
+            for key in ("source", "supported_runtime", "dependency_policy"):
+                record.pop(key)
+            record.update(prefix=str(prefix), base_prefix=str(prefix), executable=str(prefix / "python"),
+                          package=str(prefix / "site-packages/gwflow"),
+                          stdlib=str(prefix / "stdlib"), sys_path=[str(prefix / "stdlib"), str(prefix / "site-packages")],
+                          prefix_identity={"device": prefix.stat().st_dev, "inode": prefix.stat().st_ino},
+                          runtime_directories=[{"path": str(prefix / "site-packages"), **identity}])
+            for item in record["distributions"]:
+                item["location"] = str(prefix / "site-packages")
+            record["imports"] = {name: [str(prefix / "site-packages" / name)] for name in record["imports"]}
+            executable = prefix / "python"
+            executable.write_text(f"#!{sys.executable}\nprint({json.dumps(record)!r})\n")
+            executable.chmod(0o755)
+            interpreters.append(executable)
+        output = self.root / "shared-directory-comparison"
+        result = subprocess.run([sys.executable, str(ROOT / "tests/validate_compatibility.py"), "--independent",
+                                 "--baseline-python", str(interpreters[0]), "--candidate-python", str(interpreters[1]),
+                                 "--baseline-source", "fixture", "--candidate-source", "fixture", "--root", str(output),
+                                 "--test", "no-such-test"], capture_output=True, text=True, timeout=30)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("share an installed runtime directory", result.stderr)
         self.assertFalse(output.exists())
 
 

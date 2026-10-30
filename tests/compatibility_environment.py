@@ -35,11 +35,20 @@ for name in m.packages_distributions():
     if spec is not None:
         imports[name] = ([spec.origin] if spec.origin and spec.origin not in ('built-in', 'frozen') else [])
         imports[name] += list(spec.submodule_search_locations or [])
+directory_paths = {pathlib.Path(path) for path in [sysconfig.get_path('stdlib'), *sys.path,
+                   *(d['location'] for d in distributions)] if pathlib.Path(path).is_dir()}
+for paths in imports.values():
+    for value in paths:
+        path = pathlib.Path(value)
+        directory_paths.add(path if path.is_dir() else path.parent)
+runtime_directories = [{'path': str(path), 'device': path.stat().st_dev, 'inode': path.stat().st_ino}
+                       for path in sorted(directory_paths)]
 print(json.dumps({'executable': sys.executable, 'prefix': sys.prefix, 'base_prefix': sys.base_prefix,
     'prefix_identity': {'device': pathlib.Path(sys.prefix).stat().st_dev, 'inode': pathlib.Path(sys.prefix).stat().st_ino},
     'python': sys.version, 'python_version': platform.python_version(), 'platform': platform.platform(),
     'stdlib': sysconfig.get_path('stdlib'), 'sys_path': sys.path, 'package': str(package),
     'package_sha256': digest.hexdigest(), 'distributions': distributions, 'imports': imports,
+    'runtime_directories': runtime_directories,
     'versions': {d['name']: m.version(d['name']) for d in distributions},
     'markers': {'implementation_name': sys.implementation.name, 'implementation_version': platform.python_version(),
                 'os_name': os.name, 'platform_machine': platform.machine(), 'platform_release': platform.release(),
@@ -98,8 +107,14 @@ def installed_environment(python: Path, source: str, independent: bool = False) 
 
 def disjoint_environments(baseline: dict, candidate: dict) -> None:
     old, new = (Path(item["prefix"]).resolve() for item in (baseline, candidate))
-    if old.samefile(new) or old.is_relative_to(new) or new.is_relative_to(old):
+    if (any(parent.samefile(new) for parent in (old, *old.parents))
+            or any(parent.samefile(old) for parent in new.parents)):
         raise ValueError("Baseline and candidate must use disjoint environment prefixes")
+    if baseline["dependency_policy"] == candidate["dependency_policy"] == "independent":
+        directories = [{(item["device"], item["inode"]) for item in runtime["runtime_directories"]}
+                       for runtime in (baseline, candidate)]
+        if directories[0] & directories[1]:
+            raise ValueError("Baseline and candidate share an installed runtime directory")
 
 
 def main() -> None:
