@@ -116,7 +116,10 @@ lock waits, scheduler queries, other inspection work, and pauses. Scheduler fail
 and unknown job outcomes do not reset the limit. Pauses stop when the remaining
 time expires. The timeout must be a finite number greater than zero.
 
-Waiting reports state changes, scheduler problems and recovery, and a final result.
+In a terminal, waiting updates a compact table with Task states and job progress.
+Redirected output reports state changes and a final result. Routine inspection
+phases and internal submission names stay hidden. Failures, required actions,
+scheduler problems, and recovery retain their explanations.
 Unchanged inspections stay silent. All messages, including output from workflow
 loading, go to stderr. Stdout stays empty. Use `gwflow wait hello 2>wait.log` to
 capture the messages. Exit codes are `0` for completion, `1` for failed work or

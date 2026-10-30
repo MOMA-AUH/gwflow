@@ -12,6 +12,7 @@ import signal
 import subprocess
 
 from support import FIXTURES, LocalBackendTestCase
+from terminal_session import rendered_lines
 import test_fresh
 import test_managed_recovery
 
@@ -28,8 +29,22 @@ class WaitTests(LocalBackendTestCase):
         self.assertEqual(result.stdout, '')
         self.assertIn('Waiting', result.stderr)
         self.assertIn('complete', result.stderr)
+        self.assertIn('a: reusable', result.stderr)
+        self.assertNotIn('Inspecting workflow', result.stderr)
+        self.assertNotIn('Checking Task dependencies', result.stderr)
+        self.assertNotIn('checked completion and retained metadata match', result.stderr)
         self.assertEqual(self.task_attempts(), attempts)
         self.assertFalse((self.work / 'results/b').exists())
+
+    def test_terminal_wait_uses_task_progress_and_shared_state_styles(self):
+        self.run_complete('a')
+        result = self.terminal_cli('wait', 'a', merge_stderr=True)
+        display = rendered_lines(result.stdout)
+        self.assertIn('All awaited Task attempts are complete.', display)
+        self.assertIn('✓ reusable', display)
+        self.assertIn('3/3', display)
+        self.assertNotIn('checked completion and retained metadata match', display)
+        self.assertNotIn('Preparing Task inspection', display)
 
     def start_wait(self, *args, env=None, cwd=None):
         output = (self.work / 'wait.stdout').open('w')
@@ -72,6 +87,8 @@ class WaitTests(LocalBackendTestCase):
         process = self.start_wait('wait', '--interval', '0.1', 'a')
         self.wait_for(lambda: 'a: running' in self.wait_messages())
         self.assertIsNone(process.poll(), self.wait_messages())
+        self.assertNotIn('queued/running work:', self.wait_messages())
+        self.assertNotIn('a__compute__', self.wait_messages())
         (self.work / 'release').touch()
         self.assertEqual(process.wait(timeout=20), 0, self.wait_messages())
         self.assertEqual((self.work / 'wait.stdout').read_text(), '')
