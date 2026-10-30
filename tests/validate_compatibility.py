@@ -16,6 +16,7 @@ import unittest
 from gwf.backends.local import Client, LocalStatus
 
 from support import FIXTURES, LocalBackendTestCase
+from compatibility_environment import disjoint_environments, installed_environment
 from test_managed_recovery import ManagedCoordinationTests
 from test_graphs import TaskGraphTests
 from test_inputs import ExternalInputTests
@@ -42,7 +43,9 @@ class InstalledCompatibilityTests(LocalBackendTestCase):
         self.side = side
         self.executable = str(Path(self.installations[side]["executable"]).with_name("gwflow"))
         self.environment = {key: value for key, value in os.environ.items()
-                            if key not in ("PYTHONPATH", "PYTHONHOME", "GWFLOW_COMPAT_CONSUMER", "GWFLOW_COMPAT_UNOWNED")}
+                            if key not in ("PYTHONPATH", "PYTHONHOME", "PYTHONUSERBASE", "CONDA_PREFIX", "VIRTUAL_ENV",
+                                           "GWFLOW_COMPAT_CONSUMER", "GWFLOW_COMPAT_UNOWNED")}
+        self.environment["PYTHONNOUSERSITE"] = "1"
         self.environment["PATH"] = str(Path(self.executable).parent) + os.pathsep + self.environment.get("PATH", "")
 
     def start_worker(self):
@@ -156,6 +159,11 @@ class CompletedCompatibilityTests(InstalledCompatibilityTests):
         runtime = json.loads((self.work / "results" / task / "runtime.json").read_text())
         self.assertEqual(runtime["prefix"], self.installations[side]["prefix"])
         self.assertTrue(Path(runtime["package"]).is_relative_to(runtime["prefix"]))
+        self.assertEqual(runtime["python"], self.installations[side]["python_version"])
+        for name, version in runtime["versions"].items():
+            self.assertEqual(version, self.installations[side]["versions"][name])
+            if self.installations[side]["dependency_policy"] == "independent":
+                self.assertTrue(Path(runtime["imports"][name]).resolve().is_relative_to(runtime["prefix"]))
         self.record({"task": task, "runtime": runtime})
 
 
@@ -475,30 +483,6 @@ class FinishingCompatibilityTests(IncompleteCompatibilityTests):
                      "new_submissions": 0})
 
 
-def installed_environment(python, source):
-    program = """
-import hashlib, importlib.metadata as m, json, pathlib, platform, sys
-import gwflow
-package = pathlib.Path(gwflow.__file__).parent
-digest = hashlib.sha256()
-for path in sorted(package.rglob('*.py')):
-    digest.update(str(path.relative_to(package)).encode())
-    digest.update(path.read_bytes())
-distribution = m.distribution('gwflow')
-print(json.dumps({'executable': sys.executable, 'prefix': sys.prefix,
-    'python': sys.version, 'platform': platform.platform(), 'package': str(package),
-    'package_sha256': digest.hexdigest(),
-    'versions': {name: m.version(name) for name in ('gwflow', 'gwf', 'rich')},
-    'direct_url': json.loads(distribution.read_text('direct_url.json') or 'null')}))
-"""
-    result = json.loads(subprocess.check_output([str(python), "-I", "-c", program], text=True))
-    if not Path(result["package"]).resolve().is_relative_to(Path(result["prefix"]).resolve()):
-        raise ValueError(f"gwflow must be independently installed inside {result['prefix']}")
-    if not result["python"].startswith("3.12.") or result["versions"]["gwf"] != "2.1.1":
-        raise ValueError("Use Python 3.12 and gwf 2.1.1 for both installations")
-    return {"source": source, **result}
-
-
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--baseline-python", type=Path, required=True)
@@ -507,14 +491,19 @@ def main():
     parser.add_argument("--candidate-source", required=True, help="Exact candidate source commit or artifact identifier")
     parser.add_argument("--root", type=Path, required=True, help="New directory for persistent storage and raw evidence")
     parser.add_argument("--test", action="append", help="Run only matching test names (glob; repeatable)")
+    parser.add_argument("--independent", action="store_true", help="Require entirely separate installed runtimes")
     args = parser.parse_args()
-    installations = {side: installed_environment(getattr(args, side + "_python"), getattr(args, side + "_source"))
-                     for side in ("baseline", "candidate")}
-    if Path(installations["baseline"]["prefix"]).samefile(installations["candidate"]["prefix"]):
-        parser.error("Baseline and candidate must be independently installed in distinct environments")
+    try:
+        installations = {side: installed_environment(getattr(args, side + "_python"),
+                                                     getattr(args, side + "_source"), args.independent)
+                         for side in ("baseline", "candidate")}
+        disjoint_environments(installations["baseline"], installations["candidate"])
+    except (ValueError, OSError, subprocess.CalledProcessError) as error:
+        parser.error(str(error))
     root = args.root.resolve()
     root.mkdir(parents=True, exist_ok=False)
-    (root / "environment.json").write_text(json.dumps(installations, indent=2) + "\n")
+    (root / "environment.json").write_text(json.dumps({"comparison_kind": "independent-runtime" if args.independent else "provisional-source",
+                                                      **installations}, indent=2) + "\n")
     loader = unittest.TestLoader()
     loader.testNamePatterns = args.test
     suite = unittest.TestSuite()

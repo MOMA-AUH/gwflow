@@ -1,9 +1,109 @@
-# Installed compatibility baseline
+# Installed compatibility comparisons
 
 [ADR 0010](../../adr/0010-preserve-public-interfaces-and-completed-work-through-1-x.md)
 requires forward compatibility from the future v1.0.0 baseline for public
 workflows and valid managed work. The project remains under the pre-1.0 policy.
 These journeys test current behavior and prepare for the stable baseline.
+[ADR 0018](../../adr/0018-preserve-independent-compatibility-environments.md)
+requires preserved artifacts and independent runtimes for stable comparisons.
+The candidate uses its own supported Python and dependency versions.
+
+## Compare independent runtimes
+
+A runtime contains Python, installed packages, and native dependencies.
+The [comparison tool](../../../tests/compare_runtime.py) restores the baseline
+from a [Conda capture](../conda-runtime.md) into a new prefix with a fresh cache.
+It uses the captured package and explicit dependency manifest without a solve.
+It does not rebuild the baseline from source.
+
+Install the candidate artifact in a separate Conda environment with its own
+supported dependencies. Run the tool from a third environment with `gwf` and
+`packaging` installed. Use a Conda version that supports explicit SHA-256 manifests.
+The driver environment controls the tests. Its packages do not supply the
+baseline or candidate runtime.
+
+In this example, `BASELINE_CAPTURE` contains the preserved capture files.
+`CANDIDATE_PYTHON` identifies the independently installed candidate interpreter.
+`CANDIDATE_ARTIFACT` identifies its exact Conda package.
+`CANDIDATE_SOURCE` identifies the candidate source commit or immutable artifact.
+`DRIVER_PYTHON` identifies the third environment's interpreter.
+Use a new evidence directory for each invocation.
+
+```sh
+DRIVER_PYTHON tests/compare_runtime.py \
+  --baseline-capture BASELINE_CAPTURE --baseline-kind controlled-artifact \
+  --candidate-python CANDIDATE_PYTHON --candidate-artifact CANDIDATE_ARTIFACT \
+  --candidate-source CANDIDATE_SOURCE \
+  --root build/validation/independent-compatibility
+```
+
+Use `--baseline-kind controlled-artifact` for controlled package fixtures before
+stable publication. The Conda CI job uses the exact candidate artifact on both
+sides. The baseline comes from the runtime that passed the full suite and release
+smoke tests. CI installs the candidate separately with Python 3.12.14 and requires
+a different baseline Python patch. This proves that the journeys support this
+runtime variation. It does not establish a published stable baseline.
+
+After stable artifacts exist, use `--baseline-kind preserved-release` with a
+complete [release bundle](../../releasing.md). The tool requires a bundle eligible
+as a stable baseline from v1.0.0 onward. Obtain its identities from trusted release
+attachments and pinned references. The tool does not authenticate untrusted
+release metadata. Stable baseline selection belongs in the descriptor once
+preserved stable releases exist.
+
+Each installation must satisfy its own package metadata requirements. Python and
+dependency versions do not need to match between installations. Each runtime
+must resolve its distributions, imports, and standard library inside its own
+prefix. The tool rejects reused prefixes and verifies native Conda inventory,
+package hashes, and candidate artifact identity. Both runtime installations must
+remain unchanged through the journeys. A shared download cache does not permit
+shared installed dependencies.
+The comparison rejects shared directory identities, including bind mounts.
+It permits hardlinks to individual files in a shared package cache.
+
+The tool runs all 15 existing upgrade journeys against the restored baseline and
+independent candidate. It writes normalized evidence to `comparison.json` under
+the evidence root. The record includes runtime identities, dependency policies,
+native package inventory, and journey results. Its placeholder definitions explain
+normalized paths. The `journeys/` directory retains raw `environment.json`,
+`transcript.jsonl`, `summary.json`, and workflow storage for inspection.
+Keep raw evidence under the ignored `build/validation/` tree.
+The selected record before path normalization remains in `comparison.raw.json`.
+An explicit `--test` selection produces `focused-tests-passed` evidence. It does
+not establish that the full upgrade matrix passed.
+
+## Recover missing dependencies
+
+Missing or corrupt dependencies fail restoration before the journeys run.
+An unsuccessful restoration or journey is not compatibility evidence.
+The tool never silently solves a different baseline runtime or skips missing cases.
+
+If an identical dependency copy is available, append `--recovered PACKAGE` to
+the comparison command. Keep the original package filename. Repeat the option
+for multiple packages. Each recovered package must match the recorded SHA-256.
+The original manifest remains unchanged.
+
+If an exact dependency is permanently unavailable, document and test its replacement
+under ADR 0018. Prepare a separate capture with the unchanged gwflow artifact and
+the replacement dependencies. Keep the original capture and manifest.
+Append both options to the comparison command:
+
+```sh
+  --replacement-capture REPLACEMENT_CAPTURE \
+  --replacement-reason 'Explain the permanently unavailable dependency and its replacement'
+```
+
+The tool retains the original manifest, records the replacement and reason, and
+runs the same journeys. Successful replacement evidence sets
+`exact_baseline_runtime` to `false`. It does not claim to reproduce the original
+dependency installation. CI also tests this route with a controlled replacement
+capture and requires all 15 journeys to pass. That fixture does not claim an
+actual dependency loss or establish a stable baseline.
+
+## Run the provisional source comparison
+
+The source comparison remains a provisional regression test before the first
+stable publication. Its shared dependencies do not establish independent runtimes.
 The [baseline descriptor](baseline.json) pins source that includes the mandatory
 record-state document, persistent attempt lock, and mandatory automatic
 compaction obligations from issues #254 and #259.
@@ -14,16 +114,11 @@ fallback. The previous pre-1.0 source baseline lacks the required obligations.
 The new baseline keeps all compatibility journeys enabled with the new format.
 Earlier validation records still describe the earlier source and remain unchanged.
 
-There is no future 1.x release to test yet. Installing the same source twice
-validates the journey, storage handoff, and baseline provenance. It does not prove
-all future upgrades. v0.8.0 preparation and publication must record the exact
-tested and published artifacts, without calling them the stable compatibility
-baseline. When v1.0.0 is prepared and published, identify its actual immutable
-artifact and checksum and exercise it as the baseline for later 1.x candidates.
+Installing the same source twice tests the journey, storage handoff, and baseline
+provenance. It does not prove all future upgrades. Record tested and published
+artifacts through the release procedure. Pre-1.0 artifacts are controlled fixtures.
 Other pre-1.0 formats, relocation, live upgrades, mixed-version workers, downgrade
 support, and blanket record migration remain outside the compatibility promise.
-
-## Build independent installations
 
 Run from a checkout with the pinned commit available and a Python 3.12 environment
 containing the project's dependencies. In this example `python` is that interpreter.
@@ -47,8 +142,9 @@ python tests/validate_compatibility.py \
   --root build/validation/compatibility/all-cases
 ```
 
-The environments can share the base interpreter and dependency installation, but
-each must contain its own installed gwflow package. The runner rejects the same
+These provisional environments share the base interpreter and dependency
+installation. Each must contain its own installed gwflow package. The runner
+records their dependency policy as `provisional-shared-runtime`. It rejects the same
 environment on both sides and editable imports outside either environment. It
 records each interpreter, Python/platform/dependency versions, source identifier,
 installed-package content hash, and pip artifact provenance when available.
@@ -56,9 +152,8 @@ Use a clean checkout for the candidate source identifier. For a later wheel or
 conda artifact, install it in the candidate environment and supply its exact source
 commit or immutable artifact identifier with `--candidate-source`.
 
-Keep the pinned baseline unchanged when testing a later candidate. An actual
-released baseline can be installed from its preserved artifact instead of rebuilding
-the bootstrap source; record its artifact identifier with `--baseline-source`.
+Keep the pinned source baseline unchanged when testing a later candidate.
+For preserved releases, use the independent comparison procedure above.
 The runner uses the selected environments for frontends and workers, removes
 inherited Python import overrides, and checks the runtime installation from
 retained job outputs. Fixture backend imports are restricted to the generated
