@@ -4,10 +4,11 @@ from contextlib import nullcontext
 from dataclasses import dataclass
 
 import click
-from gwf.backends import BackendStatus, create_backend
+from gwf.backends import BackendStatus
 from gwf.core import pass_context
 
 from . import admission
+from .backends import create_backend
 from .activity import activity
 from .diagnostics import report_error
 from ._frontend import _submission_guard, load_workflow

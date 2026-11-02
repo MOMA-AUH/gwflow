@@ -3,11 +3,11 @@
 from contextlib import ExitStack
 
 import click
-from gwf.backends import create_backend
 from gwf.core import pass_context
 from gwf.exceptions import WorkflowError
 
 from . import admission
+from .backends import create_backend
 from .activity import activity
 from .diagnostics import report_error
 from ._frontend import _submission_guard, load_workflow, observation_deadline

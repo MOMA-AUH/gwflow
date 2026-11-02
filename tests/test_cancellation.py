@@ -178,6 +178,7 @@ class CancellationTests(LocalBackendTestCase):
         self.cli("-b", "recovery_fixture", "run", env=self.inject(lose_tracking="sample__right"), success=False)
         self.wait_for(held.exists)
         try:
+            self.wait_for(lambda: "sample__left: complete" in self.cli("logs", "sample"))
             index = self.cli("logs", "sample", "--details")
             attempt = re.search(r"attempt ([0-9a-f]{32})", index).group(1)
             self.assertIn("sample__right: uncertain; submission ", index)

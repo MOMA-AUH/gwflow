@@ -1,11 +1,11 @@
 """Preview or delete owned work under the shared frontend guard."""
 
 import click
-from gwf.backends import create_backend
 from gwf.core import pass_context
 from gwf.exceptions import WorkflowError
 
 from . import cleanup
+from .backends import create_backend
 from .activity import activity
 from ._frontend import _submission_guard, load_workflow
 from .lifecycle import Store, declarations

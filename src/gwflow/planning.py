@@ -3,10 +3,11 @@
 from contextlib import ExitStack
 from dataclasses import dataclass
 
-from gwf.backends import BackendStatus, create_backend
+from gwf.backends import BackendStatus
 from gwf.exceptions import WorkflowError
 
 from . import _files, _observations, _records, admission, images, inputs, transfer
+from .backends import create_backend
 from .activity import activity as report_activity
 from .inspection_errors import InspectionBlocker
 from .lifecycle import Store, TaskObservation, declarations, ordered_tasks, ordered_targets, producer_names, target_dependencies

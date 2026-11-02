@@ -21,6 +21,7 @@ from gwf.exceptions import WorkflowError
 from gwf.scheduling import submit_backend
 
 from . import _observations, _records
+from .backends import LocalTerminationUnresolved, ManagedLocalOps
 from .activity import activity as report_activity
 from ._frontend import observation_deadline
 from .diagnostics import report_error
@@ -332,6 +333,7 @@ def _observe(store, attempt, backend, name, intents, *, tolerate_state_errors=Fa
         if local != "gwflow_complete" and not checked:
             checked = succeeded(store, attempt, local, intent)
         recovery = None
+        termination_unresolved = False
         target = Target(intent["submission"], [], [], {})
         tracked_id, state = None, BackendStatus.UNKNOWN
         same_backend = backend is not None and intent["backend"] == backend_identity(backend, name)
@@ -347,7 +349,11 @@ def _observe(store, attempt, backend, name, intents, *, tolerate_state_errors=Fa
                     if tracked_id is None and job_id is not None and isinstance(backend, TrackingBackend):
                         with report_activity("Waiting for scheduler..."):
                             state = backend.ops.get_job_states([job_id]).get(job_id, BackendStatus.UNKNOWN)
+                    if isinstance(getattr(backend, "ops", None), ManagedLocalOps):
+                        if not backend.ops.require_observation(job_id, submission=intent["submission"], completed=checked):
+                            state = BackendStatus.UNKNOWN
             except Exception as error:
+                termination_unresolved = isinstance(error, LocalTerminationUnresolved)
                 errors = _wait_scheduler_errors.get()
                 if errors is not None:
                     errors.append(str(error))
@@ -358,9 +364,9 @@ def _observe(store, attempt, backend, name, intents, *, tolerate_state_errors=Fa
                 if errors is None:
                     report_error(error, f"Observing submission {intent['submission']}")
                 state = BackendStatus.UNKNOWN
-        if mismatch and recovery is None:
+        if (mismatch or termination_unresolved) and recovery is None:
             recovery = read_recovery(store, attempt, intent)
-        if mismatch and recovery is None:
+        if (mismatch or termination_unresolved) and recovery is None:
             status = "uncertain"
         elif state in (BackendStatus.SUBMITTED, BackendStatus.RUNNING):
             status = "active"
@@ -463,6 +469,8 @@ def require_cancellation_identity(backend, name, observation):
     tracked = backend.get_tracked_id(target) if hasattr(backend, "get_tracked_id") else None
     if tracked is not None and tracked != observation.job_id:
         raise WorkflowError("conflicting backend job IDs")
+    if isinstance(getattr(backend, "ops", None), ManagedLocalOps):
+        backend.ops.require_cancellation_identity(observation.job_id, observation.submission)
 
 
 def request_cancellation(backend, name, observation):
