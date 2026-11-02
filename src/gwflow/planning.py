@@ -260,8 +260,8 @@ def plan_workflow(workflow, ctx, *, selectors=(), force=False):
                     observations_by_name[name] = observation
                     inspected(len(tasks))
                     continue
-                if attempt is not None:
-                    try:
+                try:
+                    if attempt is not None:
                         initializing = store.read(attempt, "ready.json", "ready") is None
                         if initializing:
                             store.initialization(attempt)
@@ -342,11 +342,11 @@ def plan_workflow(workflow, ctx, *, selectors=(), force=False):
                         else:
                             observation.action, observation.reason = "blocked", "incomplete attempt or damaged results; retry/recovery is not yet supported"
                             observation.reason_code = "validation_failed"
-                    except (WorkflowError, OSError) as error:
-                        observation.action, observation.reason = "blocked", str(error)
-                        observation.reason_code = error.code if isinstance(error, InspectionBlocker) else "validation_failed"
-                else:
-                    fresh_observation(store, observation, "no completed managed attempt", code="no_attempt")
+                    else:
+                        fresh_observation(store, observation, "no completed managed attempt", code="no_attempt")
+                except (WorkflowError, OSError) as error:
+                    observation.action, observation.reason = "blocked", str(error)
+                    observation.reason_code = error.code if isinstance(error, InspectionBlocker) else "validation_failed"
                 tasks.append(observation)
                 observations_by_name[name] = observation
                 inspected(len(tasks))
