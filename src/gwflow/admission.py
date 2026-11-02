@@ -350,7 +350,7 @@ def _observe(store, attempt, backend, name, intents, *, tolerate_state_errors=Fa
                         with report_activity("Waiting for scheduler..."):
                             state = backend.ops.get_job_states([job_id]).get(job_id, BackendStatus.UNKNOWN)
                     if isinstance(getattr(backend, "ops", None), ManagedLocalOps):
-                        backend.ops.require_observation(job_id)
+                        backend.ops.require_observation(job_id, completed=checked)
             except Exception as error:
                 termination_unresolved = isinstance(error, LocalTerminationUnresolved)
                 errors = _wait_scheduler_errors.get()

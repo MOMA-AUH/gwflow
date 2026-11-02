@@ -48,6 +48,12 @@ class LocalCancellationTests(LocalBackendTestCase):
         for arguments in (("run", "sample"), ("run", "sample", "--force"),
                           ("clean", "--attempt", attempt, "--delete")):
             self.assertIn("cannot confirm computation descendants have stopped", self.cli(*arguments, success=False))
+        # Restart loses scheduler history, but does not stop the old child.
+        self.stop_worker(self.worker)
+        self.worker = self.start_worker()
+        for arguments in (("run", "sample"), ("run", "sample", "--force"),
+                          ("clean", "--attempt", attempt, "--delete")):
+            self.assertIn("cannot confirm computation descendants have stopped", self.cli(*arguments, success=False))
 
     def test_retry_keeps_completed_sibling_attempt_and_submission_history(self):
         trace = shlex.quote(str(self.work / "trace"))
@@ -69,6 +75,29 @@ class LocalCancellationTests(LocalBackendTestCase):
         self.assertEqual(Counter((self.work / "trace").read_text().splitlines()), {"left": 1, "right": 2, "join": 1})
         self.assertIn(attempt, self.cli("logs", "sample", "--details"))
         self.assertIn(submission, self.cli("logs", "sample", "--history"))
+
+    def test_forgotten_failed_job_with_child_cannot_authorize_retry_or_cleanup(self):
+        self.stop_worker(self.worker)
+        self.executable = GWF
+        self.worker = self.start_worker()
+        del self.executable
+        # A failing foreground shell can leave ordinary background children.
+        # Close their log pipes so the old worker observes the recorded failure.
+        command = self.probe().replace(" & wait; printf right > same.txt", " >/dev/null 2>&1 & exit 8")
+        self.configure_workflow(right_command=command)
+        environment = self.inject(interrupt_after_acceptance="sample__right")
+        self.cli("-b", "recovery_fixture", "run", env=environment, success=False)
+        self.wait_for((self.work / "held").exists)
+        self.settle()
+        index = self.cli("-b", "recovery_fixture", "logs", "sample", "--details", env=environment)
+        self.assertIn("sample__right: failed", index)
+        self.assertIn("sample__gwflow_complete: pending; submission not submitted", index)
+        attempt = re.search(r"attempt ([0-9a-f]{32})", index).group(1)
+        self.stop_worker(self.worker)
+        self.worker = self.start_worker()
+        for arguments in (("run", "sample"), ("run", "sample", "--force"),
+                          ("clean", "--attempt", attempt, "--delete")):
+            self.assertIn("cannot confirm computation descendants have stopped", self.cli(*arguments, success=False))
 
     def test_cancel_does_not_stop_unselected_running_task(self):
         self.configure_workflow(right_command=self.probe())

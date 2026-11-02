@@ -9,6 +9,7 @@ import sys
 
 from gwf.backends.local import LocalStatus, Scheduler, Server
 
+from . import _worker_process
 
 logger = logging.getLogger(__name__)
 
@@ -63,8 +64,8 @@ class ManagedScheduler(Scheduler):
             process = await asyncio.shield(launch)
             await asyncio.wait_for(process.wait(), timeout=time_limit)
             # A signal-killed supervisor cannot attest that it reaped children.
-            if process.returncode in (0, 100, 101):
-                outcome = LocalStatus.COMPLETED if process.returncode == 0 else LocalStatus.FAILED
+            if process.returncode in _worker_process.CONFIRMED_TERMINATION:
+                outcome = LocalStatus.COMPLETED if process.returncode == _worker_process.COMPLETED else LocalStatus.FAILED
         except (asyncio.CancelledError, TimeoutError) as error:
             if launch is not None:
                 process = await launch
@@ -72,7 +73,7 @@ class ManagedScheduler(Scheduler):
                 if process.stdin is not None:
                     process.stdin.close()
                 await process.wait()
-            if process is None or process.returncode in (0, 100, 101):
+            if process is None or process.returncode in _worker_process.CONFIRMED_TERMINATION:
                 outcome = LocalStatus.CANCELLED if isinstance(error, asyncio.CancelledError) else LocalStatus.KILLED
         except Exception:
             logger.exception("Local job %s could not establish a terminal outcome", name)

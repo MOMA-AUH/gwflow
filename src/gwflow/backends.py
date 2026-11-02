@@ -23,13 +23,15 @@ class ManagedLocalOps(LocalOps):
             raise BackendError("Invalid local worker state response")
         self.managed = response.get("gwflow_process_tree") == 1
         states = {int(key): LocalStatus[value] for key, value in response["tasks"].items()}
+        self.known_jobs = set(states)
         self.unresolved = {key for key, state in states.items()
                            if state == LocalStatus.UNKNOWN or
                            (not self.managed and state in (LocalStatus.CANCELLED, LocalStatus.KILLED, LocalStatus.FAILED))}
         return {key: STATUS_MAP[state] for key, state in states.items() if key in tracked_jobs}
 
-    def require_observation(self, job_id):
-        if job_id in self.unresolved:
+    def require_observation(self, job_id, *, completed):
+        if (job_id in self.unresolved or
+                (job_id is not None and job_id not in self.known_jobs and not completed)):
             raise LocalTerminationUnresolved()
 
     def require_managed(self):
