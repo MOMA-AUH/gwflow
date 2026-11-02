@@ -42,6 +42,8 @@ elif args[:2] == ["release", "upload"]:
         if destination.exists() and ("--clobber" not in args or path.name != "SHA256SUMS"):
             sys.exit("asset already exists")
         shutil.copyfile(path, destination)
+        if os.environ.get("GWFLOW_RELEASE_INTERRUPT_AFTER") == path.name:
+            sys.exit("injected interruption after attachment")
 elif args[:2] == ["release", "download"]:
     name = args[args.index("--pattern") + 1]
     directory = Path(args[args.index("--dir") + 1])

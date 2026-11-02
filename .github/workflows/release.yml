@@ -81,51 +81,20 @@ jobs:
       - name: Install Anaconda.org client
         shell: bash -l {0}
         run: conda install -y -n base anaconda-client -c conda-forge
-      - name: Upload to MOMA-AUH
+      - name: Publish or resume the verified package and draft
         shell: bash -l {0}
         env:
           ANACONDA_API_TOKEN: ${{ secrets.ANACONDA_API_TOKEN }}
-        run: |
-          test -n "$ANACONDA_API_TOKEN" || { echo 'ANACONDA_API_TOKEN secret is required' >&2; exit 1; }
-          conda run -n base anaconda upload --user MOMA-AUH --register --label main --no-progress conda-dist/gwflow-*.conda
-      - name: Install published package and verify reuse
-        shell: bash -l {0}
-        run: |
-          version=${GITHUB_REF_NAME#v}
-          for attempt in {1..10}; do
-            if conda create -y -p "$RUNNER_TEMP/gwflow-published-test" python=3.12 "gwflow=$version" --override-channels -c MOMA-AUH -c gwforg -c conda-forge; then
-              break
-            fi
-            if (( attempt == 10 )); then
-              echo 'Published package was not installable after 10 attempts' >&2
-              exit 1
-            fi
-            sleep 30
-          done
-          conda list -p "$RUNNER_TEMP/gwflow-published-test" --json | python -c 'import json, sys; package = next(p for p in json.load(sys.stdin) if p["name"] == "gwflow"); assert package["base_url"].rstrip("/").casefold().endswith("/moma-auh"), package'
-          conda run -p "$RUNNER_TEMP/gwflow-published-test" python -m pip install ./examples/packaged/packages/summary-task ./examples/packaged/packages/report-task
-          conda run -p "$RUNNER_TEMP/gwflow-published-test" python tests/release_smoke.py
-      - name: Verify and record published artifact provenance
-        shell: bash -l {0}
-        run: |
-          conda run -p "$RUNNER_TEMP/gwflow-published-test" python tests/release_provenance.py \
-            --artifacts conda-dist --source "$GITHUB_SHA" --tag "$GITHUB_REF_NAME" \
-            --output conda-dist/publication.json
-      - name: Package validation records for release
-        run: |
-          python tests/release_artifacts.py pack \
-            --bundle conda-dist --publication conda-dist/publication.json \
-            --tag "$GITHUB_REF_NAME" --source "$GITHUB_SHA" --output release-assets
-      - name: Preserve attachments in the GitHub release draft
-        env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          python tests/release_artifacts.py attach \
-            --bundle release-assets \
-            --tag "$GITHUB_REF_NAME" --source "$GITHUB_SHA" --repo "$GITHUB_REPOSITORY"
+          python tests/publish_release.py \
+            --bundle conda-dist --tag "$GITHUB_REF_NAME" --source "$GITHUB_SHA" \
+            --repo "$GITHUB_REPOSITORY" --output release-evidence
       - uses: actions/upload-artifact@v7
         with:
           overwrite: true
           name: gwflow-publication-evidence
-          path: release-assets/*
+          path: |
+            release-evidence/assets/*
+            release-evidence/publication-attempt.json
           if-no-files-found: error

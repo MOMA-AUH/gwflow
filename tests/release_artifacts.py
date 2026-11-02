@@ -194,7 +194,8 @@ def verify_publication(release: dict, provenance: dict) -> None:
 def attach(bundle: Path, tag: str, source: str, repo: str, gh: str) -> None:
     with tempfile.TemporaryDirectory(prefix="gwflow-release-check-") as temporary:
         unpack(bundle, Path(temporary) / "verified", tag, source)
-    files = sorted(bundle.iterdir())
+    # Persist provenance first so an interrupted upload can recover its exact archive.
+    files = sorted(bundle.iterdir(), key=lambda path: (path.name != archive_name(tag), path.name))
     compact_names({path.name for path in files}, tag)
     if not final_tag(tag):
         print("Prerelease records packed; no final-release draft created")
