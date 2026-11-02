@@ -10,7 +10,7 @@ import sys
 from urllib.parse import unquote, urlsplit
 
 from compatibility_environment import disjoint_environments, installed_environment
-from conda_runtime import (digest, fixture_inventory, identities, installed_inventory,
+from conda_runtime import (digest, fixture_versions, identities, installed_inventory,
                            preserved_file, restore, runtime_environment, runtime_files)
 from release_artifacts import verify as verify_release
 
@@ -76,7 +76,8 @@ def compare(args: argparse.Namespace) -> None:
     candidate = installed_environment(args.candidate_python.resolve(), args.candidate_source, True)
     candidate_prefix = Path(candidate["prefix"])
     disjoint_environments(baseline, candidate)
-    candidate_packages = installed_inventory(args.conda, candidate_prefix, fixture_inventory(SOURCE))
+    candidate_fixtures = fixture_versions(SOURCE)
+    candidate_packages = installed_inventory(args.conda, candidate_prefix, candidate_fixtures)
     if digest(args.candidate_artifact) != candidate_packages["gwflow"]["sha256"]:
         raise ValueError("Candidate artifact SHA-256 differs from the independently installed package")
     baseline_packages = installed_inventory(args.conda, restored, record["fixture_versions"])
@@ -93,7 +94,7 @@ def compare(args: argparse.Namespace) -> None:
     if result.returncode:
         raise ValueError("Installed upgrade journeys failed; inspect the retained journey evidence")
     for side, prefix, packages, fixtures in (("baseline", restored, baseline_packages, record["fixture_versions"]),
-                                            ("candidate", candidate_prefix, candidate_packages, fixture_inventory(SOURCE))):
+                                            ("candidate", candidate_prefix, candidate_packages, candidate_fixtures)):
         after = installed_inventory(args.conda, prefix, fixtures)
         if identities(after) != identities(packages) or runtime_files(prefix, after) != before[side]:
             raise ValueError(f"Upgrade journeys modified the {side} runtime")
