@@ -636,7 +636,7 @@ class Report:
                         if path not in item.removed_paths and path != item.removing_path:
                             self.status_line(f"    Not confirmed removed here: {path}")
 
-    def cancellations(self, name, attempt, outcomes, *, removed="", details=False, interrupted=False):
+    def cancellations(self, name, attempt, outcomes, *, removed="", details=False, interrupted=False, total=None):
         descriptions = {
             "recorded_success": "Recorded successful work; live state unavailable.",
             "recorded_failure": "Recorded failure; live state unavailable.",
@@ -671,13 +671,15 @@ class Report:
                 description = descriptions[state]
                 self.status_line(f"  {count} job{suffix}: {description[0].lower() + description[1:]}")
         if interrupted:
-            remaining = len(lifecycle_jobs(attempt["structure"]["targets"])) - len(outcomes)
-            self.status_line(f"  {remaining} jobs not processed")
+            remaining = total - len(outcomes) if total is not None else None
+            self.status_line(f"  {remaining} jobs not processed" if remaining is not None else
+                             "  Submission enumeration incomplete; remaining jobs unknown")
             self.status_line("  Already accepted requests were not rolled back; jobs may still be stopping.")
         if attempt is not None and (details or any(item.diagnostic for item in outcomes)):
             self.status_line(f"  Attempt: {attempt['attempt']}")
         for item in outcomes:
-            if len(counts) == 1 and not item.diagnostic and not details:
+            receipt = item.state in ("preview", "requested")
+            if len(counts) == 1 and not item.diagnostic and not details and not receipt:
                 continue
             if item.state == "inactive":
                 description = f"Confirmed inactive ({item.observation.backend_state.name.lower()})"
@@ -690,7 +692,7 @@ class Report:
             if item.state in ("preview", "requested") and item.diagnostic:
                 description += "; live state unavailable"
             self.status_line(f"  {name}__{item.local}: {description}")
-            if item.diagnostic or details:
+            if item.diagnostic or details or receipt:
                 if item.observation is not None:
                     missing = "not submitted" if item.state == "not_admitted" else "unavailable"
                     self.status_line(f"    Submission: {item.observation.submission or missing}")

@@ -260,18 +260,62 @@ def observe_submissions(store, attempt, backend, name, *, tolerate_state_errors=
     return observations
 
 
+@dataclass
+class CancellationAdmission:
+    local: str
+    intent: dict | None = None
+    error: Exception | None = None
+    historical: bool = False
+
+
+def cancellation_admissions(store, attempt):
+    """Select current and earlier admissions, retaining independent record failures."""
+    selected = []
+    for local in lifecycle_jobs(ordered_targets(attempt["structure"])):
+        candidate = CancellationAdmission(local)
+        try:
+            candidate.intent = read_intent(store, attempt, local)
+        except Exception as error:
+            candidate.error = error
+        selected.append(candidate)
+    current_submissions = {item.intent["submission"] for item in selected if item.intent is not None}
+    unresolved_jobs = {attempt["jobs"][item.local] for item in selected if item.error is not None}
+    for token in store.records(attempt).names("admissions"):
+        candidate = CancellationAdmission(f"admission {token}", historical=True)
+        try:
+            candidate.intent = _archived_intent(store, attempt, token)
+            # A missing/malformed selected intent must not be bypassed through
+            # its archive. Its current-job outcome already reports the failure.
+            if (candidate.intent["submission"] in current_submissions
+                    or candidate.intent["job"] in unresolved_jobs):
+                continue
+            candidate.local = candidate.intent["job"].removeprefix(attempt["task"] + "__").rsplit("__", 1)[0]
+        except Exception as error:
+            candidate.error = error
+        selected.append(candidate)
+    return selected
+
+
 @_observations.observation()
-def observe_cancellation(store, attempt, local, backend, name):
-    """Resolve one current admission even when its live state is unavailable."""
-    intent = read_intent(store, attempt, local)
-    return _observe(store, attempt, backend, name, {local: intent}, tolerate_state_errors=True)[local]
+def observe_cancellation(store, attempt, candidate, backend, name):
+    """Resolve one admission even when its live state is unavailable."""
+    if candidate.error is not None:
+        raise candidate.error
+    item = _observe(store, attempt, backend, name, {candidate.local: candidate.intent},
+                    tolerate_state_errors=True, historical=candidate.historical)[candidate.local]
+    if candidate.historical and item.state != "complete":
+        # Recovery's inactivity assertion cannot resolve conflicting or missing
+        # cancellation identities, even when it classified an unknown job failed.
+        require_cancellation_identity(backend, name, item)
+    return item
 
 
-def cancellation_diagnostic_identity(store, attempt, local):
+def cancellation_diagnostic_identity(store, attempt, candidate):
     """Retain valid saved identity after an observation fails, never authorize a request."""
-    item = JobObservation(local, "uncertain")
+    item = JobObservation(candidate.local, "uncertain", candidate.intent)
     try:
-        item.intent = read_intent(store, attempt, local)
+        if item.intent is None and not candidate.historical:
+            item.intent = read_intent(store, attempt, candidate.local)
         if item.intent is not None:
             ack = store.read(attempt, f"admissions/{item.intent['admission']}/ack.json",
                              "submission-ack", **identity(item.intent))

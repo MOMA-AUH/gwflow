@@ -12,10 +12,9 @@ from .backends import create_backend
 from .activity import activity
 from .diagnostics import report_error
 from ._frontend import _submission_guard, load_workflow
-from .lifecycle import Store, ordered_targets
+from .lifecycle import Store
 from .presentation import Report, output_options
 from .selection import task_selection
-from .workflow import lifecycle_jobs
 
 
 @dataclass
@@ -64,6 +63,7 @@ def cancel(ctx, selectors, dry_run, details, plain):
             connection = (create_backend(ctx.backend, working_dir=ctx.working_dir, config=ctx.config)
                           if selected & attempts.keys() else nullcontext())
             outcomes_by_task: dict[str, list[CancellationOutcome]] = {}
+            totals = {}
             interrupted = False
             try:
                 with activity("Waiting for scheduler..."), connection as backend:
@@ -71,7 +71,9 @@ def cancel(ctx, selectors, dry_run, details, plain):
                         attempt = attempts.get(name)
                         outcomes = outcomes_by_task[name] = []
                         if attempt is not None:
-                            outcomes.extend(cancel_jobs(store, attempt, backend, ctx.backend, dry_run))
+                            candidates = admission.cancellation_admissions(store, attempt)
+                            totals[name] = len(candidates)
+                            outcomes.extend(cancel_jobs(store, attempt, candidates, backend, ctx.backend, dry_run))
                         errors += sum(item.failed for item in outcomes)
             except BaseException:
                 interrupted = True
@@ -83,6 +85,7 @@ def cancel(ctx, selectors, dry_run, details, plain):
                     removed = "; no longer declared" if name not in workflow._task_declarations else ""
                     report.cancellations(name, attempt, outcomes, removed=removed,
                                          details=details or interrupted,
+                                         total=totals.get(name),
                                          interrupted=interrupted and attempt is not None)
     except OSError as error:
         raise click.ClickException(str(error)) from error
@@ -90,16 +93,17 @@ def cancel(ctx, selectors, dry_run, details, plain):
         raise click.ClickException(f"Cancellation incomplete: {errors} unresolved jobs or failed requests.")
 
 
-def cancel_jobs(store, attempt, backend, backend_name, dry_run):
+def cancel_jobs(store, attempt, candidates, backend, backend_name, dry_run):
     """Yield each observed or requested outcome without changing Task records."""
     name = attempt["task"]
-    for local in lifecycle_jobs(ordered_targets(attempt["structure"])):
+    for candidate in candidates:
+        local = candidate.local
         try:
-            item = admission.observe_cancellation(store, attempt, local, backend, backend_name)
+            item = admission.observe_cancellation(store, attempt, candidate, backend, backend_name)
         except Exception as error:
             report_error(error, f"Observing {name}__{local}")
             yield CancellationOutcome(local, "unresolved",
-                                      admission.cancellation_diagnostic_identity(store, attempt, local), str(error))
+                                      admission.cancellation_diagnostic_identity(store, attempt, candidate), str(error))
             continue
         if item.state in ("complete", "failed", "cancelled", "pending"):
             if item.backend_state in (BackendStatus.COMPLETED, BackendStatus.FAILED, BackendStatus.CANCELLED):

@@ -839,7 +839,9 @@ remain selectable and are marked "no longer declared"; a declared Task without
 an attempt reports "No admitted work to cancel" successfully.
 
 Requests address admitted computation, preparation, and completion jobs in each
-Selected Task's current recorded attempt. They do not add upstream Tasks,
+Selected Task's current recorded attempt. This includes earlier submissions
+within that attempt, such as a recovered submission that the backend reports
+as active again. They do not add upstream Tasks,
 expand downstream, or inspect older attempts for cancellation eligibility.
 Completed work and retained outputs are preserved. The backend controls the
 disposition of dependent jobs; Slurm configurations need not automatically
@@ -871,7 +873,9 @@ the job has stopped.
 
 Add `--details` to the original cancellation invocation for every per-job outcome
 and available full attempt, submission, and backend job identities. Default
-reports retain these identities for failures or uncertainty. Do not repeat a
+reports retain these identities for failures or uncertainty. Previews
+and accepted requests always include the exact Submission name and available
+backend job ID, even when several submissions share a Public job name. Do not repeat a
 mutating cancellation to obtain details about a previous invocation. `--plain`
 prints undecorated output; redirected reports are automatically plain. Receipts
 go to stdout, while operational errors and diagnostic tracebacks go to stderr.
