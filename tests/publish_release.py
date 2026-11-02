@@ -13,7 +13,7 @@ import shutil
 import subprocess
 import tempfile
 
-from release_artifacts import (VALIDATION_FILES, archive_name, attach, digest, final_tag, github,
+from release_artifacts import (VALIDATION_FILES, archive_name, attach, digest, draft_assets, final_tag, github,
                                pack, unpack, verify)
 
 
@@ -61,19 +61,8 @@ def resume_archive(args, assets, work):
     """Reuse earlier publication evidence only for this exact qualified CI bundle."""
     if not final_tag(args.tag):
         return
-    result = subprocess.run([args.gh, "release", "view", args.tag, "--repo", args.repo,
-                             "--json", "tagName,isDraft,isPrerelease,assets"], text=True, capture_output=True)
-    if result.returncode:
-        if "release not found" in result.stderr or "HTTP 404" in result.stderr:
-            return
-        raise ValueError(f"Cannot inspect GitHub release: {result.stderr.strip()}")
-    state = json.loads(result.stdout)
-    if state["tagName"] != args.tag or not state["isDraft"] or state["isPrerelease"]:
-        raise ValueError("Attachment requires the matching draft; published assets are immutable")
-    existing = {asset["name"] for asset in state["assets"]}
     expected = {path.name for path in assets.iterdir()}
-    if existing - expected:
-        raise ValueError("Draft has unexpected release assets")
+    existing = draft_assets(args.tag, args.repo, args.gh, expected) or set()
     archive = archive_name(args.tag)
     if archive not in existing:
         return

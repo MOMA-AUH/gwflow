@@ -176,6 +176,7 @@ class PublicationTests(artifacts.ReleaseArtifactFixture):
         self.assertEqual(sum("anaconda" in call for call in self.channel_calls()), 1)
 
     def test_each_partial_attachment_boundary_resumes_without_replacement(self):
+        self.environment["GWFLOW_RELEASE_REVERSE_BATCH"] = "1"
         for name in ("gwflow-1.0.0-validation.tar.gz", "SHA256SUMS", self.record["artifact"]["filename"]):
             with self.subTest(name=name):
                 self.environment["GWFLOW_RELEASE_INTERRUPT_AFTER"] = name

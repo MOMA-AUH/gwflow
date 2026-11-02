@@ -191,6 +191,23 @@ def verify_publication(release: dict, provenance: dict) -> None:
         raise ValueError("Published package provenance does not match the qualified release artifact")
 
 
+def draft_assets(tag: str, repo: str, gh: str, expected: set[str]) -> set[str] | None:
+    """Inspect the matching mutable draft without creating or changing it."""
+    result = subprocess.run([gh, "release", "view", tag, "--repo", repo,
+                             "--json", "tagName,isDraft,isPrerelease,assets"], text=True, capture_output=True)
+    if result.returncode:
+        if "release not found" in result.stderr or "HTTP 404" in result.stderr:
+            return None
+        raise ValueError(f"Cannot inspect GitHub release: {result.stderr.strip()}")
+    state = json.loads(result.stdout)
+    if state["tagName"] != tag or state["isPrerelease"] or not state["isDraft"]:
+        raise ValueError("Attachment requires the matching non-prerelease draft; published assets are immutable")
+    existing = {asset["name"] for asset in state["assets"]}
+    if existing - expected:
+        raise ValueError("Draft has unexpected release assets")
+    return existing
+
+
 def attach(bundle: Path, tag: str, source: str, repo: str, gh: str) -> None:
     with tempfile.TemporaryDirectory(prefix="gwflow-release-check-") as temporary:
         unpack(bundle, Path(temporary) / "verified", tag, source)
@@ -200,21 +217,11 @@ def attach(bundle: Path, tag: str, source: str, repo: str, gh: str) -> None:
     if not final_tag(tag):
         print("Prerelease records packed; no final-release draft created")
         return
-    result = subprocess.run([gh, "release", "view", tag, "--repo", repo,
-                             "--json", "tagName,isDraft,isPrerelease,assets"], text=True, capture_output=True)
-    if result.returncode:
-        if "release not found" not in result.stderr and "HTTP 404" not in result.stderr:
-            raise ValueError(f"Cannot inspect GitHub release: {result.stderr.strip()}")
+    existing = draft_assets(tag, repo, gh, {path.name for path in files})
+    if existing is None:
         github(gh, "release", "create", tag, "--repo", repo, "--verify-tag", "--draft", "--title", tag,
                "--notes", "Qualified package and validation archive. Review release notes before publishing.")
-        state = {"tagName": tag, "isDraft": True, "isPrerelease": False, "assets": []}
-    else:
-        state = json.loads(result.stdout)
-    if state["tagName"] != tag or state["isPrerelease"] or not state["isDraft"]:
-        raise ValueError("Attachment requires the matching non-prerelease draft; published assets are immutable")
-    existing = {asset["name"] for asset in state["assets"]}
-    if existing - {path.name for path in files}:
-        raise ValueError("Draft has unexpected release assets")
+        existing = set()
     with tempfile.TemporaryDirectory(prefix="gwflow-release-assets-") as temporary:
         for path in files:
             if path.name in existing:
@@ -222,6 +229,12 @@ def attach(bundle: Path, tag: str, source: str, repo: str, gh: str) -> None:
                 if digest(Path(temporary) / path.name) != digest(path):
                     raise ValueError(f"Existing release asset differs; refusing replacement: {path.name}")
         missing = [str(path) for path in files if path.name not in existing]
+        # gh uploads batch arguments concurrently. Complete the archive separately
+        # before any checksum/package upload can leave a partial draft behind.
+        archive = str(bundle / archive_name(tag))
+        if archive in missing:
+            github(gh, "release", "upload", tag, archive, "--repo", repo)
+            missing.remove(archive)
         if missing:
             github(gh, "release", "upload", tag, *missing, "--repo", repo)
     print("Preserved package, validation archive, and checksums in the release draft")
