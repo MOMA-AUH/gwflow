@@ -54,7 +54,10 @@ class SharedInputObservationTests(RegistryTestCase):
             [["status", "--details"], ["status", "--details"]],
             [{"pass": 0, "after": "planned", "write": {str(self.work / "input.txt"): "published"}}],
         )
-        self.assertIn("Cannot observe external input", first["output"])
+        self.assertEqual(first["exit_code"], 0, first["output"])
+        for index in range(4):
+            self.assertRegex(first["output"], rf"(?m)^sample{index}\s+blocked\s+0/3")
+        self.assertEqual(second["exit_code"], 0, second["output"])
         self.assertNotIn("blocked", second["output"].lower())
         self.assertEqual(len(self.calls("pull")), 2)
         self.assertEqual(len(self.cached_images()), 1)
