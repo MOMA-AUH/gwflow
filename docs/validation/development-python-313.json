@@ -1,0 +1,150 @@
+{
+  "date": "2026-11-02",
+  "issue": "https://github.com/MOMA-AUH/gwflow/issues/313",
+  "scope": "Fresh development environment installation and existing public CLI startup checks.",
+  "source": {
+    "base": "MOMA-AUH/gwflow@edf348e384b8fb10eb570e205485b9de810bffc4",
+    "change": "environment.yml Python constraint changed from >=3.12,<3.16.0 to >=3.12,<3.13; other dependency constraints unchanged.",
+    "environment_yml_sha256": "76bb84e03e1fb22258b4fd15e407217860e76be53521abab4b36f07f4f102b1a",
+    "package_version": "0.10.0"
+  },
+  "constraints": {
+    "environment.yml": ">=3.12,<3.13",
+    "pyproject.toml": ">=3.12,<3.13",
+    "conda-recipe/meta.yaml host and run": ">=3.12,<3.13",
+    "docs/operating.md supported profile": "Python 3.12"
+  },
+  "creation": {
+    "conda_version": "23.7.4",
+    "mamba_version": "1.5.1",
+    "first_attempt": {
+      "command": [
+        "<CONDA_ROOT>/condabin/conda",
+        "env",
+        "create",
+        "--file",
+        "environment.yml",
+        "--prefix",
+        "<REPO>/build/validation/development-python-313/environment",
+        "--yes"
+      ],
+      "returncode": 143,
+      "result": "Stopped the task-owned process after more than three minutes of CPU-bound metadata parsing. This incomplete attempt was not a validation pass.",
+      "raw_log": "build/validation/development-python-313/create.log"
+    },
+    "successful_attempt": {
+      "command": [
+        "<CONDA_ROOT>/condabin/mamba",
+        "env",
+        "create",
+        "--file",
+        "environment.yml",
+        "--prefix",
+        "<REPO>/build/validation/development-python-313/environment",
+        "--yes"
+      ],
+      "returncode": 0,
+      "result": "Created a fresh environment from the supplied definition and installed 43 packages.",
+      "raw_log": "build/validation/development-python-313/create-mamba.log"
+    }
+  },
+  "selected_python": "Python 3.12.16",
+  "installed_versions": {
+    "gwflow": "0.10.0",
+    "gwflow-summary-task": "0.5.0",
+    "gwflow-report-task": "0.5.0",
+    "gwf": "2.1.1",
+    "rich": "15.0.0",
+    "textual": "8.2.8",
+    "pip": "26.2.2"
+  },
+  "checks": [
+    {
+      "command": [
+        "<REPO>/build/validation/development-python-313/environment/bin/python",
+        "--version"
+      ],
+      "returncode": 0,
+      "result": "Python 3.12.16",
+      "raw_log": "build/validation/development-python-313/check-0.log"
+    },
+    {
+      "command": [
+        "<REPO>/build/validation/development-python-313/environment/bin/python",
+        "-m",
+        "pip",
+        "install",
+        "."
+      ],
+      "returncode": 0,
+      "result": "Successfully installed gwflow-0.10.0",
+      "raw_log": "build/validation/development-python-313/check-1.log"
+    },
+    {
+      "command": [
+        "<REPO>/build/validation/development-python-313/environment/bin/python",
+        "-m",
+        "pip",
+        "install",
+        "./examples/packaged/packages/summary-task",
+        "./examples/packaged/packages/report-task"
+      ],
+      "returncode": 0,
+      "result": "Successfully installed gwflow-report-task-0.5.0 gwflow-summary-task-0.5.0",
+      "raw_log": "build/validation/development-python-313/check-2.log"
+    },
+    {
+      "command": [
+        "<REPO>/build/validation/development-python-313/environment/bin/python",
+        "-m",
+        "pip",
+        "check"
+      ],
+      "returncode": 0,
+      "result": "No broken requirements found.",
+      "raw_log": "build/validation/development-python-313/check-3.log"
+    },
+    {
+      "command": [
+        "<REPO>/build/validation/development-python-313/environment/bin/python",
+        "-I",
+        "-c",
+        "import gwflow, gwflow.browser, gwflow.cli"
+      ],
+      "returncode": 0,
+      "result": "",
+      "raw_log": "build/validation/development-python-313/check-4.log"
+    },
+    {
+      "command": [
+        "<REPO>/build/validation/development-python-313/environment/bin/python",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_cli.py",
+        "-v"
+      ],
+      "returncode": 0,
+      "result": "test_configuration_without_workflow (test_cli.StartupTests.test_configuration_without_workflow) ... ok\ntest_discovery_and_wrong_workflow_type (test_cli.StartupTests.test_discovery_and_wrong_workflow_type) ... ok\ntest_help_version_and_missing_workflow_without_state (test_cli.StartupTests.test_help_version_and_missing_workflow_without_state) ... ok\ntest_ordinary_commands_reject_managed_workflows_before_execution (test_cli.StartupTests.test_ordinary_commands_reject_managed_workflows_before_execution) ... ok\ntest_task_job_collisions_fail_loading_before_command_effects (test_cli.StartupTests.test_task_job_collisions_fail_loading_before_command_effects) ... ok\ntest_unknown_backend_names_remain_usage_errors (test_cli.StartupTests.test_unknown_backend_names_remain_usage_errors) ... ok\n\n----------------------------------------------------------------------\nRan 6 tests in 63.690s\n\nOK",
+      "raw_log": "build/validation/development-python-313/check-5.log"
+    },
+    {
+      "command": [
+        "<REPO>/build/validation/development-python-313/environment/bin/python",
+        "-c",
+        "import importlib.metadata as m, json; print(json.dumps({name: m.version(name) for name in (\"gwflow\", \"gwflow-summary-task\", \"gwflow-report-task\", \"gwf\", \"rich\", \"textual\", \"pip\")}))"
+      ],
+      "returncode": 0,
+      "result": "{\"gwflow\": \"0.10.0\", \"gwflow-summary-task\": \"0.5.0\", \"gwflow-report-task\": \"0.5.0\", \"gwf\": \"2.1.1\", \"rich\": \"15.0.0\", \"textual\": \"8.2.8\", \"pip\": \"26.2.2\"}",
+      "raw_log": "build/validation/development-python-313/check-6.log"
+    }
+  ],
+  "limits": "This record covers installation and CLI startup. Full behavioral coverage remains the required CI suite on the pull request commit.",
+  "path_placeholders": {
+    "<REPO>": "Repository checkout root. Relative paths are also relative to this root.",
+    "<CONDA_ROOT>": "Host Conda installation outside the checkout, used to launch Conda and Mamba."
+  }
+}
