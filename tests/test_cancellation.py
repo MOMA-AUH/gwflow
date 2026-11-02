@@ -13,6 +13,7 @@ from terminal_session import rendered_lines
 import test_graphs
 import test_inspection
 import test_run_selection
+import test_recovery
 
 
 class CancellationTests(LocalBackendTestCase):
@@ -302,7 +303,8 @@ class CancellationTests(LocalBackendTestCase):
         self.run_complete()
         index = self.cli("logs", "sample", "--details")
         submissions = dict(re.findall(r"(sample__\w+): complete; submission (\S+)", index))
-        # A missing selected intent is a persistence fault, not a state lookup.
+        # The missing selected intent remains a persistence fault. Its separate
+        # immutable archive can still identify admitted work for cancellation.
         path = record_path(self.work, "sample", "submissions/*/left-intent.json")
         self.assertEqual(read_record(path)["submission"], submissions["sample__left"])
         remove_record(path)
@@ -311,7 +313,7 @@ class CancellationTests(LocalBackendTestCase):
         before = self.snapshot()
         preview = self.cli("-b", "recovery_fixture", "cancel", "sample", "--dry-run", env=environment, success=False)
         self.assertIn("Unresolved job identity", preview)
-        self.assertEqual(preview.count("Would request cancellation"), 4, preview)
+        self.assertEqual(preview.count("Would request cancellation"), 5, preview)
         self.assertFalse((self.work / "cancellation-requests.jsonl").exists())
         output = self.cli("-b", "recovery_fixture", "cancel", "sample", env=environment, success=False)
         self.assertIn("sample__left", output)
@@ -319,9 +321,9 @@ class CancellationTests(LocalBackendTestCase):
         self.assertNotIn("Submission: not submitted", output)
         self.assertIn("sample__right", output)
         self.assertIn("Cancellation request failed: injected cancellation rejection", output)
-        self.assertEqual(output.count("Cancellation requested"), 3, output)
+        self.assertEqual(output.count("Cancellation requested"), 4, output)
         requested = [json.loads(line) for line in (self.work / "cancellation-requests.jsonl").read_text().splitlines()]
-        self.assertCountEqual(requested, [submission for public, submission in submissions.items() if public != "sample__left"])
+        self.assertCountEqual(requested, submissions.values())
         self.assertIn("Traceback", output)
         self.assertEqual(self.snapshot(), before)
 
@@ -363,6 +365,180 @@ class CancellationTests(LocalBackendTestCase):
         self.finish()
         self.assertEqual((self.work / "results/sample/result.txt").read_text(), "leftright")
         self.assertIn("Reuse", self.cli("-b", "slurm", "run", "sample", "--dry-run", env=environment))
+
+
+class EarlierSubmissionCancellationTests(LocalBackendTestCase):
+    configure_workflow = test_graphs.TaskGraphTests.configure_workflow
+    settle = test_graphs.TaskGraphTests.settle
+    inject = test_graphs.TaskGraphTests.inject
+    snapshot = test_inspection.LifecycleInspectionTests.snapshot
+    interrupt_computation = test_recovery.OperatorRecoveryTests.interrupt_computation
+
+    def recovered_retry(self):
+        self.interrupt_computation()
+        accepted = [json.loads(line) for line in (self.work / "backend-acceptances.jsonl").read_text().splitlines()]
+        self.cli("-b", "recovery_fixture", "recover", "sample", env=self.inject(job_states={"sample": "UNKNOWN"}))
+        self.cli("run")
+        self.settle()
+        return {item["name"].split("__")[1]: item for item in accepted}
+
+    def test_active_earlier_submission_is_previewed_and_cancelled_once(self):
+        old = self.recovered_retry()["right"]
+        before = self.snapshot()
+        requests = self.work / "cancellation-requests.jsonl"
+        for state in ("SUBMITTED", "RUNNING"):
+            with self.subTest(state=state):
+                environment = self.inject(submission_states={old["name"]: state},
+                                          record_cancellations=True, accept_cancel_only=True)
+                status = self.cli("-b", "recovery_fixture", "status", "sample", "--json", env=environment)
+                self.assertIn(old["name"], status)
+                self.assertIn('"blocked"', status)
+                preview = self.cli("-b", "recovery_fixture", "cancel", "sample", "sam*", "--dry-run", env=environment)
+                self.assertIn("Would request cancellation", preview)
+                self.assertIn(old["name"], preview)
+                self.assertIn("Backend job: " + str(old["id"]), preview)
+                self.assertFalse(requests.exists())
+                self.assertEqual(self.snapshot(), before)
+                output = self.cli("-b", "recovery_fixture", "cancel", "sample", "sam*", env=environment)
+                self.assertIn(old["name"], output)
+                self.assertIn("Backend job: " + str(old["id"]), output)
+                self.assertEqual([json.loads(line) for line in requests.read_text().splitlines()], [old["name"]])
+                self.assertEqual(self.snapshot(), before)
+                requests.unlink()
+
+    def test_all_earlier_admissions_remain_distinct_from_current_jobs(self):
+        old = self.recovered_retry()
+        active = [old[local]["name"] for local in ("right", "join", "gwflow_complete")]
+        environment = self.inject(submission_states={name: "RUNNING" for name in active},
+                                  job_states={"sample__right": "RUNNING"},
+                                  record_cancellations=True, accept_cancel_only=True)
+        current = re.search(r"sample__right: complete; submission (\S+)", self.cli("logs", "sample", "--details")).group(1)
+        before = self.snapshot()
+        output = self.cli("-b", "recovery_fixture", "cancel", "sample", "sam*", env=environment)
+        requests = [json.loads(line) for line in (self.work / "cancellation-requests.jsonl").read_text().splitlines()]
+        self.assertCountEqual(requests, [*active, current])
+        for submission in requests:
+            self.assertIn("Submission: " + submission, output)
+        self.assertEqual(self.snapshot(), before)
+
+    def test_unresolved_earlier_identity_does_not_hide_other_active_submissions(self):
+        old = self.recovered_retry()
+        right, join = old["right"]["name"], old["join"]["name"]
+        requests = self.work / "cancellation-requests.jsonl"
+        before = self.snapshot()
+        for option, reason in (("fail_tracking_prefix", "injected tracking lookup failure"),
+                               ("conflicting_tracking_prefix", "conflicting backend job IDs")):
+            for state in ("RUNNING", "UNKNOWN"):
+                with self.subTest(option=option, state=state):
+                    environment = self.inject(submission_states={right: state, join: "RUNNING"},
+                                              **{option: right.rsplit("__", 1)[0]},
+                                              record_cancellations=True, accept_cancel_only=True)
+                    for flags in (("--dry-run",), ()):
+                        result = self.cli_result("-b", "recovery_fixture", "cancel", "sample", *flags,
+                                                 env=environment, success=False)
+                        self.assertIn(right, result.stdout)
+                        self.assertIn("Backend job: " + str(old["right"]["id"]), result.stdout)
+                        self.assertIn(reason, result.stdout)
+                        self.assertIn("Cancellation incomplete", result.stderr)
+                        if flags:
+                            self.assertIn("Would request cancellation", result.stdout)
+                            self.assertFalse(requests.exists())
+                        else:
+                            self.assertEqual([json.loads(line) for line in requests.read_text().splitlines()], [join])
+                            requests.unlink()
+                        self.assertEqual(self.snapshot(), before)
+
+    def test_earlier_submission_without_backend_identity_is_not_cancelled(self):
+        shutil.copy(FIXTURES / "job_fault.py", self.work)
+        (self.work / "job-fault.json").write_text(json.dumps({"crash_before_execution": True}))
+        self.cli("-b", "recovery_fixture", "run", success=False,
+                 env=self.inject(job_fault="sample__right", lose_tracking="sample__right", record_acceptances=True))
+        self.settle()
+        accepted = [json.loads(line) for line in (self.work / "backend-acceptances.jsonl").read_text().splitlines()]
+        old = next(item["name"] for item in accepted if "__right__" in item["name"])
+        self.cli("-b", "recovery_fixture", "recover", "sample", env=self.inject(job_states={"sample": "UNKNOWN"}))
+        self.cli("run")
+        self.settle()
+        before = self.snapshot()
+        output = self.cli("-b", "recovery_fixture", "cancel", "sample", success=False,
+                          env=self.inject(submission_states={old: "RUNNING"}, job_states={"sample__join": "RUNNING"},
+                                          record_cancellations=True, accept_cancel_only=True))
+        self.assertIn(old, output)
+        self.assertIn("no recorded or tracked backend job ID", output)
+        requests = [json.loads(line) for line in (self.work / "cancellation-requests.jsonl").read_text().splitlines()]
+        self.assertEqual(len(requests), 1)
+        self.assertTrue(requests[0].startswith("sample__join__"))
+        self.assertEqual(self.snapshot(), before)
+
+    def test_interruption_counts_earlier_submissions_and_retains_exact_receipts(self):
+        old = self.recovered_retry()
+        active = [old[local]["name"] for local in ("right", "join", "gwflow_complete")]
+        before = self.snapshot()
+        requests = self.work / "cancellation-requests.jsonl"
+        environment = self.inject(submission_states={name: "RUNNING" for name in active},
+                                  record_cancellations=True, accept_cancel_only=True,
+                                  interrupt_cancel_prefix="sample")
+        result = self.cli_result("-b", "recovery_fixture", "cancel", "sample", env=environment, success=False)
+        self.assertIn("1 request outcome unconfirmed", result.stdout)
+        self.assertIn("2 jobs not processed", result.stdout)
+        attempted = [json.loads(line) for line in requests.read_text().splitlines()]
+        self.assertEqual(len(attempted), 1)
+        self.assertIn(attempted[0], active)
+        self.assertIn("Submission: " + attempted[0], result.stdout)
+        self.assertEqual(self.snapshot(), before)
+        requests.unlink()
+        environment = self.inject(submission_states={name: "RUNNING" for name in active},
+                                  record_cancellations=True, accept_cancel_only=True, fail_cancel_flush=True)
+        result = self.cli_result("-b", "recovery_fixture", "cancel", "sample", env=environment, success=False)
+        self.assertIn("3 cancellation requests accepted", result.stdout)
+        self.assertIn("0 jobs not processed", result.stdout)
+        self.assertCountEqual([json.loads(line) for line in requests.read_text().splitlines()], active)
+        for submission in active:
+            self.assertIn("Submission: " + submission, result.stdout)
+        self.assertEqual(self.snapshot(), before)
+
+    def test_completed_earlier_submission_is_preserved_after_repair(self):
+        self.run_complete()
+        old = re.search(r"sample__gwflow_complete: complete; submission (\S+)",
+                        self.cli("logs", "sample", "--details")).group(1)
+        (self.work / "results/sample/result.txt").unlink()
+        self.cli("run")
+        self.settle()
+        before = self.snapshot()
+        environment = self.inject(job_states={"sample": "UNKNOWN"}, record_cancellations=True)
+        output = self.cli("-b", "recovery_fixture", "cancel", "sample", "--details", env=environment)
+        self.assertIn(old, output)
+        self.assertIn("No admitted work to cancel", output)
+        self.assertFalse((self.work / "cancellation-requests.jsonl").exists())
+        self.assertEqual(self.snapshot(), before)
+
+    def test_earlier_proven_rejection_remains_not_admitted_after_successful_run(self):
+        self.cli("-b", "recovery_fixture", "run", success=False,
+                 env=self.inject(reject_before_admission=True))
+        self.run_complete()
+        before = self.snapshot()
+        output = self.cli("-b", "recovery_fixture", "cancel", "sample", "--details",
+                          env=self.inject(record_cancellations=True))
+        self.assertIn("No admitted work to cancel", output)
+        self.assertIn("Not admitted", output)
+        self.assertFalse((self.work / "cancellation-requests.jsonl").exists())
+        self.assertEqual(self.snapshot(), before)
+
+    def test_unreadable_latest_intent_does_not_hide_verified_earlier_submission(self):
+        old = self.recovered_retry()["gwflow_complete"]
+        remove_record(record_path(self.work, "sample", "submissions/*/gwflow_complete-intent.json"))
+        before = self.snapshot()
+        environment = self.inject(submission_states={old["name"]: "RUNNING"},
+                                  record_cancellations=True, accept_cancel_only=True)
+        output = self.cli("-b", "recovery_fixture", "cancel", "sample", env=environment, success=False)
+        self.assertIn("Unresolved job identity", output)
+        self.assertIn("current intent is missing", output)
+        self.assertIn("Cancellation incomplete", output)
+        self.assertIn("Submission: " + old["name"], output)
+        self.assertIn("Backend job: " + str(old["id"]), output)
+        requests = [json.loads(line) for line in (self.work / "cancellation-requests.jsonl").read_text().splitlines()]
+        self.assertEqual(requests, [old["name"]])
+        self.assertEqual(self.snapshot(), before)
 
 
 class CancellationSelectionTests(LocalBackendTestCase):
