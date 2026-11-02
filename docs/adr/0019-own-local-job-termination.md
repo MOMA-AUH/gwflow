@@ -13,9 +13,11 @@ confirms cleanup. Unexpected supervisor loss remains unresolved. This implements
 [ADR 0009](0009-cancel-admitted-work-without-pausing-tasks.md): request acceptance
 does not establish inactivity, and completed sibling work remains available.
 
-Updated workers advertise this guarantee in the existing state response. Older
-workers remain available for observation and cancellation, but cannot accept new
-managed submissions. Their unsafe terminal observations cannot authorize retry,
+Updated workers advertise this guarantee and each full Submission name in the
+existing state response. Frontends verify the immutable submission identity
+before trusting a reused numeric job ID or issuing cancellation. Older workers
+remain available for observation, but cannot accept new managed submissions or
+verified cancellation requests. Their unsafe terminal observations cannot authorize retry,
 replacement, or cleanup. An operator must establish inactivity before using the
 existing [recovery operation](0013-provide-explicit-recovery-for-unresolved-submissions.md).
 Slurm retains its existing cancellation behavior.

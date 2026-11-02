@@ -350,7 +350,8 @@ def _observe(store, attempt, backend, name, intents, *, tolerate_state_errors=Fa
                         with report_activity("Waiting for scheduler..."):
                             state = backend.ops.get_job_states([job_id]).get(job_id, BackendStatus.UNKNOWN)
                     if isinstance(getattr(backend, "ops", None), ManagedLocalOps):
-                        backend.ops.require_observation(job_id, completed=checked)
+                        if not backend.ops.require_observation(job_id, submission=intent["submission"], completed=checked):
+                            state = BackendStatus.UNKNOWN
             except Exception as error:
                 termination_unresolved = isinstance(error, LocalTerminationUnresolved)
                 errors = _wait_scheduler_errors.get()
@@ -468,6 +469,8 @@ def require_cancellation_identity(backend, name, observation):
     tracked = backend.get_tracked_id(target) if hasattr(backend, "get_tracked_id") else None
     if tracked is not None and tracked != observation.job_id:
         raise WorkflowError("conflicting backend job IDs")
+    if isinstance(getattr(backend, "ops", None), ManagedLocalOps):
+        backend.ops.require_cancellation_identity(observation.job_id, observation.submission)
 
 
 def request_cancellation(backend, name, observation):

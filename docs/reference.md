@@ -149,8 +149,10 @@ Local workers must run in the same configured environment as the frontend.
 Start them with `gwflow workers`. After upgrading gwflow, stop old jobs and
 restart the workers before submitting new work. Ordinary `gwf workers` and
 older gwflow workers cannot confirm that canceled computation and its children
-have stopped. Inspection and cancellation remain available, but new managed
-submissions require the updated workers. An unsafe terminal observation blocks
+have stopped or verify the identity of a cancellation request. Inspection remains
+available, but new managed submissions and cancellation require updated workers.
+Stop old computation independently before replacing unsupported workers.
+An unsafe terminal observation blocks
 retry, attempt replacement, and cleanup until inactivity is established.
 For Slurm, use the site's configured backend and shared storage; no local worker
 process is needed. `--backend` overrides configuration and backend autodetection.
@@ -856,6 +858,9 @@ containers. The job remains active while termination is underway. If the worker
 cannot establish termination, retry, replacement, and cleanup remain blocked. Stopping the
 workers also stops the jobs they own. Unselected Tasks keep running when you
 cancel a selected Task.
+Workers report each full Submission name with its state. A reused numeric job ID
+cannot authorize cancellation of another submission or establish inactivity of
+the original work after a worker restart.
 
 Reports lead with each Task's outcome and counts. Identical routine outcomes
 share a summary, such as "No admitted work to cancel" followed by "All 4 jobs

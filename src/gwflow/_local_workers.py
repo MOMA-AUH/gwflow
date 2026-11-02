@@ -19,6 +19,12 @@ class ManagedScheduler(Scheduler):
         super().__init__(working_dir, max_cores)
         self.started = set()
         self.stopping = set()
+        self.submission_names = {}
+
+    async def enqueue_task(self, name, script, working_dir, time_limit, deps):
+        tid = await super().enqueue_task(name, script, working_dir, time_limit, deps)
+        self.submission_names[tid] = name
+        return tid
 
     async def cancel_task(self, tid):
         if self.task_states.get(tid) in (LocalStatus.SUBMITTED, LocalStatus.RUNNING) and tid not in self.stopping:
@@ -124,6 +130,7 @@ class ManagedServer(Server):
     async def send_response(self, writer, kind, **kwargs):
         if kind == "task_states":
             kwargs["gwflow_process_tree"] = 1
+            kwargs["gwflow_submissions"] = self.scheduler.submission_names
         await super().send_response(writer, kind, **kwargs)
 
 

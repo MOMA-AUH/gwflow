@@ -42,7 +42,8 @@ class LocalCancellationTests(LocalBackendTestCase):
         self.cli("-b", "recovery_fixture", "run", env=self.inject())
         self.wait_for((self.work / "held").exists)
         attempt = re.search(r"attempt ([0-9a-f]{32})", self.cli("logs", "sample", "--details")).group(1)
-        self.cli("cancel", "sample")
+        self.assertIn("cannot verify cancellation identity", self.cli("cancel", "sample", success=False))
+        self.cli("-b", "recovery_fixture", "cancel", "sample", env=self.inject())
         self.settle()
         self.assertIn("blocked", self.cli("status", "sample", "--plain"))
         for arguments in (("run", "sample"), ("run", "sample", "--force"),
@@ -77,6 +78,41 @@ class LocalCancellationTests(LocalBackendTestCase):
         self.assertIn(submission, self.cli("logs", "sample", "--history"))
 
     def test_forgotten_failed_job_with_child_cannot_authorize_retry_or_cleanup(self):
+        attempt = self.failed_job_after_worker_restart()
+        self.assert_unsafe_attempt_blocked(attempt)
+
+    def test_reused_job_id_never_cancels_other_task_or_authorizes_old_retry(self):
+        attempt = self.failed_job_after_worker_restart()
+        release = self.work / "other-release"
+        self.addCleanup(release.touch)
+        command = (f"touch {shlex.quote(str(self.work / 'other-held'))}; "
+                   f"while [ ! -e {shlex.quote(str(release))} ]; do sleep 0.025; done; printf other > out")
+        workflow = self.work / "workflow.py"
+        workflow.write_text(workflow.read_text() +
+                            "other = empty_task(inputs=[])\n"
+                            "first = other.target('first', inputs=[], outputs=['first'])\n"
+                            "first << 'touch first'\n"
+                            "hold = other.target('hold', inputs=[first.output('first')], outputs=['out'])\n"
+                            f"hold << {command!r}\n"
+                            "other.retain('result', source=hold.output('out'), path='out')\n"
+                            "gwf.task(other, alias='other')\n")
+        self.cli("run", "other")
+        self.wait_for((self.work / "other-held").exists)
+        self.assertIn("different submission", self.cli("cancel", "sample", success=False))
+        self.assertIn("running", self.cli("status", "other", "--plain"))
+        self.assert_unsafe_attempt_blocked(attempt)
+        release.touch()
+        self.finish()
+        self.assertEqual((self.work / "results/other/out").read_text(), "other")
+        self.assert_unsafe_attempt_blocked(attempt)
+
+    def assert_unsafe_attempt_blocked(self, attempt):
+        self.assertIn("blocked", self.cli("status", "sample", "--plain"))
+        for arguments in (("run", "sample"), ("run", "sample", "--force"),
+                          ("clean", "--attempt", attempt, "--delete")):
+            self.assertIn("cannot confirm computation descendants have stopped", self.cli(*arguments, success=False))
+
+    def failed_job_after_worker_restart(self):
         self.stop_worker(self.worker)
         self.executable = GWF
         self.worker = self.start_worker()
@@ -95,9 +131,7 @@ class LocalCancellationTests(LocalBackendTestCase):
         attempt = re.search(r"attempt ([0-9a-f]{32})", index).group(1)
         self.stop_worker(self.worker)
         self.worker = self.start_worker()
-        for arguments in (("run", "sample"), ("run", "sample", "--force"),
-                          ("clean", "--attempt", attempt, "--delete")):
-            self.assertIn("cannot confirm computation descendants have stopped", self.cli(*arguments, success=False))
+        return attempt
 
     def test_cancel_does_not_stop_unselected_running_task(self):
         self.configure_workflow(right_command=self.probe())
