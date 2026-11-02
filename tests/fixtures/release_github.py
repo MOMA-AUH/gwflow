@@ -36,12 +36,18 @@ elif args[:2] == ["release", "create"]:
     state_path.write_text(json.dumps({"tagName": args[2], "isDraft": True, "isPrerelease": False}))
     (root / "assets").mkdir()
 elif args[:2] == ["release", "upload"]:
-    for filename in args[3:args.index("--repo")]:
+    # gh uploads a batch concurrently; argument order is not a durability promise.
+    filenames = args[3:args.index("--repo")]
+    if os.environ.get("GWFLOW_RELEASE_REVERSE_BATCH"):
+        filenames = list(reversed(filenames))
+    for filename in filenames:
         path = Path(filename)
         destination = root / "assets" / path.name
         if destination.exists() and ("--clobber" not in args or path.name != "SHA256SUMS"):
             sys.exit("asset already exists")
         shutil.copyfile(path, destination)
+        if os.environ.get("GWFLOW_RELEASE_INTERRUPT_AFTER") == path.name:
+            sys.exit("injected interruption after attachment")
 elif args[:2] == ["release", "download"]:
     name = args[args.index("--pattern") + 1]
     directory = Path(args[args.index("--dir") + 1])

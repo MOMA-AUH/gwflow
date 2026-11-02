@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 TOOL = ROOT / "tests/release_artifacts.py"
 
 
-class ReleaseArtifactsTests(unittest.TestCase):
+class ReleaseArtifactFixture(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory(prefix="gwflow-release-")
         self.addCleanup(temporary.cleanup)
@@ -73,6 +73,21 @@ class ReleaseArtifactsTests(unittest.TestCase):
                             "--tag", "v" + self.version, "--source", self.source,
                             "--output", str(self.output), success=success)
 
+    def publication(self):
+        self.provenance = self.output / "publication.json"
+        self.published = {"release": "v" + self.version, "source_commit": self.source,
+                          "artifact": {**self.record["artifact"],
+                                       "url": "https://conda.anaconda.org/moma-auh/noarch/" + self.record["artifact"]["filename"]}}
+        self.provenance.write_text(json.dumps(self.published))
+        self.github = self.root / "gh"
+        shutil.copy(ROOT / "tests/fixtures/release_github.py", self.github)
+        self.github.chmod(0o755)
+        self.remote = self.root / "remote"
+        self.environment["GWFLOW_RELEASE_FIXTURE_ROOT"] = str(self.remote)
+
+
+
+class ReleaseArtifactsTests(ReleaseArtifactFixture):
     def test_preparation_preserves_exact_qualified_package_and_manifest(self):
         self.prepare()
         self.assertEqual((self.output / self.record["artifact"]["filename"]).read_bytes(),
@@ -129,18 +144,6 @@ class ReleaseArtifactsTests(unittest.TestCase):
                 self.prepare()
                 record = json.loads((self.output / "release.json").read_text())
                 self.assertEqual(record["stable_baseline_eligible"], stable)
-
-    def publication(self):
-        self.provenance = self.output / "publication.json"
-        self.published = {"release": "v" + self.version, "source_commit": self.source,
-                          "artifact": {**self.record["artifact"],
-                                       "url": "https://conda.anaconda.org/moma-auh/noarch/" + self.record["artifact"]["filename"]}}
-        self.provenance.write_text(json.dumps(self.published))
-        self.github = self.root / "gh"
-        shutil.copy(ROOT / "tests/fixtures/release_github.py", self.github)
-        self.github.chmod(0o755)
-        self.remote = self.root / "remote"
-        self.environment["GWFLOW_RELEASE_FIXTURE_ROOT"] = str(self.remote)
 
     def packed(self):
         destination = self.root / "compact"
@@ -236,6 +239,7 @@ class ReleaseArtifactsTests(unittest.TestCase):
                 self.assertNotIn('"upload"', calls.read_text())
                 self.assertNotIn('"create"', calls.read_text())
                 self.assertEqual(json.loads((self.remote / "state.json").read_text()), state)
+
 
 
 if __name__ == "__main__":
