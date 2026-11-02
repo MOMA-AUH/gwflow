@@ -15,7 +15,6 @@ import click
 from gwf import Target as GwfTarget, Workflow as GwfWorkflow
 from gwf.core import Context
 from gwf.exceptions import WorkflowError
-from gwf.utils import is_valid_name
 
 from ._frontend import ManagedContext
 
@@ -23,7 +22,7 @@ from . import images
 
 
 def _require_name(name, kind):
-    if not isinstance(name, str) or not is_valid_name(name):
+    if not isinstance(name, str) or not re.fullmatch(r"[a-zA-Z_][a-zA-Z0-9._]*", name):
         raise WorkflowError(f"Invalid {kind} name: {name!r}")
 
 

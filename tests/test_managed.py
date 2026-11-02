@@ -14,10 +14,43 @@ from gwflow import Task, Workflow, task_template
 
 from record_fixtures import record_path, read_record, write_record
 
-from support import GWF, TASK_FACTORY, LocalBackendTestCase
+from support import GWF, GWFLOW, TASK_FACTORY, LocalBackendTestCase
 
 
 class ManagedAuthoringTests(unittest.TestCase):
+    def test_local_target_name_rejects_trailing_newline_during_authoring(self):
+        task = Task(inputs=[])
+        with self.assertRaises(WorkflowError) as error:
+            task.target("write\n", inputs=[], outputs=["out.txt"])
+        self.assertEqual(str(error.exception), "Invalid local target name: 'write\\n'")
+        self.assertEqual(task.targets, {})
+
+    def test_local_target_names_preserve_ascii_syntax(self):
+        for name in ("write", "WRITE", "_", "_write", "Write_2.0", "a..b"):
+            with self.subTest(name=name):
+                task = Task(inputs=[])
+                target = task.target(name, inputs=[], outputs=["out.txt"])
+                self.assertEqual(target.name, name)
+                self.assertEqual(task.targets, {name: target})
+        for name in ("", None, 1, "2write", ".write", "write-name", "write name", "wríte",
+                     "write\r", "write\t", "write\0", "write\x7f", "wr\nite", "wr\tite"):
+            with self.subTest(name=name):
+                task = Task(inputs=[])
+                with self.assertRaises(WorkflowError) as error:
+                    task.target(name, inputs=[], outputs=["out.txt"])
+                self.assertEqual(str(error.exception), f"Invalid local target name: {name!r}")
+                self.assertEqual(task.targets, {})
+
+    def test_local_target_names_keep_bookkeeping_prefix_reserved(self):
+        for name in ("gwflow_prepare", "gwflow_complete", "gwflow_custom"):
+            with self.subTest(name=name):
+                task = Task(inputs=[])
+                with self.assertRaises(WorkflowError) as error:
+                    task.target(name, inputs=[], outputs=["out.txt"])
+                self.assertEqual(str(error.exception),
+                                 f"Local target name {name!r} is reserved for bookkeeping")
+                self.assertEqual(task.targets, {})
+
     def test_task_rejects_retired_working_directory_option(self):
         for working_dir in (None, "."):
             with self.subTest(working_dir=working_dir), self.assertRaisesRegex(
@@ -102,6 +135,36 @@ class ManagedCliTests(LocalBackendTestCase):
             return states and not any(state in (LocalStatus.SUBMITTED, LocalStatus.RUNNING)
                                       for state in states.values())
         self.wait_for(inactive)
+
+    def test_invalid_local_target_prevents_run_and_preview_before_selection_or_effects(self):
+        invalid_name = "write\n"
+        for command in (("run",), ("run", "--dry-run"),
+                        ("run", "healthy"), ("run", "healthy", "--dry-run")):
+            with self.subTest(command=command):
+                work = self.make_workdir()
+                (work / ".gwfconf.json").write_text(json.dumps(self.config))
+                (work / "workflow.py").write_text(
+                    TASK_FACTORY + "from gwflow import Workflow\n"
+                    "gwf = Workflow()\n"
+                    "healthy = empty_task(inputs=[])\n"
+                    "healthy.target('write', inputs=[], outputs=['out.txt']) << 'touch out.txt'\n"
+                    "gwf.task(healthy, alias='healthy')\n"
+                    "invalid = empty_task(inputs=[])\n"
+                    f"invalid.target({invalid_name!r}, inputs=[], outputs=['out.txt']) << 'touch out.txt'\n"
+                    "gwf.task(invalid, alias='invalid')\n"
+                )
+                result = subprocess.run([GWFLOW, *command], cwd=work,
+                                        capture_output=True, text=True, timeout=30)
+                self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertIn(f"Invalid local target name: {invalid_name!r}", result.stderr)
+                self.assertNotIn("Traceback", result.stderr)
+                self.assertNoSubmissions(result.stdout + result.stderr)
+                with Client.connect(port=self.port) as client:
+                    self.assertEqual(client.status(), {})
+                self.assertFalse((work / "work").exists())
+                self.assertFalse((work / "results").exists())
+                self.assertFalse((work / ".gwf/gwflow").exists())
+                self.assertEqual(list((work / ".gwf").rglob("*.json")), [])
 
     def test_failed_or_incomplete_output_sets_never_publish_results(self):
         outside = self.work / "outside.txt"
