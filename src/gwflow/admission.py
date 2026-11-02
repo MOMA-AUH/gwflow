@@ -279,15 +279,13 @@ def cancellation_admissions(store, attempt):
             candidate.error = error
         selected.append(candidate)
     current_submissions = {item.intent["submission"] for item in selected if item.intent is not None}
-    unresolved_jobs = {attempt["jobs"][item.local] for item in selected if item.error is not None}
     for token in store.records(attempt).names("admissions"):
         candidate = CancellationAdmission(f"admission {token}", historical=True)
         try:
             candidate.intent = _archived_intent(store, attempt, token)
-            # A missing/malformed selected intent must not be bypassed through
-            # its archive. Its current-job outcome already reports the failure.
-            if (candidate.intent["submission"] in current_submissions
-                    or candidate.intent["job"] in unresolved_jobs):
+            # Archives establish their own immutable identity. They cannot
+            # resolve an unreadable current pointer, whose failure stays visible.
+            if candidate.intent["submission"] in current_submissions:
                 continue
             candidate.local = candidate.intent["job"].removeprefix(attempt["task"] + "__").rsplit("__", 1)[0]
         except Exception as error:
@@ -303,7 +301,7 @@ def observe_cancellation(store, attempt, candidate, backend, name):
         raise candidate.error
     item = _observe(store, attempt, backend, name, {candidate.local: candidate.intent},
                     tolerate_state_errors=True, historical=candidate.historical)[candidate.local]
-    if candidate.historical and item.state != "complete":
+    if candidate.historical and item.state not in ("complete", "pending"):
         # Recovery's inactivity assertion cannot resolve conflicting or missing
         # cancellation identities, even when it classified an unknown job failed.
         require_cancellation_identity(backend, name, item)

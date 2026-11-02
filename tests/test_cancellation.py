@@ -303,7 +303,8 @@ class CancellationTests(LocalBackendTestCase):
         self.run_complete()
         index = self.cli("logs", "sample", "--details")
         submissions = dict(re.findall(r"(sample__\w+): complete; submission (\S+)", index))
-        # A missing selected intent is a persistence fault, not a state lookup.
+        # The missing selected intent remains a persistence fault. Its separate
+        # immutable archive can still identify admitted work for cancellation.
         path = record_path(self.work, "sample", "submissions/*/left-intent.json")
         self.assertEqual(read_record(path)["submission"], submissions["sample__left"])
         remove_record(path)
@@ -312,7 +313,7 @@ class CancellationTests(LocalBackendTestCase):
         before = self.snapshot()
         preview = self.cli("-b", "recovery_fixture", "cancel", "sample", "--dry-run", env=environment, success=False)
         self.assertIn("Unresolved job identity", preview)
-        self.assertEqual(preview.count("Would request cancellation"), 4, preview)
+        self.assertEqual(preview.count("Would request cancellation"), 5, preview)
         self.assertFalse((self.work / "cancellation-requests.jsonl").exists())
         output = self.cli("-b", "recovery_fixture", "cancel", "sample", env=environment, success=False)
         self.assertIn("sample__left", output)
@@ -320,9 +321,9 @@ class CancellationTests(LocalBackendTestCase):
         self.assertNotIn("Submission: not submitted", output)
         self.assertIn("sample__right", output)
         self.assertIn("Cancellation request failed: injected cancellation rejection", output)
-        self.assertEqual(output.count("Cancellation requested"), 3, output)
+        self.assertEqual(output.count("Cancellation requested"), 4, output)
         requested = [json.loads(line) for line in (self.work / "cancellation-requests.jsonl").read_text().splitlines()]
-        self.assertCountEqual(requested, [submission for public, submission in submissions.items() if public != "sample__left"])
+        self.assertCountEqual(requested, submissions.values())
         self.assertIn("Traceback", output)
         self.assertEqual(self.snapshot(), before)
 
@@ -509,6 +510,34 @@ class EarlierSubmissionCancellationTests(LocalBackendTestCase):
         self.assertIn(old, output)
         self.assertIn("No admitted work to cancel", output)
         self.assertFalse((self.work / "cancellation-requests.jsonl").exists())
+        self.assertEqual(self.snapshot(), before)
+
+    def test_earlier_proven_rejection_remains_not_admitted_after_successful_run(self):
+        self.cli("-b", "recovery_fixture", "run", success=False,
+                 env=self.inject(reject_before_admission=True))
+        self.run_complete()
+        before = self.snapshot()
+        output = self.cli("-b", "recovery_fixture", "cancel", "sample", "--details",
+                          env=self.inject(record_cancellations=True))
+        self.assertIn("No admitted work to cancel", output)
+        self.assertIn("Not admitted", output)
+        self.assertFalse((self.work / "cancellation-requests.jsonl").exists())
+        self.assertEqual(self.snapshot(), before)
+
+    def test_unreadable_latest_intent_does_not_hide_verified_earlier_submission(self):
+        old = self.recovered_retry()["gwflow_complete"]
+        remove_record(record_path(self.work, "sample", "submissions/*/gwflow_complete-intent.json"))
+        before = self.snapshot()
+        environment = self.inject(submission_states={old["name"]: "RUNNING"},
+                                  record_cancellations=True, accept_cancel_only=True)
+        output = self.cli("-b", "recovery_fixture", "cancel", "sample", env=environment, success=False)
+        self.assertIn("Unresolved job identity", output)
+        self.assertIn("current intent is missing", output)
+        self.assertIn("Cancellation incomplete", output)
+        self.assertIn("Submission: " + old["name"], output)
+        self.assertIn("Backend job: " + str(old["id"]), output)
+        requests = [json.loads(line) for line in (self.work / "cancellation-requests.jsonl").read_text().splitlines()]
+        self.assertEqual(requests, [old["name"]])
         self.assertEqual(self.snapshot(), before)
 
 
