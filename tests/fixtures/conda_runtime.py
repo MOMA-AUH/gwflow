@@ -5,6 +5,7 @@ import json
 import hashlib
 import os
 from pathlib import Path
+import shutil
 import sys
 
 
@@ -38,6 +39,10 @@ if arguments[0] == "create":
             record["version"] = "99.0"
         (prefix / "conda-meta" / (name + ".json")).write_text(json.dumps(record))
     (prefix / "installation.json").write_text(json.dumps({"explicit": explicit, "cache": os.environ.get("CONDA_PKGS_DIRS")}))
+    if probe := os.environ.get("GWFLOW_CONDA_PROBE"):
+        (prefix / "bin").mkdir()
+        shutil.copy(probe, prefix / "bin/python")
+        (prefix / "extra-packages.json").write_text(os.environ.get("GWFLOW_CONDA_EXAMPLES", "[]"))
     sys.exit(0)
 records = [json.loads(path.read_text()) for path in sorted((prefix / "conda-meta").glob("*.json"))]
 if "--explicit" in arguments:

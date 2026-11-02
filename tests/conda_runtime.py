@@ -57,7 +57,8 @@ def installed_inventory(conda: str, prefix: Path, fixtures: dict[str, str]) -> d
     observed = json.loads(run(conda, "list", "--prefix", str(prefix), "--json"))
     for item in observed:
         if item["name"] in FIXTURES and item["version"] != fixtures[item["name"]]:
-            raise ValueError(f"Installed example fixture differs from source: {item['name']}")
+            raise ValueError(f"Installed example fixture version differs from expected: {item['name']} "
+                             f"(installed {item['version']}, expected {fixtures[item['name']]})")
     runtime = [item for item in observed if item["name"] not in FIXTURES]
     if {item["name"] for item in runtime} != set(records):
         raise ValueError("Installed runtime includes missing records or unsupported package sources")
@@ -151,13 +152,18 @@ def fixture_inventory(source: Path) -> dict[str, str]:
     return {name: digest(source / name) for name in names}
 
 
-def capture(conda: str, prefix: Path, artifact: Path, source: Path, output: Path) -> None:
-    target = host_platform()
+def fixture_versions(source: Path) -> dict[str, str]:
     fixtures = {}
     for name in ("summary-task", "report-task"):
         with (source / "examples/packaged/packages" / name / "pyproject.toml").open("rb") as stream:
             project = tomllib.load(stream)["project"]
         fixtures[project["name"]] = project["version"]
+    return fixtures
+
+
+def capture(conda: str, prefix: Path, artifact: Path, source: Path, output: Path) -> None:
+    target = host_platform()
+    fixtures = fixture_versions(source)
     records = installed_inventory(conda, prefix, fixtures)
     entries = {name: package_entry(record, target, local=name == "gwflow") for name, record in records.items()}
     exported = run(conda, "list", "--prefix", str(prefix), "--explicit", "--sha256")

@@ -88,6 +88,12 @@ supported dependencies. Run the tool from a third environment with `gwf` and
 The driver environment controls the tests. Its packages do not supply the
 baseline or candidate runtime.
 
+The candidate can contain the two packaged examples. Their installed versions
+must match the example `pyproject.toml` files in the checkout that runs the tool.
+The tool checks these versions before and after the journeys. Baseline example
+versions come from the preserved capture. CI runs all journeys with and without
+candidate examples for both original and replacement dependency environments.
+
 In this example, `BASELINE_CAPTURE` contains the preserved capture files.
 `CANDIDATE_PYTHON` identifies the independently installed candidate interpreter.
 `CANDIDATE_ARTIFACT` identifies its exact Conda package.

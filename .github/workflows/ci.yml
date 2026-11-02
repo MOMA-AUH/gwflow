@@ -240,53 +240,62 @@ jobs:
           # A supported older Python patch exercises runtime variation in this fixture.
           # Both installations use the candidate artifact, not a published stable baseline.
           conda create -y -p "$RUNNER_TEMP/gwflow-compat-candidate" python=3.12.14 "gwflow=$version" -c "file://$RUNNER_TEMP/conda-dist" -c gwforg -c conda-forge
-          conda run -p "$RUNNER_TEMP/gwflow-smoke" python tests/compare_runtime.py \
-            --baseline-capture "$RUNNER_TEMP/conda-runtime" --baseline-kind controlled-artifact \
-            --candidate-python "$RUNNER_TEMP/gwflow-compat-candidate/bin/python" \
-            --candidate-artifact "$artifact" --candidate-source "$source" \
-            --root build/validation/independent-compatibility
-          python - <<'PY'
-          import json
-          from pathlib import Path
-          evidence = json.loads(Path("build/validation/independent-compatibility/comparison.json").read_text())
-          assert evidence["status"] == "passed", evidence
-          assert evidence["baseline_kind"] == "controlled-artifact", evidence
-          assert evidence["exact_baseline_runtime"] is True, evidence
-          baseline = evidence["environments"]["baseline"]
-          candidate = evidence["environments"]["candidate"]
-          assert baseline["prefix"] == "<BASELINE>" and candidate["prefix"] == "<CANDIDATE>", evidence
-          assert baseline["prefix_identity"] != candidate["prefix_identity"], evidence
-          assert baseline["python_version"] != candidate["python_version"], (baseline, candidate)
-          assert candidate["python_version"] == "3.12.14", candidate
-          for environment in (baseline, candidate):
-              assert environment["dependency_policy"] == "independent", environment
-              assert environment["supported_runtime"] is True, environment
-          assert evidence["journeys"] == {"run": 15, "failures": 0, "errors": 0, "skips": 0}, evidence
-          PY
           python tests/conda_runtime.py capture \
             --prefix "$RUNNER_TEMP/gwflow-compat-candidate" --artifact "$artifact" \
             --source "$PWD" --output "$RUNNER_TEMP/compat-replacement"
-          conda run -p "$RUNNER_TEMP/gwflow-smoke" python tests/compare_runtime.py \
-            --baseline-capture "$RUNNER_TEMP/conda-runtime" --baseline-kind controlled-artifact \
-            --replacement-capture "$RUNNER_TEMP/compat-replacement" \
-            --replacement-reason 'Controlled dependency-loss replacement fixture; not an exact original runtime' \
-            --candidate-python "$RUNNER_TEMP/gwflow-compat-candidate/bin/python" \
-            --candidate-artifact "$artifact" --candidate-source "$source" \
-            --root build/validation/replacement-compatibility
-          python - <<'PY'
+          for fixture_profile in without-examples with-examples; do
+            if [ "$fixture_profile" = with-examples ]; then
+              conda run -p "$RUNNER_TEMP/gwflow-compat-candidate" python -m pip install --no-deps \
+                ./examples/packaged/packages/summary-task ./examples/packaged/packages/report-task
+            fi
+            conda run -p "$RUNNER_TEMP/gwflow-smoke" python tests/compare_runtime.py \
+              --baseline-capture "$RUNNER_TEMP/conda-runtime" --baseline-kind controlled-artifact \
+              --candidate-python "$RUNNER_TEMP/gwflow-compat-candidate/bin/python" \
+              --candidate-artifact "$artifact" --candidate-source "$source" \
+              --root "build/validation/independent-compatibility/$fixture_profile"
+            conda run -p "$RUNNER_TEMP/gwflow-smoke" python tests/compare_runtime.py \
+              --baseline-capture "$RUNNER_TEMP/conda-runtime" --baseline-kind controlled-artifact \
+              --replacement-capture "$RUNNER_TEMP/compat-replacement" \
+              --replacement-reason 'Controlled dependency-loss replacement fixture; not an exact original runtime' \
+              --candidate-python "$RUNNER_TEMP/gwflow-compat-candidate/bin/python" \
+              --candidate-artifact "$artifact" --candidate-source "$source" \
+              --root "build/validation/replacement-compatibility/$fixture_profile"
+          done
+          python - <<'PYTHON'
           import json
           from pathlib import Path
-          evidence = json.loads(Path("build/validation/replacement-compatibility/comparison.json").read_text())
-          assert evidence["status"] == "passed", evidence
-          assert evidence["baseline_kind"] == "controlled-artifact", evidence
-          assert evidence["exact_baseline_runtime"] is False, evidence
-          assert evidence["replacement"]["reason"], evidence
-          assert evidence["baseline_capture"]["artifact"] == evidence["replacement"]["capture"]["artifact"], evidence
-          for environment in evidence["environments"].values():
-              assert environment["dependency_policy"] == "independent", environment
-              assert environment["supported_runtime"] is True, environment
-          assert evidence["journeys"] == {"run": 15, "failures": 0, "errors": 0, "skips": 0}, evidence
-          PY
+          import tomllib
+          fixtures = {}
+          for path in Path("examples/packaged/packages").glob("*/pyproject.toml"):
+              project = tomllib.loads(path.read_text())["project"]
+              fixtures[project["name"]] = project["version"]
+          for profile in ("without-examples", "with-examples"):
+              for comparison in ("independent", "replacement"):
+                  path = Path(f"build/validation/{comparison}-compatibility/{profile}/comparison.json")
+                  evidence = json.loads(path.read_text())
+                  assert evidence["status"] == "passed", evidence
+                  assert evidence["baseline_kind"] == "controlled-artifact", evidence
+                  assert evidence["exact_baseline_runtime"] is (comparison == "independent"), evidence
+                  baseline = evidence["environments"]["baseline"]
+                  candidate = evidence["environments"]["candidate"]
+                  assert baseline["prefix"] == "<BASELINE>" and candidate["prefix"] == "<CANDIDATE>", evidence
+                  assert baseline["prefix_identity"] != candidate["prefix_identity"], evidence
+                  assert candidate["python_version"] == "3.12.14", candidate
+                  if comparison == "independent":
+                      assert baseline["python_version"] != candidate["python_version"], (baseline, candidate)
+                  else:
+                      assert evidence["replacement"]["reason"], evidence
+                      assert evidence["baseline_capture"]["artifact"] == evidence["replacement"]["capture"]["artifact"], evidence
+                  for environment in (baseline, candidate):
+                      assert environment["dependency_policy"] == "independent", environment
+                      assert environment["supported_runtime"] is True, environment
+                  for name, version in fixtures.items():
+                      if profile == "with-examples":
+                          assert candidate["versions"][name] == version, candidate
+                      else:
+                          assert name not in candidate["versions"], candidate
+                  assert evidence["journeys"] == {"run": 15, "failures": 0, "errors": 0, "skips": 0}, evidence
+          PYTHON
       - name: Compare pinned stable releases in independent runtimes
         if: steps.compatibility.outputs.mode == 'preserved-release'
         shell: bash -l {0}
@@ -311,8 +320,8 @@ jobs:
             ${{ runner.temp }}/conda-runtime/runtime.explicit.txt
             ${{ runner.temp }}/conda-runtime/runtime.json
             build/validation/conda-runtime/summary.json
-            build/validation/independent-compatibility/comparison.json
-            build/validation/replacement-compatibility/comparison.json
+            build/validation/independent-compatibility/*/comparison.json
+            build/validation/replacement-compatibility/*/comparison.json
             ${{ runner.temp }}/qualified-release/release.json
             ${{ runner.temp }}/qualified-release/SHA256SUMS
           if-no-files-found: error
