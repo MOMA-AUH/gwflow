@@ -5,10 +5,11 @@ import shlex
 from contextlib import ExitStack
 
 import click
-from gwf.backends import BackendStatus, create_backend
+from gwf.backends import BackendStatus
 from gwf.core import pass_context
 from gwf.plugins.logs import logs as gwf_logs
 
+from .backends import create_backend
 from .activity import activity
 from .diagnostics import report_error
 

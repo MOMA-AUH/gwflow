@@ -5,11 +5,11 @@ import shlex
 import sys
 
 from gwf import Target
-from gwf.backends import create_backend
 from gwf.core import get_spec_hashes
 from gwf.exceptions import WorkflowError
 
 from . import _files, admission, transfer
+from .backends import create_backend
 from .activity import activity as report_activity
 from .lifecycle import producer_names
 

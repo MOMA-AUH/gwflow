@@ -60,8 +60,8 @@ class Probe:
                 phase = "planning"
             elif module.startswith("gwf.backends.") or module in ("state_backend", "recovery_backend"):
                 phase = "backend"
-                if ((module == "gwf.backends.local" and name == "status"
-                     and type(frame.f_locals.get("self")).__name__ == "Client")
+                if ((module == "gwf.backends.local" and name == "send"
+                     and frame.f_locals.get("kind") == "get_task_states")
                         or module == "gwf.backends.slurm" and name == "get_job_states"
                         or module == "state_backend" and name == "status"):
                     self.counts[phase]["scheduler_requests"] += 1
