@@ -1,6 +1,7 @@
 """New Task input blockers remain visible through installed status and run."""
 
 import os
+import shutil
 
 from support import LocalBackendTestCase, TASK_FACTORY
 import test_json_status
@@ -21,6 +22,7 @@ class NewTaskInputTests(LocalBackendTestCase):
                 f"gwf.task(task, alias={name!r})\n"
             )
         (self.work / "workflow.py").write_text(declaration)
+        shutil.rmtree(self.work / "__pycache__", ignore_errors=True)
 
     def test_missing_input_reports_both_new_tasks_without_allocating_attempts(self):
         document = self.report()
