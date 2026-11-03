@@ -19,6 +19,9 @@ updates:
 
   - package-ecosystem: conda
     directory: /
+    # Python support changes require coordinated constraints and validation.
+    ignore:
+      - dependency-name: python
     schedule:
       interval: weekly
     assignees:
