@@ -3,7 +3,7 @@ channels:
   - gwforg
   - conda-forge
 dependencies:
-  - python>=3.12,<3.13
+  - python>=3.12,<3.16.0
   - pip
   - gwf=2.1.1
   - rich>=15.0.0,<16
