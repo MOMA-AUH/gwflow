@@ -34,7 +34,7 @@ def check_runtime(conda: str, bundle: Path, prefix: Path, source: Path) -> dict:
 def install(conda: str, bundle: Path, prefix: Path, source: Path) -> None:
     restore(conda, bundle, prefix)
     run(str(prefix / "bin/python"), "-m", "pip", "install", "--no-deps",
-        *(str(source / "examples/packaged/packages" / name) for name in ("summary-task", "report-task")),
+        *(str(source / "tests/fixtures/packaged_tasks/packages" / name) for name in ("summary-task", "report-task")),
         show_output=True)
     check_runtime(conda, bundle, prefix, source)
 

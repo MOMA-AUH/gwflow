@@ -50,7 +50,7 @@ frontend during planning and shared across a user's workflows. Missing images
 are pulled into a shared cache with progress and failure reporting; cached
 images are reused without registry access. Local and acquired images use the
 ordinary Input baseline for execution, recovery, and Reuse. See the
-[registry example](../examples/registry/workflow.py) and
+[registry example](https://github.com/MOMA-AUH/gwflow/blob/v0.4.2/examples/registry/workflow.py) and
 [registry acceptance record](validation/registry-images/acceptance.md) for
 recorded local/Slurm validation, and the
 [validation guide](validation/README.md) for current checks.
@@ -69,7 +69,7 @@ custom names, and image-aware Reuse to the managed lifecycle. Tasks can combine
 host and container commands while keeping named dependencies, partial retries,
 fresh attempts, separate work/results filesystems, interrupted transfer recovery,
 repair, and work cleanup. The
-[packaged A/B/C example](../examples/packaged/README.md) demonstrates completing two
+[packaged A/B/C example](https://github.com/MOMA-AUH/gwflow/blob/v0.4.0/examples/packaged/README.md) demonstrates completing two
 producers, cleaning their work, then computing a new consumer from retained
 results with host or container execution. The
 [v0.4.0 validation record](validation/containers/acceptance.md) maps that

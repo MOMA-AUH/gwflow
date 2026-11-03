@@ -1,0 +1,34 @@
+{
+  "description": "Wholly artificial DNA; no biological source data or sequencing errors.",
+  "generator": "example/generate_data.py",
+  "seed": 20261103,
+  "reference": {
+    "name": "synthetic_reference",
+    "length": 10000
+  },
+  "read_length": 150,
+  "fragment_length": 350,
+  "quality": {
+    "encoding": "Phred+33",
+    "score": 40
+  },
+  "truth_coordinates": "truth.tsv uses 1-based inclusive fragment coordinates; * means unmapped.",
+  "samples": {
+    "sample_a": {
+      "read_pairs": 100,
+      "primary_reads": 200,
+      "mapped_primary_reads": 200,
+      "unmapped_primary_reads": 0,
+      "properly_paired_reads": 200,
+      "mapped_percent": 100.0
+    },
+    "sample_b": {
+      "read_pairs": 100,
+      "primary_reads": 200,
+      "mapped_primary_reads": 160,
+      "unmapped_primary_reads": 40,
+      "properly_paired_reads": 160,
+      "mapped_percent": 80.0
+    }
+  }
+}

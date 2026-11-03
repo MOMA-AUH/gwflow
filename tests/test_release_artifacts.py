@@ -37,7 +37,7 @@ class ReleaseArtifactFixture(unittest.TestCase):
             "schema_version": 1, "platform": "linux-64", "source_commit": self.source,
             "artifact": {"filename": filename, "sha256": hashlib.sha256(package).hexdigest(), "subdir": "noarch"},
             "manifest": {"filename": "runtime.explicit.txt", "sha256": hashlib.sha256(manifest.encode()).hexdigest()},
-            "fixtures": {"examples/packaged/packages/fixture.py": "2" * 64},
+            "fixtures": {"tests/fixtures/packaged_tasks/packages/fixture.py": "2" * 64},
             "fixture_versions": {"gwflow-summary-task": "0.4.0", "gwflow-report-task": "0.4.0"},
         }
         (self.capture / filename).write_bytes(package)

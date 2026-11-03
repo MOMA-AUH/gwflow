@@ -2,7 +2,7 @@ Bootstrap: docker
 From: python:3.12-slim-bookworm
 
 %files
-    examples/packaged/packages/summary-task /opt/summary-task
+    tests/fixtures/packaged_tasks/packages/summary-task /opt/summary-task
 
 %post
     python -m pip install --no-deps /opt/summary-task

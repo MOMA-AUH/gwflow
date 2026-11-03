@@ -11,14 +11,15 @@ __pycache__/
 
 # Local development environment and example outputs.
 /.conda-env/
-/examples/uppercase/.gwf/
-/examples/uppercase/work/
-/examples/uppercase/results/
-/examples/registry/.gwf/
-/examples/registry/work/
-/examples/registry/results/
-/examples/packaged/.gwf/
-/examples/packaged/work/
-/examples/packaged/results/
-/examples/packaged/packages/*/build/
-/examples/packaged/packages/*/dist/
+/example/.gwf/
+/example/.gwfconf.json
+/example/work/
+/example/results/
+/tests/fixtures/uppercase/.gwf/
+/tests/fixtures/uppercase/work/
+/tests/fixtures/uppercase/results/
+/tests/fixtures/packaged_tasks/.gwf/
+/tests/fixtures/packaged_tasks/work/
+/tests/fixtures/packaged_tasks/results/
+/tests/fixtures/packaged_tasks/packages/*/build/
+/tests/fixtures/packaged_tasks/packages/*/dist/

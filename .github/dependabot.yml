@@ -10,8 +10,8 @@ updates:
   - package-ecosystem: pip
     directories:
       - /
-      - /examples/packaged/packages/report-task
-      - /examples/packaged/packages/summary-task
+      - /tests/fixtures/packaged_tasks/packages/report-task
+      - /tests/fixtures/packaged_tasks/packages/summary-task
     schedule:
       interval: weekly
     assignees:
