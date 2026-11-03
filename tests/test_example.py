@@ -1,108 +1,142 @@
-"""Installed factory packages and the executable managed-storage example."""
+"""Committed synthetic inputs and the public multi-step bioinformatics example."""
 
+import csv
+import json
 import os
 from pathlib import Path
+import runpy
 import shutil
-import json
+import subprocess
+import sys
+import tempfile
 import unittest
-
-import test_managed_recovery
 
 from support import LocalBackendTestCase
 
 
-EXAMPLE = Path(__file__).resolve().parents[1] / "examples" / "packaged"
+EXAMPLE = Path(__file__).resolve().parents[1] / "example"
 
 
-class UppercaseExampleTests(LocalBackendTestCase):
+class SyntheticExampleDataTests(unittest.TestCase):
+    def test_committed_inputs_regenerate_exactly(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            subprocess.run([sys.executable, str(EXAMPLE / "generate_data.py"),
+                            "--output-dir", str(output)], check=True)
+            expected = {path.name: path.read_bytes() for path in (EXAMPLE / "data").iterdir()}
+            self.assertEqual({path.name: path.read_bytes() for path in output.iterdir()}, expected)
+
+
+@unittest.skipUnless(os.environ.get("GWFLOW_TEST_BIOINFORMATICS") == "1",
+                     "set GWFLOW_TEST_BIOINFORMATICS=1 for real Bioconda container execution")
+class BioinformaticsExampleTests(LocalBackendTestCase):
     def configure_workflow(self):
-        for name in ("workflow.py", "task_library.py", "input.txt"):
-            shutil.copy(EXAMPLE.parent / "uppercase" / name, self.work)
+        for name in ("workflow.py", "task_library.py", "multiqc_config.yaml"):
+            shutil.copy(EXAMPLE / name, self.work)
+        shutil.copytree(EXAMPLE / "data", self.work / "data")
+        self.expected = json.loads((self.work / "data/expected.json").read_text())["samples"]
 
-    def test_independent_factory_instances_retain_uppercase_text(self):
-        self.run_complete()
-        for name in ("alpha", "beta"):
-            self.assertEqual((self.work / "results" / name / "text.txt").read_text(),
-                             "HELLO FROM GWFLOW\n")
+    def setUp(self):
+        super().setUp()
+        # Real registry acquisition can take longer than an ordinary CLI check.
+        # Use the public CLI with live local workers, as in the walkthrough.
+        result = subprocess.run([self.executable, "run", "--dry-run"], cwd=self.work,
+                                capture_output=True, text=True, timeout=900)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def wait_for_completion(self, *selectors):
+        result = subprocess.run(
+            [self.executable, "wait", *selectors, "--interval", "0.2", "--timeout", "180"],
+            cwd=self.work, capture_output=True, text=True, timeout=200,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def samtools(self, *arguments):
+        from gwflow.images import binding
+
+        reference = runpy.run_path(str(EXAMPLE / "task_library.py"))["SAMTOOLS"]
+        image = binding(reference, self.work)
+        result = subprocess.run(["apptainer", "exec", "--cleanenv", image, "samtools", *map(str, arguments)],
+                                cwd=self.work, capture_output=True, text=True, timeout=60)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        return result.stdout
+
+    def assert_alignments(self):
+        truth = {}
+        with (self.work / "data/truth.tsv").open() as stream:
+            for row in csv.DictReader(stream, delimiter="\t"):
+                truth[row["read_pair"]] = row
+        for sample, expected in self.expected.items():
+            result = self.work / "results" / sample
+            bam = result / "alignment.bam"
+            self.samtools("quickcheck", bam)
+            # Reading through the index verifies the retained BAM/index pair.
+            self.assertEqual(int(self.samtools("view", "-c", bam, "synthetic_reference")),
+                             expected["mapped_primary_reads"])
+            records = [line.split("\t") for line in self.samtools("view", "-F", "2304", bam).splitlines()]
+            self.assertEqual(len(records), expected["primary_reads"])
+            self.assertEqual(sum(not int(row[1]) & 4 for row in records), expected["mapped_primary_reads"])
+            self.assertEqual(sum(bool(int(row[1]) & 4) for row in records), expected["unmapped_primary_reads"])
+            self.assertEqual(sum(bool(int(row[1]) & 2) for row in records), expected["properly_paired_reads"])
+            for row in records:
+                pair = truth[row[0]]
+                flag = int(row[1])
+                self.assertEqual(row[2], pair["reference"])
+                if not flag & 4:
+                    position = (int(pair["fragment_start"]) if flag & 64
+                                else int(pair["fragment_end"]) - 149)
+                    self.assertEqual(int(row[3]), position)
+                    self.assertEqual(row[5], "150M")
+            flagstat = (result / "flagstat.txt").read_text()
+            self.assertIn(f'{expected["primary_reads"]} + 0 in total', flagstat)
+            self.assertIn(f'{expected["mapped_primary_reads"]} + 0 mapped (', flagstat)
+
+    def assert_report(self):
+        report = self.work / "results/report"
+        self.assertIn("MultiQC", (report / "report.html").read_text())
+        with (report / "summary.tsv").open() as stream:
+            rows = {row["Sample"]: row for row in csv.DictReader(stream, delimiter="\t")}
+        self.assertEqual(set(rows), set(self.expected))
+        for sample, expected in self.expected.items():
+            self.assertEqual(float(rows[sample]["samtools_flagstat-mapped_passed"]),
+                             expected["mapped_primary_reads"])
+            self.assertEqual(float(rows[sample]["samtools_flagstat-mapped_passed_pct"]),
+                             expected["mapped_percent"])
+
+    def test_cleaned_multi_step_tasks_feed_report_without_recomputation(self):
+        first = self.cli("run", "align__*", "--details")
+        self.wait_for_completion("align__*")
+        for sample in self.expected:
+            for target in ("align", "sort", "index", "statistics"):
+                self.assertIn(f"align__{sample}__{target}: confirmed submitted", first)
+            self.assertTrue(list((self.work / "work" / f"align__{sample}").rglob("alignment.sam")))
+        self.assertNotIn("report__report: confirmed submitted", first)
+        self.assert_alignments()
+
+        retained = {path: (path.read_bytes(), path.stat().st_mtime_ns)
+                    for path in (self.work / "results").rglob("*") if path.is_file()}
+        self.assertIn("eligible", self.cli("clean", "align__*"))
+        self.cli("clean", "align__*", "--delete")
+        self.assertEqual({path: (path.read_bytes(), path.stat().st_mtime_ns) for path in retained}, retained)
+        for sample in self.expected:
+            self.assertFalse(list((self.work / "work" / f"align__{sample}").iterdir()))
+
+        preview = self.cli("run", "report", "--dry-run")
+        for sample in self.expected:
+            self.assertRegex(preview, rf"Task align__{sample}\s+Reuse\s+")
+        self.assertRegex(preview, r"Task report\s+Run\s+")
+        second = self.cli("run", "report", "--details")
+        self.wait_for_completion("report")
+        self.assertIn("report__report: confirmed submitted", second)
+        self.assertNotRegex(second, r"align__\w+: confirmed submitted")
+        self.assert_report()
+        self.assertNoSubmissions(self.cli("run"))
         self.cli("clean", "--delete")
         self.assertNoSubmissions(self.cli("run"))
 
-
-class PackagedExampleTests(LocalBackendTestCase):
-    slurm_environment = test_managed_recovery.ManagedCoordinationTests.slurm_environment
-    def configure_workflow(self):
-        shutil.copy(EXAMPLE / "workflow.py", self.work)
-        shutil.copytree(EXAMPLE / "data", self.work / "data")
-
-    def test_installed_producers_clean_then_new_consumer_computes_only_once(self):
-        producers_only = {**os.environ, "GWFLOW_EXAMPLE_REPORT": "0"}
-        preview = self.cli("run", "A", "B", "--dry-run", env=producers_only)
-        self.assertRegex(preview, r"Task A\s+Run\s+")
-        self.assertRegex(preview, r"Task B\s+Run\s+")
-        self.assertNotIn("Task C", preview)
-        first = self.cli("run", "A", "B", "--details", env=producers_only)
-        self.finish()
-        self.assertIn("A__clean: confirmed submitted", first)
-        self.assertIn("B__clean: confirmed submitted", first)
-        self.assertNotRegex(first, r"C__\w+: confirmed submitted")
-        before = {path: (path.read_bytes(), path.stat().st_mtime_ns)
-                  for root in (self.work / ".gwf/gwflow", self.work / "work", self.work / "results")
-                  for path in root.rglob("*") if path.is_file()}
-        preview = self.cli("clean", "A", "B", env=producers_only)
-        self.assertIn("eligible", preview)
-        self.assertEqual({path: (path.read_bytes(), path.stat().st_mtime_ns) for path in before}, before)
-        self.cli("clean", "A", "B", "--delete", env=producers_only)
-        preview = self.cli("run", "C", "--dry-run")
-        self.assertRegex(preview, r"Task A\s+Reuse\s+")
-        self.assertRegex(preview, r"Task B\s+Reuse\s+")
-        self.assertRegex(preview, r"Task C\s+Run\s+")
-        second = self.cli("run", "C", "--details")
-        self.finish()
-        self.assertIn("C__join: confirmed submitted", second)
-        self.assertNotRegex(second, r"[AB]__\w+: confirmed submitted")
-        self.assertEqual((self.work / "results/net/net.csv").read_text().splitlines(),
-                         ["product,sales,returns,net", "apples,17,2,15", "pears,8,1,7"])
-        self.assertEqual(sorted(str(path.relative_to(self.work / "results"))
-                                for path in (self.work / "results").rglob("*") if path.is_file()),
-                         ["net/net.csv", "returns/summary.csv", "sales/summary.csv"])
-        for name in ("A", "B"):
-            self.assertFalse(list((self.work / "work" / name).iterdir()))
+    def test_full_workflow_waits_for_both_samples_and_retains_valid_results(self):
+        self.cli("run")
+        self.wait_for_completion()
+        self.assert_alignments()
+        self.assert_report()
         self.assertNoSubmissions(self.cli("run"))
-
-    def test_packaged_slurm_dependencies_wait_for_both_complete_producers(self):
-        self.cli("-b", "slurm", "run", env=self.slurm_environment())
-        self.finish()
-        submissions = [json.loads(line) for line in (self.work / "slurm-submitted.jsonl").read_text().splitlines()]
-        completed = [item["id"] for item in submissions if item["name"].startswith(("A__gwflow_complete__", "B__gwflow_complete__"))]
-        prepared = next(item for item in submissions if item["name"].startswith("C__gwflow_prepare__"))
-        self.assertCountEqual(prepared["args"][1].removeprefix("--dependency=afterok:").split(":"), completed)
-        for item in submissions:
-            if item["name"].startswith(("A__gwflow_prepare__", "B__gwflow_prepare__")):
-                self.assertEqual(item["args"], ["--parsable"])
-        self.assertEqual((self.work / "results/net/net.csv").read_text().splitlines(),
-                         ["product,sales,returns,net", "apples,17,2,15", "pears,8,1,7"])
-
-
-@unittest.skipUnless(os.environ.get("GWFLOW_TEST_SUMMARY_SIF") and os.environ.get("GWFLOW_TEST_REPORT_SIF"),
-                     "set prepared summary/report SIFs for real packaged container execution")
-class PackagedContainerExampleTests(LocalBackendTestCase):
-    def configure_workflow(self):
-        shutil.copy(EXAMPLE / "container-workflow.py", self.work / "workflow.py")
-        shutil.copytree(EXAMPLE / "data", self.work / "data")
-        (self.work / "images").mkdir()
-        for name in ("summary", "report"):
-            (self.work / "images" / f"{name}.sif").symlink_to(os.environ[f"GWFLOW_TEST_{name.upper()}_SIF"])
-
-    def test_packaged_containers_clean_producers_then_compute_only_the_new_consumer(self):
-        PackagedExampleTests.test_installed_producers_clean_then_new_consumer_computes_only_once(self)
-        for target in ("A__clean", "B__aggregate", "C__join"):
-            self.assertIn(" image ", self.cli("logs", target, "--stderr", "--no-pager"))
-        details = self.cli("run", "--dry-run", "--details")
-        consumer = details.split("Details for Task C:\n", 1)[1].split("Details for Task ", 1)[0]
-        workspace = Path(next(line.split("Workspace: ", 1)[1]
-                              for line in consumer.splitlines() if "Workspace: " in line))
-        for name in ("sales", "returns"):
-            staged = list(workspace.rglob(f"{name}/summary.csv"))
-            self.assertEqual(len(staged), 1)
-            self.assertTrue(staged[0].is_symlink())
-            self.assertTrue(staged[0].samefile(self.work / "results" / name / "summary.csv"))

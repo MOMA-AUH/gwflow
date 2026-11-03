@@ -22,14 +22,14 @@ artifact and records its successful channel installation and smoke checks.
 
 Run from the repository root in a Python 3.12 environment. Installing the project
 selects the pinned gwf 2.1.1 dependency and the current Rich requirement from
-`pyproject.toml`. Install both example packages for the packaged-workflow tests:
+`pyproject.toml`. Install both Task fixture packages for the packaged-workflow tests:
 
 ```sh
 python -m pip install .
-python -m pip install ./examples/packaged/packages/summary-task ./examples/packaged/packages/report-task
+python -m pip install ./tests/fixtures/packaged_tasks/packages/summary-task ./tests/fixtures/packaged_tasks/packages/report-task
 python -m unittest discover -s tests -v
 python tests/release_smoke.py
-python -m compileall -q src tests examples
+python -m compileall -q src tests example
 ```
 
 Container tests explicitly skip when their SIF fixtures are unset. Separate
@@ -45,8 +45,8 @@ fixtures before running the full suite with containers or the acceptance runner:
 ```sh
 mkdir -p build/validation
 apptainer build build/validation/basic.sif tests/fixtures/container.def
-apptainer build build/validation/summary.sif examples/packaged/images/summary.def
-apptainer build build/validation/report.sif examples/packaged/images/report.def
+apptainer build build/validation/summary.sif tests/fixtures/packaged_tasks/images/summary.def
+apptainer build build/validation/report.sif tests/fixtures/packaged_tasks/images/report.def
 export GWFLOW_TEST_SIF="$PWD/build/validation/basic.sif"
 export GWFLOW_TEST_SUMMARY_SIF="$PWD/build/validation/summary.sif"
 export GWFLOW_TEST_REPORT_SIF="$PWD/build/validation/report.sif"
@@ -54,15 +54,40 @@ export GWFLOW_TEST_REPORT_SIF="$PWD/build/validation/report.sif"
 
 Fixture builds require access to the base image registry. Set but unusable
 fixtures fail validation. Rerun the local checks above after fixture setup to
-include real container execution. The [packaged example](../../examples/packaged/README.md)
-describes the image contents and producer-cleanup-consumer scenario.
+include real container execution. The
+[packaged Task fixtures](../../tests/fixtures/packaged_tasks/README.md) retain
+coverage for installed Task packages and the producer-cleanup-consumer scenario.
+
+## Bioinformatics example
+
+The [public example](../../example/README.md) uses committed synthetic reads and
+three public Bioconda images. Its ordinary test checks that the committed dataset
+regenerates exactly. Real execution uses Apptainer and must be enabled explicitly.
+
+From the repository root, run the tests with real container execution enabled:
+
+```sh
+GWFLOW_TEST_BIOINFORMATICS=1 python -m unittest discover -s tests -p test_example.py -v
+```
+
+The tests start local workers in a temporary directory and acquire missing images.
+They compare the actual alignment statistics with the committed expectations and
+inspect both samples in the combined report. They also clean the producer Tasks,
+run the report from retained statistics, and establish that unchanged reruns
+submit no new jobs.
+
+Use `GWFLOW_IMAGE_CACHE` to select a different image cache if needed.
+Keep `GWFLOW_TEST_BIOINFORMATICS=1` set when running the full suite to include this
+integration test. An unset variable skips real bioinformatics execution and does
+not establish container evidence.
 
 ## Live backend acceptance
 
 The [acceptance runner](../../tests/validate_containers.py) exercises installed
 public CLI behavior with real local workers or Slurm. Install the project and
-example packages and prepare all three images first, including for focused
-registry validation. Choose a new evidence root for every invocation:
+Task fixture packages and prepare all three fixture images first.
+Focused registry validation also requires these fixtures.
+Choose a new evidence root for every invocation:
 
 ```sh
 python tests/validate_containers.py --backend local --root build/validation/local-acceptance

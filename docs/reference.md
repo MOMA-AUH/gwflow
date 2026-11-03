@@ -133,7 +133,7 @@ loaded workflow; removing a Python declaration does not end its admitted jobs.
 
 Use `gwflow` for `gwflow.Workflow` declarations and `gwf` for ordinary
 `gwf.Workflow` declarations. The managed commands are `run`, `status`, `logs`,
-`cancel`, `recover`, `clean`, `config`, and `workers`.
+`wait`, `cancel`, `recover`, `clean`, `config`, and `workers`.
 
 The default workflow is `workflow.py` with an object named `gwf`. Relative file
 lookup searches the current directory and its parents. Select another file or
@@ -749,6 +749,48 @@ and required upstream Tasks, including otherwise reusable Tasks. Cleanup neither
 acquires nor deletes images. Observations are not a distributed snapshot: jobs
 and files can change afterward, so run and cleanup recheck before acting.
 
+### Waiting for completion
+
+`gwflow wait` observes existing Task attempts without submitting, retrying, recovering,
+or canceling work. Exact names and quoted patterns select Tasks and their required
+upstream Tasks. No selectors means all declared Tasks. Downstream and unrelated
+Tasks stay outside the selected scope.
+
+Waiting fixes the Task set and attempt identities at startup. Each inspection
+loads the current workflow and inputs. A replaced attempt, removed Task, or tracked
+change that invalidates the awaited work ends the wait. Newly declared Tasks do
+not expand the scope. Success requires valid retained results and successful
+completion jobs, including record compaction.
+
+The first inspection starts immediately. Later inspections pause for 60 seconds.
+Use `gwflow wait report --interval 5` to change the pause to five seconds. Waiting
+has no time limit by default. Scheduler-query failures and unknown job outcomes keep waiting
+until sufficient observations or checked execution evidence resolve them. Known
+failures and invalidated attempts still end the wait promptly. Other loading or
+inspection errors also end the wait.
+
+Use `gwflow wait report --timeout 300` to limit the whole command to five minutes.
+The limit starts at command startup. It includes configuration and workflow loading,
+lock waits, scheduler queries, other inspection work, and pauses. Scheduler failures
+and unknown job outcomes do not reset the limit. Pauses stop when the remaining
+time expires. The timeout must be a finite number greater than zero.
+
+In a terminal, waiting updates a compact table with Task states and job progress.
+Redirected output reports state changes and a final result. Routine inspection
+phases and internal submission names stay hidden. Failures, required actions,
+scheduler problems, and recovery retain their explanations.
+Unchanged inspections stay silent. All messages, including output from workflow
+loading, go to stderr. Stdout stays empty. Use `gwflow wait report 2>wait.log` to
+capture the messages. Exit codes are `0` for completion, `1` for failed work or
+another waiting error, `2` for invalid command usage, `124` for timeout, and `130`
+for Ctrl+C.
+
+If completion needs another command, waiting returns `1`. This includes Tasks
+without attempts, deferred work, and work that needs retry or repair. Timeout and
+Ctrl+C stop waiting and clean up its inspection processes, temporary resources,
+and locks. Timeout does not establish Task failure. Submitted jobs can remain queued or running
+after any unsuccessful wait. A nonzero exit does not establish that jobs stopped.
+
 ### Task indexes and individual job logs
 
 ```sh
@@ -928,7 +970,8 @@ Tagged and digest-pinned references are accepted, for example
 `docker://registry.example/tools/demo@sha256:<64 lowercase hex digits>` with
 the placeholder replaced by the source's actual digest. Bare names remain
 local paths; other transports and private-registry authentication are not
-provided. See [the registry example](../examples/registry/workflow.py).
+provided. The [bioinformatics example](../example/README.md#container-images)
+uses digest-pinned Bioconda images for every computation target.
 
 The frontend acquires a missing image through `apptainer pull` and publishes a
 complete local SIF in `~/.cache/gwflow/images`. Set `GWFLOW_IMAGE_CACHE` to choose

@@ -104,8 +104,8 @@ def publish(args):
                 raise ValueError("Published package was not installable after 10 attempts")
             time.sleep(args.retry_delay)
         run = [args.conda, "run", "-p", prefix, "python"]
-        subprocess.run([*run, "-m", "pip", "install", "./examples/packaged/packages/summary-task",
-                        "./examples/packaged/packages/report-task"], check=True)
+        subprocess.run([*run, "-m", "pip", "install", "./tests/fixtures/packaged_tasks/packages/summary-task",
+                        "./tests/fixtures/packaged_tasks/packages/report-task"], check=True)
         subprocess.run([*run, "tests/release_smoke.py"], check=True)
         publication = work / "publication-attempt.json"
         subprocess.run([*run, "tests/release_provenance.py", "--artifacts", str(args.bundle), "--tag", args.tag,

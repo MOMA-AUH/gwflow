@@ -146,7 +146,7 @@ def package_entry(record: dict, target: str, *, local: bool = False) -> str:
 
 
 def fixture_inventory(source: Path) -> dict[str, str]:
-    names = run("git", "-C", str(source), "ls-files", "examples/packaged/packages").splitlines()
+    names = run("git", "-C", str(source), "ls-files", "tests/fixtures/packaged_tasks/packages").splitlines()
     if not names:
         raise ValueError("Source checkout has no tracked example fixtures")
     return {name: digest(source / name) for name in names}
@@ -155,7 +155,7 @@ def fixture_inventory(source: Path) -> dict[str, str]:
 def fixture_versions(source: Path) -> dict[str, str]:
     fixtures = {}
     for name in ("summary-task", "report-task"):
-        with (source / "examples/packaged/packages" / name / "pyproject.toml").open("rb") as stream:
+        with (source / "tests/fixtures/packaged_tasks/packages" / name / "pyproject.toml").open("rb") as stream:
             project = tomllib.load(stream)["project"]
         fixtures[project["name"]] = project["version"]
     return fixtures
@@ -320,9 +320,24 @@ def qualify(conda: str, bundle: Path, prefix: Path, fresh_cache: Path, source: P
                 raise ValueError(f"Example fixture source changed while copying: {name}")
         wheel_directory = Path(directory) / "wheels"
         wheel_directory.mkdir()
-        packages = [str(clean_source / "examples/packaged/packages" / name) for name in ("summary-task", "report-task")]
+        # Captures can refer to archived source from before fixture relocation.
+        # Resolve package roots from the recorded, hash-checked project files.
+        packages = {}
+        for name in record["fixtures"]:
+            if Path(name).name != "pyproject.toml":
+                continue
+            project_path = clean_source / name
+            with project_path.open("rb") as stream:
+                project = tomllib.load(stream)["project"]
+            package_name = project["name"]
+            if (package_name not in FIXTURES or package_name in packages
+                    or project["version"] != record["fixture_versions"][package_name]):
+                raise ValueError("Recorded fixture projects do not match their package identities")
+            packages[package_name] = str(project_path.parent)
+        if set(packages) != set(FIXTURES):
+            raise ValueError("Expected one recorded project for each fixture package")
         run(python, "-m", "pip", "wheel", "--no-deps", "--disable-pip-version-check", "--wheel-dir", str(wheel_directory),
-            *packages, environment=environment, show_output=True)
+            *(packages[name] for name in FIXTURES), environment=environment, show_output=True)
         wheels = sorted(wheel_directory.glob("*.whl"))
         if len(wheels) != len(FIXTURES):
             raise ValueError("Expected one wheel for each source-matched example fixture")

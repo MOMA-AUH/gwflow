@@ -1,0 +1,4 @@
+# Show individual reads for this tiny dataset, rather than millions of reads.
+read_count_multiplier: 1
+read_count_prefix: ""
+read_count_desc: "reads"

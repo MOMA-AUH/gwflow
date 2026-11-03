@@ -3,7 +3,7 @@
 import sys
 import unittest
 
-from test_example import PackagedExampleTests
+from test_packaged_tasks import PackagedExampleTests
 from test_recovery import OperatorRecoveryTests
 from test_troubleshooting import TroubleshootingJourneyTests
 

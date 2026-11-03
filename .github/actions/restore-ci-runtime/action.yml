@@ -2,7 +2,7 @@ name: Restore CI runtime
 description: Restore the shared exact Conda build and optionally prepare real container tests.
 inputs:
   containers:
-    description: Prepare the three pinned Apptainer test images.
+    description: Prepare fixture images and enable real Apptainer and bioinformatics example tests.
     default: "false"
 runs:
   using: composite
@@ -31,7 +31,8 @@ runs:
         apptainer --version
         apptainer build "$RUNNER_TEMP/gwflow-test.sif" tests/fixtures/container.def
         echo "GWFLOW_TEST_SIF=$RUNNER_TEMP/gwflow-test.sif" >> "$GITHUB_ENV"
-        apptainer build "$RUNNER_TEMP/summary.sif" examples/packaged/images/summary.def
-        apptainer build "$RUNNER_TEMP/report.sif" examples/packaged/images/report.def
+        apptainer build "$RUNNER_TEMP/summary.sif" tests/fixtures/packaged_tasks/images/summary.def
+        apptainer build "$RUNNER_TEMP/report.sif" tests/fixtures/packaged_tasks/images/report.def
         echo "GWFLOW_TEST_SUMMARY_SIF=$RUNNER_TEMP/summary.sif" >> "$GITHUB_ENV"
         echo "GWFLOW_TEST_REPORT_SIF=$RUNNER_TEMP/report.sif" >> "$GITHUB_ENV"
+        echo "GWFLOW_TEST_BIOINFORMATICS=1" >> "$GITHUB_ENV"

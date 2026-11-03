@@ -24,7 +24,7 @@ from test_staging import ContainerStagingTests
 from test_container_graphs import ContainerGraphTests
 from test_container_environment import ContainerScratchTests, write_workflow
 from test_container_recovery import ContainerRecoveryTests
-from test_example import PackagedContainerExampleTests
+from test_packaged_tasks import PackagedContainerExampleTests
 
 
 class DeploymentTests(LocalBackendTestCase):

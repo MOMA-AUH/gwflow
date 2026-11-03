@@ -68,7 +68,7 @@ class RuntimeComparisonTests(unittest.TestCase):
 
     def source_examples(self):
         return [{"name": project["name"], "version": project["version"], "channel": "pypi"}
-                for path in sorted((ROOT / "examples/packaged/packages").glob("*/pyproject.toml"))
+                for path in sorted((ROOT / "tests/fixtures/packaged_tasks/packages").glob("*/pyproject.toml"))
                 for project in [tomllib.loads(path.read_text())["project"]]]
 
     def test_candidate_examples_use_source_versions_independently_of_preserved_baseline(self):

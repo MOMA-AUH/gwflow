@@ -29,7 +29,7 @@ jobs:
         run: |
           conda create -y -n gwflow-tests python=3.12 pip gwf=2.1.1 -c gwforg -c conda-forge
           conda run -n gwflow-tests python -m pip install .
-          conda run -n gwflow-tests python -m pip install ./examples/packaged/packages/summary-task ./examples/packaged/packages/report-task
+          conda run -n gwflow-tests python -m pip install ./tests/fixtures/packaged_tasks/packages/summary-task ./tests/fixtures/packaged_tasks/packages/report-task
       - name: Select checkout-pinned compatibility baselines
         id: compatibility
         shell: bash -l {0}
@@ -94,7 +94,7 @@ jobs:
           artifact=$(find "$RUNNER_TEMP/conda-dist/noarch" -name "gwflow-${version}-*.conda" -print -quit)
           test -n "$artifact"
           conda create -y -p "$RUNNER_TEMP/gwflow-build" python=3.12 "gwflow=$version" -c "file://$RUNNER_TEMP/conda-dist" -c gwforg -c conda-forge
-          conda run -p "$RUNNER_TEMP/gwflow-build" python -m pip install --no-deps ./examples/packaged/packages/summary-task ./examples/packaged/packages/report-task
+          conda run -p "$RUNNER_TEMP/gwflow-build" python -m pip install --no-deps ./tests/fixtures/packaged_tasks/packages/summary-task ./tests/fixtures/packaged_tasks/packages/report-task
           # This transfer capture is unqualified until every suite shard passes.
           python tests/conda_runtime.py capture \
             --prefix "$RUNNER_TEMP/gwflow-build" --artifact "$artifact" \
@@ -246,7 +246,7 @@ jobs:
           for fixture_profile in without-examples with-examples; do
             if [ "$fixture_profile" = with-examples ]; then
               conda run -p "$RUNNER_TEMP/gwflow-compat-candidate" python -m pip install --no-deps \
-                ./examples/packaged/packages/summary-task ./examples/packaged/packages/report-task
+                ./tests/fixtures/packaged_tasks/packages/summary-task ./tests/fixtures/packaged_tasks/packages/report-task
             fi
             conda run -p "$RUNNER_TEMP/gwflow-smoke" python tests/compare_runtime.py \
               --baseline-capture "$RUNNER_TEMP/conda-runtime" --baseline-kind controlled-artifact \
@@ -266,7 +266,7 @@ jobs:
           from pathlib import Path
           import tomllib
           fixtures = {}
-          for path in Path("examples/packaged/packages").glob("*/pyproject.toml"):
+          for path in Path("tests/fixtures/packaged_tasks/packages").glob("*/pyproject.toml"):
               project = tomllib.loads(path.read_text())["project"]
               fixtures[project["name"]] = project["version"]
           for profile in ("without-examples", "with-examples"):

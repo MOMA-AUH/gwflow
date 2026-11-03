@@ -75,7 +75,7 @@ class CondaRuntimeTests(unittest.TestCase):
         self.assertEqual(record["platform"], "linux-64")
         self.assertEqual(record["artifact"]["sha256"], hashlib.sha256(self.artifact.read_bytes()).hexdigest())
         self.assertEqual(record["manifest"]["sha256"], hashlib.sha256(manifest.encode()).hexdigest())
-        self.assertIn("examples/packaged/packages/summary-task/pyproject.toml", record["fixtures"])
+        self.assertIn("tests/fixtures/packaged_tasks/packages/summary-task/pyproject.toml", record["fixtures"])
 
     def test_capture_rejects_unmatched_example_fixtures(self):
         (self.prefix / "extra-packages.json").write_text(json.dumps([
@@ -176,12 +176,43 @@ class CondaRuntimeTests(unittest.TestCase):
             destination = source / name
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy(ROOT / name, destination)
-        (source / "examples/packaged/packages/summary-task/pyproject.toml").write_text("changed source")
+        (source / "tests/fixtures/packaged_tasks/packages/summary-task/pyproject.toml").write_text("changed source")
         target = self.root / "restored"
         result = self.command("qualify", "--capture", str(self.bundle), "--prefix", str(target),
                               "--fresh-cache", str(self.root / "cache"), "--source", str(source), success=False)
         self.assertIn("fixture source", result.stderr)
         self.assertFalse(target.exists())
+
+    def test_qualification_uses_recorded_package_roots_in_current_and_archived_source(self):
+        self.capture()
+        original = json.loads((self.bundle / "runtime.json").read_text())
+        probe = self.root / "qualification-python"
+        shutil.copy(ROOT / "tests/fixtures/qualification_python.py", probe)
+        probe.chmod(0o755)
+        self.environment["GWFLOW_CONDA_PROBE"] = str(probe)
+        current = "tests/fixtures/packaged_tasks/packages"
+        for index, layout in enumerate((current, "examples/packaged/packages")):
+            with self.subTest(layout=layout):
+                source = self.root / f"archived-source-{index}"
+                record = {**original, "fixtures": {}}
+                for name, expected in original["fixtures"].items():
+                    relative = name.replace(current, layout)
+                    destination = source / relative
+                    destination.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy(ROOT / name, destination)
+                    record["fixtures"][relative] = expected
+                (source / "tests").mkdir(exist_ok=True)
+                (source / "tests/release_smoke.py").write_text("# Controlled smoke fixture\n")
+                (self.bundle / "runtime.json").write_text(json.dumps(record))
+                self.environment["GWFLOW_QUALIFICATION_LAYOUT"] = layout
+                target = self.root / f"qualified-{index}"
+                self.command("qualify", "--capture", str(self.bundle), "--prefix", str(target),
+                             "--fresh-cache", str(self.root / f"cache-{index}"), "--source", str(source))
+                evidence = json.loads((target / "gwflow-runtime.json").read_text())
+                self.assertEqual(evidence["status"], "qualified")
+                self.assertTrue(evidence["fixture_runtime_unchanged"])
+                projects = json.loads((target / "qualified-projects.json").read_text())
+                self.assertEqual({item["name"]: item["version"] for item in projects}, original["fixture_versions"])
 
     def test_capture_rejects_same_version_replacement_despite_unchanged_conda_inventory(self):
         (self.prefix / "lib/gwflow.payload").write_text("same version, different pip-installed bytes")
