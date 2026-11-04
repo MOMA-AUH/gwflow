@@ -667,7 +667,8 @@ class Store:
         # Detect transitive changes made while another branch was inspected,
         # including benign publication that can be accepted on a fresh pass.
         for producer, version, observed in checked.values():
-            if (self.recorded_current(producer["task"]) != producer
+            selected = _files.read_json(self._task_dir(producer["task"]) / "current.json")
+            if (not _matches(selected, "current", **self.identity(producer))
                     or self.records(producer).version() != version
                     or self._input_metadata(producer) != observed):
                 return False
