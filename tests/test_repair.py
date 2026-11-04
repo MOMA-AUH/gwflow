@@ -225,20 +225,35 @@ class ResultsRepairTests(LocalBackendTestCase):
 
     def test_uncertain_consumer_blocks_repair(self):
         self.run_complete()
+        before = self.attempt()
         self.add_consumer()
         env = self.fault(crash_before_commit=True)
         self.inject(job_fault="c__join", lose_tracking="c__join")
         self.cli("-b", "recovery_fixture", "run", env=env, success=False)
         self.settle()
+        # Missing tracking alone no longer hides the worker's exact-Submission
+        # termination receipt. Model unavailable scheduler evidence explicitly.
+        env = self.inject(job_states={"c__join": "UNKNOWN"})
+        self.assertIn("no recorded or tracked backend job ID",
+                      self.cli("-b", "recovery_fixture", "cancel", "c", "--dry-run", env=env, success=False))
         result = self.work / "results/samples/a/report/renamed.txt"
         result.write_text("protected after lost acknowledgement")
         for options in ((), ("--dry-run",), ("--force",), ("--force", "--dry-run")):
-            self.assertIn("Active consumers block replacement: c", self.cli("run", "a", *options, success=False))
+            self.assertIn("Active consumers block replacement: c",
+                          self.cli("-b", "recovery_fixture", "run", "a", *options, env=env, success=False))
             self.assertEqual(result.read_text(), "protected after lost acknowledgement")
         workflow = self.work / "workflow.py"
         workflow.write_text(workflow.read_text().split("from gwflow import shell")[0])
-        self.assertIn("Active consumers block replacement: c", self.cli("run", "a", success=False))
+        self.assertIn("Active consumers block replacement: c",
+                      self.cli("-b", "recovery_fixture", "run", "a", env=env, success=False))
         self.assertEqual(result.read_text(), "protected after lost acknowledgement")
+        # Restoring the real local observation proves inactivity without the
+        # missing numeric ID, so Repair can preserve the successful computation.
+        self.cli("run", "a")
+        self.settle()
+        self.assertEqual(self.attempt(), before)
+        self.assert_results(result.parent)
+        self.assertEqual((self.work / "trace").read_text().splitlines().count("compute"), 1)
 
     def test_new_consumer_waits_for_repaired_complete_set(self):
         self.run_complete()

@@ -214,9 +214,25 @@ class TransferRecoveryTests(LocalBackendTestCase):
         self.inject(job_fault="a__gwflow_complete", lose_tracking="a__gwflow_complete")
         self.cli("-b", "recovery_fixture", "run", env=env, success=False)
         self.settle()
-        self.assertIn("submission outcome unknown", self.cli("run", "--dry-run", success=False))
-        self.assertIn("unresolved submission", self.cli("run", success=False))
+        # Withhold all reliable scheduler evidence, including the durable
+        # receipt that would otherwise resolve the missing acknowledgement.
+        env = self.inject(job_states={"a__gwflow_complete": "UNKNOWN"})
+        self.assertIn("no recorded or tracked backend job ID",
+                      self.cli("-b", "recovery_fixture", "cancel", "a", "--dry-run", env=env, success=False))
+        self.assertIn("submission outcome unknown",
+                      self.cli("-b", "recovery_fixture", "run", "--dry-run", env=env, success=False))
+        self.assertIn("unresolved submission", self.cli("-b", "recovery_fixture", "run", env=env, success=False))
         self.assertFalse((self.work / "results/samples/a/report").exists())
+        self.assertEqual((self.work / "trace").read_text().splitlines(), ["compute"])
+        # The ordinary local backend can use its exact-Submission termination
+        # receipt to finish safely, even though no backend ID was saved.
+        before = self.attempt()
+        self.assertIn("Finish", self.cli("run", "--dry-run"))
+        self.cli("run")
+        self.settle()
+        self.assertEqual(self.attempt(), before)
+        self.assertIn("Reuse", self.cli("run", "--dry-run"))
+        self.assert_results(self.work / "results/samples/a/report")
         self.assertEqual((self.work / "trace").read_text().splitlines(), ["compute"])
 
     def test_damaged_partial_transfer_source_requires_new_computation(self):
