@@ -7,7 +7,6 @@ from contextlib import ExitStack
 import click
 from gwf.backends import BackendStatus
 from gwf.core import pass_context
-from gwf.plugins.logs import logs as gwf_logs
 
 from .backends import create_backend
 from .activity import activity
@@ -152,42 +151,50 @@ def logs(ctx, selectors, stderr, no_pager, history, details):
                                            f"Read the stream with {stream_command}")
                 if history:
                     raise click.UsageError("--history requires a Task index, not an individual job or submission stream.")
-                click.get_current_context().invoke(gwf_logs, target=target, stderr=stderr, no_pager=no_pager)
-                return
-            selected = task_selection(names, selectors)
-            for name in sorted(selected & job_names.keys()):
-                raise click.UsageError(f"Ambiguous log name {name!r}: both a Task and a {job_names[name][0]}.")
-            if stderr:
-                raise click.UsageError("--stderr requires one exact individual job or submission name; Task indexes show both streams.")
-            observations = {}
-            historical = {}
-            unavailable = None
-            recorded = [name for name in sorted(selected) if name in attempts]
-            archived = [attempt for attempt in store.recorded_attempts() if attempt["task"] in selected] if history else []
-            if recorded:
-                def inspect(backend):
-                    current = {name: admission.observe(store, attempts[name], backend, ctx.backend) for name in recorded}
-                    earlier = {attempt["attempt"]: admission.observe_submissions(store, attempt, backend, ctx.backend)
-                               for attempt in archived}
-                    return current, earlier
+                # Public aliases move on retry. Pin the submission while other
+                # frontends are excluded, before any slow log I/O or display.
+                suffix = ".stderr" if stderr else ".stdout"
+                log_path = (store.working_dir / ".gwf/logs" / (target + suffix)).resolve()
+            else:
+                selected = task_selection(names, selectors)
+                for name in sorted(selected & job_names.keys()):
+                    raise click.UsageError(f"Ambiguous log name {name!r}: both a Task and a {job_names[name][0]}.")
+                if stderr:
+                    raise click.UsageError("--stderr requires one exact individual job or submission name; Task indexes show both streams.")
+                observations = {}
+                historical = {}
+                unavailable = None
+                recorded = [name for name in sorted(selected) if name in attempts]
+                archived = [attempt for attempt in store.recorded_attempts() if attempt["task"] in selected] if history else []
+                if recorded:
+                    def inspect(backend):
+                        current = {name: admission.observe(store, attempts[name], backend, ctx.backend) for name in recorded}
+                        earlier = {attempt["attempt"]: admission.observe_submissions(store, attempt, backend, ctx.backend)
+                                   for attempt in archived}
+                        return current, earlier
 
-                try:
-                    # Cancel the alarm before backend cleanup can save tracking.
-                    with activity("Waiting for scheduler..."), ExitStack() as cleanup, observation_deadline():
-                        backend = cleanup.enter_context(create_backend(ctx.backend, working_dir=ctx.working_dir, config=ctx.config))
-                        observations, historical = inspect(backend)
-                except Exception as error:
-                    report_error(error, "Log inspection")
-                    # Disk evidence remains inspectable during a scheduler
-                    # outage. UNKNOWN observations never establish inactivity.
-                    unavailable = str(error)
-                    observations, historical = inspect(None)
-            for name in sorted(selected):
-                history_indexes = [(attempt, historical[attempt["attempt"]]) for attempt in archived if attempt["task"] == name]
-                history_indexes.sort(key=lambda item: item[0]["attempt"] != attempts[name]["attempt"])
-                _display_index(store, name, attempts.get(name), observations.get(name, {}),
-                               name in workflow._task_declarations, unavailable, history_indexes, details=details)
-            if not selected:
-                click.echo("No Tasks selected")
+                    try:
+                        # Cancel the alarm before backend cleanup can save tracking.
+                        with activity("Waiting for scheduler..."), ExitStack() as cleanup, observation_deadline():
+                            backend = cleanup.enter_context(create_backend(ctx.backend, working_dir=ctx.working_dir, config=ctx.config))
+                            observations, historical = inspect(backend)
+                    except Exception as error:
+                        report_error(error, "Log inspection")
+                        # Disk evidence remains inspectable during a scheduler
+                        # outage. UNKNOWN observations never establish inactivity.
+                        unavailable = str(error)
+                        observations, historical = inspect(None)
+                for name in sorted(selected):
+                    history_indexes = [(attempt, historical[attempt["attempt"]]) for attempt in archived if attempt["task"] == name]
+                    history_indexes.sort(key=lambda item: item[0]["attempt"] != attempts[name]["attempt"])
+                    _display_index(store, name, attempts.get(name), observations.get(name, {}),
+                                   name in workflow._task_declarations, unavailable, history_indexes, details=details)
+                if not selected:
+                    click.echo("No Tasks selected")
+                return
+        with log_path.open() as stream:
+            contents = stream.read()
+        echo = click.echo if no_pager else click.echo_via_pager
+        echo(contents)
     except OSError as error:
         raise click.ClickException(str(error)) from error
