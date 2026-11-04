@@ -17,7 +17,14 @@ with (root / "calls.jsonl").open("a") as stream:
 state_path = root / "state.json"
 if os.environ.get("GWFLOW_RELEASE_FAIL") == " ".join(args[:2]):
     sys.exit("injected GitHub failure")
-if args[0] == "api":
+if args[0] == "api" and "/actions/runs/" in args[1]:
+    run = {"id": 42, "status": "completed", "conclusion": "success", "event": "push",
+           "head_branch": "master", "head_sha": "a" * 40,
+           "repository": {"full_name": "MOMA-AUH/gwflow"}, "head_repository": {"full_name": "MOMA-AUH/gwflow"},
+           "path": ".github/workflows/ci.yml"}
+    run.update(json.loads(os.environ.get("GWFLOW_SOURCE_CI_CHANGES", "{}")))
+    print(json.dumps(run))
+elif args[0] == "api":
     state = json.loads(state_path.read_text())
     print(json.dumps({"id": 1, "tag_name": state["tagName"], "draft": state["isDraft"],
                       "prerelease": state["isPrerelease"], "immutable": state.get("immutable", False),

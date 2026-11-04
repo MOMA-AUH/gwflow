@@ -15,6 +15,8 @@ import tempfile
 
 from release_artifacts import (VALIDATION_FILES, archive_name, attach, digest, draft_assets, final_tag, github,
                                pack, unpack, verify)
+from release_provenance import identity_arguments, publication_identity
+from select_ci_release import select_run
 
 
 def channel_package(args, release):
@@ -86,9 +88,14 @@ def resume_archive(args, assets, work):
 
 
 def publish(args):
+    publication_identity(args)
     release = verify(args.bundle, args.tag, args.source)
     if args.output.exists() or args.output.is_symlink():
         raise ValueError("Evidence output already exists; select a fresh destination")
+    source_ci = json.loads(github(args.gh, "api", f"repos/{args.repo}/actions/runs/{args.source_ci_run}").stdout)
+    selected = select_run([source_ci], args.repo, args.source)
+    if str(selected["id"]) != args.source_ci_run:
+        raise ValueError("Source CI response does not match the requested run ID")
     ensure_channel_package(args, release)
     with tempfile.TemporaryDirectory(prefix="gwflow-publication-") as temporary:
         work = Path(temporary)
@@ -109,7 +116,8 @@ def publish(args):
         subprocess.run([*run, "tests/release_smoke.py"], check=True)
         publication = work / "publication-attempt.json"
         subprocess.run([*run, "tests/release_provenance.py", "--artifacts", str(args.bundle), "--tag", args.tag,
-                        "--source", args.source, "--output", str(publication)], check=True)
+                        "--source", args.source, "--output", str(publication), "--repo", args.repo,
+                        "--source-ci-run", args.source_ci_run, *(["--local"] if args.local else [])], check=True)
         assets = work / "assets"
         pack(args.bundle, publication, assets, args.tag, args.source)
         resume_archive(args, assets, work)
@@ -123,8 +131,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ("bundle", "output"):
         parser.add_argument("--" + name, type=Path, required=True)
-    for name in ("tag", "source", "repo"):
+    for name in ("tag", "source"):
         parser.add_argument("--" + name, required=True)
+    identity_arguments(parser)
     parser.add_argument("--conda", default="conda")
     parser.add_argument("--gh", default="gh")
     parser.add_argument("--retry-delay", type=float, default=30, help="Seconds between channel installation attempts")

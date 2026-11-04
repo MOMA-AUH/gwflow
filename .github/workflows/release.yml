@@ -89,7 +89,8 @@ jobs:
         run: |
           python tests/publish_release.py \
             --bundle conda-dist --tag "$GITHUB_REF_NAME" --source "$GITHUB_SHA" \
-            --repo "$GITHUB_REPOSITORY" --output release-evidence
+            --repo "$GITHUB_REPOSITORY" --source-ci-run "${{ needs.verify.outputs.run_id }}" \
+            --output release-evidence
       - uses: actions/upload-artifact@v7
         with:
           overwrite: true

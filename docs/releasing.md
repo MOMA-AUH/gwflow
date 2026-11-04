@@ -128,7 +128,10 @@ It never forces replacement or accepts a filename alone.
 Every retry creates a fresh channel installation and repeats fixture installation, smoke checks, and provenance verification.
 The channel solve selects the tested version and build.
 The command writes fresh provenance to `publication-attempt.json` in the successful run's evidence artifact.
-This record describes the retry, including its workflow run and solved versions.
+This record describes the retry, including its verification context and solved versions.
+`source_ci_run` identifies the selected CI bundle's run, separately from the publication attempt.
+For Actions attempts, `workflow_run` identifies the publication workflow run.
+For local attempts, `verification_context` is `local` and `workflow_run` is null.
 It does not replace the qualified dependency manifest from CI.
 
 Draft uploads start with the validation archive so its original provenance survives interruption.
@@ -151,8 +154,23 @@ Keep the publication credentials available and choose a fresh output directory:
 ```sh
 python tests/publish_release.py \
   --bundle conda-dist --tag TAG --source SOURCE_COMMIT \
-  --repo MOMA-AUH/gwflow --output release-evidence
+  --repo MOMA-AUH/gwflow --source-ci-run SOURCE_CI_RUN_ID --local \
+  --output release-evidence
 ```
+
+`SOURCE_COMMIT` must be the full commit SHA.
+`SOURCE_CI_RUN_ID` must be the positive numeric ID of the successful master CI run that supplied this exact bundle.
+Use the run selected by the successful `verify` job.
+Do not substitute the publication run ID.
+`--local` explicitly records local verification and requires no Actions environment variables.
+
+Before upload or draft changes, the command validates these inputs and checks
+that the source run was successful CI for a push to `master` in this repository at this commit.
+Without `--local`, `GITHUB_REPOSITORY` must match `--repo` and `GITHUB_RUN_ID`
+must identify the Actions publication run. The release workflow supplies these values.
+The qualified bundle checks verify its source and bytes. Use the exact selected
+run's downloaded bundle: this command does not download its CI artifact again
+to compare the two captures.
 
 The command stages intermediate files in a fresh temporary directory on each attempt.
 A failed check or attachment upload leaves no completed local output directory.
