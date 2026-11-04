@@ -1,6 +1,7 @@
 """Discover Task logs and read individual job streams without planning work."""
 
 import json
+import os.path
 import shlex
 from contextlib import ExitStack
 
@@ -154,7 +155,7 @@ def logs(ctx, selectors, stderr, no_pager, history, details):
                 # Public aliases move on retry. Pin the submission while other
                 # frontends are excluded, before any slow log I/O or display.
                 suffix = ".stderr" if stderr else ".stdout"
-                log_path = (store.working_dir / ".gwf/logs" / (target + suffix)).resolve()
+                log_path = os.path.realpath(store.working_dir / ".gwf/logs" / (target + suffix), strict=True)
             else:
                 selected = task_selection(names, selectors)
                 for name in sorted(selected & job_names.keys()):
@@ -192,7 +193,7 @@ def logs(ctx, selectors, stderr, no_pager, history, details):
                 if not selected:
                     click.echo("No Tasks selected")
                 return
-        with log_path.open() as stream:
+        with open(log_path) as stream:
             contents = stream.read()
         echo = click.echo if no_pager else click.echo_via_pager
         echo(contents)

@@ -1,6 +1,5 @@
 """Task log discovery and individual streams through the installed CLI."""
 
-import fcntl
 import json
 import os
 import re
@@ -23,6 +22,12 @@ class TaskLogTests(LocalBackendTestCase):
     inject = test_graphs.TaskGraphTests.inject
     snapshot = test_inspection.LifecycleInspectionTests.snapshot
 
+    def assert_frontend_available(self):
+        result = subprocess.run([self.executable, "status", "--static"], cwd=self.work,
+                                capture_output=True, text=True, timeout=10)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("sample", result.stdout)
+
     def test_open_pager_allows_another_frontend_command(self):
         self.configure_workflow(left_command="echo selected-output; printf left > same.txt")
         self.run_complete()
@@ -41,10 +46,7 @@ class TaskLogTests(LocalBackendTestCase):
             session.wait_for("PAGER READY")
             self.assertIn("selected-output", session.text)
             self.assertIsNone(session.process.poll())
-            with (self.work / ".gwf/gwflow-submission.lock").open("a") as lock:
-                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                fcntl.flock(lock, fcntl.LOCK_UN)
-            self.assertIn("sample", self.cli("status", "--static"))
+            self.assert_frontend_available()
             self.assertIsNone(session.process.poll())
         finally:
             session.send("\n")
@@ -59,10 +61,7 @@ class TaskLogTests(LocalBackendTestCase):
             try:
                 self.assertTrue(select.select([process.stdout], [], [], 20)[0], "No log output")
                 self.assertIsNone(process.poll())
-                with (self.work / ".gwf/gwflow-submission.lock").open("a") as lock:
-                    fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                    fcntl.flock(lock, fcntl.LOCK_UN)
-                self.assertIn("sample", self.cli("status", "--static"))
+                self.assert_frontend_available()
                 self.assertIsNone(process.poll())
             finally:
                 output, errors = process.communicate(timeout=30)
@@ -94,9 +93,7 @@ class TaskLogTests(LocalBackendTestCase):
                                           stdout=subprocess.PIPE, stderr=subprocess.PIPE) as process:
                         try:
                             self.wait_for(held.exists)
-                            with (self.work / ".gwf/gwflow-submission.lock").open("a") as lock:
-                                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                                fcntl.flock(lock, fcntl.LOCK_UN)
+                            self.assert_frontend_available()
                             label.write_text("replacement-submission\n")
                             self.cli("run")
                             self.settle()
@@ -110,6 +107,23 @@ class TaskLogTests(LocalBackendTestCase):
                     self.assertIn("original-submission", output)
                     self.assertNotIn("replacement-submission", output)
                     self.assertEqual(self.cli_result("logs", submission, *options, "--no-pager").stdout, output)
+
+    def test_missing_public_log_does_not_select_a_later_submission(self):
+        shutil.copy(FIXTURES / "log_open_gate.py", self.work / "sitecustomize.py")
+        held, release = self.work / "log-open-held", self.work / "log-open-release"
+        environment = {**os.environ, "PYTHONPATH": str(self.work), "LOG_OPEN_STREAM": ".stdout"}
+        with subprocess.Popen([self.executable, "logs", "sample__right", "--no-pager"],
+                              cwd=self.work, env=environment, text=True,
+                              stdout=subprocess.PIPE, stderr=subprocess.PIPE) as process:
+            try:
+                self.wait_for(lambda: held.exists() or process.poll() is not None)
+                self.run_complete()
+            finally:
+                release.touch()
+                output, errors = process.communicate(timeout=30)
+        self.assertNotEqual(process.returncode, 0, output + errors)
+        self.assertIn("No such file", errors)
+        self.assertNotIn("Traceback", errors)
 
     def test_current_index_orders_failures_and_provides_readable_stream_commands(self):
         self.configure_workflow(right_command="echo job-output; echo job-error >&2; exit 8")
