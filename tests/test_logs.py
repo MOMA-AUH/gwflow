@@ -1,7 +1,9 @@
 """Task log discovery and individual streams through the installed CLI."""
 
 import json
+import os
 import re
+import select
 import shlex
 import shutil
 import subprocess
@@ -19,6 +21,109 @@ class TaskLogTests(LocalBackendTestCase):
     settle = test_graphs.TaskGraphTests.settle
     inject = test_graphs.TaskGraphTests.inject
     snapshot = test_inspection.LifecycleInspectionTests.snapshot
+
+    def assert_frontend_available(self):
+        result = subprocess.run([self.executable, "status", "--static"], cwd=self.work,
+                                capture_output=True, text=True, timeout=10)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("sample", result.stdout)
+
+    def test_open_pager_allows_another_frontend_command(self):
+        self.configure_workflow(left_command="echo selected-output; printf left > same.txt")
+        self.run_complete()
+        pager = self.work / "pager.py"
+        pager.write_text(
+            "import sys\n"
+            "print(sys.stdin.read(), flush=True)\n"
+            "print('PAGER READY', flush=True)\n"
+            "with open('/dev/tty') as terminal:\n"
+            "    terminal.readline()\n"
+        )
+        session = TerminalSession([self.executable, "logs", "sample__left"], cwd=self.work,
+                                  env={"PAGER": shlex.join([sys.executable, str(pager)])})
+        self.addCleanup(session.close)
+        try:
+            session.wait_for("PAGER READY")
+            self.assertIn("selected-output", session.text)
+            self.assertIsNone(session.process.poll())
+            self.assert_frontend_available()
+            self.assertIsNone(session.process.poll())
+        finally:
+            session.send("\n")
+        self.assertEqual(session.finish(), 0, session.text)
+
+    def test_blocked_nonpaged_output_allows_another_frontend_command(self):
+        self.run_complete()
+        contents = "selected-output\n" * 100000
+        (self.work / ".gwf/logs/sample__left.stdout").write_text(contents)
+        with subprocess.Popen([self.executable, "logs", "sample__left", "--no-pager"],
+                              cwd=self.work, stdout=subprocess.PIPE, stderr=subprocess.PIPE) as process:
+            try:
+                self.assertTrue(select.select([process.stdout], [], [], 20)[0], "No log output")
+                self.assertIsNone(process.poll())
+                self.assert_frontend_available()
+                self.assertIsNone(process.poll())
+            finally:
+                output, errors = process.communicate(timeout=30)
+        self.assertEqual(process.returncode, 0, errors.decode())
+        self.assertEqual(output.decode(), contents + "\n")
+
+    def test_slow_log_open_keeps_public_and_exact_submissions_pinned_across_retry(self):
+        label = self.work / "label"
+        command = f"cat {shlex.quote(str(label))}; cat {shlex.quote(str(label))} >&2; exit 8"
+        self.configure_workflow(right_command=command)
+        shutil.copy(FIXTURES / "log_open_gate.py", self.work / "sitecustomize.py")
+        held, release = self.work / "log-open-held", self.work / "log-open-release"
+        for exact in (False, True):
+            for stderr in (False, True):
+                with self.subTest(exact=exact, stderr=stderr):
+                    label.write_text("original-submission\n")
+                    self.cli("run")
+                    self.settle()
+                    index = self.cli("logs", "sample", "--details")
+                    submission = re.search(r"gwflow logs (sample__right__\S+)", index).group(1)
+                    selector = submission if exact else "sample__right"
+                    options = ["--stderr"] if stderr else []
+                    environment = {**os.environ, "PYTHONPATH": str(self.work),
+                                   "LOG_OPEN_STREAM": ".stderr" if stderr else ".stdout"}
+                    held.unlink(missing_ok=True)
+                    release.unlink(missing_ok=True)
+                    with subprocess.Popen([self.executable, "logs", selector, *options, "--no-pager"],
+                                          cwd=self.work, env=environment, text=True,
+                                          stdout=subprocess.PIPE, stderr=subprocess.PIPE) as process:
+                        try:
+                            self.wait_for(held.exists)
+                            self.assert_frontend_available()
+                            label.write_text("replacement-submission\n")
+                            self.cli("run")
+                            self.settle()
+                            latest = self.cli("logs", "sample__right", *options, "--no-pager")
+                            self.assertIn("replacement-submission", latest)
+                            self.assertIsNone(process.poll())
+                        finally:
+                            release.touch()
+                            output, errors = process.communicate(timeout=30)
+                    self.assertEqual(process.returncode, 0, errors)
+                    self.assertIn("original-submission", output)
+                    self.assertNotIn("replacement-submission", output)
+                    self.assertEqual(self.cli_result("logs", submission, *options, "--no-pager").stdout, output)
+
+    def test_missing_public_log_does_not_select_a_later_submission(self):
+        shutil.copy(FIXTURES / "log_open_gate.py", self.work / "sitecustomize.py")
+        held, release = self.work / "log-open-held", self.work / "log-open-release"
+        environment = {**os.environ, "PYTHONPATH": str(self.work), "LOG_OPEN_STREAM": ".stdout"}
+        with subprocess.Popen([self.executable, "logs", "sample__right", "--no-pager"],
+                              cwd=self.work, env=environment, text=True,
+                              stdout=subprocess.PIPE, stderr=subprocess.PIPE) as process:
+            try:
+                self.wait_for(lambda: held.exists() or process.poll() is not None)
+                self.run_complete()
+            finally:
+                release.touch()
+                output, errors = process.communicate(timeout=30)
+        self.assertNotEqual(process.returncode, 0, output + errors)
+        self.assertIn("No such file", errors)
+        self.assertNotIn("Traceback", errors)
 
     def test_current_index_orders_failures_and_provides_readable_stream_commands(self):
         self.configure_workflow(right_command="echo job-output; echo job-error >&2; exit 8")
