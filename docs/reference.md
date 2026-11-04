@@ -154,6 +154,18 @@ available, but new managed submissions and cancellation require updated workers.
 Stop old computation independently before replacing unsupported workers.
 An unsafe terminal observation blocks
 retry, attempt replacement, and cleanup until inactivity is established.
+
+Managed local backend connections make at most three attempts. Each TCP connect
+uses a one-second socket timeout, with a 0.25-second pause between attempts.
+If workers remain unreachable, commands that need them fail with guidance to
+check `gwflow workers` and the configured host and port. A connection failure
+does not establish job inactivity or authorize retry, replacement, or cleanup.
+Task log indexes and `recover` retain their existing disk-evidence behavior.
+`wait` reports the outage and keeps polling at its configured interval; its
+overall `--timeout` still includes connection attempts and inspections. Without
+that option, waiting through an outage has no overall time limit. These connection
+limits do not impose a runtime limit on submitted jobs.
+
 For Slurm, use the site's configured backend and shared storage; no local worker
 process is needed. `--backend` overrides configuration and backend autodetection.
 The existing `.gwfconf.json`, `.gwf/`, and backend plugin discovery conventions

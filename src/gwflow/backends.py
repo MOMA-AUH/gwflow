@@ -1,13 +1,20 @@
 """Keep gwf backend discovery while requiring safe managed local admissions."""
 
+import socket
+import time
+
 from gwf.backends import create_backend as gwf_create_backend
 from gwf.backends.base import TrackingBackend
 from gwf.backends.exceptions import BackendError
-from gwf.backends.local import LocalOps, LocalStatus, STATUS_MAP
+from gwf.backends.local import Client, LocalOps, LocalStatus, STATUS_MAP
 from gwf.exceptions import WorkflowError
 
 from .inspection_errors import InspectionBlocker
 from ._local_termination import TERMINAL_STATES, TerminationRecords
+
+
+class LocalWorkerUnavailable(BackendError):
+    """Connection establishment failed; this says nothing about job activity."""
 
 
 class LocalTerminationUnresolved(InspectionBlocker):
@@ -29,6 +36,33 @@ def local_termination_state(working_dir, submission):
 
 
 class ManagedLocalOps(LocalOps):
+    def __init__(self, working_dir, host, port, target_defaults):
+        self.working_dir = working_dir
+        self.host = host
+        self.port = port
+        self.target_defaults = target_defaults
+        # Own establishment rather than inheriting gwf's exponential retry
+        # policy and its guidance for unmanaged workers. Keep its wire client.
+        for attempt in range(3):
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            try:
+                sock.settimeout(1)
+                sock.connect((host, port))
+                sock.settimeout(None)
+                self._client = Client.from_socket(sock)
+                return
+            except OSError:
+                sock.close()
+                if attempt < 2:
+                    time.sleep(0.25)
+            except BaseException:
+                sock.close()
+                raise
+        raise LocalWorkerUnavailable(
+            f"Local backend could not connect to workers at {host} port {port} "
+            "after 3 attempts. Start or check gwflow workers with the configured host and port. "
+            "Job activity is unknown; no inactivity is established.")
+
     def get_job_states(self, tracked_jobs):
         self._client.send("get_task_states")
         kind, response = self._client.recv()

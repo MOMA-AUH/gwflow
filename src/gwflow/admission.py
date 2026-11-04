@@ -21,7 +21,8 @@ from gwf.exceptions import WorkflowError
 from gwf.scheduling import submit_backend
 
 from . import _observations, _records
-from .backends import LocalTerminationUnresolved, ManagedLocalOps, local_termination_state
+from .backends import (LocalTerminationUnresolved, LocalWorkerUnavailable, ManagedLocalOps,
+                       create_backend, local_termination_state)
 from .activity import activity as report_activity
 from ._frontend import observation_deadline
 from .diagnostics import report_error
@@ -42,6 +43,22 @@ def waiting_observations():
         yield errors
     finally:
         _wait_scheduler_errors.reset(token)
+
+
+@contextmanager
+def observation_backend(name, working_dir, config):
+    """Only waiting may keep inspecting disk evidence after a connection fails."""
+    try:
+        backend = create_backend(name, working_dir, config)
+    except LocalWorkerUnavailable as error:
+        errors = _wait_scheduler_errors.get()
+        if errors is None:
+            raise
+        errors.append(str(error))
+        yield None
+    else:
+        with backend:
+            yield backend
 
 
 @dataclass
