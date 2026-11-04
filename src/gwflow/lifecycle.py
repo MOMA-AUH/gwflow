@@ -628,21 +628,63 @@ class Store:
         return [reference if isinstance(reference, str) else str(self.retained_path(attempt, reference))
                 for reference in attempt["structure"]["inputs"]]
 
+    @_observations.observation()
     def require_producers(self, attempt):
-        checking = getattr(self, "_checking_producers", set())
-        if attempt["task"] in checking:
-            raise WorkflowError("Recorded Task dependency graph contains a cycle")
-        self._checking_producers = checking
-        checking.add(attempt["task"])
-        try:
-            for name in attempt["producers"]:
-                if not self.execution_ready(self.producer_attempt(attempt, name)):
-                    raise WorkflowError(f"Expected producer {name} attempt {attempt['producers'][name]} lacks checked Completion or required record compaction")
-        finally:
-            checking.remove(attempt["task"])
+        for _ in range(3):
+            if self._producers_unchanged(attempt):
+                return
+        raise WorkflowError("Producer evidence kept changing during validation; retry inspection")
+
+    def _producers_unchanged(self, attempt):
+        # Traverse shared ancestors once per request, in dependency order. Never
+        # retain validation across requests or hold one attempt's lock while
+        # inspecting another. The explicit stack also bounds Python call depth.
+        checked = {}
+        checking = {attempt["task"]}
+        stack = [(attempt, iter(attempt["producers"]))]
+        while stack:
+            consumer, dependencies = stack[-1]
+            name = next(dependencies, None)
+            if name is not None:
+                producer = self.producer_attempt(consumer, name)
+                if name in checking:
+                    raise WorkflowError("Recorded Task dependency graph contains a cycle")
+                if name not in checked or checked[name][0] != producer:
+                    checking.add(name)
+                    stack.append((producer, iter(producer["producers"])))
+                else:
+                    # A later edge must still see changed local evidence;
+                    # only the ancestor traversal is shared, not its authority.
+                    self._require_producer_completion(producer)
+                continue
+            stack.pop()
+            checking.remove(consumer["task"])
+            if stack:
+                version = self.records(consumer).version()
+                observed = self._require_producer_completion(consumer)
+                checked[consumer["task"]] = consumer, version, observed
+        # A shared producer's unchanged record cannot certify its ancestors.
+        # Detect transitive changes made while another branch was inspected,
+        # including benign publication that can be accepted on a fresh pass.
+        for producer, version, observed in checked.values():
+            selected = _files.read_json(self._task_dir(producer["task"]) / "current.json")
+            if (not _matches(selected, "current", **self.identity(producer))
+                    or self.records(producer).version() != version
+                    or self._input_metadata(producer) != observed):
+                return False
+        return True
+
+    def _require_producer_completion(self, attempt):
+        observed = self._check_inputs(attempt, check_producers=False)
+        if not self._completed(attempt) or not self.compaction_succeeded(attempt):
+            raise WorkflowError(f"Expected producer {attempt['task']} attempt {attempt['attempt']} lacks checked Completion or required record compaction")
+        return observed
 
     def observe_inputs(self, attempt):
         self.require_producers(attempt)
+        return self._input_metadata(attempt)
+
+    def _input_metadata(self, attempt):
         references = attempt["structure"]["inputs"]
         observed = inputs.observe([value for value in references if isinstance(value, str)], self.locations)
         for reference in references:
@@ -652,13 +694,17 @@ class Store:
         return observed
 
     def check_inputs(self, attempt):
+        self._check_inputs(attempt, check_producers=True)
+
+    def _check_inputs(self, attempt, *, check_producers):
         baseline = self.input_baseline(attempt)
         try:
-            observed = self.observe_inputs(attempt)
+            observed = self.observe_inputs(attempt) if check_producers else self._input_metadata(attempt)
         except WorkflowError as error:
             raise InspectionBlocker("input_unavailable", f"External inputs unavailable after preparation; a fresh attempt is required: {error}") from error
         if baseline["inputs"] != observed:
             raise WorkflowError("External inputs changed after preparation; a fresh attempt is required")
+        return observed
 
     def prepare(self, attempt):
         if self.exists(attempt, "inputs.json"):
@@ -753,6 +799,9 @@ class Store:
     @_observations.observation()
     def completed(self, attempt):
         self.check_inputs(attempt)
+        return self._completed(attempt)
+
+    def _completed(self, attempt):
         # A producer mutation must invalidate dependent Completion even when
         # this attempt's own evidence is unchanged. Never nest attempt locks.
         with self.records(attempt).access():
