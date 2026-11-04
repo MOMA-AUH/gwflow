@@ -82,3 +82,21 @@ class DependencyValidationTests(LocalBackendTestCase):
         self.assertEqual(second["exit_code"], 0)
         self.assertEqual(second["output"].count("Reuse"), 4)
         self.assertIn("No new jobs were submitted", self.cli("run"))
+
+    def test_changed_transitive_completion_during_one_validation_blocks_reuse(self):
+        self.configure_workflow(count=4, width=1)
+        workflow = self.work / "workflow.py"
+        workflow.write_text(workflow.read_text().replace(
+            "handles[-1:]", "(handles[1:] if index == 3 else handles[-1:])"))
+        self.run_complete()
+        completion = record_path(self.work, "node00", "operations/*/completion.json")
+        original = read_record(completion)
+        sibling = record_path(self.work, "node02", "attempt.json")
+        result, = self.scenario([["run", "--dry-run"]], [{
+            "pass": 0, "after": str(sibling), "while_validating": "node03",
+            "write": {str(completion): {**original, "attempt": "0" * 32}},
+        }])
+        self.assertNotEqual(result["exit_code"], 0)
+        self.assertRegex(result["output"], r"Task node03\s+Blocked\s+")
+        self.assertIn("lacks checked Completion", result["output"])
+        self.assertNoSubmissions(result["output"])

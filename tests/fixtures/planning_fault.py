@@ -43,6 +43,16 @@ def fault(frame, event, arg):
     for action in list(actions):
         if action["pass"] != invocation or action["after"] != boundary:
             continue
+        if "while_validating" in action:
+            caller = frame
+            while caller is not None:
+                if (caller.f_globals.get("__name__") == "gwflow.lifecycle"
+                        and caller.f_code.co_name == "require_producers"
+                        and caller.f_locals["attempt"]["task"] == action["while_validating"]):
+                    break
+                caller = caller.f_back
+            if caller is None:
+                continue
         actions.remove(action)
         for path, value in action.get("write", {}).items():
             destination = Path(path)
