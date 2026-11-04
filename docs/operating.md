@@ -1,9 +1,9 @@
 # Operating and upgrading managed workflows
 
 Use this guide for routine changes, cleanup, unresolved submissions, and version
-upgrades. Commands below use `hello` from the [quickstart](../README.md); replace
-it with the affected Task's exact name. Run commands in the workflow directory
-with its configured environment. The [reference](reference.md) covers authoring,
+upgrades. Commands below use `align__sample_a` from the [quickstart](../README.md).
+Replace it with the affected Task's exact name. Run commands in the workflow
+directory with its configured environment. The [reference](reference.md) covers authoring,
 command options, storage requirements, and detailed lifecycle behavior.
 
 ## Compatibility boundary
@@ -55,8 +55,8 @@ Reuse automatically. Identify the Tasks whose computation must change, then
 preview and request force explicitly:
 
 ```sh
-gwflow run hello --force --dry-run
-gwflow run hello --force
+gwflow run align__sample_a --force --dry-run
+gwflow run align__sample_a --force
 ```
 
 Force applies to the directly Selected Tasks. Their upstream dependencies undergo
@@ -86,10 +86,10 @@ the whole workflow. See the [force rules](reference.md#lifecycle-and-recovery),
 After the Task is reusable, inspect eligible disposable work before deleting it:
 
 ```sh
-gwflow status hello
-gwflow clean hello
-gwflow clean hello --delete
-gwflow run hello --dry-run
+gwflow status align__sample_a
+gwflow clean align__sample_a
+gwflow clean align__sample_a --delete
+gwflow run align__sample_a --dry-run
 ```
 
 The preview summarizes eligibility and says no files were removed. Under each
@@ -127,10 +127,10 @@ An interrupted admission, missing acknowledgement, or unavailable scheduler
 history can leave work blocked. Start with the normal diagnostics:
 
 ```sh
-gwflow status hello --details
-gwflow logs hello --details
-gwflow logs hello --history --details
-gwflow run hello --dry-run --details
+gwflow status align__sample_a --details
+gwflow logs align__sample_a --details
+gwflow logs align__sample_a --history --details
+gwflow run align__sample_a --dry-run --details
 ```
 
 Use the reported submission names, backend IDs, logs, and scheduler or worker
@@ -145,11 +145,11 @@ inspect the preview again; ordinary run can reconcile those submissions.
 Only after independently establishing that the whole Task is inactive, invoke:
 
 ```sh
-gwflow recover hello
-gwflow run hello --dry-run
+gwflow recover align__sample_a
+gwflow run align__sample_a --dry-run
 ```
 
-Inspect the preview, then use `gwflow run hello` to continue eligible work.
+Inspect the preview, then use `gwflow run align__sample_a` to continue eligible work.
 
 `recover` takes one exact Task name, no extra arguments or recovery flags, and
 asks no confirmation. **Invoking it asserts whole-Task inactivity**, including
