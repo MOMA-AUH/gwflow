@@ -7,11 +7,36 @@ import json
 import os
 from pathlib import Path
 import platform
+import re
 import sys
 from urllib.parse import urlparse
 
-import gwflow
 from release_artifacts import stable_tag
+
+
+def identity_arguments(parser):
+    parser.add_argument("--repo", required=True)
+    parser.add_argument("--source-ci-run", required=True, help="Run ID of the selected source CI bundle")
+    parser.add_argument("--local", action="store_true", help="Record a local verification attempt, without an Actions run")
+
+
+def publication_identity(args):
+    """Validate declared provenance before any publication side effects."""
+    if not re.fullmatch(r"[\w.-]+/[\w.-]+", args.repo) or not re.fullmatch(r"[0-9a-f]{40}", args.source):
+        raise ValueError("Expected repository owner/name and full source commit")
+    if not re.fullmatch(r"[1-9][0-9]*", args.source_ci_run):
+        raise ValueError("Source CI run must be a positive numeric run ID")
+    workflow_run = None
+    if not args.local:
+        if os.environ.get("GITHUB_REPOSITORY") != args.repo:
+            raise ValueError("Actions GITHUB_REPOSITORY must match --repo; use --local for local verification")
+        run_id = os.environ.get("GITHUB_RUN_ID", "")
+        if not re.fullmatch(r"[1-9][0-9]*", run_id):
+            raise ValueError("Actions GITHUB_RUN_ID must be a positive numeric run ID; use --local for local verification")
+        workflow_run = f"https://github.com/{args.repo}/actions/runs/{run_id}"
+    return {"verification_context": "local" if args.local else "github-actions",
+            "workflow_run": workflow_run,
+            "source_ci_run": f"https://github.com/{args.repo}/actions/runs/{args.source_ci_run}"}
 
 
 def main():
@@ -20,7 +45,14 @@ def main():
     parser.add_argument("--source", required=True)
     parser.add_argument("--tag", required=True)
     parser.add_argument("--output", type=Path, required=True)
+    identity_arguments(parser)
     args = parser.parse_args()
+    try:
+        identity = publication_identity(args)
+    except ValueError as error:
+        parser.error(str(error))
+
+    import gwflow
 
     installed_version = version("gwflow")
     if args.tag != "v" + installed_version:
@@ -45,8 +77,7 @@ def main():
     record = {
         "release": args.tag,
         "source_commit": args.source,
-        "workflow_run": "https://github.com/" + os.environ["GITHUB_REPOSITORY"]
-                        + "/actions/runs/" + os.environ["GITHUB_RUN_ID"],
+        **identity,
         "artifact": {"filename": artifact.name, "sha256": digest,
                      "size_bytes": artifact.stat().st_size, "url": url,
                      "build": package["build"]},

@@ -21,9 +21,10 @@ class PublicationTests(artifacts.ReleaseArtifactFixture):
         self.publication()
         self.channel = self.root / "channel"
         self.channel.mkdir()
-        self.environment.update(GWFLOW_CHANNEL_FIXTURE_ROOT=str(self.channel), GITHUB_RUN_ID="first",
+        self.environment.update(GWFLOW_CHANNEL_FIXTURE_ROOT=str(self.channel), GITHUB_RUN_ID="101",
                                 GITHUB_REPOSITORY="MOMA-AUH/gwflow", ANACONDA_API_TOKEN="fixture",
                                 NO_PROXY="127.0.0.1", no_proxy="127.0.0.1")
+        self.environment["PATH"] = str(Path(sys.executable).parent) + ":" + self.environment["PATH"]
         self.conda = self.root / "conda"
         shutil.copyfile(ROOT / "tests/fixtures/publication_conda.py", self.conda)
         self.conda.chmod(0o755)
@@ -66,15 +67,82 @@ class PublicationTests(artifacts.ReleaseArtifactFixture):
         self.addCleanup(self.server.server_close)
         self.addCleanup(self.server.shutdown)
 
-    def publish(self, success=True):
+    def publish(self, success=True, extra=()):
         result = subprocess.run([sys.executable, str(ROOT / "tests/publish_release.py"),
                                  "--bundle", str(self.output), "--tag", "v1.0.0", "--source", self.source,
-                                 "--repo", "MOMA-AUH/gwflow", "--output", str(self.root / "publication"),
+                                 "--repo", "MOMA-AUH/gwflow", "--source-ci-run", "42", "--output", str(self.root / "publication"),
                                  "--conda", str(self.conda), "--gh", str(self.github),
-                                 "--api-url", f"http://127.0.0.1:{self.server.server_port}", "--retry-delay", "0"],
+                                 "--api-url", f"http://127.0.0.1:{self.server.server_port}", "--retry-delay", "0", *extra],
                                 env=self.environment, capture_output=True, text=True, timeout=30)
         self.assertEqual(result.returncode == 0, success, result.stdout + result.stderr)
         return result
+
+    def test_missing_actions_identity_fails_before_publication_mutations(self):
+        self.environment.pop("GITHUB_REPOSITORY", None)
+        self.environment.pop("GITHUB_RUN_ID", None)
+        self.publish(success=False)
+        self.assertEqual(self.channel_calls(), [])
+        self.assertFalse((self.channel / "package.conda").exists())
+        self.assertFalse((self.remote / "calls.jsonl").exists())
+
+    def test_local_retry_without_actions_variables_records_its_own_context(self):
+        self.environment.pop("GITHUB_REPOSITORY", None)
+        self.environment.pop("GITHUB_RUN_ID", None)
+        self.environment["GWFLOW_RELEASE_INTERRUPT_AFTER"] = "gwflow-1.0.0-validation.tar.gz"
+        self.publish(success=False, extra=("--local",))
+        original = (self.remote / "assets/gwflow-1.0.0-validation.tar.gz").read_bytes()
+        del self.environment["GWFLOW_RELEASE_INTERRUPT_AFTER"]
+        self.publish(extra=("--local",))
+        record = json.loads((self.root / "publication/publication-attempt.json").read_text())
+        self.assertEqual(record["verification_context"], "local")
+        self.assertIsNone(record["workflow_run"])
+        self.assertEqual(record["source_ci_run"], "https://github.com/MOMA-AUH/gwflow/actions/runs/42")
+        self.assertEqual(record["source_commit"], self.source)
+        self.assertEqual(sum("anaconda" in call for call in self.channel_calls()), 1)
+        self.assertEqual((self.remote / "assets/gwflow-1.0.0-validation.tar.gz").read_bytes(), original)
+        self.assertEqual(len(list((self.remote / "assets").iterdir())), 3)
+
+    def test_invalid_provenance_fails_before_channel_or_github_operations(self):
+        cases = (({}, ("--local", "--source-ci-run", "")),
+                 ({}, ("--local", "--source-ci-run", "../42")),
+                 ({}, ("--local", "--source-ci-run", "0")),
+                 ({}, ("--local", "--repo", "invalid")),
+                 ({}, ("--local", "--source", "short")),
+                 ({"GITHUB_REPOSITORY": "another/repository"}, ()),
+                 ({"GITHUB_RUN_ID": ""}, ()),
+                 ({"GITHUB_RUN_ID": "not-a-run"}, ()))
+        for environment, extra in cases:
+            with self.subTest(environment=environment, extra=extra):
+                self.environment.update(GITHUB_REPOSITORY="MOMA-AUH/gwflow", GITHUB_RUN_ID="101")
+                self.environment.update(environment)
+                self.publish(success=False, extra=extra)
+                self.assertEqual(self.channel_calls(), [])
+                self.assertFalse((self.channel / "package.conda").exists())
+                self.assertFalse((self.remote / "calls.jsonl").exists())
+
+    def test_local_provenance_checks_installed_artifact_before_attaching_assets(self):
+        self.environment.pop("GITHUB_REPOSITORY", None)
+        self.environment.pop("GITHUB_RUN_ID", None)
+        self.environment["GWFLOW_PUBLICATION_FAIL"] = "installed-checksum"
+        result = self.publish(success=False, extra=("--local",))
+        self.assertIn("does not match the tested artifact filename and SHA256", result.stderr)
+        calls = [json.loads(line) for line in (self.remote / "calls.jsonl").read_text().splitlines()]
+        self.assertTrue(all(call[0] == "api" for call in calls))
+        self.assertFalse((self.root / "publication").exists())
+
+    def test_unmatched_source_ci_fails_before_upload(self):
+        self.environment.pop("GITHUB_REPOSITORY", None)
+        self.environment.pop("GITHUB_RUN_ID", None)
+        for change in ({"head_sha": "b" * 40}, {"conclusion": "failure"}, {"event": "pull_request"},
+                       {"head_branch": "feature"}, {"path": ".github/workflows/release.yml"},
+                       {"repository": {"full_name": "another/repository"}},
+                       {"head_repository": {"full_name": "another/repository"}}, {"id": 99}):
+            with self.subTest(change=change):
+                self.environment["GWFLOW_SOURCE_CI_CHANGES"] = json.dumps(change)
+                self.publish(success=False, extra=("--local",))
+                self.assertEqual(self.channel_calls(), [])
+                self.assertFalse((self.channel / "package.conda").exists())
+                self.assertFalse((self.remote / "state.json").exists())
 
     def test_retry_after_upload_runs_checks_and_finishes_without_replacing_package(self):
         self.environment["GWFLOW_PUBLICATION_FAIL"] = "smoke"
@@ -82,7 +150,7 @@ class PublicationTests(artifacts.ReleaseArtifactFixture):
         self.assertIn("injected smoke failure", failed.stderr)
         original = (self.channel / "package.conda").read_bytes()
         del self.environment["GWFLOW_PUBLICATION_FAIL"]
-        self.environment["GITHUB_RUN_ID"] = "retry"
+        self.environment["GITHUB_RUN_ID"] = "102"
         self.publish()
         self.assertEqual((self.channel / "package.conda").read_bytes(), original)
         calls = [json.loads(line) for line in (self.channel / "calls.jsonl").read_text().splitlines()]
@@ -97,15 +165,15 @@ class PublicationTests(artifacts.ReleaseArtifactFixture):
         self.publish(success=False)
         original = (self.remote / "assets" / archive).read_bytes()
         del self.environment["GWFLOW_RELEASE_INTERRUPT_AFTER"]
-        self.environment["GITHUB_RUN_ID"] = "retry"
+        self.environment["GITHUB_RUN_ID"] = "102"
         self.publish()
         self.assertEqual((self.remote / "assets" / archive).read_bytes(), original)
         current = json.loads((self.root / "publication/publication-attempt.json").read_text())
-        self.assertEqual(current["workflow_run"], "retry")
+        self.assertEqual(current["workflow_run"], "https://github.com/MOMA-AUH/gwflow/actions/runs/102")
         self.command("unpack", "--bundle", str(self.root / "publication/assets"),
                      "--tag", "v1.0.0", "--source", self.source, "--output", str(self.root / "restored"))
         previous = json.loads((self.root / "restored/publication.json").read_text())
-        self.assertEqual(previous["workflow_run"], "first")
+        self.assertEqual(previous["workflow_run"], "https://github.com/MOMA-AUH/gwflow/actions/runs/101")
         self.assertEqual((self.root / "restored/runtime.explicit.txt").read_bytes(),
                          (self.capture / "runtime.explicit.txt").read_bytes())
 
@@ -126,6 +194,10 @@ class PublicationTests(artifacts.ReleaseArtifactFixture):
         self.assertEqual(sum("tests/release_smoke.py" in call for call in calls), 1)
         self.assertEqual(sum("tests/release_provenance.py" in call for call in calls), 1)
         self.assertEqual(len(list((self.remote / "assets").iterdir())), 3)
+        record = json.loads((self.root / "publication/publication-attempt.json").read_text())
+        self.assertEqual(record["verification_context"], "github-actions")
+        self.assertEqual(record["workflow_run"], "https://github.com/MOMA-AUH/gwflow/actions/runs/101")
+        self.assertEqual(record["source_ci_run"], "https://github.com/MOMA-AUH/gwflow/actions/runs/42")
 
     def test_conflicting_downloaded_bytes_are_rejected_despite_matching_metadata(self):
         self.channel_package(b"conflicting remote package")
@@ -184,7 +256,7 @@ class PublicationTests(artifacts.ReleaseArtifactFixture):
                 before = {path.name: path.read_bytes() for path in (self.remote / "assets").iterdir()}
                 self.assertIn("gwflow-1.0.0-validation.tar.gz", before)
                 del self.environment["GWFLOW_RELEASE_INTERRUPT_AFTER"]
-                self.environment["GITHUB_RUN_ID"] += "-retry"
+                self.environment["GITHUB_RUN_ID"] = str(int(self.environment["GITHUB_RUN_ID"]) + 1)
                 self.publish()
                 for filename, data in before.items():
                     self.assertEqual((self.remote / "assets" / filename).read_bytes(), data)
@@ -242,7 +314,7 @@ class PublicationTests(artifacts.ReleaseArtifactFixture):
         self.assertEqual(archive.read_bytes(), original)
         shutil.rmtree(self.root / "publication")
         archive.unlink()
-        self.environment["GITHUB_RUN_ID"] = "changed-provenance"
+        self.environment["GITHUB_RUN_ID"] = "103"
         self.assertIn("refusing replacement", self.publish(success=False).stderr)
         self.assertFalse(archive.exists())
 
@@ -254,7 +326,7 @@ class PublicationTests(artifacts.ReleaseArtifactFixture):
         self.publish(success=False)
         self.assertEqual({path.name: path.read_bytes() for path in (self.remote / "assets").iterdir()}, before)
         del self.environment["GWFLOW_PUBLICATION_FAIL"]
-        self.environment["GITHUB_RUN_ID"] = "another-run"
+        self.environment["GITHUB_RUN_ID"] = "104"
         self.publish()
         self.assertEqual(sum("tests/release_smoke.py" in call for call in self.channel_calls()), 3)
 

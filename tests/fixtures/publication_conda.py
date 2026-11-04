@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import subprocess
 import sys
 
 root = Path(os.environ["GWFLOW_CHANNEL_FIXTURE_ROOT"])
@@ -30,9 +31,29 @@ elif "tests/release_provenance.py" in args:
         sys.exit("injected provenance failure")
     bundle = Path(args[args.index("--artifacts") + 1])
     release = json.loads((bundle / "release.json").read_text())
-    provenance = {"release": release["release"], "source_commit": release["source_commit"],
-                  "workflow_run": os.environ["GITHUB_RUN_ID"],
-                  "artifact": {**release["artifact"], "url": "https://conda.anaconda.org/MOMA-AUH/noarch/" + release["artifact"]["filename"]}}
-    Path(args[args.index("--output") + 1]).write_text(json.dumps(provenance))
+    # Supply only the installed-package boundary. Execute the actual provenance
+    # entry point so its identity and checksum checks cannot be hidden by a stub.
+    prefix = Path(args[args.index("-p") + 1])
+    site = prefix / "site-packages"
+    (site / "gwflow").mkdir(parents=True)
+    (site / "gwflow/__init__.py").write_text("")
+    version = release["release"][1:]
+    metadata = site / f"gwflow-{version}.dist-info"
+    metadata.mkdir()
+    (metadata / "METADATA").write_text(f"Metadata-Version: 2.1\nName: gwflow\nVersion: {version}\n")
+    records = prefix / "conda-meta"
+    records.mkdir()
+    installed = {"fn": release["artifact"]["filename"], "sha256": release["artifact"]["sha256"],
+                 "build": "py_0", "url": "https://conda.anaconda.org/MOMA-AUH/noarch/" + release["artifact"]["filename"]}
+    if os.environ.get("GWFLOW_PUBLICATION_FAIL") == "installed-checksum":
+        installed["sha256"] = "0" * 64
+    (records / f"gwflow-{version}-py_0.json").write_text(json.dumps(installed))
+    command = ("import runpy, sys; from pathlib import Path; "
+               "sys.prefix = sys.argv.pop(1); sys.path.insert(0, sys.argv.pop(1)); "
+               "sys.argv = sys.argv[1:]; sys.path.insert(0, str(Path(sys.argv[0]).resolve().parent)); "
+               "runpy.run_path(sys.argv[0], run_name='__main__')")
+    result = subprocess.run([sys.executable, "-c", command, str(prefix), str(site),
+                             *args[args.index("tests/release_provenance.py"):]])
+    sys.exit(result.returncode)
 elif "pip" not in args:
     sys.exit("unsupported fixture request")
