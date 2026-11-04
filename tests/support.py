@@ -55,9 +55,10 @@ class LocalBackendTestCase(unittest.TestCase):
         self.addCleanup(temporary.cleanup)
         return Path(temporary.name)
 
-    def start_worker(self, *, env=None, start_new_session=False):
+    def start_worker(self, *, env=None, start_new_session=False, working_dir=None):
         worker = subprocess.Popen(
-            [self.executable, "workers", "--host", "127.0.0.1", "-n", str(self.workers), "-p", str(self.port)], cwd=self.work,
+            [self.executable, "workers", "--host", "127.0.0.1", "-n", str(self.workers), "-p", str(self.port)],
+            cwd=self.work if working_dir is None else working_dir,
             stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True, env=env,
             start_new_session=start_new_session,
         )

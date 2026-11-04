@@ -21,7 +21,7 @@ from gwf.exceptions import WorkflowError
 from gwf.scheduling import submit_backend
 
 from . import _observations, _records
-from .backends import LocalTerminationUnresolved, ManagedLocalOps
+from .backends import LocalTerminationUnresolved, ManagedLocalOps, local_termination_state
 from .activity import activity as report_activity
 from ._frontend import observation_deadline
 from .diagnostics import report_error
@@ -384,15 +384,19 @@ def _observe(store, attempt, backend, name, intents, *, tolerate_state_errors=Fa
         saved_id = ack.get("job_id") if ack else None
         mismatch = tracked_id is not None and saved_id is not None and tracked_id != saved_id
         job_id = saved_id if saved_id is not None else tracked_id
-        if same_backend:
+        local_without_backend = not same_backend and intent["backend"].get("name") == "local" and rejection is None
+        if same_backend or local_without_backend:
             try:
                 with observation_deadline() if _wait_scheduler_errors.get() is not None else nullcontext():
-                    state = backend.status(target)
-                    if tracked_id is None and job_id is not None and isinstance(backend, TrackingBackend):
-                        with report_activity("Waiting for scheduler..."):
-                            state = backend.ops.get_job_states([job_id]).get(job_id, BackendStatus.UNKNOWN)
-                    if isinstance(getattr(backend, "ops", None), ManagedLocalOps) and rejection is None:
-                        state = backend.ops.observe_submission(job_id, submission=intent["submission"])
+                    if local_without_backend:
+                        state = local_termination_state(store.working_dir, intent["submission"])
+                    else:
+                        state = backend.status(target)
+                        if tracked_id is None and job_id is not None and isinstance(backend, TrackingBackend):
+                            with report_activity("Waiting for scheduler..."):
+                                state = backend.ops.get_job_states([job_id]).get(job_id, BackendStatus.UNKNOWN)
+                        if isinstance(getattr(backend, "ops", None), ManagedLocalOps) and rejection is None:
+                            state = backend.ops.observe_submission(job_id, submission=intent["submission"])
             except Exception as error:
                 termination_unresolved = isinstance(error, LocalTerminationUnresolved)
                 errors = _wait_scheduler_errors.get()

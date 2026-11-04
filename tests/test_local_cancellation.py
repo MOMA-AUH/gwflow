@@ -1,11 +1,13 @@
 """Local Cancellation owns the computation tree through the installed CLI."""
 
 from collections import Counter
+import json
 import os
 from pathlib import Path
 import re
 import shlex
 import signal
+import socket
 
 from support import GWF, LocalBackendTestCase
 import test_graphs
@@ -41,7 +43,8 @@ class LocalCancellationTests(LocalBackendTestCase):
         # representing work admitted before the frontend was upgraded.
         self.cli("-b", "recovery_fixture", "run", env=self.inject())
         self.wait_for((self.work / "held").exists)
-        attempt = re.search(r"attempt ([0-9a-f]{32})", self.cli("logs", "sample", "--details")).group(1)
+        attempt = re.search(r"attempt ([0-9a-f]{32})", self.cli(
+            "-b", "recovery_fixture", "logs", "sample", "--details", env=self.inject())).group(1)
         self.assertIn("cannot verify cancellation identity", self.cli("cancel", "sample", success=False))
         self.cli("-b", "recovery_fixture", "cancel", "sample", env=self.inject())
         self.settle()
@@ -87,7 +90,10 @@ class LocalCancellationTests(LocalBackendTestCase):
     def test_supervisor_loss_without_backend_id_stays_unresolved_after_worker_restart(self):
         self.supervisor_loss_after_restart(lose_tracking="sample__right")
 
-    def supervisor_loss_after_restart(self, **injection):
+    def test_supervisor_loss_stays_unresolved_after_worker_port_changes(self):
+        self.supervisor_loss_after_restart(change_port=True, interrupt_after_acceptance="sample__right")
+
+    def supervisor_loss_after_restart(self, *, change_port=False, **injection):
         foreground_release = self.work / "foreground-release"
         self.addCleanup(foreground_release.touch)
         trace = shlex.quote(str(self.work / "trace"))
@@ -119,9 +125,14 @@ class LocalCancellationTests(LocalBackendTestCase):
         index = self.cli("logs", "sample", "--details")
         attempt = re.search(r"attempt ([0-9a-f]{32})", index).group(1)
         self.assert_unsafe_attempt_blocked(attempt)
-        self.stop_worker(self.worker)
-        self.worker = self.start_worker()
+        self.restart_worker(change_port=change_port)
         self.assert_unsafe_attempt_blocked(attempt)
+        if change_port:
+            environment = self.state_backend({})
+            self.assertIn("cannot confirm computation descendants have stopped", self.cli(
+                "-b", "state_fixture", "run", "sample", "--force", env=environment, success=False))
+            self.assertIn("cannot confirm computation descendants have stopped", self.cli(
+                "-b", "state_fixture", "clean", "sample", "--delete", env=environment, success=False))
         self.assertIn("cannot confirm computation descendants have stopped",
                       self.cli("run", "sample", "--dry-run", success=False))
         self.assertIn("cannot confirm computation descendants have stopped",
@@ -143,6 +154,50 @@ class LocalCancellationTests(LocalBackendTestCase):
             if path.exists() and path.read_text().rsplit(")", 1)[1].split()[0] != "Z":
                 running.append(pid)
         return running
+
+    def restart_worker(self, *, change_port=False, working_dir=None):
+        self.stop_worker(self.worker)
+        if change_port:
+            with socket.socket() as probe:
+                probe.bind(("127.0.0.1", 0))
+                self.port = probe.getsockname()[1]
+            self.configure(**{"backend.local.port": self.port})
+        self.worker = self.start_worker(working_dir=working_dir)
+
+    def test_completed_work_keeps_receipts_across_worker_locations_and_backends(self):
+        self.restart_worker(working_dir=self.make_workdir())
+        self.run_complete()
+        self.restart_worker(change_port=True, working_dir=self.make_workdir())
+        self.assertIn("Reuse", self.cli("run", "sample", "--dry-run"))
+        environment = self.state_backend({})
+        self.assertIn("Reuse", self.cli("-b", "state_fixture", "run", "sample", "--dry-run", env=environment))
+        self.cli("-b", "state_fixture", "clean", "sample", "--delete", env=environment)
+        self.assertIn("Reuse", self.cli("run", "sample", "--dry-run"))
+        self.assertEqual((self.work / "results/sample/result.txt").read_text(), "leftright")
+        self.assertEqual(Counter((self.work / "trace").read_text().splitlines()),
+                         {"left": 1, "right": 1, "join": 1})
+
+    def test_missing_malformed_or_foreign_receipt_never_proves_inactivity(self):
+        self.run_complete()
+        index = self.cli("logs", "sample", "--details")
+        attempt = re.search(r"attempt ([0-9a-f]{32})", index).group(1)
+        submission = re.search(r"sample__right: complete; submission (\S+)", index).group(1)
+        receipt = next(path for path in (self.work / ".gwf/local-termination").glob("*.json")
+                       if json.loads(path.read_text())["submission"] == submission)
+        original = receipt.read_bytes()
+        malformed = (None, b"{broken", json.dumps({"submission": "another-submission", "state": "COMPLETED"}).encode(),
+                     json.dumps({"submission": submission, "state": "RUNNING"}).encode())
+        for contents in malformed:
+            with self.subTest(contents=contents):
+                self.stop_worker(self.worker)
+                if contents is None:
+                    receipt.unlink()
+                else:
+                    receipt.write_bytes(contents)
+                self.worker = self.start_worker()
+                self.assert_unsafe_attempt_blocked(attempt)
+                receipt.write_bytes(original)
+                self.assertIn("Reuse", self.cli("run", "sample", "--dry-run"))
 
     def test_confirmed_completion_remains_reusable_after_worker_restart(self):
         self.run_complete()

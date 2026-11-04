@@ -115,7 +115,7 @@ class CompletedCompatibilityTests(InstalledCompatibilityTests):
             client.send("get_task_states")
             kind, response = client.recv()
         self.assertEqual(kind, "task_states")
-        durable_termination = isinstance(response.get("gwflow_terminations"), dict)
+        durable_termination = response.get("gwflow_termination_records") == 1
         self.assertTrue(states and all(state == LocalStatus.COMPLETED for state in states.values()), states)
         self.stop_worker(self.worker)
         self.assertIsNotNone(self.worker.poll())
