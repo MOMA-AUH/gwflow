@@ -35,7 +35,7 @@ class ManagedLocalOps(LocalOps):
                            (not self.managed and state in (LocalStatus.CANCELLED, LocalStatus.KILLED, LocalStatus.FAILED))}
         return {key: STATUS_MAP[state] for key, state in states.items() if key in tracked_jobs}
 
-    def require_observation(self, job_id, *, submission):
+    def observe_submission(self, job_id, *, submission):
         """Observe this submission, requiring termination evidence for inactivity."""
         if self.managed and self.submission_names.get(job_id) == submission:
             if job_id in self.unresolved:

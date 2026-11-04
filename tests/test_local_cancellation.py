@@ -82,6 +82,12 @@ class LocalCancellationTests(LocalBackendTestCase):
         self.assert_unsafe_attempt_blocked(attempt)
 
     def test_supervisor_loss_stays_unresolved_after_checked_success_and_worker_restart(self):
+        self.supervisor_loss_after_restart(interrupt_after_acceptance="sample__right")
+
+    def test_supervisor_loss_without_backend_id_stays_unresolved_after_worker_restart(self):
+        self.supervisor_loss_after_restart(lose_tracking="sample__right")
+
+    def supervisor_loss_after_restart(self, **injection):
         foreground_release = self.work / "foreground-release"
         self.addCleanup(foreground_release.touch)
         trace = shlex.quote(str(self.work / "trace"))
@@ -92,7 +98,7 @@ class LocalCancellationTests(LocalBackendTestCase):
             "printf right > same.txt",
         )
         self.configure_workflow(right_command=f"echo right >> {trace}; " + command)
-        environment = self.inject(interrupt_after_acceptance="sample__right")
+        environment = self.inject(**injection)
         self.cli("-b", "recovery_fixture", "run", env=environment, success=False)
         self.wait_for((self.work / "held").exists)
         # Follow the foreground command's actual ancestry, not a guessed PID.
@@ -123,19 +129,20 @@ class LocalCancellationTests(LocalBackendTestCase):
         # The survivor can still write; recovery is only valid after it stops.
         (self.work / "release").touch()
         self.wait_for((self.work / "late-write").exists)
-        self.wait_for(lambda: self.probe_stopped())
+        self.wait_for(lambda: not self.running_probe_processes())
         self.cli("recover", "sample")
         self.run_complete("sample")
         self.assertEqual((self.work / "results/sample/result.txt").read_text(), "leftright")
         self.assertEqual(Counter((self.work / "trace").read_text().splitlines()),
                          {"left": 1, "right": 1, "join": 1})
 
-    def probe_stopped(self):
+    def running_probe_processes(self):
+        running = []
         for pid in map(int, (self.work / "pids").read_text().split()):
             path = Path(f"/proc/{pid}/stat")
             if path.exists() and path.read_text().rsplit(")", 1)[1].split()[0] != "Z":
-                return False
-        return True
+                running.append(pid)
+        return running
 
     def test_confirmed_completion_remains_reusable_after_worker_restart(self):
         self.run_complete()
@@ -272,11 +279,8 @@ class LocalCancellationTests(LocalBackendTestCase):
                 f"/bin/bash -c {shlex.quote(child)} & wait; printf right > same.txt")
 
     def assert_probe_stopped(self):
-        for pid in map(int, (self.work / "pids").read_text().split()):
-            path = Path(f"/proc/{pid}/stat")
-            if path.exists():
-                self.assertEqual(path.read_text().rsplit(")", 1)[1].split()[0], "Z",
-                                 f"Computation process {pid} still runs after confirmed inactivity")
+        self.assertEqual(self.running_probe_processes(), [],
+                         "Computation processes still run after confirmed inactivity")
 
     def test_cancel_stops_bash_and_child_before_explicit_cleanup(self):
         self.configure_workflow(right_command=self.probe())
@@ -295,6 +299,7 @@ class LocalCancellationTests(LocalBackendTestCase):
 
 class ContainerCancellationTests(test_registry_images.RegistryTestCase):
     probe = LocalCancellationTests.probe
+    running_probe_processes = LocalCancellationTests.running_probe_processes
     assert_probe_stopped = LocalCancellationTests.assert_probe_stopped
     test_cancel_stops_container_command_and_child_before_cleanup = LocalCancellationTests.test_cancel_stops_bash_and_child_before_explicit_cleanup
 

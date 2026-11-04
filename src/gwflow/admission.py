@@ -392,13 +392,16 @@ def _observe(store, attempt, backend, name, intents, *, tolerate_state_errors=Fa
                         with report_activity("Waiting for scheduler..."):
                             state = backend.ops.get_job_states([job_id]).get(job_id, BackendStatus.UNKNOWN)
                     if isinstance(getattr(backend, "ops", None), ManagedLocalOps) and rejection is None:
-                        state = backend.ops.require_observation(job_id, submission=intent["submission"])
+                        state = backend.ops.observe_submission(job_id, submission=intent["submission"])
             except Exception as error:
                 termination_unresolved = isinstance(error, LocalTerminationUnresolved)
                 errors = _wait_scheduler_errors.get()
                 if errors is not None:
                     errors.append(str(error))
-                elif not tolerate_state_errors:
+                # A missing backend ID already has structured unresolved-job
+                # guidance. Keep that observation uncertain even when checked
+                # output exists, instead of replacing it with a query error.
+                elif not tolerate_state_errors and not (termination_unresolved and job_id is None):
                     recovery = read_recovery(store, attempt, intent)
                     if recovery is None:
                         raise
