@@ -7,7 +7,6 @@ from gwf.backends import BackendStatus
 from gwf.exceptions import WorkflowError
 
 from . import _files, _observations, _records, admission, images, inputs, transfer
-from .backends import create_backend
 from .activity import activity as report_activity
 from .inspection_errors import InspectionBlocker
 from .lifecycle import Store, TaskObservation, declarations, ordered_tasks, ordered_targets, producer_names, target_dependencies
@@ -243,7 +242,8 @@ def plan_workflow(workflow, ctx, *, selectors=(), force=False):
     observations_by_name = {}
     with ExitStack() as resources:
         with report_activity("Waiting for scheduler..."):
-            backend = resources.enter_context(create_backend(ctx.backend, working_dir=ctx.working_dir, config=ctx.config))
+            backend = resources.enter_context(admission.observation_backend(
+                ctx.backend, working_dir=ctx.working_dir, config=ctx.config))
         with report_activity("Inspecting Tasks...", total=len(scope)) as inspected:
             for name in order:
                 if name not in scope:

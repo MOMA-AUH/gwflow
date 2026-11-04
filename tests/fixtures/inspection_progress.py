@@ -5,12 +5,12 @@ import os
 import time
 
 from gwf.exceptions import WorkflowError
-from gwflow import planning
+from gwflow import admission, planning
 
 
 def install(root):
     root = Path(root)
-    create_backend = planning.create_backend
+    create_backend = admission.create_backend
     resolve = planning.images.resolve
     inspected = 0
 
@@ -37,5 +37,5 @@ def install(root):
             wait('task')
         return resolve(*args, **kwargs)
 
-    planning.create_backend = backend
+    admission.create_backend = backend
     planning.images.resolve = images
