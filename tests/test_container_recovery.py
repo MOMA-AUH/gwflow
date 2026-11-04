@@ -220,6 +220,7 @@ class ContainerRecoveryTests(LocalBackendTestCase):
     def test_uncertain_consumer_admission_blocks_producer_repair(self):
         self.failure.unlink()
         self.run_complete()
+        attempt = self.attempt()
         original = (self.work / "workflow.py").read_text()
         self.add_consumer()
         shutil.copy(FIXTURES / "job_fault.py", self.work)
@@ -228,8 +229,21 @@ class ContainerRecoveryTests(LocalBackendTestCase):
                  env=self.inject(job_fault="consumer__read", lose_tracking="consumer__read"))
         self.settle()
         self.assertFalse((self.work / "results/consumer").exists())
+        counts = self.counts()
+        # Lost tracking does not remove an exact-Submission termination receipt.
+        # Withhold scheduler evidence to keep this consumer genuinely uncertain.
+        environment = self.inject(job_states={"consumer__read": "UNKNOWN"})
+        self.assertIn("no recorded or tracked backend job ID", self.cli(
+            "-b", "recovery_fixture", "cancel", "consumer", "--dry-run", env=environment, success=False))
         result = self.work / "results/sample/result.txt"
         result.write_text("protected after lost acknowledgement")
         (self.work / "workflow.py").write_text(original)
-        self.assert_blocked_without_changes("Active consumers block replacement: consumer")
+        self.assert_blocked_without_changes("Active consumers block replacement: consumer",
+                                            backend=("-b", "recovery_fixture"), env=environment)
         self.assertEqual(result.read_text(), "protected after lost acknowledgement")
+        # The real local receipt proves all container descendants stopped.
+        self.cli("run")
+        self.settle()
+        self.assertEqual(result.read_text(), "leftright")
+        self.assertEqual(self.attempt(), attempt)
+        self.assertEqual(self.counts(), counts)
