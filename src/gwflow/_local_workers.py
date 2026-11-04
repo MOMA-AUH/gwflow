@@ -10,6 +10,7 @@ import sys
 from gwf.backends.local import LocalStatus, Scheduler, Server
 
 from . import _worker_process
+from ._local_termination import TerminationRecords
 
 logger = logging.getLogger(__name__)
 
@@ -20,8 +21,12 @@ class ManagedScheduler(Scheduler):
         self.started = set()
         self.stopping = set()
         self.submission_names = {}
+        self.termination = TerminationRecords(self.working_dir)
 
     async def enqueue_task(self, name, script, working_dir, time_limit, deps):
+        # Invalidate any earlier receipt before the job can run, including if
+        # an ordinary gwf client submits the same name more than once.
+        self.termination.record(name, LocalStatus.UNKNOWN)
         tid = await super().enqueue_task(name, script, working_dir, time_limit, deps)
         self.submission_names[tid] = name
         return tid
@@ -90,6 +95,11 @@ class ManagedScheduler(Scheduler):
                 if stream is not None:
                     stream.close()
             # This is the sole terminal-state publication, after owned work stops.
+            try:
+                self.termination.record(name, outcome)
+            except Exception:
+                logger.exception("Local job %s could not persist termination evidence", name)
+                outcome = LocalStatus.UNKNOWN
             self.task_states[tid] = outcome
             if acquired:
                 self.cores_ressource.release()
@@ -131,6 +141,9 @@ class ManagedServer(Server):
         if kind == "task_states":
             kwargs["gwflow_process_tree"] = 1
             kwargs["gwflow_submissions"] = self.scheduler.submission_names
+            kwargs["gwflow_terminations"] = {
+                name: state.name for name, state in self.scheduler.termination.states.items()
+            }
         await super().send_response(writer, kind, **kwargs)
 
 

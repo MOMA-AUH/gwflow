@@ -391,9 +391,8 @@ def _observe(store, attempt, backend, name, intents, *, tolerate_state_errors=Fa
                     if tracked_id is None and job_id is not None and isinstance(backend, TrackingBackend):
                         with report_activity("Waiting for scheduler..."):
                             state = backend.ops.get_job_states([job_id]).get(job_id, BackendStatus.UNKNOWN)
-                    if isinstance(getattr(backend, "ops", None), ManagedLocalOps):
-                        if not backend.ops.require_observation(job_id, submission=intent["submission"], completed=checked):
-                            state = BackendStatus.UNKNOWN
+                    if isinstance(getattr(backend, "ops", None), ManagedLocalOps) and rejection is None:
+                        state = backend.ops.require_observation(job_id, submission=intent["submission"])
             except Exception as error:
                 termination_unresolved = isinstance(error, LocalTerminationUnresolved)
                 errors = _wait_scheduler_errors.get()

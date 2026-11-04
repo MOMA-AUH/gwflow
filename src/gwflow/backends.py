@@ -22,8 +22,11 @@ class ManagedLocalOps(LocalOps):
         if kind != "task_states":
             raise BackendError("Invalid local worker state response")
         names = response.get("gwflow_submissions")
-        self.managed = response.get("gwflow_process_tree") == 1 and isinstance(names, dict)
+        termination = response.get("gwflow_terminations")
+        self.managed = (response.get("gwflow_process_tree") == 1
+                        and isinstance(names, dict) and isinstance(termination, dict))
         self.submission_names = {int(key): value for key, value in names.items()} if self.managed else {}
+        self.termination = termination if self.managed else {}
         states = {int(key): LocalStatus[value] for key, value in response["tasks"].items()}
         self._last_states = states
         self.known_jobs = set(states)
@@ -32,21 +35,20 @@ class ManagedLocalOps(LocalOps):
                            (not self.managed and state in (LocalStatus.CANCELLED, LocalStatus.KILLED, LocalStatus.FAILED))}
         return {key: STATUS_MAP[state] for key, state in states.items() if key in tracked_jobs}
 
-    def require_observation(self, job_id, *, submission, completed):
-        """Return whether live state belongs to this submission; keep uncertainty."""
-        if job_id is None:
-            return True
-        if job_id in self.unresolved:
-            raise LocalTerminationUnresolved()
+    def require_observation(self, job_id, *, submission):
+        """Observe this submission, requiring termination evidence for inactivity."""
         if self.managed and self.submission_names.get(job_id) == submission:
-            return True
+            if job_id in self.unresolved:
+                raise LocalTerminationUnresolved()
+            return STATUS_MAP[self._last_states[job_id]]
         if not self.managed and job_id in self.known_jobs:
             if self._last_states[job_id] in (LocalStatus.SUBMITTED, LocalStatus.RUNNING):
-                return True
-        # Checked successful work can remain reusable when its live identity
-        # expired, but another submission's state is never attributed to it.
-        if completed:
-            return False
+                return STATUS_MAP[self._last_states[job_id]]
+        # Output success precedes descendant cleanup. Only a durable receipt
+        # for this exact submission can replace an expired live identity.
+        terminal = self.termination.get(submission)
+        if terminal in ("COMPLETED", "FAILED", "CANCELLED", "KILLED"):
+            return STATUS_MAP[LocalStatus[terminal]]
         if self.managed and job_id in self.known_jobs:
             raise LocalTerminationUnresolved("Local job ID belongs to a different submission")
         raise LocalTerminationUnresolved()

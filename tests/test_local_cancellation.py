@@ -81,6 +81,93 @@ class LocalCancellationTests(LocalBackendTestCase):
         attempt = self.failed_job_after_worker_restart()
         self.assert_unsafe_attempt_blocked(attempt)
 
+    def test_supervisor_loss_stays_unresolved_after_checked_success_and_worker_restart(self):
+        foreground_release = self.work / "foreground-release"
+        self.addCleanup(foreground_release.touch)
+        trace = shlex.quote(str(self.work / "trace"))
+        command = self.probe().replace(
+            " & wait; printf right > same.txt",
+            " >/dev/null 2>&1 & "
+            f"while [ ! -e {shlex.quote(str(foreground_release))} ]; do sleep 0.025; done; "
+            "printf right > same.txt",
+        )
+        self.configure_workflow(right_command=f"echo right >> {trace}; " + command)
+        environment = self.inject(interrupt_after_acceptance="sample__right")
+        self.cli("-b", "recovery_fixture", "run", env=environment, success=False)
+        self.wait_for((self.work / "held").exists)
+        # Follow the foreground command's actual ancestry, not a guessed PID.
+        # Killing the supervisor models loss of its cleanup attestation.
+        pid = int((self.work / "pids").read_text().split()[0])
+        while pid > 1:
+            process = Path(f"/proc/{pid}")
+            if b"gwflow._worker_process" in process.joinpath("cmdline").read_bytes().split(b"\0"):
+                os.kill(pid, signal.SIGKILL)
+                break
+            pid = int(process.joinpath("stat").read_text().rsplit(")", 1)[1].split()[1])
+        else:
+            self.fail("No local supervisor owns the foreground command")
+        foreground_release.touch()
+        self.wait_for(lambda: "sample__right: complete" in self.cli(
+            "-b", "recovery_fixture", "logs", "sample", "--details", env=environment))
+        self.settle()
+        index = self.cli("logs", "sample", "--details")
+        attempt = re.search(r"attempt ([0-9a-f]{32})", index).group(1)
+        self.assert_unsafe_attempt_blocked(attempt)
+        self.stop_worker(self.worker)
+        self.worker = self.start_worker()
+        self.assert_unsafe_attempt_blocked(attempt)
+        self.assertIn("cannot confirm computation descendants have stopped",
+                      self.cli("run", "sample", "--dry-run", success=False))
+        self.assertIn("cannot confirm computation descendants have stopped",
+                      self.cli("clean", "sample", "--delete", success=False))
+        # The survivor can still write; recovery is only valid after it stops.
+        (self.work / "release").touch()
+        self.wait_for((self.work / "late-write").exists)
+        self.wait_for(lambda: self.probe_stopped())
+        self.cli("recover", "sample")
+        self.run_complete("sample")
+        self.assertEqual((self.work / "results/sample/result.txt").read_text(), "leftright")
+        self.assertEqual(Counter((self.work / "trace").read_text().splitlines()),
+                         {"left": 1, "right": 1, "join": 1})
+
+    def probe_stopped(self):
+        for pid in map(int, (self.work / "pids").read_text().split()):
+            path = Path(f"/proc/{pid}/stat")
+            if path.exists() and path.read_text().rsplit(")", 1)[1].split()[0] != "Z":
+                return False
+        return True
+
+    def test_confirmed_completion_remains_reusable_after_worker_restart(self):
+        self.run_complete()
+        self.stop_worker(self.worker)
+        self.worker = self.start_worker()
+        self.assertIn("Reuse", self.cli("run", "sample", "--dry-run"))
+        self.cli("clean", "sample", "--delete")
+        self.assertIn("Reuse", self.cli("run", "sample", "--dry-run"))
+        self.assertEqual((self.work / "results/sample/result.txt").read_text(), "leftright")
+        self.assertEqual(Counter((self.work / "trace").read_text().splitlines()),
+                         {"left": 1, "right": 1, "join": 1})
+
+    def test_confirmed_cancellation_preserves_partial_work_after_worker_restart(self):
+        trace = shlex.quote(str(self.work / "trace"))
+        self.configure_workflow(right_command=f"echo right >> {trace}; " + self.probe())
+        self.cli("run")
+        self.wait_for((self.work / "held").exists)
+        self.wait_for(lambda: "sample__left: complete" in self.cli("logs", "sample"))
+        before = self.cli("logs", "sample", "--details")
+        attempt = re.search(r"attempt ([0-9a-f]{32})", before).group(1)
+        self.cli("cancel", "sample")
+        self.settle()
+        self.assert_probe_stopped()
+        self.stop_worker(self.worker)
+        self.worker = self.start_worker()
+        self.assertIn("Retry", self.cli("run", "sample", "--dry-run"))
+        (self.work / "release").touch()
+        self.run_complete("sample")
+        self.assertIn(attempt, self.cli("logs", "sample", "--details"))
+        self.assertEqual(Counter((self.work / "trace").read_text().splitlines()),
+                         {"left": 1, "right": 2, "join": 1})
+
     def test_reused_job_id_never_cancels_other_task_or_authorizes_old_retry(self):
         attempt = self.failed_job_after_worker_restart()
         release = self.work / "other-release"
