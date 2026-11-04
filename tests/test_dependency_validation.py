@@ -92,10 +92,14 @@ class DependencyValidationTests(LocalBackendTestCase):
         completion = record_path(self.work, "node00", "operations/*/completion.json")
         original = read_record(completion)
         sibling = record_path(self.work, "node02", "attempt.json")
-        result, = self.scenario([["run", "--dry-run"]], [{
-            "pass": 0, "after": str(sibling), "while_validating": "node03",
-            "write": {str(completion): {**original, "attempt": "0" * 32}},
-        }])
+        result, = self.scenario([["run", "--dry-run"]], [
+            {"pass": 0, "after": str(sibling), "while_validating": "node03",
+             "write": {str(completion): {**original, "attempt": "0" * 32}}},
+            # Isolate one observation: later planner checks must not mask an
+            # unsafe successful return from the affected dependency traversal.
+            {"pass": 0, "after": "producer_validation_return:node03",
+             "write": {str(completion): original}},
+        ])
         self.assertNotEqual(result["exit_code"], 0)
         self.assertRegex(result["output"], r"Task node03\s+Blocked\s+")
         self.assertIn("lacks checked Completion", result["output"])
