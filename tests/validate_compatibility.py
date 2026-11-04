@@ -49,7 +49,7 @@ class InstalledCompatibilityTests(LocalBackendTestCase):
         self.environment["PATH"] = str(Path(self.executable).parent) + os.pathsep + self.environment.get("PATH", "")
 
     def start_worker(self):
-        return super().start_worker(env=self.environment)
+        return super().start_worker(env=self.environment, start_new_session=True)
 
     def record(self, event):
         with (self.root / "transcript.jsonl").open("a") as stream:
@@ -62,7 +62,7 @@ class InstalledCompatibilityTests(LocalBackendTestCase):
                      "stdout": result.stdout, "stderr": result.stderr})
         return result
 
-    def logical_records(self, kind):
+    def logical_records(self, kind=None):
         records = {}
         for path in (self.work / ".gwf/gwflow").rglob("record-state.json"):
             state = json.loads(path.read_text())
@@ -71,7 +71,8 @@ class InstalledCompatibilityTests(LocalBackendTestCase):
                 collection = {str(record.relative_to(path.parent)): json.loads(record.read_text())
                               for record in path.parent.rglob("*.json") if record != path}
             records.update({str(path.parent.relative_to(self.work) / name): value
-                            for name, value in collection.items() if value.get("kind") == "gwflow." + kind})
+                            for name, value in collection.items()
+                            if kind is None or value.get("kind") == "gwflow." + kind})
         return records
 
     def snapshot(self):
@@ -105,21 +106,59 @@ class CompletedCompatibilityTests(InstalledCompatibilityTests):
         records = self.logical_records("operator-recovery")
         self.assertEqual(len(records), 1)
         before = self.snapshot()
+        original_records = self.logical_records()
         identities = {str(path): {"device": path.stat().st_dev, "inode": path.stat().st_ino}
                       for path in (self.work, self.work / "work", self.work / "results", self.work / ".gwf/gwflow")}
         self.finish()
         with Client.connect(port=self.port) as client:
             states = client.status()
+            client.send("get_task_states")
+            kind, response = client.recv()
+        self.assertEqual(kind, "task_states")
+        durable_termination = isinstance(response.get("gwflow_terminations"), dict)
         self.assertTrue(states and all(state == LocalStatus.COMPLETED for state in states.values()), states)
         self.stop_worker(self.worker)
         self.assertIsNotNone(self.worker.poll())
+        # The pinned legacy scheduler inherits this isolated process group.
+        # These controlled commands run synchronously and never detach. Group
+        # absence therefore checks its descendants, not merely its exit code.
+        with self.assertRaises(ProcessLookupError):
+            os.killpg(self.worker.pid, 0)
         self.record({"baseline_jobs_completed": True, "worker_exit": self.worker.returncode,
+                     "baseline_process_group_gone": True, "durable_termination": durable_termination,
                      "job_states": {str(job): state.name for job, state in states.items()},
                      "attempts": attempts, "storage": identities, "snapshot": before})
 
         self.select_installation("candidate")
         self.worker = self.start_worker()
         self.cli("status", "--details")
+        if not durable_termination:
+            # Follow the public upgrade procedure for an old worker that could
+            # not retain inactivity evidence. Do not fabricate scheduler state.
+            for flags in (("--dry-run",), ()):
+                blocked = self.cli("run", *flags, success=False)
+                self.assertIn("cannot confirm computation descendants have stopped", blocked)
+                self.assertNoSubmissions(blocked)
+                self.assertEqual(self.snapshot(), before)
+            self.assertEqual(self.trace(), Counter({name: 1 for name in names}))
+            for name in names:
+                recovery = self.cli("recover", name)
+                self.assertIn("Resolved", recovery)
+                self.assertIn("Whole-Task inactivity asserted by the operator", recovery)
+                self.assertNoSubmissions(recovery)
+            recovered = self.logical_records()
+            self.assertEqual({path: recovered[path] for path in original_records}, original_records)
+            added = {path: record for path, record in recovered.items() if path not in original_records}
+            self.assertTrue(added)
+            self.assertTrue(all(record["kind"] == "gwflow.operator-recovery" for record in added.values()))
+            after = self.snapshot()
+            retained = {path: metadata for path, metadata in before.items() if path.startswith("results/")}
+            self.assertEqual({path: after[path] for path in retained}, retained)
+            self.record({"upgrade_operator_recovery": added, "preserved_logical_records": len(original_records),
+                         "preserved_retained_files": len(retained)})
+            # Recovery appends evidence through the supported record API. All
+            # subsequent read/reuse operations must preserve its physical state.
+            before = after
         preview = self.cli("run", "--dry-run")
         for name in names:
             self.assertRegex(preview, rf"Task {name}\s+Reuse\s+")

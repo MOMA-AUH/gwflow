@@ -253,9 +253,27 @@ and stops the baseline worker before starting a candidate worker. Both installat
 use the same workflow and storage paths; directory device/inode observations and
 the workflow checksum verify that no relocation or rewriting was needed.
 
-The candidate previews and runs the unchanged workflow, checks recovery is already
-resolved, and proves that attempt identities, retained content, and baseline record
-bytes/metadata remain unchanged. It then adds a consumer through the workflow's
+The pinned legacy scheduler and its controlled synchronous commands inherit the
+worker's process group and never detach. The runner starts each worker in a
+separate group. After legacy baseline shutdown, it makes sure that this group
+contains no process, including descendants. This supplies inactivity evidence
+beyond checked output success. Updated workers also use their cleanup-backed
+terminal receipts to establish descendant inactivity across separate sessions.
+
+If the baseline worker supplies durable termination records, the candidate must
+reuse automatically and preserve all baseline record bytes and metadata.
+If the baseline lacks those records, the candidate must first block ordinary run
+without changing any evidence or retained files. The runner then uses public
+`gwflow recover TASK` commands, as required by the
+[upgrade procedure](../../operating.md#upgrade-with-all-jobs-inactive).
+It verifies that every original logical record remains unchanged and that only
+operator-recovery records are added. Retained file bytes and metadata remain
+unchanged. The transcript records the operator assertions and resolved submissions.
+
+The candidate then previews and runs the unchanged workflow, checks recovery is
+resolved, and proves that attempt identities and computation counts remain unchanged.
+Subsequent Reuse must preserve all record bytes and metadata after recovery.
+It then adds a consumer through the workflow's
 declaration switch and proves that only that consumer computes. The candidate also
 refuses unowned results. The ordinary suite's legacy/truncated-record tests continue
 to reject unsupported ownership evidence; no migration path is introduced.
