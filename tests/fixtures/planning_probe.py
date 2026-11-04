@@ -32,6 +32,8 @@ class Probe:
         self.originals = {}
         self.document_decodes = Counter()
         self.peak_cached_documents = 0
+        self.producer_depth = 0
+        self.peak_producer_depth = 0
 
     def switch(self, phase):
         now = time.perf_counter()
@@ -42,6 +44,11 @@ class Probe:
         if event == "call":
             module = frame.f_globals.get("__name__", "")
             name = frame.f_code.co_name
+            if module == "gwflow.lifecycle" and name == "input_baseline":
+                self.counts[self.phase]["input_validations"] += 1
+            if module == "gwflow.lifecycle" and name == "require_producers":
+                self.producer_depth += 1
+                self.peak_producer_depth = max(self.peak_producer_depth, self.producer_depth)
             if module == "json" and name == "loads":
                 payload = frame.f_locals["s"]
                 self.counts[self.phase]["json_decodes"] += 1
@@ -74,6 +81,9 @@ class Probe:
             if phase is not None:
                 self.frames[id(frame)] = self.phase
                 self.switch(phase)
+        elif (event == "return" and frame.f_globals.get("__name__") == "gwflow.lifecycle"
+              and frame.f_code.co_name == "require_producers"):
+            self.producer_depth -= 1
         elif (event == "return" and frame.f_globals.get("__name__") == "gwflow._records"
               and frame.f_code.co_name == "read" and type(frame.f_locals.get("self")).__name__ == "_Documents"):
             self.peak_cached_documents = max(self.peak_cached_documents, len(frame.f_locals["self"].values))
@@ -139,6 +149,7 @@ class Probe:
         return {"counts": dict(self.counts), "paths": dict(self.paths), "seconds": dict(self.seconds),
                 "document_decodes": dict(self.document_decodes),
                 "peak_cached_documents": self.peak_cached_documents,
+                "peak_producer_depth": self.peak_producer_depth,
                 "peak_rss_kib": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss,
                 "traced_memory_bytes": dict(zip(("current", "peak"), tracemalloc.get_traced_memory())) if tracemalloc.is_tracing() else None,
                 "peak_opened_descriptors": self.peak, "path_depth": len(Path.cwd().parts) - 1}
