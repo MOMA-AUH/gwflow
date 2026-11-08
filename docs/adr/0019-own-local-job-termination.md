@@ -21,3 +21,8 @@ verified cancellation requests. Their unsafe terminal observations cannot author
 replacement, or cleanup. An operator must establish inactivity before using the
 existing [recovery operation](0013-provide-explicit-recovery-for-unresolved-submissions.md).
 Slurm retains its existing cancellation behavior.
+
+For the gwf 3 upgrade, [ADR 0020](0020-adopt-gwf-3-local-schedulers-per-workflow.md)
+replaces the earlier worker configuration with a scheduler per workflow
+directory. The descendant ownership and termination guarantees above remain
+required.

@@ -1,0 +1,110 @@
+{
+  "date": "2026-11-08",
+  "issue": "https://github.com/MOMA-AUH/gwflow/issues/343",
+  "base": "378a5628b48f385716d9d711be324daf24d41482",
+  "scope": "Preparation only. The supported installation remains gwf 2.1.1. The isolated gwf 3 source probe checks startup imports and submission preflight only; it does not establish managed local execution, Slurm, logs, or complete gwf 3 compatibility.",
+  "paths": {
+    "<REPO>": "Checkout used for this validation; ordinary relative paths are relative to this checkout.",
+    "<DEV_ENV>": "Reusable Python 3.12 development environment outside this checkout, originally built from environment.yml for issue #313.",
+    "<TYPE_ENV>": "Separate local environment providing mypy 2.3.1.",
+    "raw_logs": "build/validation/startup-submission-343/ (ignored, machine-specific output)"
+  },
+  "supported_versions": {
+    "python": "3.12.16",
+    "gwf": "2.1.1",
+    "gwflow": "0.10.2"
+  },
+  "supported_checks": [
+    {
+      "command": "<DEV_ENV>/bin/python -m pip install --no-deps --no-build-isolation .",
+      "result": "Built and installed the candidate wheel."
+    },
+    {
+      "command": "<DEV_ENV>/bin/python -m pip check",
+      "result": "No broken requirements found."
+    },
+    {
+      "command": "<DEV_ENV>/bin/python -I -c \"import gwflow, gwflow.cli\"",
+      "result": "Passed."
+    },
+    {
+      "command": "<TYPE_ENV>/bin/mypy --follow-imports=silent --ignore-missing-imports src/gwflow/cli.py src/gwflow/admission.py",
+      "result": "Success: no issues found in 2 source files. mypy 2.3.1; default untyped-body checking only."
+    },
+    {
+      "command": "<DEV_ENV>/bin/python -m unittest discover -s tests -p test_submission.py -v",
+      "result": "15 tests passed in 103.556 seconds, including pre-admission rejection, uncertain acceptance, confirmed acceptance, interrupted submissions, and tracking persistence failures."
+    },
+    {
+      "command": "<DEV_ENV>/bin/python -m unittest discover -s tests -p test_cli.py -v",
+      "result": "Ran 6 tests in 72.217s\n\nOK. Covers help/version, plugin discovery and backend choice, workflow discovery, configuration, and executable ownership."
+    }
+  ],
+  "probe": {
+    "upstream": "https://github.com/gwforg/gwf/tree/v3.0.0",
+    "commit": "f852fd15ea66fa025694c3d5a796cb42d29f174a",
+    "archive_sha256": "644e8dfadbb05ec1d01cb9437cbccbb1745bcc9de8f4e18ac2d3bab15689545f",
+    "acquisition": "gh api repos/gwforg/gwf/tarball/f852fd15ea66fa025694c3d5a796cb42d29f174a > build/validation/startup-submission-343/gwf-3.0.0.tar.gz; tar -xzf build/validation/startup-submission-343/gwf-3.0.0.tar.gz -C build/validation/startup-submission-343",
+    "method": "Save source below as build/validation/startup-submission-343/probe.py. Run once with the base wheel installed and once with the candidate wheel installed. Only the probe process selects the exact upstream source through PYTHONPATH. Installed gwf files and dependency pins remain unchanged; temporary log directories are removed on exit. No real backend submission occurs.",
+    "command": "PYTHONPATH=build/validation/startup-submission-343/gwforg-gwf-f852fd1/src <DEV_ENV>/bin/python build/validation/startup-submission-343/probe.py",
+    "source": "import importlib\nimport json\nfrom pathlib import Path\nfrom tempfile import TemporaryDirectory\nfrom types import SimpleNamespace\n\nfrom gwf import Target\nfrom gwf.log_storage import get_log_paths\nfrom gwf.scheduling import submit_backend\nfrom gwflow.admission import SubmissionOutcome, _AdmissionCall\n\nresults = {}\ntry:\n    importlib.import_module('gwflow.cli')\n    results['startup'] = 'passed'\nexcept ImportError as error:\n    results['startup'] = str(error)\n\nfor case in ('accepted', 'backend_error', 'preflight_error'):\n    with TemporaryDirectory(prefix='gwflow-gwf3-probe-') as temporary:\n        work = Path(temporary)\n        if case == 'preflight_error':\n            (work / '.gwf').write_text('blocked directory')\n        accepted = []\n        updated = []\n        outcome = SubmissionOutcome('probe', 'compute')\n        def backend_submit(target, dependencies):\n            if case == 'backend_error':\n                raise RuntimeError('controlled submission uncertainty')\n        backend = SimpleNamespace(working_dir=work, target_defaults={}, submit=backend_submit,\n                                  get_tracked_id=lambda target: 'probe-id')\n        target = Target('probe', [], [], {})\n        call = _AdmissionCall(backend, accepted.append, outcome)\n        error_name = None\n        try:\n            submit_backend(target, [], call, SimpleNamespace(update=updated.append))\n        except Exception as error:\n            error_name = type(error).__name__\n        result = {'error': error_name, 'entered': outcome.entered, 'confirmed': outcome.confirmed,\n                  'accepted': accepted, 'hash_updated': bool(updated),\n                  'log_directory_prepared': get_log_paths(work, target.name)[0].parent.is_dir()}\n        results[case] = result\nprint(json.dumps(results, indent=2))\n",
+    "before": {
+      "startup": "cannot import name 'entry_points' from 'gwf.utils' (<REPO>/build/validation/startup-submission-343/gwforg-gwf-f852fd1/src/gwf/utils.py)",
+      "accepted": {
+        "error": "AttributeError",
+        "entered": false,
+        "confirmed": false,
+        "accepted": [],
+        "hash_updated": false,
+        "log_directory_prepared": false
+      },
+      "backend_error": {
+        "error": "AttributeError",
+        "entered": false,
+        "confirmed": false,
+        "accepted": [],
+        "hash_updated": false,
+        "log_directory_prepared": false
+      },
+      "preflight_error": {
+        "error": "AttributeError",
+        "entered": false,
+        "confirmed": false,
+        "accepted": [],
+        "hash_updated": false,
+        "log_directory_prepared": false
+      }
+    },
+    "after": {
+      "startup": "passed",
+      "accepted": {
+        "error": null,
+        "entered": true,
+        "confirmed": true,
+        "accepted": [
+          "probe-id"
+        ],
+        "hash_updated": true,
+        "log_directory_prepared": true
+      },
+      "backend_error": {
+        "error": "RuntimeError",
+        "entered": true,
+        "confirmed": false,
+        "accepted": [],
+        "hash_updated": false,
+        "log_directory_prepared": true
+      },
+      "preflight_error": {
+        "error": "NotADirectoryError",
+        "entered": false,
+        "confirmed": false,
+        "accepted": [],
+        "hash_updated": false,
+        "log_directory_prepared": false
+      }
+    },
+    "interpretation": "Both known interface gaps are removed. Log-directory failure stays before admission; backend failure remains uncertain; successful acceptance acknowledges the tracked identity and updates command hashes."
+  },
+  "environment_notes": "Local worker tests and wait-process IPC require socket access outside the execution sandbox. Initial restricted runs failed on PermissionError before their intended behavior could be exercised; the supported runs use the same tests and unmodified limits with socket access."
+}
