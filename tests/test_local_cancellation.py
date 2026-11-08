@@ -6,7 +6,6 @@ import os
 import re
 import shlex
 import signal
-import socket
 
 from support import GWF, LocalBackendTestCase
 import test_graphs
@@ -19,7 +18,7 @@ class LocalCancellationTests(ProcessProbe, LocalBackendTestCase):
     settle = LocalBackendTestCase.settle
     inject = test_graphs.TaskGraphTests.inject
 
-    def test_old_workers_allow_inspection_but_refuse_new_managed_jobs(self):
+    def test_ordinary_workers_allow_inspection_but_refuse_new_managed_jobs(self):
         self.stop_worker(self.worker)
         self.executable = GWF
         self.worker = self.start_worker()
@@ -33,14 +32,14 @@ class LocalCancellationTests(ProcessProbe, LocalBackendTestCase):
         self.run_complete()
         self.assertIn("Reuse", self.cli("run", "--dry-run"))
 
-    def test_old_worker_cancellation_cannot_authorize_retry_replacement_or_cleanup(self):
+    def test_ordinary_worker_cancellation_cannot_authorize_retry_replacement_or_cleanup(self):
         self.stop_worker(self.worker)
         self.executable = GWF
         self.worker = self.start_worker()
         del self.executable
         self.configure_workflow(right_command=self.probe())
-        # Existing backend fixture submits through the original local protocol,
-        # representing work admitted before the frontend was upgraded.
+        # The external backend fixture admits native work through ordinary
+        # workers, which provide no managed descendant-termination guarantee.
         self.cli("-b", "recovery_fixture", "run", env=self.inject())
         self.wait_for((self.work / "held").exists)
         attempt = re.search(r"attempt ([0-9a-f]{32})", self.cli(
@@ -52,7 +51,7 @@ class LocalCancellationTests(ProcessProbe, LocalBackendTestCase):
         for arguments in (("run", "sample"), ("run", "sample", "--force"),
                           ("clean", "--attempt", attempt, "--delete")):
             self.assertIn("cannot confirm computation descendants have stopped", self.cli(*arguments, success=False))
-        # Restart loses scheduler history, but does not stop the old child.
+        # Lost scheduler history cannot establish descendant termination.
         self.stop_worker(self.worker)
         self.worker = self.start_worker()
         for arguments in (("run", "sample"), ("run", "sample", "--force"),
@@ -90,10 +89,10 @@ class LocalCancellationTests(ProcessProbe, LocalBackendTestCase):
     def test_supervisor_loss_without_backend_id_stays_unresolved_after_worker_restart(self):
         self.supervisor_loss_after_restart(lose_tracking="sample__right")
 
-    def test_supervisor_loss_stays_unresolved_after_worker_port_changes(self):
-        self.supervisor_loss_after_restart(change_port=True, interrupt_after_acceptance="sample__right")
+    def test_supervisor_loss_stays_unresolved_after_workflow_scheduler_is_unavailable(self):
+        self.supervisor_loss_after_restart(unavailable_scheduler=True, interrupt_after_acceptance="sample__right")
 
-    def supervisor_loss_after_restart(self, *, change_port=False, **injection):
+    def supervisor_loss_after_restart(self, *, unavailable_scheduler=False, **injection):
         foreground_release = self.work / "foreground-release"
         self.addCleanup(foreground_release.touch)
         trace = shlex.quote(str(self.work / "trace"))
@@ -117,9 +116,12 @@ class LocalCancellationTests(ProcessProbe, LocalBackendTestCase):
         index = self.cli("logs", "sample", "--details")
         attempt = re.search(r"attempt ([0-9a-f]{32})", index).group(1)
         self.assert_unsafe_attempt_blocked(attempt)
-        self.restart_worker(change_port=change_port)
+        self.restart_worker(unavailable_scheduler=unavailable_scheduler)
+        if unavailable_scheduler:
+            self.assertIn("Job activity is unknown", self.cli("run", "sample", "--dry-run", success=False))
+            self.restart_worker()
         self.assert_unsafe_attempt_blocked(attempt)
-        if change_port:
+        if unavailable_scheduler:
             environment = self.state_backend({})
             self.assertIn("cannot confirm computation descendants have stopped", self.cli(
                 "-b", "state_fixture", "run", "sample", "--force", env=environment, success=False))
@@ -139,19 +141,17 @@ class LocalCancellationTests(ProcessProbe, LocalBackendTestCase):
         self.assertEqual(Counter((self.work / "trace").read_text().splitlines()),
                          {"left": 1, "right": 1, "join": 1})
 
-    def restart_worker(self, *, change_port=False, working_dir=None):
+    def restart_worker(self, *, unavailable_scheduler=False, working_dir=None):
         self.stop_worker(self.worker)
-        if change_port:
-            with socket.socket() as probe:
-                probe.bind(("127.0.0.1", 0))
-                self.port = probe.getsockname()[1]
-            self.configure(**{"backend.local.port": self.port})
+        if unavailable_scheduler:
+            working_dir = self.make_workdir()
         self.worker = self.start_worker(working_dir=working_dir)
 
     def test_completed_work_keeps_receipts_across_worker_locations_and_backends(self):
-        self.restart_worker(working_dir=self.make_workdir())
         self.run_complete()
-        self.restart_worker(change_port=True, working_dir=self.make_workdir())
+        self.restart_worker(unavailable_scheduler=True)
+        self.assertIn("Job activity is unknown", self.cli("run", "sample", "--dry-run", success=False))
+        self.restart_worker()
         self.assertIn("Reuse", self.cli("run", "sample", "--dry-run"))
         environment = self.state_backend({})
         self.assertIn("Reuse", self.cli("-b", "state_fixture", "run", "sample", "--dry-run", env=environment))
@@ -214,7 +214,7 @@ class LocalCancellationTests(ProcessProbe, LocalBackendTestCase):
         self.assertEqual(Counter((self.work / "trace").read_text().splitlines()),
                          {"left": 1, "right": 2, "join": 1})
 
-    def test_reused_job_id_never_cancels_other_task_or_authorizes_old_retry(self):
+    def test_restarted_session_never_cancels_other_task_or_authorizes_old_retry(self):
         attempt = self.failed_job_after_worker_restart()
         release = self.work / "other-release"
         self.addCleanup(release.touch)
@@ -231,7 +231,7 @@ class LocalCancellationTests(ProcessProbe, LocalBackendTestCase):
                             "gwf.task(other, alias='other')\n")
         self.cli("run", "other")
         self.wait_for((self.work / "other-held").exists)
-        self.assertIn("different submission", self.cli("cancel", "sample", success=False))
+        self.assertIn("absent or belongs to a different submission", self.cli("cancel", "sample", success=False))
         self.assertIn("running", self.cli("status", "other", "--plain"))
         self.assert_unsafe_attempt_blocked(attempt)
         release.touch()

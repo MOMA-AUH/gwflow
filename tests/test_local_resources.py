@@ -98,6 +98,23 @@ class LocalResourceTests(ProcessProbe, LocalBackendTestCase):
         self.assertIn("requested 3.0GiB of memory", self.cli("run", "first", success=False))
         self.assertFalse((self.work / "first-held").exists())
 
+    def test_confirmed_capacity_rejection_can_continue_after_request_is_reduced(self):
+        self.configure_workflow(cores=3)
+        output = self.cli("run", "first", success=False)
+        self.assertIn("requested 3 cores", output)
+        self.assertNotIn("acceptance unconfirmed", output)
+        self.assertFalse((self.work / "first-held").exists())
+        self.settle()
+        before = self.task_attempts()["first"]
+        self.configure_workflow(cores=2)
+        self.assertIn("Continue", self.cli("run", "first", "--dry-run"))
+        self.cli("run", "first")
+        self.wait_for((self.work / "first-held").exists)
+        (self.work / "first-release").touch()
+        self.finish()
+        self.assertEqual(self.task_attempts()["first"], before)
+        self.assertIn("Reuse", self.cli("run", "first", "--dry-run"))
+
     def test_failure_releases_reserved_capacity(self):
         self.configure_workflow(command=self.gated("first") + "; exit 8")
         self.queue_second()

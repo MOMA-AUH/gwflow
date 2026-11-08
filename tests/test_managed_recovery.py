@@ -28,7 +28,6 @@ class ManagedCoordinationTests(LocalBackendTestCase):
         metadata = self.work / "recovery_backend-1.0.dist-info"
         metadata.mkdir(exist_ok=True)
         (metadata / "entry_points.txt").write_text("[gwf.backends]\nrecovery_fixture = recovery_backend:setup\n")
-        self.configure(**{"backend.recovery_fixture.port": self.port})
         (self.work / "injection.json").write_text(json.dumps(options))
         return {**os.environ, "PYTHONPATH": str(self.work)}
 
@@ -86,6 +85,9 @@ class ManagedCoordinationTests(LocalBackendTestCase):
         self.assertNoSubmissions(self.cli("run"))
 
     def test_completion_resources_overlay_workflow_defaults(self):
+        self.stop_worker(self.worker)
+        self.workers, self.worker_memory = 8, "16g"
+        self.worker = self.start_worker()
         self.write_task("touch out.txt", settings="defaults={'cores':3, 'memory':'8g'}, completion_defaults={'cores':1, 'memory':None}")
         workflow = self.work / "workflow.py"
         workflow.write_text(workflow.read_text().replace("empty_task(inputs=[])", "empty_task(inputs=[], defaults={'cores':7})"))
@@ -121,6 +123,32 @@ class ManagedCoordinationTests(LocalBackendTestCase):
         self.assertIn("Reuse", self.cli("run", "--dry-run"))
         self.assertNoSubmissions(self.cli("run"))
         self.assertEqual(trace.read_text(), "executed\n")
+
+    def test_cancellation_persists_ids_restored_from_acknowledgements(self):
+        held, release = self.work / "held", self.work / "release"
+        self.write_task(f"touch {shlex.quote(str(held))}; while [ ! -e {shlex.quote(str(release))} ]; do sleep 0.025; done; touch out.txt")
+        submitter, output = self.launch("-b", "recovery_fixture", "run",
+                                       env=self.inject(hold_tracking=True, record_acceptances=True))
+        self.wait_for((self.work / "tracking-held").exists)
+        self.wait_for(held.exists)
+        submitter.kill()
+        submitter.wait(timeout=10)
+        accepted = {item["name"]: item["id"] for item in map(json.loads,
+                    (self.work / "backend-acceptances.jsonl").read_text().splitlines())}
+        tracking = self.work / ".gwf/local-backend-tracked.json"
+        self.assertFalse(tracking.exists())
+        self.assertIn("Wait", self.cli("run", "--dry-run"))
+        self.assertFalse(tracking.exists(), "Preview must not restore tracking")
+        self.cli("cancel", "sample")
+        self.settle()
+        saved = json.loads(tracking.read_text())
+        for submission in accepted:
+            if "__write__" in submission or "__gwflow_complete__" in submission:
+                self.assertEqual(saved[submission], accepted[submission])
+        release.touch()
+        self.cli("run")
+        self.settle()
+        self.assertIn("Reuse", self.cli("run", "--dry-run"))
 
     def test_interruption_after_intent_before_admission_stays_uncertain(self):
         submitter, output = self.launch("-b", "recovery_fixture", "run",

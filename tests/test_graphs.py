@@ -60,7 +60,7 @@ class TaskGraphTests(LocalBackendTestCase):
         self.assertRegex(self.cli("run", "--dry-run"), r"Task sample\s+Retry\s+")
         failing.unlink()
         workflow = self.work / "workflow.py"
-        workflow.write_text(workflow.read_text().replace("gwf = Workflow()", "gwf = Workflow(defaults={'cores': 3})"))
+        workflow.write_text(workflow.read_text().replace("gwf = Workflow()", "gwf = Workflow(defaults={'cores': 2})"))
         self.cli("run")
         self.settle()
         self.assertEqual((self.work / "results/sample/result.txt").read_text(), "leftright")
@@ -74,7 +74,7 @@ class TaskGraphTests(LocalBackendTestCase):
         self.assertIn("Reuse", self.cli("run", "--dry-run"))
 
     def test_failed_branch_retries_while_unrelated_sibling_keeps_running(self):
-        from gwf.backends.local import Client, LocalStatus
+        from gwf.backends.local import Client, LocalStatus, get_socket_path
         held, release, failing = (self.work / name for name in ("left-held", "left-release", "fail-right"))
         failing.touch()
         trace = shlex.quote(str(self.work / "trace"))
@@ -92,7 +92,7 @@ class TaskGraphTests(LocalBackendTestCase):
         self.cli("run")
         self.wait_for(held.exists)
         def right_failed():
-            with Client.connect(port=self.port) as client:
+            with Client.connect(get_socket_path(self.work)) as client:
                 return LocalStatus.FAILED in client.status().values()
         self.wait_for(right_failed)
         self.wait_for(lambda: "done" in (self.work / "trace").read_text().splitlines())
@@ -226,7 +226,7 @@ class TaskGraphTests(LocalBackendTestCase):
         self.assertEqual(Counter((self.work / "trace").read_text().splitlines()), {"left":3, "right":3, "join":2})
 
     def test_queued_dependents_block_rebinding_without_automatic_cancellation(self):
-        from gwf.backends.local import Client, LocalStatus
+        from gwf.backends.local import Client, LocalStatus, get_socket_path
         held, release, failing = (self.work / name for name in ("left-held", "left-release", "fail-right"))
         failing.touch()
         trace = shlex.quote(str(self.work / "trace"))
@@ -238,7 +238,7 @@ class TaskGraphTests(LocalBackendTestCase):
         self.cli("-b", "slurm", "run", env=env)
         self.wait_for(held.exists)
         def right_failed():
-            with Client.connect(port=self.port) as client:
+            with Client.connect(get_socket_path(self.work)) as client:
                 return LocalStatus.FAILED in client.status().values()
         self.wait_for(right_failed)
         try:

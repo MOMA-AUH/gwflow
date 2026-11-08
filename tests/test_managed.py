@@ -8,7 +8,7 @@ import shutil
 import subprocess
 import unittest
 
-from gwf.backends.local import Client, LocalStatus
+from gwf.backends.local import Client, LocalStatus, get_socket_path
 from gwf.exceptions import WorkflowError
 from gwflow import Task, Workflow, task_template
 
@@ -130,7 +130,7 @@ class ManagedCliTests(LocalBackendTestCase):
 
     def settle(self):
         def inactive():
-            with Client.connect(port=self.port) as client:
+            with Client.connect(get_socket_path(self.work)) as client:
                 states = client.status()
             return states and not any(state in (LocalStatus.SUBMITTED, LocalStatus.RUNNING)
                                       for state in states.values())
@@ -159,7 +159,7 @@ class ManagedCliTests(LocalBackendTestCase):
                 self.assertIn(f"Invalid local target name: {invalid_name!r}", result.stderr)
                 self.assertNotIn("Traceback", result.stderr)
                 self.assertNoSubmissions(result.stdout + result.stderr)
-                with Client.connect(port=self.port) as client:
+                with Client.connect(get_socket_path(self.work)) as client:
                     self.assertEqual(client.status(), {})
                 self.assertFalse((work / "work").exists())
                 self.assertFalse((work / "results").exists())

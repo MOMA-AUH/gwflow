@@ -18,6 +18,18 @@ class LocalWorkerUnavailable(BackendError):
     """Connection establishment failed; this says nothing about job activity."""
 
 
+class LocalSubmissionRejected(BackendError):
+    """The scheduler explicitly refused this submission before enqueueing it."""
+
+
+class ManagedLocalClient(Client):
+    def recv(self):
+        kind, response = super().recv()
+        if kind == "task_rejected":
+            raise LocalSubmissionRejected(response["message"])
+        return kind, response
+
+
 class LocalTerminationUnresolved(InspectionBlocker):
     def __init__(self, detail=None):
         message = ("Local worker cannot confirm computation descendants have stopped; "
@@ -50,7 +62,7 @@ class ManagedLocalOps(LocalOps):
                 sock.settimeout(1)
                 sock.connect(str(self.socket_path))
                 sock.settimeout(None)
-                self._client = Client.from_socket(sock)
+                self._client = ManagedLocalClient.from_socket(sock)
                 break
             except OSError:
                 sock.close()
