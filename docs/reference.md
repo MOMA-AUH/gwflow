@@ -134,6 +134,8 @@ loaded workflow; removing a Python declaration does not end its admitted jobs.
 Use `gwflow` for `gwflow.Workflow` declarations and `gwf` for ordinary
 `gwf.Workflow` declarations. The managed commands are `run`, `status`, `logs`,
 `wait`, `cancel`, `recover`, `clean`, `config`, and `workers`.
+Ordinary `gwf` workflow commands reject managed workflows before submitting work
+or modifying managed evidence.
 
 The default workflow is `workflow.py` with an object named `gwf`. Relative file
 lookup searches the current directory and its parents. Select another file or
@@ -142,12 +144,21 @@ object with a global option, for example:
 ```sh
 gwflow --file pipelines/workflow.py:pipeline --backend local status
 gwflow config set backend local
-gwflow workers -n 2
+gwflow workers -n 2 --max-memory 4g
 ```
 
 Local workers must run in the same configured environment as the frontend.
-Start them with `gwflow workers`. After upgrading gwflow, stop old jobs and
-restart the workers before submitting new work. Ordinary `gwf workers` and
+Start them with `gwflow workers` for the same resolved workflow directory.
+For an alternate file, use the same global `--file` option for workers and commands.
+Each resolved directory selects one local scheduler through its Unix socket.
+Different directories select separate schedulers. Symlink aliases that resolve
+to the same directory select the same scheduler.
+The worker command no longer accepts TCP host or port options. Remove retired
+`backend.local` configuration, including `backend.local.hostname` and
+`backend.local.port`. Any remaining setting in that namespace is rejected.
+
+Before upgrading gwflow, stop old jobs. Restart the workers in the new environment
+before submitting new work. Ordinary `gwf workers` and
 older gwflow workers cannot confirm that canceled computation and its children
 have stopped or verify the identity of a cancellation request. Inspection remains
 available, but new managed submissions and cancellation require updated workers.
@@ -155,11 +166,12 @@ Stop old computation independently before replacing unsupported workers.
 An unsafe terminal observation blocks
 retry, attempt replacement, and cleanup until inactivity is established.
 
-Managed local backend connections make at most three attempts. Each TCP connect
-uses a one-second socket timeout, with a 0.25-second pause between attempts.
+Managed local backend connections make at most three attempts. Each Unix-socket
+connection uses a one-second socket timeout, with a 0.25-second pause between attempts.
 If workers remain unreachable, commands that need them fail with guidance to
-check `gwflow workers` and the configured host and port. A connection failure
-does not establish job inactivity or authorize retry, replacement, or cleanup.
+inspect `gwflow workers` for the reported workflow directory and socket.
+A connection failure does not establish job inactivity or authorize retry,
+replacement, or cleanup.
 Task log indexes and `recover` retain their existing disk-evidence behavior.
 `wait` reports the outage and keeps polling at its configured interval; its
 overall `--timeout` still includes connection attempts and inspections. Without
@@ -175,6 +187,62 @@ Run all frontend commands for a workflow on one physical frontend. A guard
 serializes submission and inspection through backend tracking persistence.
 Submission returns before computation finishes; repeat status until the Tasks
 are reusable before depending on their final results or cleaning their work.
+
+### Local resources and walltime
+
+`gwflow workers -n 2 --max-memory 4g` starts one scheduler with budgets of two
+cores and 4 GiB of memory. `-n` is an alias for `--max-cores` and `-m` for
+`--max-memory`. Without these options, the defaults are the process's available
+cores and the system's physical memory. Set explicit budgets when sharing a host.
+
+The core budget counts each running job's requested cores. A two-core job uses
+a two-core budget by itself. A job starts only when its dependencies are ready
+and both resource budgets can cover its requests. Requests above either total
+budget fail clearly instead of waiting indefinitely. Unspecified local requests
+use one core and `1g` of memory for each job, including lifecycle jobs.
+
+Each workflow directory has independent budgets. Divide the machine's capacity
+between concurrent schedulers and leave capacity for other programs. Idle budget
+in one scheduler does not become available to another. These reservations only
+control scheduling. They do not limit actual CPU or memory use, set application
+thread counts, or provide operating-system containment.
+
+Local walltime is the time limit for a running job. Its default is one hour,
+including preparation and completion jobs. Long input preparation, result copying,
+and record compaction need explicit limits when one hour is insufficient.
+Use `walltime="HH:MM:SS"` in the defaults or options that govern the job.
+The effective option order is:
+
+| Job | Defaults and overrides, from lowest to highest priority |
+| --- | --- |
+| Computation | `Workflow(defaults=...)`, `Task(defaults=...)`, `task.target(..., walltime=...)` |
+| Preparation | `Workflow(defaults=...)`, `Workflow(preparation_defaults=...)` |
+| Completion | `Workflow(defaults=...)`, `Workflow(completion_defaults=...)` |
+
+The same order applies to `cores` and `memory`. Task computation defaults and
+target options do not change lifecycle jobs. For example, these Workflow defaults
+give computation two hours, preparation three hours, and completion four hours:
+
+```python
+gwf = Workflow(
+    defaults={"cores": 1, "memory": "1g", "walltime": "02:00:00"},
+    preparation_defaults={"walltime": "03:00:00"},
+    completion_defaults={"walltime": "04:00:00"},
+)
+```
+
+A Task's `defaults={"walltime": "05:00:00"}` overrides the computation limit.
+A target's `walltime="06:00:00"` overrides that Task default for its own job.
+An effective `walltime=None` uses the one-hour local default, not an unlimited
+runtime. The separate `gwflow wait --timeout` limits observation and leaves jobs
+running when it expires.
+
+On local walltime expiry, managed workers stop the job and its descendants before
+recording confirmed termination and releasing its reservations. Unexpected
+supervisor loss or missing termination evidence remains unresolved. It cannot
+authorize retry, replacement, or cleanup. Use `gwflow workers` for these guarantees.
+The official gwf package remains unmodified. The design is recorded in
+[ADR 0020](adr/0020-adopt-gwf-3-local-schedulers-per-workflow.md).
 
 ### Task selection and execution scope
 
@@ -817,6 +885,13 @@ gwflow logs hello__write --stderr --no-pager
 gwflow run hello --dry-run --details # separate Next action and reason
 ```
 
+Local stdout and stderr are written to files during execution. Logs use gwf 3's
+hashed subdirectories under `.gwf/logs/`. Use the log commands or displayed paths
+to find them. The worker does not retain entire logs in memory. Output appears
+when the program and execution runner flush their buffers, so streaming does
+not promise immediate delivery. The browser's live follow reads newly available
+file contents. It cannot force a program or runner to flush output.
+
 Task indexes show the current recorded attempt and current submissions of its
 computation, preparation, and completion jobs, with failures first. Compact rows
 identify each public job, its observed state, and availability of stdout and
@@ -1075,7 +1150,7 @@ execution and retained-set installation; these observations do not certify
 scientific output correctness.
 The frontend and computation nodes must see the image, inputs, and managed
 storage. The supported validation profile is Linux local workers and Slurm,
-Python 3.12, gwf 2.1.1, and Apptainer 1.5.4. See the
+Python 3.12, gwf 3.0.0, and Apptainer 1.5.4. See the
 [validation guide](validation/README.md) for setup and repeatable checks,
 and the [registry acceptance record](validation/registry-images/acceptance.md)
 for recorded frontend acquisition, warm-cache execution, and worker baseline
@@ -1609,7 +1684,10 @@ supported; these guarantees are not universal power-loss certification.
 gwflow remains under the pre-1.0 compatibility policy. There is no general
 cross-version compatibility guarantee. The installed compatibility tests cover
 specific baseline and candidate versions. They do not establish a stable release
-baseline.
+baseline. The gwf 3 cutover does not migrate earlier workflow state. Start new
+runs in separate workflow and storage locations when moving from gwf 2.
+The supported local integration adapts existing managed behavior. It does not
+add upstream's optional target-isolation or selective-output controls.
 
 Starting with the future v1.0.0 baseline, forward upgrades within 1.x preserve
 the public authoring API and CLI, completed work after cleanup, and valid partial attempts without

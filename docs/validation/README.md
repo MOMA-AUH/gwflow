@@ -20,11 +20,14 @@ artifact and records its successful channel installation and smoke checks.
 
 ## Local checks
 
-Run from the repository root in a Python 3.12 environment. Installing the project
-selects the pinned gwf 2.1.1 dependency and the current Rich requirement from
-`pyproject.toml`. Install both Task fixture packages for the packaged-workflow tests:
+Run from the repository root. Create the development environment with Python
+3.12 and the official gwf 3.0.0 package from `gwforg` before installing with pip.
+The package metadata requires exactly that gwf version. Install both Task fixture
+packages for the packaged-workflow tests:
 
 ```sh
+conda env create -f environment.yml
+conda activate gwflow-dev
 python -m pip install .
 python -m pip install ./tests/fixtures/packaged_tasks/packages/summary-task ./tests/fixtures/packaged_tasks/packages/report-task
 python -m unittest discover -s tests -v
@@ -141,9 +144,10 @@ uninstrumented command times measure different things.
 The [installed compatibility baseline](compatibility/README.md) describes the
 two-environment completed, cleaned, and incomplete Task journeys, the pinned bootstrap source,
 runtime provenance, and how to test a later installed candidate against it.
-The current v0.8.0 release work retains these journeys as regression checks.
-Its same-source bootstrap is not evidence for all future upgrades, and v0.8.0
-does not establish the future v1.0.0/1.x compatibility baseline.
+The current checkout retains these journeys against the pinned native gwf 3
+bootstrap. They do not establish compatibility with earlier gwf 2 state or the
+future v1.0.0/1.x compatibility baseline. Historical records keep their original
+versions and results.
 
 The release column identifies the release associated with the feature. Tested
 package metadata can precede that release; for example, the registry runs used

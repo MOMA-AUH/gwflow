@@ -28,7 +28,7 @@ relocation, or adoption of unowned data. The current
 bootstrap of the validation procedure; it does not establish a released v1.0.0
 artifact or prove compatibility with a future 1.x release.
 
-The supported validation profile is Linux and Bash, Python 3.12, gwf 2.1.1,
+The supported validation profile is Linux and Bash, Python 3.12, gwf 3.0.0,
 local workers or Slurm, and deployment-provided Apptainer 1.5.4 for containers.
 Run a workflow's frontend commands on one physical frontend. Jobs and the
 frontend must see the same configured storage and image paths; storage must
@@ -36,6 +36,39 @@ provide coherent record visibility and atomic directory rename on the relevant
 filesystem. Broader environments are unverified. See
 [storage requirements](reference.md#storage) and the
 [validation guide](validation/README.md) for deployment details and evidence.
+
+## Local execution with gwf 3
+
+Start `gwflow workers` from the resolved workflow directory, in the frontend's
+environment. Use the same global `--file` option when selecting another workflow.
+Each directory selects its own scheduler through a Unix socket. TCP host and port
+options are removed. Remove retired `backend.local` configuration before running
+local commands. See [backend configuration](reference.md#executable-discovery-and-backends).
+
+Set budgets explicitly when several workflows share a machine. For example,
+`gwflow workers -n 2 --max-memory 4g` budgets two requested cores and 4 GiB.
+A two-core job uses the full core budget. Separate workflow schedulers have
+independent budgets and do not share unused capacity. Memory reservations and core
+requests control scheduling, without enforcing actual process resource use.
+
+Local jobs default to one hour. This includes preparation and completion, so long
+input preparation or result transfers need explicit overrides. Workflow defaults
+apply to all jobs. Task defaults and target options override computation only.
+`preparation_defaults` and `completion_defaults` override their respective lifecycle
+jobs. An effective `walltime=None` restores the one-hour default. See
+[resources and walltime](reference.md#local-resources-and-walltime) for examples.
+
+Use `gwflow workers` for managed execution and confirmed descendant termination.
+An ordinary `gwf workers` scheduler cannot provide these guarantees. Timeouts and
+Cancellation require termination evidence before retry or cleanup becomes safe.
+Local logs are written during execution, but visibility depends on program and
+runner flushing. Live following cannot make buffered output appear immediately.
+
+The gwf 3 cutover does not migrate old workflow state. Keep the old environment
+for supported inspection or cleanup of earlier runs, with all affected jobs
+inactive before changing environments. Start new gwf 3 runs in separate workflow
+and storage locations. The upgrade procedure below applies only to supported
+baseline and candidate combinations.
 
 ## Command changes and untracked changes
 

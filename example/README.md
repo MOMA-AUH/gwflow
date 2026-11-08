@@ -57,7 +57,7 @@ inside their owning Task.
 
 ## Run locally
 
-Use Linux x86_64, Bash, and Apptainer on `PATH`.
+Use Linux x86_64, Bash, Python 3.12, exactly gwf 3.0.0, and Apptainer 1.5.4 on `PATH`.
 Install gwflow with the [root installation instructions](../README.md#install).
 Enter this checkout's `example/` directory in the first terminal:
 
@@ -67,15 +67,21 @@ gwflow config set backend local
 ```
 
 In a second terminal, activate the same environment and enter the same
-`example/` directory. Start two workers:
+`example/` directory. Start the local scheduler with a two-core budget:
 
 ```sh
 conda activate gwflow
-gwflow workers -n 2
+gwflow workers -n 2 --max-memory 4g
 ```
 
-Leave the workers running. In the first terminal, preview and run only the
-sample Tasks:
+Leave the scheduler running. Each alignment requests two cores, so only one
+alignment runs at a time with this budget. Other jobs reserve their declared
+cores and memory. Reservations do not enforce actual CPU or memory use.
+Other workflow directories have independent budgets. See the
+[resource reference](../docs/reference.md#local-resources-and-walltime) before
+running several schedulers on one machine.
+
+In the first terminal, preview and run only the sample Tasks:
 
 ```sh
 gwflow run 'align__*' --dry-run
