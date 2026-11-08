@@ -579,6 +579,10 @@ class _AdmissionCall:
     def target_defaults(self):
         return self.backend.target_defaults
 
+    @property
+    def working_dir(self):
+        return self.backend.working_dir
+
     def submit(self, target, dependencies):
         self.outcome.entered = True
         result = self.backend.submit(target, dependencies)

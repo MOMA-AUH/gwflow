@@ -15,6 +15,10 @@ Starting with v0.7.0, the managed `cancel` command follows the contract recorded
 
 The remaining backend and configuration infrastructure stays unchanged: backend selection and discovery, settings, verbosity, and color controls continue to serve managed workflows. Logs retain their individual job-name selection and existing options, as do configuration and local workers. The `.gwfconf.json` and `.gwf/` locations, configured work/results directories, and image-cache location are preserved; changing the executable does not require changing storage conventions. `gwflow --version` reports the gwflow release.
 
+For the gwf 3 upgrade, [ADR 0020](0020-adopt-gwf-3-local-schedulers-per-workflow.md)
+replaces the earlier local worker configuration with a scheduler per workflow
+directory and independent resource budgets.
+
 For v0.7.0, the Task-level troubleshooting extension presents failed computation and lifecycle jobs, their Task attempts and logs, and the planner's Next action with its reason. It brings together observed evidence and existing recovery guidance; automatic interpretation of arbitrary tool logs to diagnose causes or suggest fixes is deferred.
 
 Task-level log access extends the existing command: `gwflow logs TASK` shows a job/log index for the Task's current attempt, with failures first. The index identifies the attempt and each job's state and available log streams, provides commands to read individual logs, and points to `run TASK --dry-run --details` for recovery guidance. Individual-job selection continues to display log contents. This keeps parallel jobs' output distinguishable while making their logs discoverable by Task name.

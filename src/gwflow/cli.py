@@ -1,6 +1,6 @@
 """The dedicated managed-workflow executable, using gwf's backend services."""
 
-from importlib.metadata import version
+from importlib.metadata import entry_points, version
 import logging
 import os
 from pathlib import Path
@@ -10,7 +10,7 @@ import click
 from gwf.backends import guess_backend
 from gwf.conf import FileConfig
 from gwf.plugins.config import config
-from gwf.utils import entry_points, find_workflow
+from gwf.utils import find_workflow
 
 from ._frontend import ManagedContext
 from .activity import DiagnosticHandler
