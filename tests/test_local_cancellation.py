@@ -3,7 +3,6 @@
 from collections import Counter
 import json
 import os
-from pathlib import Path
 import re
 import shlex
 import signal
@@ -12,11 +11,12 @@ import socket
 from support import GWF, LocalBackendTestCase
 import test_graphs
 import test_registry_images
+from process_probe import ProcessProbe
 
 
-class LocalCancellationTests(LocalBackendTestCase):
+class LocalCancellationTests(ProcessProbe, LocalBackendTestCase):
     configure_workflow = test_graphs.TaskGraphTests.configure_workflow
-    settle = test_graphs.TaskGraphTests.settle
+    settle = LocalBackendTestCase.settle
     inject = test_graphs.TaskGraphTests.inject
 
     def test_old_workers_allow_inspection_but_refuse_new_managed_jobs(self):
@@ -109,15 +109,7 @@ class LocalCancellationTests(LocalBackendTestCase):
         self.wait_for((self.work / "held").exists)
         # Follow the foreground command's actual ancestry, not a guessed PID.
         # Killing the supervisor models loss of its cleanup attestation.
-        pid = int((self.work / "pids").read_text().split()[0])
-        while pid > 1:
-            process = Path(f"/proc/{pid}")
-            if b"gwflow._worker_process" in process.joinpath("cmdline").read_bytes().split(b"\0"):
-                os.kill(pid, signal.SIGKILL)
-                break
-            pid = int(process.joinpath("stat").read_text().rsplit(")", 1)[1].split()[1])
-        else:
-            self.fail("No local supervisor owns the foreground command")
+        os.kill(self.supervisor_pid(), signal.SIGKILL)
         foreground_release.touch()
         self.wait_for(lambda: "sample__right: complete" in self.cli(
             "-b", "recovery_fixture", "logs", "sample", "--details", env=environment))
@@ -146,14 +138,6 @@ class LocalCancellationTests(LocalBackendTestCase):
         self.assertEqual((self.work / "results/sample/result.txt").read_text(), "leftright")
         self.assertEqual(Counter((self.work / "trace").read_text().splitlines()),
                          {"left": 1, "right": 1, "join": 1})
-
-    def running_probe_processes(self):
-        running = []
-        for pid in map(int, (self.work / "pids").read_text().split()):
-            path = Path(f"/proc/{pid}/stat")
-            if path.exists() and path.read_text().rsplit(")", 1)[1].split()[0] != "Z":
-                running.append(pid)
-        return running
 
     def restart_worker(self, *, change_port=False, working_dir=None):
         self.stop_worker(self.worker)
@@ -312,30 +296,6 @@ class LocalCancellationTests(LocalBackendTestCase):
         self.wait_for((self.work / "held").exists)
         self.stop_worker(self.worker)
         self.assert_probe_stopped()
-
-    def probe(self):
-        release = self.work / "release"
-        self.addCleanup(release.touch)
-        pids = self.work / "pids"
-
-        def cleanup():
-            if pids.exists():
-                for pid in map(int, pids.read_text().split()):
-                    try:
-                        os.kill(pid, signal.SIGKILL)
-                    except ProcessLookupError:
-                        pass
-        self.addCleanup(cleanup)
-        child = (f"echo $BASHPID >> {shlex.quote(str(pids))}; "
-                 f"touch {shlex.quote(str(self.work / 'held'))}; "
-                 f"while [ ! -e {shlex.quote(str(release))} ]; do sleep 0.025; done; "
-                 f"touch {shlex.quote(str(self.work / 'late-write'))}")
-        return (f"echo $BASHPID >> {shlex.quote(str(pids))}; "
-                f"/bin/bash -c {shlex.quote(child)} & wait; printf right > same.txt")
-
-    def assert_probe_stopped(self):
-        self.assertEqual(self.running_probe_processes(), [],
-                         "Computation processes still run after confirmed inactivity")
 
     def test_cancel_stops_bash_and_child_before_explicit_cleanup(self):
         self.configure_workflow(right_command=self.probe())

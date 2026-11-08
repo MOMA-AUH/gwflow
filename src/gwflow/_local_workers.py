@@ -62,11 +62,11 @@ class ManagedScheduler(Scheduler):
         self.started.add(target.tid)
         state = await self._execute_task(target)
         target.execution = None
-        # Unknown supervision may still own running work: keep its reservation.
-        if state != LocalStatus.UNKNOWN:
+        self._finish_target(target, state)
+        # Failed evidence publication is unresolved too: retain its reservation.
+        if self.task_states[target.tid] != LocalStatus.UNKNOWN:
             self.available_cores += target.cores
             self.available_memory += target.memory
-        self._finish_target(target, state)
         self._schedule()
 
     async def _execute_task(self, target):

@@ -8,6 +8,7 @@ import subprocess
 from gwf.backends.local import Client, get_socket_path
 
 from support import GWF, GWFLOW, LocalBackendTestCase, TASK_FACTORY
+from process_probe import ProcessProbe
 
 
 class NativeLocalTests(LocalBackendTestCase):
@@ -106,30 +107,13 @@ class NativeLocalTests(LocalBackendTestCase):
         self.finish()
 
 
-class NativeTerminationTests(LocalBackendTestCase):
+class NativeTerminationTests(ProcessProbe, LocalBackendTestCase):
     def configure_workflow(self, **options):
         import test_graphs
         test_graphs.TaskGraphTests.configure_workflow(self, **options)
 
-    def probe(self):
-        import test_local_cancellation
-        return test_local_cancellation.LocalCancellationTests.probe(self)
-
-    def running_probe_processes(self):
-        import test_local_cancellation
-        return test_local_cancellation.LocalCancellationTests.running_probe_processes(self)
-
-    def settle(self):
-        from gwf.backends.local import LocalStatus
-        def done():
-            with Client.connect(get_socket_path(self.work)) as client:
-                states = client.status()
-            return states and not any(state in (LocalStatus.SUBMITTED, LocalStatus.RUNNING)
-                                      for state in states.values())
-        self.wait_for(done)
-
     def start_probe(self, *, walltime=None):
-        self.configure_workflow(right_command=self.probe())
+        self.configure_workflow(right_command=self.probe(escape=True))
         if walltime is not None:
             workflow = self.work / 'workflow.py'
             workflow.write_text(workflow.read_text().replace(
@@ -173,15 +157,7 @@ class NativeTerminationTests(LocalBackendTestCase):
         import os
         import signal
         self.start_probe()
-        pid = int((self.work / 'pids').read_text().split()[0])
-        while pid > 1:
-            process = Path(f'/proc/{pid}')
-            if b'gwflow._worker_process' in process.joinpath('cmdline').read_bytes().split(b'\0'):
-                os.kill(pid, signal.SIGKILL)
-                break
-            pid = int(process.joinpath('stat').read_text().rsplit(')', 1)[1].split()[1])
-        else:
-            self.fail('No supervisor in computation ancestry')
+        os.kill(self.supervisor_pid(), signal.SIGKILL)
         self.settle()
         self.assertTrue(self.running_probe_processes())
         for arguments in (('run', '--dry-run'), ('clean', 'sample', '--delete')):
@@ -223,7 +199,14 @@ class NativeTerminationTests(LocalBackendTestCase):
         workflow = self.work / 'workflow.py'
         workflow.write_text(workflow.read_text().replace(
             "right = task.target('right', inputs=[], outputs=['same.txt'])",
-            "right = task.target('right', inputs=[], outputs=['same.txt'], walltime='00:00:02')"))
+            "right = task.target('right', inputs=[], outputs=['same.txt'], cores=2, walltime='00:00:02')"))
+        marker = self.work / 'capacity-released'
+        workflow.write_text(workflow.read_text() +
+                            "other = empty_task(inputs=[])\n"
+                            "target = other.target('compute', inputs=[], outputs=['out'], cores=2)\n"
+                            f"target << {('touch ' + shlex.quote(str(marker)) + '; printf done > out')!r}\n"
+                            "other.retain('result', source=target.output('out'), path='out')\n"
+                            "gwf.task(other, alias='other')\n")
         def release():
             path = self.work / 'supervisor-pid'
             if path.exists():
@@ -232,15 +215,52 @@ class NativeTerminationTests(LocalBackendTestCase):
                 except ProcessLookupError:
                     pass
         self.addCleanup(release)
-        self.cli('run')
+        self.cli('run', 'sample')
         self.wait_for((self.work / 'gate-started').exists)
         self.wait_for((self.work / 'cleanup-held').exists)
+        self.cli('run', 'other')
         try:
             self.assertIn('may still be stopping', self.cli('cancel', 'sample'))
+            self.cli('cancel', 'sample')
+            self.assertIn('queued', self.cli('status', 'other', '--plain'))
+            self.assertFalse(marker.exists())
+            self.cli('run', 'sample', '--force', success=False)
+            self.assertIn('Kept — active work', self.cli('clean', 'sample', '--delete'))
         finally:
             release()
         self.settle()
+        self.assertTrue(marker.exists())
+        gate_pid = int((self.work / 'gate-pid').read_text())
+        self.assertFalse(Path(f'/proc/{gate_pid}').exists())
+        self.assertEqual((self.work / 'results/other/out').read_text(), 'done')
+        self.assertIn('Retry', self.cli('run', 'sample', '--dry-run'))
+        self.worker.terminate()
+        self.worker.communicate(timeout=5)
+        self.assertEqual(self.worker.returncode, 0)
+
+    def test_cancellation_during_process_launch_reaps_owned_descendants(self):
+        import os
+        import shutil
+        from support import FIXTURES
+        self.stop_worker(self.worker)
+        self.configure_workflow(right_command=self.probe(escape=True))
+        shutil.copy(FIXTURES / 'launch_gate.py', self.work / 'sitecustomize.py')
+        environment = {**os.environ, 'PYTHONPATH': str(self.work), 'GWFLOW_LAUNCH_GATE': str(self.work)}
+        self.worker = self.start_worker(env=environment)
+        release = self.work / 'launch-release'
+        self.addCleanup(release.touch)
+        self.cli('run')
+        self.wait_for((self.work / 'launch-held').exists)
+        self.wait_for((self.work / 'held').exists)
+        try:
+            self.assertIn('may still be stopping', self.cli('cancel', 'sample'))
+            self.assertFalse((self.work / 'results/sample/result.txt').exists())
+        finally:
+            release.touch()
+        self.settle()
+        self.assert_probe_stopped()
         self.assertIn('Retry', self.cli('run', '--dry-run'))
+        self.cli('clean', 'sample', '--delete')
         self.worker.terminate()
         self.worker.communicate(timeout=5)
         self.assertEqual(self.worker.returncode, 0)

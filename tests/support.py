@@ -37,6 +37,8 @@ def empty_task(inputs, **options):
 class LocalBackendTestCase(unittest.TestCase):
     executable = GWFLOW
     workers = 2
+    worker_memory = None
+    worker_debug = False
 
     def setUp(self):
         self.work = self.make_workdir()
@@ -53,8 +55,14 @@ class LocalBackendTestCase(unittest.TestCase):
         return Path(temporary.name)
 
     def start_worker(self, *, env=None, start_new_session=False, working_dir=None):
+        command = [self.executable]
+        if self.worker_debug:
+            command += ["--verbose", "debug"]
+        command += ["workers", "-n", str(self.workers)]
+        if self.worker_memory is not None:
+            command += ["--max-memory", self.worker_memory]
         worker = subprocess.Popen(
-            [self.executable, "workers", "-n", str(self.workers)],
+            command,
             cwd=self.work if working_dir is None else working_dir,
             stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True, env=env,
             start_new_session=start_new_session,
@@ -181,6 +189,14 @@ class LocalBackendTestCase(unittest.TestCase):
             self.assertFalse(any(state == LocalStatus.FAILED for state in states.values()), states)
             return states and all(state == LocalStatus.COMPLETED for state in states.values())
         self.wait_for(done)
+
+    def settle(self):
+        def inactive():
+            with Client.connect(get_socket_path(self.work)) as client:
+                states = client.status()
+            return states and not any(state in (LocalStatus.SUBMITTED, LocalStatus.RUNNING)
+                                      for state in states.values())
+        self.wait_for(inactive)
 
     def assertNoSubmissions(self, output):
         # Cover both the installed bootstrap's gwf log and managed receipts.

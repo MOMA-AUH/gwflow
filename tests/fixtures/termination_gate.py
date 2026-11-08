@@ -7,6 +7,7 @@ import time
 
 
 root = Path(__file__).parent
+(root / "gate-pid").write_text(str(os.getpid()))
 pid = os.getpid()
 while pid > 1:
     process = Path(f'/proc/{pid}')

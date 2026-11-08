@@ -1,0 +1,161 @@
+{
+  "issue": "https://github.com/MOMA-AUH/gwflow/issues/345",
+  "date": "2026-11-08",
+  "base_commit": "1a8e1174e7458097e9ed30f094936653d83cc0ad",
+  "implementation_commit": "74f7e476bf4093670c05ac3b7d29a94a2210481f",
+  "scope": "Resource reservations, effective walltime and termination acceptance. Cumulative migration remains draft; final full qualification and all CI are required at #351.",
+  "environment": {
+    "python": "3.12.16",
+    "gwf": "3.0.0",
+    "gwflow": "0.10.2",
+    "gwf_conda_build": "pyh4616a5c_0",
+    "executable": "<ENV>/bin/python",
+    "repository": "<REPO>"
+  },
+  "install_command": "<ENV>/bin/python -m pip install --no-deps --no-build-isolation .",
+  "checks": [
+    {
+      "name": "resources",
+      "tests": 15,
+      "seconds": 52.275,
+      "skips": 0,
+      "result": "passed",
+      "command": "<ENV>/bin/python -m unittest discover -s tests -p test_local_resources.py -v",
+      "log": "<REPO>/build/validation/resources-345-resources-final.log",
+      "test_ids": [
+        "test_local_resources.LocalResourceTests.test_cores_are_reserved_by_request_and_released_after_success",
+        "test_local_resources.LocalResourceTests.test_failed_receipt_keeps_reservation_and_blocks_unsafe_operations",
+        "test_local_resources.LocalResourceTests.test_failure_releases_reserved_capacity",
+        "test_local_resources.LocalResourceTests.test_independent_workflow_budget_can_run_while_first_is_full",
+        "test_local_resources.LocalResourceTests.test_memory_reservation_blocks_even_when_a_core_is_available",
+        "test_local_resources.LocalResourceTests.test_oversized_core_request_is_rejected_clearly",
+        "test_local_resources.LocalResourceTests.test_oversized_memory_request_is_rejected_clearly",
+        "test_local_resources.LocalResourceTests.test_repeated_cancellation_and_queued_jobs_preserve_capacity",
+        "test_local_resources.LocalResourceTests.test_resource_changes_preserve_reuse",
+        "test_local_resources.LocalResourceTests.test_supervisor_loss_keeps_reservation_while_descendants_survive",
+        "test_local_resources.WalltimeTests.test_null_walltime_restores_upstream_default",
+        "test_local_resources.WalltimeTests.test_target_and_lifecycle_overrides_take_precedence",
+        "test_local_resources.WalltimeTests.test_task_walltime_overrides_workflow_for_computation",
+        "test_local_resources.WalltimeTests.test_unspecified_preparation_computation_completion_use_one_hour",
+        "test_local_resources.WalltimeTests.test_workflow_walltime_applies_to_all_jobs"
+      ]
+    },
+    {
+      "name": "native",
+      "tests": 14,
+      "seconds": 55.787,
+      "skips": 0,
+      "result": "passed",
+      "command": "<ENV>/bin/python -m unittest discover -s tests -p test_native_local.py -v",
+      "log": "<REPO>/build/validation/resources-345-native-final.log",
+      "test_ids": [
+        "test_native_local.NativeLocalTests.test_both_streams_are_readable_before_gated_computation_finishes",
+        "test_native_local.NativeLocalTests.test_native_task_completes_compacts_cleans_and_reuses",
+        "test_native_local.NativeLocalTests.test_ordinary_empty_worker_cannot_accept_managed_work",
+        "test_native_local.NativeLocalTests.test_retired_host_and_port_are_usage_errors",
+        "test_native_local.NativeLocalTests.test_workflow_directories_are_independent_and_nested_commands_find_root",
+        "test_native_local.NativeTerminationTests.test_cancellation_during_process_launch_reaps_owned_descendants",
+        "test_native_local.NativeTerminationTests.test_cancellation_during_timeout_cleanup_finishes_and_worker_shuts_down",
+        "test_native_local.NativeTerminationTests.test_cancellation_stops_descendants_before_retry_and_cleanup",
+        "test_native_local.NativeTerminationTests.test_failed_termination_receipt_publication_stays_unresolved",
+        "test_native_local.NativeTerminationTests.test_ordinary_worker_cannot_verify_cancellation_of_recorded_work",
+        "test_native_local.NativeTerminationTests.test_short_walltime_stops_descendants_before_retry",
+        "test_native_local.NativeTerminationTests.test_shutdown_stops_owned_descendants",
+        "test_native_local.NativeTerminationTests.test_supervisor_loss_cannot_authorize_retry_or_cleanup",
+        "test_native_local.NativeTerminationTests.test_worker_channel_loss_stops_descendants_but_stays_unresolved"
+      ]
+    },
+    {
+      "name": "cancellation",
+      "tests": 7,
+      "seconds": 29.576,
+      "skips": 0,
+      "result": "passed",
+      "command": "PYTHONPATH=tests <ENV>/bin/python -m unittest -v test_local_cancellation.LocalCancellationTests.test_missing_malformed_or_foreign_receipt_never_proves_inactivity test_local_cancellation.LocalCancellationTests.test_confirmed_completion_remains_reusable_after_worker_restart test_local_cancellation.LocalCancellationTests.test_confirmed_cancellation_preserves_partial_work_after_worker_restart test_local_cancellation.LocalCancellationTests.test_cancel_does_not_stop_unselected_running_task test_local_cancellation.LocalCancellationTests.test_retry_keeps_completed_sibling_attempt_and_submission_history test_local_cancellation.LocalCancellationTests.test_cancel_stops_bash_and_child_before_explicit_cleanup test_local_cancellation.LocalCancellationTests.test_stopping_workers_stops_owned_computation_children",
+      "log": "<REPO>/build/validation/resources-345-cancellation-final.log",
+      "test_ids": [
+        "test_local_cancellation.LocalCancellationTests.test_missing_malformed_or_foreign_receipt_never_proves_inactivity",
+        "test_local_cancellation.LocalCancellationTests.test_confirmed_completion_remains_reusable_after_worker_restart",
+        "test_local_cancellation.LocalCancellationTests.test_confirmed_cancellation_preserves_partial_work_after_worker_restart",
+        "test_local_cancellation.LocalCancellationTests.test_cancel_does_not_stop_unselected_running_task",
+        "test_local_cancellation.LocalCancellationTests.test_retry_keeps_completed_sibling_attempt_and_submission_history",
+        "test_local_cancellation.LocalCancellationTests.test_cancel_stops_bash_and_child_before_explicit_cleanup",
+        "test_local_cancellation.LocalCancellationTests.test_stopping_workers_stops_owned_computation_children"
+      ]
+    }
+  ],
+  "red_green": {
+    "test": "test_local_resources.LocalResourceTests.test_failed_receipt_keeps_reservation_and_blocks_unsafe_operations",
+    "red": {
+      "log": "<REPO>/build/validation/resources-345-red-receipt.log",
+      "seconds": 3.254,
+      "result": "FAILED: second-held exists after first job receipt publication fails"
+    },
+    "correction": "Publish termination state before releasing capacity; UNKNOWN from failed publication retains both reservations.",
+    "green": {
+      "log": "<REPO>/build/validation/resources-345-green.log",
+      "tests": 3,
+      "seconds": 12.316,
+      "result": "passed"
+    },
+    "observation": "A directory substituted for the exact receipt file causes real publication failure. No scheduler mock or private call-sequence assertion."
+  },
+  "acceptance": {
+    "resources": "Declared cores and memory hold queued work; success, failure and cancellation release capacity. Independent directories run concurrently. Supervisor loss and failed receipts retain reservations.",
+    "walltime": "Worker diagnostics show 3600 seconds for unspecified and null preparation/computation/completion; workflow, task, target and lifecycle overrides verified. Real 2-second computation expiration exercised separately.",
+    "processes": "setsid descendants stop after cancellation, timeout, shutdown and worker death; unexpected supervisor loss remains unresolved. OS subprocess-response gate covers cancellation during launch. Overlapping timeout/cancellation gate confirms request returns before cleanup, queued work waits, descendant is reaped, queued work proceeds, and worker exits.",
+    "lifecycle": "Repeated/queued/finished Cancellation, retained completed siblings, immutable submission history, missing/malformed/foreign receipts, restart Reuse and resource-only Reuse preserved.",
+    "limits": "Reservations are scheduling accounting, not hard OS CPU/memory limits. No one-hour elapsed test or real container qualification claimed."
+  },
+  "failed_intermediate_runs": [
+    {
+      "log": "<REPO>/build/validation/resources-345-expanded.log",
+      "result": "13 tests, one failing combined oversized-request subcase. First rejected request leaves unresolved admission; second subcase cannot submit. Preserved as #346 handoff."
+    },
+    {
+      "log": "<REPO>/build/validation/resources-345-final.log",
+      "result": "14 tests, one assertion mismatch: actual memory diagnostic uses 3.0GiB, not 3.0g. Corrected expected public diagnostic."
+    },
+    {
+      "log": "<REPO>/build/validation/resources-345-native.log",
+      "result": "14 tests, one /proc read raced normal process disappearance. Shared observer now treats FileNotFoundError and ProcessLookupError as absent."
+    },
+    {
+      "log": "<REPO>/build/validation/resources-345-regressions.log",
+      "result": "9 tests, one active-cleanup assertion mismatch. Command correctly keeps active work and exits 0; test now asserts Kept \u2014 active work."
+    },
+    {
+      "log": "<REPO>/build/validation/resources-345-timeout-gate.log",
+      "result": "Same active-cleanup assertion reproduced in isolated case before correction."
+    }
+  ],
+  "known_remaining": [
+    {
+      "issue": 346,
+      "reproducer": "Run a Task with cores=3 against a 2-core worker, then lower its request and run the same Task again.",
+      "observed": "Initial CLI reports requested 3 cores and no computation starts, but generic BackendError leaves submission acceptance unconfirmed; later run reports unresolved submissions.",
+      "boundary": "Coordinator retained confirmed rejection versus uncertain admission work in #346. Resource-rejection tests use independent Tasks, and this failure remains recorded."
+    },
+    {
+      "issue": 346,
+      "scope": "Historical recovery_fixture-dependent cancellation cases still use retired port/session assumptions; new native installed process coverage and seven transport-independent regressions pass."
+    },
+    {
+      "issue": 351,
+      "scope": "Full inventory remains native-local-344.json. Full installed/Conda/container/comparison qualification and exact-head all-green CI are mandatory before cumulative merge; no checks skipped or weakened."
+    }
+  ],
+  "typing": {
+    "command": "<TYPE_ENV>/bin/mypy --follow-imports=silent --ignore-missing-imports src/gwflow/_local_workers.py src/gwflow/_worker_process.py src/gwflow/backends.py src/gwflow/admission.py src/gwflow/workers.py src/gwflow/submission.py src/gwflow/logs.py",
+    "version": "2.3.1",
+    "result": "Success: no issues found in 7 source files",
+    "scope": "Default untyped-body checking, not a stricter typing claim."
+  },
+  "dependency_check": "No broken requirements found.",
+  "path_placeholders": {
+    "<REPO>": "Migration checkout root; raw logs under ignored build/validation.",
+    "<ENV>": "Task-owned Conda environment containing Python 3.12.16 and official gwf 3.0.0.",
+    "<TYPE_ENV>": "Separate task-owned typing environment providing mypy 2.3.1."
+  },
+  "normalization": "Only path strings and these explanatory metadata fields differ from the ignored raw record."
+}
