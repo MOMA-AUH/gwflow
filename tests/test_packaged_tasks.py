@@ -95,6 +95,9 @@ class PackagedContainerExampleTests(LocalBackendTestCase):
 
     def test_packaged_containers_clean_producers_then_compute_only_the_new_consumer(self):
         PackagedExampleTests.test_installed_producers_clean_then_new_consumer_computes_only_once(self)
+        records = list((self.work / ".gwf/gwflow").glob("owners/*/tasks/*/attempts/*/record-state.json"))
+        self.assertEqual(len(records), 3)
+        self.assertTrue(all(json.loads(record.read_text())["phase"] == "compacted" for record in records))
         for target in ("A__clean", "B__aggregate", "C__join"):
             self.assertIn(" image ", self.cli("logs", target, "--stderr", "--no-pager"))
         details = self.cli("run", "--dry-run", "--details")

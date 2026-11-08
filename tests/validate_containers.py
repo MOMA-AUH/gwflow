@@ -9,14 +9,13 @@ import platform
 import re
 import shlex
 import shutil
-import socket
 import subprocess
 import sys
 import tempfile
 import time
 import unittest
 
-from gwf.backends.local import Client, LocalStatus
+from gwf.backends.local import Client, LocalStatus, get_socket_path
 
 from support import TASK_FACTORY, FIXTURES, GWFLOW, LocalBackendTestCase
 from test_containers import ContainerRuntimeTests
@@ -207,11 +206,6 @@ class RuntimeBackendCase(LocalBackendTestCase):
         (self.work / "extra.txt").write_text("extra\n")
         self.configure_workflow()
         self.config = {"backend": self.backend}
-        if self.backend == "local":
-            with socket.socket() as probe:
-                probe.bind(("127.0.0.1", 0))
-                self.port = probe.getsockname()[1]
-            self.config["backend.local.port"] = self.port
         self.configure()
         self.record({"case": self.case_name, "environment": {
             name: value for name, value in self.job_environment.items()
@@ -223,12 +217,7 @@ class RuntimeBackendCase(LocalBackendTestCase):
                         "SINGULARITYENV_TMPDIR", "SINGULARITYENV_GWFLOW_TEST_OVERRIDE")
         }})
         if self.backend == "local":
-            worker = subprocess.Popen(
-                [GWFLOW, "workers", "--host", "127.0.0.1", "-n", "2", "-p", str(self.port)],
-                cwd=self.work, env=self.job_environment, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True,
-            )
-            self.addCleanup(self.stop_worker, worker)
-            self.wait_for(lambda: self.worker_ready(worker))
+            self.worker = self.start_worker(env=self.job_environment)
 
     def record(self, item):
         with (self.work / "transcript.jsonl").open("a") as stream:
@@ -274,7 +263,7 @@ class RuntimeBackendCase(LocalBackendTestCase):
     def settle(self):
         def inactive():
             if self.backend == "local":
-                with Client.connect(port=self.port) as client:
+                with Client.connect(get_socket_path(self.work)) as client:
                     states = client.status()
                 self.record({"local_states": {str(key): str(value) for key, value in states.items()}})
                 return states and not any(state in (LocalStatus.SUBMITTED, LocalStatus.RUNNING)

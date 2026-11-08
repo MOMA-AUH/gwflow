@@ -37,7 +37,7 @@ def empty_task(inputs, **options):
 class LocalBackendTestCase(unittest.TestCase):
     executable = GWFLOW
     workers = 2
-    worker_memory = None
+    worker_memory: str | None = None
     worker_debug = False
 
     def setUp(self):
