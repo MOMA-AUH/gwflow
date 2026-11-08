@@ -337,8 +337,8 @@ def main():
     parser.add_argument("--timeout", type=int, default=600, help="Seconds per command/wait; no automatic cancellation")
     parser.add_argument("--case", action="append", choices=CASES, help="Run selected cases; default is all")
     args = parser.parse_args()
-    if sys.version_info[:2] != (3, 12) or importlib.metadata.version("gwf") != "2.1.1":
-        parser.error("Use Python 3.12 and pinned gwf 2.1.1")
+    if sys.version_info[:2] != (3, 12) or importlib.metadata.version("gwf") != "3.0.0":
+        parser.error("Use Python 3.12 and pinned gwf 3.0.0")
     if not shutil.which("apptainer"):
         parser.error("Deployment-provided Apptainer must be on PATH")
     version = subprocess.check_output(["apptainer", "--version"], text=True).strip()

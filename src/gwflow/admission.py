@@ -1,6 +1,6 @@
 """Generation-specific admission and recovery over gwf's pinned backends.
 
-Only this module knows how gwf 2.1.1 persists job tracking. Inspecting evidence
+Only this module knows how gwf 3.0.0 persists job tracking. Inspecting evidence
 is read-only; restoration happens under the frontend guard during submission
 or cancellation requests.
 """
@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from contextlib import contextmanager, nullcontext
 from contextvars import ContextVar
 import json
+from pathlib import Path
 import time
 from uuid import uuid4
 
@@ -101,7 +102,7 @@ class RecoveryOutcome:
 def backend_identity(backend, name):
     if isinstance(backend, TrackingBackend):
         if isinstance(backend.ops, LocalOps):
-            return {"name": "local", "host": backend.ops.host, "port": backend.ops.port}
+            return {"name": "local", "working_dir": str(Path(backend.ops.working_dir).resolve())}
         if isinstance(backend.ops, SlurmOps):
             return {"name": "slurm"}
     return {"name": name}

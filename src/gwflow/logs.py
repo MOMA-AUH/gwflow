@@ -6,6 +6,7 @@ import shlex
 from contextlib import ExitStack
 
 import click
+from gwf.log_storage import get_log_paths
 from gwf.backends import BackendStatus
 from gwf.core import pass_context
 
@@ -34,8 +35,8 @@ def _display_jobs(store, name, jobs, *, historical=False, details=False):
         row = f"{indent}{name}__{item.local}: {state}{identity}{live}"
         streams = []
         for stream in ("stdout", "stderr"):
-            path = store.working_dir / ".gwf" / "logs" / f"{item.submission}.{stream}"
-            available = item.submission is not None and path.is_file()
+            path = get_log_paths(store.working_dir, item.submission)[stream == "stderr"] if item.submission else None
+            available = path is not None and path.is_file()
             streams.append((stream, path, available))
         if not details and not historical:
             click.echo(row + "; " + "; ".join(f"{stream}: {'available' if available else 'missing'}"
@@ -133,7 +134,7 @@ def logs(ctx, selectors, stderr, no_pager, history, details):
                         # A removed public name may have belonged to several Tasks;
                         # its surviving stream alias identifies the recorded owner.
                         suffix = ".stderr" if stderr else ".stdout"
-                        path = store.working_dir / ".gwf/logs" / (target + suffix)
+                        path = get_log_paths(store.working_dir, target)[stderr]
                         try:
                             submission = path.readlink().name.removesuffix(suffix)
                         except OSError:
@@ -154,8 +155,7 @@ def logs(ctx, selectors, stderr, no_pager, history, details):
                     raise click.UsageError("--history requires a Task index, not an individual job or submission stream.")
                 # Public aliases move on retry. Pin the submission while other
                 # frontends are excluded, before any slow log I/O or display.
-                suffix = ".stderr" if stderr else ".stdout"
-                log_path = os.path.realpath(store.working_dir / ".gwf/logs" / (target + suffix), strict=True)
+                log_path = os.path.realpath(get_log_paths(store.working_dir, target)[stderr], strict=True)
             else:
                 selected = task_selection(names, selectors)
                 for name in sorted(selected & job_names.keys()):
