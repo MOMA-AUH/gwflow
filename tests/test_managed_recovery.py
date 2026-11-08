@@ -8,6 +8,9 @@ import subprocess
 import sys
 import shlex
 
+from gwf.log_storage import get_log_paths
+from gwflow.lifecycle import Store
+
 from record_fixtures import record_path, read_record, write_record, remove_record
 
 from support import FIXTURES, GWFLOW
@@ -176,23 +179,101 @@ class ManagedCoordinationTests(LocalBackendTestCase):
             executable.write_text(f"#!{sys.executable}\n" + implementation)
             executable.chmod(0o700)
         return {**os.environ, "PATH": str(binaries) + os.pathsep + os.environ["PATH"],
-                "GWF_SLURM_FIXTURE_ROOT": str(self.work), "GWF_SLURM_FIXTURE_PORT": str(self.port)}
+                "GWF_SLURM_FIXTURE_ROOT": str(self.work)}
 
     def test_pinned_slurm_dependency_contract_and_expired_history_reuse(self):
+        # Retired local ownership settings must not affect a Slurm frontend.
+        self.configure(**{"backend.local.host": "unused.invalid", "backend.local.port": 9})
         env = self.slurm_environment()
         self.cli("-b", "slurm", "run", env=env)
         self.finish()
         submitted = [json.loads(line) for line in (self.work / "slurm-submitted.jsonl").read_text().splitlines()]
         self.assertEqual(len(submitted), 3)
         prep, compute, completion = submitted
+        self.assertEqual(len({item["id"] for item in submitted}), 3)
+        for item in submitted:
+            self.assertRegex(item["id"], r"^[1-9][0-9]*$")
         self.assertEqual(prep["args"], ["--parsable"])
         self.assertEqual(compute["args"], ["--parsable", "--dependency=afterok:" + prep["id"]])
         self.assertEqual(completion["args"], ["--parsable", "--dependency=afterok:" + compute["id"]])
         self.assertIn("#SBATCH --job-name=" + compute["name"], compute["script"])
+        for item in submitted:
+            stdout, stderr = get_log_paths(self.work, item["name"])
+            # This is Slurm's existing default; it is independent of the new
+            # local worker walltime policy.
+            self.assertIn("#SBATCH -t 01:00:00", item["script"])
+            self.assertIn(f"#SBATCH --output={stdout}", item["script"])
+            self.assertIn(f"#SBATCH --error={stderr}", item["script"])
+            self.assertTrue(os.path.isfile(stdout))
+            self.assertTrue(os.path.isfile(stderr))
+        store = Store(self.work)
+        self.assertTrue(store.compaction_succeeded(store.recorded_current("sample")))
         self.assertEqual((self.work / "results/sample/report.txt").read_text(), "hello")
         (self.work / "forgotten-slurm-history").touch()
         self.assertIn("Reuse", self.cli("-b", "slurm", "run", "--dry-run", env=env))
         self.assertNoSubmissions(self.cli("-b", "slurm", "run", env=env))
+
+    def test_slurm_commands_reject_native_execution_ids(self):
+        env = self.slurm_environment()
+        self.cli("-b", "slurm", "run", env=env)
+        self.finish()
+        mapping = json.loads((self.work / "slurm-local-jobs.json").read_text())
+        execution_id = next(iter(mapping.values()))
+        submission = json.loads((self.work / "slurm-submitted.jsonl").read_text().splitlines()[0])
+        for command, args in (("sbatch", ["--parsable", "--dependency=afterok:" + execution_id]),
+                              ("sacct", ["--jobs", execution_id]),
+                              ("scancel", ["--verbose", execution_id])):
+            with self.subTest(command=command):
+                result = subprocess.run([str(self.work / "slurm-bin" / command), *args],
+                                        input=submission["script"], env=env, capture_output=True, text=True, timeout=10)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("Invalid controlled Slurm job identifier", result.stderr)
+        self.assertEqual(len((self.work / "slurm-submitted.jsonl").read_text().splitlines()), 3)
+        self.assertFalse((self.work / "slurm-cancelled.jsonl").exists())
+
+    def test_slurm_lost_acknowledgement_preserves_accepted_computation(self):
+        trace = self.work / "executions"
+        self.write_task(f"echo executed >> {shlex.quote(str(trace))}; printf checked > out.txt")
+        env = self.slurm_environment()
+        output = self.cli("-b", "slurm", "run", success=False,
+                          env={**env, "GWFLOW_TEST_SLURM_LOSE_ACK": "sample__write"})
+        self.assertIn("lost Slurm acknowledgement", output)
+        self.settle()
+        self.cli("-b", "slurm", "run", env=env)
+        self.finish()
+        self.assertEqual(trace.read_text(), "executed\n")
+        self.assertEqual((self.work / "results/sample/result.txt").read_text(), "checked")
+        self.assertEqual(len((self.work / "slurm-submitted.jsonl").read_text().splitlines()), 3)
+
+    def test_slurm_logs_resources_and_result_repair_survive_expired_history(self):
+        trace = self.work / "executions"
+        self.write_task(
+            f"echo executed >> {shlex.quote(str(trace))}; echo slurm-output; echo slurm-error >&2; printf checked > out.txt",
+            settings="defaults={'walltime':'02:00:00', 'account':'science'}, "
+                     "preparation_defaults={'walltime':'03:00:00'}, completion_defaults={'walltime':'04:00:00'}")
+        env = self.slurm_environment()
+        self.cli("-b", "slurm", "run", env=env)
+        self.finish()
+        submitted = [json.loads(line) for line in (self.work / "slurm-submitted.jsonl").read_text().splitlines()]
+        for item, walltime in zip(submitted, ("03:00:00", "02:00:00", "04:00:00")):
+            self.assertIn(f"#SBATCH -t {walltime}", item["script"])
+            self.assertIn("#SBATCH -A science", item["script"])
+        compute = submitted[1]["name"]
+        (self.work / "forgotten-slurm-history").touch()
+        result = self.work / "results/sample/result.txt"
+        result.unlink()
+        self.assertIn("Repair", self.cli("-b", "slurm", "run", "--dry-run", env=env))
+        self.cli("-b", "slurm", "run", env=env)
+        self.finish()
+        self.assertEqual(result.read_text(), "checked")
+        self.assertEqual(trace.read_text(), "executed\n")
+        self.cli("-b", "slurm", "clean", "--delete", env=env)
+        self.assertNoSubmissions(self.cli("-b", "slurm", "run", env=env))
+        self.stop_worker(self.worker)
+        for selector in ("sample__write", compute):
+            self.assertIn("slurm-output", self.cli("-b", "slurm", "logs", selector, "--no-pager", env=env))
+            self.assertIn("slurm-error", self.cli("-b", "slurm", "logs", selector, "--stderr", "--no-pager", env=env))
+        self.assertIn(compute, self.cli("-b", "slurm", "logs", "sample", "--history", "--details", env=env))
 
     def test_slurm_wrapper_failure_cannot_publish_completion(self):
         self.write_task("printf unchecked > out.txt; exit 7")
