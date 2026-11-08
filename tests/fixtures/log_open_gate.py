@@ -10,10 +10,11 @@ held = False
 
 def hold_log_open(event, args):
     global held
-    if held or event != "open" or not isinstance(args[0], str):
+    stream = os.environ.get("LOG_OPEN_STREAM")
+    if not stream or held or event != "open" or not isinstance(args[0], str):
         return
     name = os.path.basename(args[0])
-    if not name.startswith("sample__right") or not name.endswith(os.environ["LOG_OPEN_STREAM"]):
+    if not name.startswith("sample__right") or not name.endswith(stream):
         return
     held = True
     with open("log-open-held", "w") as marker:

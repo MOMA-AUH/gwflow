@@ -8,6 +8,8 @@ import shlex
 import subprocess
 import sys
 
+from gwf.log_storage import get_log_paths
+
 from support import FIXTURES, LocalBackendTestCase
 import test_fresh
 import test_graphs
@@ -86,7 +88,9 @@ class LifecycleInspectionTests(LocalBackendTestCase):
         first_attempt = re.search(r"Attempt: ([0-9a-f]{32})", details).group(1)
         self.assertIn("(failed)", details)
         self.assertIn("Backend job:", details)
-        self.assertIn(str(self.work / ".gwf/logs" / (first + ".stdout")), details)
+        for path in get_log_paths(self.work, first):
+            self.assertIn(str(path), details)
+            self.assertTrue(path.is_file())
         self.assertIn("Staging:", details)
         self.assertEqual(self.snapshot(), before)
         original_log = self.cli("logs", first, "--no-pager")

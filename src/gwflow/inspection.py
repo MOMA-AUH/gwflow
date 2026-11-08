@@ -1,5 +1,7 @@
 """Shared human-readable details for managed lifecycle inspection."""
 
+from gwf.log_storage import get_log_paths
+
 from .workflow import lifecycle_jobs
 
 
@@ -56,6 +58,5 @@ def task_details(store, task):
         if item and item.job_id is not None:
             yield f"  Backend job: {item.job_id}"
         if item and item.submission:
-            root = store.working_dir / ".gwf" / "logs"
-            for suffix in ("stdout", "stderr"):
-                yield f"  Log {suffix}: {root / (item.submission + '.' + suffix)}"
+            for stream, path in zip(("stdout", "stderr"), get_log_paths(store.working_dir, item.submission)):
+                yield f"  Log {stream}: {path}"

@@ -11,6 +11,8 @@ import sys
 import tempfile
 import time
 
+from gwf.log_storage import get_log_paths
+
 WINDOW_BYTES = 65536
 WINDOW_LINES = 200
 ESCAPES = re.compile(r'\x1b(?:\[[0-?]*[ -/]*[@-~]|\][^\x07\x1b]*(?:\x07|\x1b\\|$)|[ -/]*[@-~])')
@@ -176,8 +178,8 @@ def read_history(storage, task):
                 jobs.append(dict(local=item.local, name=f'{task}__{item.local}', submission=item.submission,
                                  state=state, observed_state=state, recorded_state=item.state,
                                  requires_repetition=False, backend_id=item.job_id,
-                                 logs={stream: str(store.working_dir / '.gwf' / 'logs' / f'{item.submission}.{stream}')
-                                       for stream in ('stdout', 'stderr')}))
+                                 logs={stream: str(path) for stream, path in
+                                       zip(('stdout', 'stderr'), get_log_paths(store.working_dir, item.submission))}))
             if jobs or not is_current:
                 groups.append(dict(kind='retries' if is_current else 'previous', attempt=attempt['attempt'], jobs=jobs))
     return dict(groups=groups)

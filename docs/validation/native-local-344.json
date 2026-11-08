@@ -202,7 +202,13 @@
         347
       ],
       "scope": "Log consumers and log-layout assertions",
-      "observed": "Status/browser/follow and direct log-file fixture paths still assume flat logs. The basic public streamed reader and aliases pass native acceptance."
+      "observed": "Status/browser/follow and direct log-file fixture paths still assume flat logs. The basic public streamed reader and aliases pass native acceptance.",
+      "followup": {
+        "issue": 347,
+        "date": "2026-11-09",
+        "result": "Resolved in the cumulative migration: all remaining production log consumers use upstream native paths; direct-file fixtures and the missing-worker fixture use gwf 3 interfaces. 97 distinct affected test IDs pass in their final observations with zero skips. Historical failed inventory above remains unchanged.",
+        "evidence": "docs/validation/logs-347.json"
+      }
     },
     {
       "issues": [

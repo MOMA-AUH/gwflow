@@ -5,6 +5,8 @@ from pathlib import Path
 import subprocess
 import tempfile
 
+from gwf.log_storage import get_log_paths
+
 from support import FIXTURES, LocalBackendTestCase
 import test_graphs
 import test_interactive_status
@@ -30,7 +32,7 @@ class StatusLogTerminalTests(LocalBackendTestCase):
         session.wait_for('Choose log stream', after=checkpoint)
         checkpoint = session.send('\r')
         session.wait_for('TTYOUT', after=checkpoint)
-        path = (self.work / '.gwf/logs/sample__left.stdout').resolve()
+        path = get_log_paths(self.work, 'sample__left')[0].resolve()
         with path.open('a') as stream:
             stream.write('APPENDED_BY_TEST\n')
         checkpoint = session.send('u')
@@ -94,7 +96,7 @@ class StatusLogTerminalTests(LocalBackendTestCase):
         self.assertEqual(compiled.returncode, 0, compiled.stdout + compiled.stderr)
         gate, started = self.work / 'read-gate', self.work / 'read-started'
         gate.touch()
-        path = (self.work / '.gwf/logs/sample__left.stdout').resolve()
+        path = get_log_paths(self.work, 'sample__left')[0].resolve()
         session = self.terminal('status', 'sample', '--details', size=(120, 40), env={
             'LD_PRELOAD': str(library) + ' ' + os.environ.get('LD_PRELOAD', ''),
             'GWFLOW_LOG_READ_PATH': str(path), 'GWFLOW_LOG_READ_GATE': str(gate),
