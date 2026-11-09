@@ -1,0 +1,142 @@
+{
+  "schema_version": 1,
+  "date": "2026-11-09",
+  "purpose": "Correct the accidental v0.10.3 publication to intended v0.11.0, verify the replacement, then withdraw only the mistaken version.",
+  "paths": "All local artifact and command paths are repository-relative. <PYTHON312> denotes the Python 3.12.16 validation interpreter. Raw machine-specific logs and original release backups remain under ignored build/validation/release-correction-0.11.0/. No validation file was relabeled to claim qualification of another package.",
+  "tools": {
+    "python": "3.12.16",
+    "gh": "2.96.0 (2026-07-02)",
+    "git": "2.52.0"
+  },
+  "source_commit": "db93faec466c96f9b50b4933c3c287d095abb242",
+  "preparation_pr": "https://github.com/MOMA-AUH/gwflow/pull/356",
+  "preparation_ci": "https://github.com/MOMA-AUH/gwflow/actions/runs/42643137275",
+  "master_ci": "https://github.com/MOMA-AUH/gwflow/actions/runs/42648366741",
+  "qualified_bundle_artifact_id": 13689748502,
+  "publication_workflow": "https://github.com/MOMA-AUH/gwflow/actions/runs/42653887507",
+  "withdrawal_workflow": "https://github.com/MOMA-AUH/gwflow/actions/runs/42654355424",
+  "validation": {
+    "master_jobs_passed": 8,
+    "installed_conda_tests_passed": 961,
+    "installed_conda_tests_skipped": 0,
+    "real_container_cases_passed": 14,
+    "provisional_compatibility_cases_passed": 15,
+    "independent_runtime_comparisons": 4,
+    "journeys_passed_per_comparison": 15,
+    "fresh_channel_smoke_cases_passed": 3,
+    "qualification": "Fresh-cache exact dependency reconstruction qualified the tested artifact.",
+    "publication": "Fresh channel installation matched the tested package identity and SHA256."
+  },
+  "attachments": {
+    "SHA256SUMS": {
+      "sha256": "cce9104c89f6e17eba8c51768fbb21cb11caabea675f80437e00ca805efb3218",
+      "size_bytes": 189
+    },
+    "gwflow-0.11.0-py_0.conda": {
+      "sha256": "763c3969b00fd1a38b3620bb12c8677b23b445d9c1581f37b8fcb41956dfa1f0",
+      "size_bytes": 105590
+    },
+    "gwflow-0.11.0-validation.tar.gz": {
+      "sha256": "fb1802775dff99d3a7f8181308074c8efd40edcb08cb64023b023161db7dbe94",
+      "size_bytes": 5137
+    }
+  },
+  "commands": [
+    {
+      "command": "<PYTHON312> tests/select_ci_release.py --repo MOMA-AUH/gwflow --source db93faec466c96f9b50b4933c3c287d095abb242 --output build/validation/release-correction-0.11.0/selected-ci.txt",
+      "result": "Selected master CI 42648366741 and immutable release bundle 13689748502."
+    },
+    {
+      "command": "<PYTHON312> tests/release_artifacts.py verify --bundle build/validation/release-correction-0.11.0/qualified-bundle --tag v0.11.0 --source db93faec466c96f9b50b4933c3c287d095abb242",
+      "exit_code": 0
+    },
+    {
+      "command": "<PYTHON312> tests/release_artifacts.py unpack --bundle build/validation/release-correction-0.11.0/replacement-assets --output build/validation/release-correction-0.11.0/replacement-bundle --tag v0.11.0 --source db93faec466c96f9b50b4933c3c287d095abb242",
+      "exit_code": 0,
+      "result": "Downloaded draft attachments passed checksum, safe archive, qualification and publication identity checks before draft publication."
+    },
+    {
+      "command": "gh workflow run withdraw-mistaken-version.yml --repo MOMA-AUH/gwflow --ref master -f source=db93faec466c96f9b50b4933c3c287d095abb242 -f package_sha256=763c3969b00fd1a38b3620bb12c8677b23b445d9c1581f37b8fcb41956dfa1f0",
+      "result": "Guarded workflow verified published replacement provenance and both channel identities; deleted hardcoded MOMA-AUH/gwflow/0.10.3 and verified HTTP 404."
+    },
+    {
+      "command": "gh release delete v0.10.3 --repo MOMA-AUH/gwflow --cleanup-tag --yes",
+      "exit_code": 0
+    },
+    {
+      "command": "<PYTHON312> build/validation/release-correction-0.11.0/verify_remote.py",
+      "exit_code": 0,
+      "result": "Individual remote observations are preserved below."
+    }
+  ],
+  "withdrawn_publication": {
+    "source_commit": "5d5a849ee1068bd5f64bd0584f0f75d4b81bb5bd",
+    "filename": "gwflow-0.10.3-py_0.conda",
+    "sha256": "00f6a98a03b1df0437ab79c05c732b3a2a0d0444b5ee1291f9ebe5f7e6d11208",
+    "original_assets": "Release metadata and all three original attachments were preserved before withdrawal; the original bundle passed official unpack verification."
+  },
+  "remote_verification": {
+    "checked_at_utc": "2026-11-09T16:25:16.863659+00:00",
+    "checks": {
+      "anaconda_old_version": {
+        "url": "https://api.anaconda.org/release/MOMA-AUH/gwflow/0.10.3",
+        "http_status": 404
+      },
+      "anaconda_old_distribution": {
+        "url": "https://api.anaconda.org/dist/MOMA-AUH/gwflow/0.10.3/noarch/gwflow-0.10.3-py_0.conda",
+        "http_status": 404
+      },
+      "anaconda_old_download": {
+        "url": "https://conda.anaconda.org/MOMA-AUH/noarch/gwflow-0.10.3-py_0.conda",
+        "http_status": 404
+      },
+      "anaconda_new_distribution": {
+        "url": "https://api.anaconda.org/dist/MOMA-AUH/gwflow/0.11.0/noarch/gwflow-0.11.0-py_0.conda",
+        "http_status": 200,
+        "version": "0.11.0",
+        "basename": "noarch/gwflow-0.11.0-py_0.conda",
+        "sha256": "763c3969b00fd1a38b3620bb12c8677b23b445d9c1581f37b8fcb41956dfa1f0"
+      },
+      "anaconda_new_download": {
+        "url": "https://conda.anaconda.org/MOMA-AUH/noarch/gwflow-0.11.0-py_0.conda",
+        "http_status": 200,
+        "sha256": "763c3969b00fd1a38b3620bb12c8677b23b445d9c1581f37b8fcb41956dfa1f0"
+      },
+      "anaconda_repodata": {
+        "url": "https://conda.anaconda.org/MOMA-AUH/noarch/repodata.json",
+        "http_status": 200,
+        "old_version_entries": [],
+        "new_version_entries": [
+          "gwflow-0.11.0-py_0.conda"
+        ]
+      },
+      "anaconda_inventory": {
+        "url": "https://api.anaconda.org/package/MOMA-AUH/gwflow",
+        "http_status": 200,
+        "old_version_present": false,
+        "new_version_present": true,
+        "latest_version": "0.11.0"
+      },
+      "github_old_release": {
+        "endpoint": "repos/MOMA-AUH/gwflow/releases/tags/v0.10.3",
+        "http_status": 404
+      },
+      "github_old_tag": {
+        "endpoint": "repos/MOMA-AUH/gwflow/git/ref/tags/v0.10.3",
+        "http_status": 404
+      },
+      "github_latest": {
+        "endpoint": "repos/MOMA-AUH/gwflow/releases/latest",
+        "http_status": 200,
+        "tag": "v0.11.0",
+        "draft": false,
+        "url": "https://github.com/MOMA-AUH/gwflow/releases/tag/v0.11.0"
+      },
+      "github_new_source": {
+        "endpoint": "repos/MOMA-AUH/gwflow/commits/v0.11.0",
+        "http_status": 200,
+        "sha": "db93faec466c96f9b50b4933c3c287d095abb242"
+      }
+    }
+  }
+}
