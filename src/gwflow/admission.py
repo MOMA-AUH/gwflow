@@ -1,6 +1,6 @@
 """Generation-specific admission and recovery over gwf's pinned backends.
 
-Only this module knows how gwf 2.1.1 persists job tracking. Inspecting evidence
+Only this module knows how gwf 3.0.0 persists job tracking. Inspecting evidence
 is read-only; restoration happens under the frontend guard during submission
 or cancellation requests.
 """
@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from contextlib import contextmanager, nullcontext
 from contextvars import ContextVar
 import json
+from pathlib import Path
 import time
 from uuid import uuid4
 
@@ -21,7 +22,7 @@ from gwf.exceptions import WorkflowError
 from gwf.scheduling import submit_backend
 
 from . import _observations, _records
-from .backends import (LocalTerminationUnresolved, LocalWorkerUnavailable, ManagedLocalOps,
+from .backends import (LocalSubmissionRejected, LocalTerminationUnresolved, LocalWorkerUnavailable, ManagedLocalOps,
                        create_backend, local_termination_state)
 from .activity import activity as report_activity
 from ._frontend import observation_deadline
@@ -83,7 +84,7 @@ class SubmissionOutcome:
     task: str
     local: str
     submission: str | None = None
-    entered: bool = False
+    entered: bool = False  # Backend acceptance is possible unless explicitly rejected.
     confirmed: bool = False
     job_id: str | int | None = None
     attempt: str | None = None
@@ -101,7 +102,7 @@ class RecoveryOutcome:
 def backend_identity(backend, name):
     if isinstance(backend, TrackingBackend):
         if isinstance(backend.ops, LocalOps):
-            return {"name": "local", "host": backend.ops.host, "port": backend.ops.port}
+            return {"name": "local", "working_dir": str(Path(backend.ops.working_dir).resolve())}
         if isinstance(backend.ops, SlurmOps):
             return {"name": "slurm"}
     return {"name": name}
@@ -515,13 +516,21 @@ def replacement_activity(store, attempt, backend, name, consumers):
     return observed
 
 
+def _restore_job(backend, submission, job_id):
+    # gwf 3 persists tracking only after a change. The frontend guard covers
+    # this restoration and close(), so it cannot overwrite a later admission.
+    if backend._tracked_jobs.get(submission) != job_id:
+        backend._tracked_jobs[submission] = job_id
+        backend._changed = True
+
+
 def restore_tracking(backend, name, observations):
     """Restore known IDs only during run, so gwf can encode dependency IDs."""
     if isinstance(backend, TrackingBackend):
         for observation in observations.values():
             if (observation.job_id is not None and observation.state != "uncertain"
                     and observation.intent["backend"] == backend_identity(backend, name)):
-                backend._tracked_jobs[observation.submission] = observation.job_id
+                _restore_job(backend, observation.submission, observation.job_id)
 
 
 def require_cancellation_identity(backend, name, observation):
@@ -542,7 +551,7 @@ def request_cancellation(backend, name, observation):
     """Use verified admission identity without recording any inactivity claim."""
     require_cancellation_identity(backend, name, observation)
     if isinstance(backend, TrackingBackend):
-        backend._tracked_jobs[observation.submission] = observation.job_id
+        _restore_job(backend, observation.submission, observation.job_id)
     backend.cancel(Target(observation.submission, [], [], {}))
 
 
@@ -568,7 +577,7 @@ def new_intent(store, attempt, local, dependencies, backend, name):
 
 
 class _AdmissionCall:
-    """Identify gwf preflight errors without interpreting backend exceptions."""
+    """Distinguish proven non-admission from potentially accepted backend calls."""
 
     def __init__(self, backend, accepted, outcome):
         self.backend = backend
@@ -585,7 +594,11 @@ class _AdmissionCall:
 
     def submit(self, target, dependencies):
         self.outcome.entered = True
-        result = self.backend.submit(target, dependencies)
+        try:
+            result = self.backend.submit(target, dependencies)
+        except LocalSubmissionRejected:
+            self.outcome.entered = False
+            raise
         self.outcome.confirmed = True
         job_id = self.backend.get_tracked_id(target) if hasattr(self.backend, "get_tracked_id") else None
         self.outcome.job_id = job_id

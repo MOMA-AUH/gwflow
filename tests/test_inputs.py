@@ -200,6 +200,9 @@ class ExternalInputTests(LocalBackendTestCase):
                 alias.unlink()
 
     def test_preparation_resources_overlay_workflow_defaults(self):
+        self.stop_worker(self.worker)
+        self.workers = 3
+        self.worker = self.start_worker()
         self.configure_workflow(settings="defaults={'cores':3, 'memory':'8g'}, preparation_defaults={'cores':1, 'memory':None}")
         self.cli("-b", "recovery_fixture", "run", env=self.inject(capture_options=True))
         self.finish()

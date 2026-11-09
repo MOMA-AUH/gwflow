@@ -18,7 +18,7 @@ import termios
 import time
 import unittest
 
-from gwf.backends.local import Client, LocalStatus
+from gwf.backends.local import Client, LocalStatus, get_socket_path
 
 
 GWF = str(Path(sys.executable).with_name("gwf"))
@@ -37,16 +37,15 @@ def empty_task(inputs, **options):
 class LocalBackendTestCase(unittest.TestCase):
     executable = GWFLOW
     workers = 2
+    worker_memory: str | None = None
+    worker_debug = False
 
     def setUp(self):
         self.work = self.make_workdir()
         (self.work / "input.txt").write_text("hello\n")
         (self.work / "extra.txt").write_text("extra\n")
         self.configure_workflow()
-        with socket.socket() as probe:
-            probe.bind(("127.0.0.1", 0))
-            self.port = probe.getsockname()[1]
-        self.config = {"backend": "local", "backend.local.port": self.port}
+        self.config = {"backend": "local"}
         self.configure()
         self.worker = self.start_worker()
 
@@ -56,21 +55,29 @@ class LocalBackendTestCase(unittest.TestCase):
         return Path(temporary.name)
 
     def start_worker(self, *, env=None, start_new_session=False, working_dir=None):
+        command = [self.executable]
+        if self.worker_debug:
+            command += ["--verbose", "debug"]
+        command += ["workers", "-n", str(self.workers)]
+        if self.worker_memory is not None:
+            command += ["--max-memory", self.worker_memory]
         worker = subprocess.Popen(
-            [self.executable, "workers", "--host", "127.0.0.1", "-n", str(self.workers), "-p", str(self.port)],
+            command,
             cwd=self.work if working_dir is None else working_dir,
             stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True, env=env,
             start_new_session=start_new_session,
         )
         self.addCleanup(self.stop_worker, worker)
-        self.wait_for(lambda: self.worker_ready(worker))
+        directory = self.work if working_dir is None else working_dir
+        self.wait_for(lambda: self.worker_ready(worker, directory))
         return worker
 
-    def worker_ready(self, worker):
+    def worker_ready(self, worker, working_dir):
         if worker.poll() is not None:
             self.fail(f"workers exited: {worker.stderr.read()}")
         try:
-            with socket.create_connection(("127.0.0.1", self.port), timeout=0.2):
+            with Client.connect(get_socket_path(working_dir)) as client:
+                client.status()
                 return True
         except OSError:
             return False
@@ -177,11 +184,19 @@ class LocalBackendTestCase(unittest.TestCase):
 
     def finish(self):
         def done():
-            with Client.connect(port=self.port) as client:
+            with Client.connect(get_socket_path(self.work)) as client:
                 states = client.status()
             self.assertFalse(any(state == LocalStatus.FAILED for state in states.values()), states)
             return states and all(state == LocalStatus.COMPLETED for state in states.values())
         self.wait_for(done)
+
+    def settle(self):
+        def inactive():
+            with Client.connect(get_socket_path(self.work)) as client:
+                states = client.status()
+            return states and not any(state in (LocalStatus.SUBMITTED, LocalStatus.RUNNING)
+                                      for state in states.values())
+        self.wait_for(inactive)
 
     def assertNoSubmissions(self, output):
         # Cover both the installed bootstrap's gwf log and managed receipts.

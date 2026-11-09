@@ -1,12 +1,13 @@
 """Keep gwf backend discovery while requiring safe managed local admissions."""
 
+from pathlib import Path
 import socket
 import time
 
 from gwf.backends import create_backend as gwf_create_backend
 from gwf.backends.base import TrackingBackend
 from gwf.backends.exceptions import BackendError
-from gwf.backends.local import Client, LocalOps, LocalStatus, STATUS_MAP
+from gwf.backends.local import Client, LocalOps, LocalStatus, STATUS_MAP, TARGET_DEFAULTS, get_socket_path
 from gwf.exceptions import WorkflowError
 
 from .inspection_errors import InspectionBlocker
@@ -15,6 +16,18 @@ from ._local_termination import TERMINAL_STATES, TerminationRecords
 
 class LocalWorkerUnavailable(BackendError):
     """Connection establishment failed; this says nothing about job activity."""
+
+
+class LocalSubmissionRejected(BackendError):
+    """The scheduler explicitly refused this submission before enqueueing it."""
+
+
+class ManagedLocalClient(Client):
+    def recv(self):
+        kind, response = super().recv()
+        if kind == "task_rejected":
+            raise LocalSubmissionRejected(response["message"])
+        return kind, response
 
 
 class LocalTerminationUnresolved(InspectionBlocker):
@@ -36,21 +49,21 @@ def local_termination_state(working_dir, submission):
 
 
 class ManagedLocalOps(LocalOps):
-    def __init__(self, working_dir, host, port, target_defaults):
-        self.working_dir = working_dir
-        self.host = host
-        self.port = port
-        self.target_defaults = target_defaults
+    def __init__(self, working_dir):
+        self.working_dir = str(Path(working_dir).resolve())
+        self.socket_path = get_socket_path(self.working_dir)
+        self.target_defaults = TARGET_DEFAULTS
+        self.managed = None
         # Own establishment rather than inheriting gwf's exponential retry
         # policy and its guidance for unmanaged workers. Keep its wire client.
         for attempt in range(3):
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             try:
                 sock.settimeout(1)
-                sock.connect((host, port))
+                sock.connect(str(self.socket_path))
                 sock.settimeout(None)
-                self._client = Client.from_socket(sock)
-                return
+                self._client = ManagedLocalClient.from_socket(sock)
+                break
             except OSError:
                 sock.close()
                 if attempt < 2:
@@ -58,10 +71,11 @@ class ManagedLocalOps(LocalOps):
             except BaseException:
                 sock.close()
                 raise
-        raise LocalWorkerUnavailable(
-            f"Local backend could not connect to workers at {host} port {port} "
-            "after 3 attempts. Start or check gwflow workers with the configured host and port. "
-            "Job activity is unknown; no inactivity is established.")
+        else:
+            raise LocalWorkerUnavailable(
+                f"Local backend could not connect to the scheduler for {self.working_dir} "
+                f"at {self.socket_path} after 3 attempts. Start or check gwflow workers in the workflow directory. "
+                "Job activity is unknown; no inactivity is established.")
 
     def get_job_states(self, tracked_jobs):
         self._client.send("get_task_states")
@@ -71,8 +85,8 @@ class ManagedLocalOps(LocalOps):
         names = response.get("gwflow_submissions")
         self.managed = (response.get("gwflow_process_tree") == 1
                         and isinstance(names, dict) and response.get("gwflow_termination_records") == 1)
-        self.submission_names = {int(key): value for key, value in names.items()} if self.managed else {}
-        states = {int(key): LocalStatus[value] for key, value in response["tasks"].items()}
+        self.submission_names = dict(names) if self.managed else {}
+        states = {key: LocalStatus[value] for key, value in response["tasks"].items()}
         self._last_states = states
         self.known_jobs = set(states)
         self.unresolved = {key for key, state in states.items()
@@ -80,8 +94,16 @@ class ManagedLocalOps(LocalOps):
                            (not self.managed and state in (LocalStatus.CANCELLED, LocalStatus.KILLED, LocalStatus.FAILED))}
         return {key: STATUS_MAP[state] for key, state in states.items() if key in tracked_jobs}
 
+    def _ensure_observed(self):
+        # Empty tracking and cached states need not trigger an upstream query.
+        # Explicitly establish capabilities/identity when first needed, sharing
+        # any observation already made during TrackingBackend initialization.
+        if self.managed is None:
+            self.get_job_states(())
+
     def observe_submission(self, job_id, *, submission):
         """Observe this submission, requiring termination evidence for inactivity."""
+        self._ensure_observed()
         if self.managed and self.submission_names.get(job_id) == submission:
             if job_id in self.unresolved:
                 raise LocalTerminationUnresolved()
@@ -99,6 +121,7 @@ class ManagedLocalOps(LocalOps):
             raise
 
     def require_cancellation_identity(self, job_id, submission):
+        self._ensure_observed()
         if not self.managed:
             raise BackendError("Local workers cannot verify cancellation identity. "
                                "Stop old computation independently, then restart with gwflow workers.")
@@ -106,6 +129,7 @@ class ManagedLocalOps(LocalOps):
             raise LocalTerminationUnresolved("Local job ID is absent or belongs to a different submission")
 
     def require_managed(self):
+        self._ensure_observed()
         if not self.managed:
             raise BackendError("Local workers do not confirm process-tree termination. "
                                "Stop old jobs and restart with gwflow workers before submitting managed work.")
@@ -128,8 +152,10 @@ def create_backend(name, working_dir, config):
     if name != "local":
         return gwf_create_backend(name, working_dir=working_dir, config=config)
     settings = config.get_namespace("backend.local")
-    ops = ManagedLocalOps(working_dir=working_dir, target_defaults={},
-                          **{"host": "localhost", "port": 12345, **settings})
+    if settings:
+        raise BackendError("Local workers are selected by workflow directory; remove retired "
+                           "backend.local settings (including host/port). Use gwflow workers in that directory.")
+    ops = ManagedLocalOps(working_dir)
     try:
         return ManagedLocalBackend(working_dir, name="local", ops=ops)
     except BaseException:

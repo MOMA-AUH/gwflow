@@ -138,7 +138,7 @@ class JsonJobTests(LocalBackendTestCase):
         acknowledgement = record_path(self.work, "a", f"admissions/{intent['admission']}/ack.json")
         write_record(acknowledgement, {**read_record(acknowledgement), "job_id": 12345})
         # A different backend identity leaves only the recorded, integer ID.
-        row = self.report("a", "--details", env=self.inject(identity_host="another-host"))["tasks"][0]
+        row = self.report("a", "--details", env=self.inject(identity_directory="another-host"))["tasks"][0]
         self.assertEqual(row["state"], "reusable")
         compute = next(job for job in row["jobs"] if job["name"] == "a__compute")
         self.assertEqual(compute["backend_id"], "12345")

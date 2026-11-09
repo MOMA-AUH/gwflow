@@ -1,0 +1,274 @@
+{
+  "issue": "https://github.com/MOMA-AUH/gwflow/issues/344",
+  "date": "2026-11-08",
+  "base_commit": "49f7926cca2ca8943f88da446ebb4e9e8602eed0",
+  "scope": "First native gwf 3 execution slice only. Cumulative migration must not merge before #351 and all CI pass.",
+  "environment": {
+    "python": "3.12.16",
+    "executable": "<ENV>/bin/python",
+    "prefix": "<ENV>",
+    "gwf": "3.0.0",
+    "gwflow": "0.10.2",
+    "gwf_conda_build": "pyh4616a5c_0",
+    "gwf_conda_artifact_sha256": "987be4fcbd7ef3e2d1efe762050f825b9287c85a0c29dadcb711f9181e4ab455",
+    "gwf_channel": "https://conda.anaconda.org/gwforg/noarch",
+    "unmodified_official_python_files": 33,
+    "launcher_paths": [
+      "<ENV>/bin/gwf",
+      "<ENV>/bin/gwflow"
+    ],
+    "repository": "<REPO>",
+    "device": 64775,
+    "inode": 268733692
+  },
+  "commands": {
+    "install": "<ENV>/bin/python -m pip install --no-deps --no-build-isolation . ./tests/fixtures/packaged_tasks/packages/summary-task ./tests/fixtures/packaged_tasks/packages/report-task",
+    "focused": "<ENV>/bin/python -m unittest discover -s tests -p test_native_local.py -v",
+    "typing": "<TYPE_ENV>/bin/mypy --follow-imports=silent --ignore-missing-imports src/gwflow/_local_workers.py src/gwflow/_worker_process.py src/gwflow/backends.py src/gwflow/admission.py src/gwflow/workers.py src/gwflow/submission.py src/gwflow/logs.py",
+    "full_local_suite": "<ENV>/bin/python build/validation/native-local-344/local_partitions.py"
+  },
+  "focused_initial": {
+    "tests": 12,
+    "seconds": 38.742,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "timeout_cleanup_review": {
+    "symptom": "A cancellation request interrupted timeout cleanup; scheduler stayed RUNNING and shutdown hung.",
+    "correction": "Mark timeout cleanup as an existing cancellation request before any await.",
+    "process_boundary_red": {
+      "state": "RUNNING",
+      "execution_cancelled": true,
+      "terminal_future_done": false,
+      "shutdown": "timed out"
+    },
+    "process_boundary_green": {
+      "state": "KILLED",
+      "execution_cancelled": false,
+      "terminal_future_done": true,
+      "shutdown": "completed"
+    },
+    "installed_cli_red": {
+      "tests": 1,
+      "failures": 1,
+      "seconds": 33.559,
+      "failure": "Timed out waiting for local jobs"
+    },
+    "installed_cli_green": {
+      "tests": 1,
+      "failures": 0,
+      "seconds": 4.542
+    },
+    "cli_regression": "test_native_local.NativeTerminationTests.test_cancellation_during_timeout_cleanup_finishes_and_worker_shuts_down",
+    "command": "PYTHONPATH=tests <REVIEW_ENV>/bin/python -m unittest test_native_local.NativeTerminationTests.test_cancellation_during_timeout_cleanup_finishes_and_worker_shuts_down -v",
+    "mechanism": "Real computation handles SIGTERM by pausing its supervisor. CLI requests cancellation before cleanup resumes; completion of cleanup and graceful worker shutdown are checked."
+  },
+  "typing": {
+    "result": "Success: no issues found in 7 source files",
+    "scope": "mypy default untyped-body checking; not a stricter typing claim",
+    "version": "mypy 2.3.1"
+  },
+  "dependency_check": "No broken requirements found",
+  "official_dependency_integrity": "All 33 installed gwf Python source files match the official Conda package record checksums. No gwf package file modified.",
+  "serial_suite": {
+    "status": "interrupted and superseded, not complete evidence",
+    "tests_started": 195,
+    "exit_code": 130,
+    "source": "b9edbb333fdc372f4ea4f1a4b32b1e25e89fd67c",
+    "reason": "Replaced slow serial execution with complete four-partition local execution using existing ci_suite helpers. Raw failures remain retained."
+  },
+  "obsolete_baseline": {
+    "source": "8a380c2f1bbc1fe127325f3dabe89667d572bb2a",
+    "command": "build/validation/native-local-344/obsolete-baseline/environment/bin/python -m pip check",
+    "result": "failed",
+    "errors": [
+      "gwflow 0.8.1 requires gwf==2.1.1, but gwf 3.0.0 is installed",
+      "Candidate example packages require gwflow>=0.10.0,<0.11, but baseline gwflow is 0.8.1"
+    ],
+    "scope": "Shared-dependency source-baseline installation only; no independent-runtime or successful compatibility-journey claim. #350 owns native bootstrap."
+  },
+  "review": {
+    "standards": {
+      "hard_findings": 0,
+      "nonblocking_suggestions": [
+        "Existing test-class helper coupling",
+        "Repeated process-ancestry discovery; consider shared probes during #345"
+      ]
+    },
+    "spec": {
+      "initial_findings": 1,
+      "corrected_findings": 1,
+      "remaining_findings": 0,
+      "full_inventory_corrections": 1
+    }
+  },
+  "raw_evidence": "build/validation/native-local-344/ (ignored; includes logs, local runner, subprocess probe, dependency metadata, and per-shard results)",
+  "full_local_suite": {
+    "kind": "local installed-source suite; not Conda runtime qualification",
+    "discovered": 930,
+    "run": 930,
+    "failures": 33,
+    "errors": 358,
+    "skipped": 46,
+    "complete_exact_coverage": true,
+    "exit_codes": [
+      1,
+      1,
+      1,
+      1
+    ],
+    "result": "failed/incomplete integration; not passing qualification",
+    "source_checkpoint": "b8773003323cd10cfade9f9ada02781f39b2ed08",
+    "coverage_note": "Every discovered test ID appears exactly once in selected and completed unittest records. This includes explicit skips; it does not claim that skipped container behavior executed. Failure counts include subtest events.",
+    "shards": [
+      {
+        "index": 0,
+        "run": 228,
+        "failures": 5,
+        "errors": 88,
+        "skipped": 9
+      },
+      {
+        "index": 1,
+        "run": 249,
+        "failures": 8,
+        "errors": 89,
+        "skipped": 13
+      },
+      {
+        "index": 2,
+        "run": 230,
+        "failures": 6,
+        "errors": 91,
+        "skipped": 13
+      },
+      {
+        "index": 3,
+        "run": 223,
+        "failures": 14,
+        "errors": 90,
+        "skipped": 11
+      }
+    ],
+    "skip_reasons": {
+      "set GWFLOW_TEST_SIF for real Apptainer execution": 43,
+      "set GWFLOW_TEST_BIOINFORMATICS=1 for real Bioconda container execution": 2,
+      "set prepared summary/report SIFs for real packaged container execution": 1
+    },
+    "native_acceptance": {
+      "tests": 13,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "superseded_findings": "Six one-query inspection-bound failures were corrected afterward; the final 14-test focused run passes without changing the assertions. This broad record is not relabeled green."
+  },
+  "final_focused": {
+    "command": "PYTHONPATH=tests <ENV>/bin/python -m unittest test_planning_io.PlanningObservationTests.test_consumer_and_replacement_checks_share_job_evidence test_native_local -v",
+    "tests": 14,
+    "seconds": 52.817,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "scope": "All 13 native acceptance cases plus the existing shared-observation regression, after both review/full-inventory corrections."
+  },
+  "observation_correction": {
+    "before": "The full run recorded six subtest failures: two scheduler requests instead of the existing bound of one.",
+    "after": "Explicit lazy observation guarantees capability and identity before first admission/cancellation/identity inspection, while reusing an upstream initialization observation.",
+    "assertions_changed": false,
+    "review": "Both review axes verified the correction; no remaining blocking findings."
+  },
+  "integration_gaps": [
+    {
+      "issues": [
+        345
+      ],
+      "scope": "Extended resource/termination fixtures",
+      "observed": "An existing fresh-attempt fixture requests 3 cores from a 2-core worker. Existing cancellation cases still use retired port/shared-worker assumptions.",
+      "example": "test_fresh.FreshAttemptTests.test_reordering_and_resources_reuse_but_retained_mapping_changes_refresh"
+    },
+    {
+      "issues": [
+        346,
+        348
+      ],
+      "scope": "Native lifecycle/recovery/Slurm fixtures and persistence",
+      "observed": "356 error events reference the removed test-fixture port attribute. One additional UnboundLocalError follows an earlier fixture failure. Interrupted cleanup and shared-directory fixtures also remain incomplete.",
+      "raw_details": "build/validation/native-local-344/partitions/shard-*.json"
+    },
+    {
+      "issues": [
+        347
+      ],
+      "scope": "Log consumers and log-layout assertions",
+      "observed": "Status/browser/follow and direct log-file fixture paths still assume flat logs. The basic public streamed reader and aliases pass native acceptance.",
+      "followup": {
+        "issue": 347,
+        "date": "2026-11-09",
+        "result": "Resolved in the cumulative migration: all remaining production log consumers use upstream native paths; direct-file fixtures and the missing-worker fixture use gwf 3 interfaces. 97 distinct affected test IDs pass in their final observations with zero skips. Historical failed inventory above remains unchanged.",
+        "evidence": "docs/validation/logs-347.json"
+      }
+    },
+    {
+      "issues": [
+        349,
+        351
+      ],
+      "scope": "Container qualification",
+      "observed": "46 existing environment-gated skips require deployment Apptainer/SIF/Bioconda/example setup. Controlled registry multi-workflow fixtures also need a worker per workflow directory. No live-cluster or real-container qualification is claimed."
+    },
+    {
+      "issues": [
+        350
+      ],
+      "scope": "Provisional baseline",
+      "observed": "Pinned source baseline still requires gwf 2.1.1; direct installed dependency check fails. Its descriptors and comparison checks are unchanged."
+    },
+    {
+      "issues": [
+        351
+      ],
+      "scope": "Remaining native profile integration",
+      "observed": "Ordinary-gwf fixtures assume numeric IDs and touch creating missing files by default; official gwf 3 uses session IDs and requires --create-missing. These assertions must follow the official native contract, not a legacy adapter."
+    }
+  ],
+  "environment_setup_commands": [
+    "<CONDA>/bin/conda create --offline --clone <PREVIOUS_CHECKOUT>/build/validation/development-python-313/environment --prefix <ENV> --yes",
+    "<CONDA>/condabin/mamba install --prefix <ENV> gwf=3.0.0 -c gwforg -c conda-forge --yes"
+  ],
+  "implementation_files_sha256": {
+    ".github/workflows/ci.yml": "ba390f098f4e7c19d5ed1e960f60ea03ebb931ece052598f0e8a0eef64e90874",
+    "conda-recipe/meta.yaml": "2ab3a95b13603aed45c65aa2f858368485e03e413904b55dc98914d0a7ac257a",
+    "environment.yml": "0eab20edc949b94958e0d36756f25703365321e8d21e74e6cb0ec6970b521fd0",
+    "pyproject.toml": "b1289443d7303ad781980a0e778958afd31e29cf5634a5039908de08bae27cdf",
+    "src/gwflow/_local_workers.py": "46ec233196276ce911065c289a8a0842d3b0ad1def220409cf5bfc48ca067779",
+    "src/gwflow/_worker_process.py": "b0dd2f81045e72740dae42753afd6e3669ff9b0bf23ac942444be030bbce5b06",
+    "src/gwflow/admission.py": "70cd0b1ec0b0360b1bd9bdb87501eb90adc5087683e064cf4e1f65734b16e15f",
+    "src/gwflow/backends.py": "98cad08b70cc428a3a4a28fce16c6ef7e4fdb381c0636335aa5196cc31358ef8",
+    "src/gwflow/logs.py": "57da9f3838a66ead377dd772276c9f99fdb224f8b5ffa4e19ea5bb742b589bf1",
+    "src/gwflow/submission.py": "817d9c7d6ca8f4be5264eeedf6bab145dc9d16db16012364c4babec769989779",
+    "src/gwflow/workers.py": "0ae6a706b3d9dc087789eca2f7eb7368700de506e4f4ac2413bdcfd4182c8a89",
+    "tests/fixtures/termination_gate.py": "801e5af886f9f50665082c0581cabda70a1b7000d7035696a0cf7f27d1e3511f",
+    "tests/support.py": "98c5421aae39428fbaa362325795dbc27cbb6e36b45b7dc399f611c05eb7c8a9",
+    "tests/test_native_local.py": "cb0d9f76f704506936854ce266ddbed61e0fd9abac2042a26326b9669080dfab",
+    "tests/validate_containers.py": "6c0ae06eacbfbab4feb5edb1513a5ac9b928bf1036119dc8bd932b34379f4d0f"
+  },
+  "deep_chain_recheck": {
+    "command": "PYTHONPATH=tests <ENV>/bin/python -m unittest test_dependency_validation.DependencyValidationTests.test_deep_chain_has_bounded_validation_and_call_depth -v",
+    "tests": 1,
+    "seconds": 45.492,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "scope": "The original 30-second planning-probe timeout remains in the full inventory. This isolated rerun after the observation correction passes with unchanged test bounds; it does not isolate concurrency from the code correction or claim full-suite success."
+  },
+  "path_placeholders": {
+    "<REPO>": "The isolated migration checkout; paths without this prefix are repository-relative.",
+    "<ENV>": "Task-owned Conda Python environment on local temporary storage.",
+    "<REVIEW_ENV>": "Temporary review virtual environment sharing the official dependencies, used to avoid mutating an active broad-suite installation; not an independent preserved runtime.",
+    "<TYPE_ENV>": "Separate local environment providing mypy 2.3.1.",
+    "<CONDA>": "Preexisting Conda installation outside the checkout, providing conda and mamba.",
+    "<PREVIOUS_CHECKOUT>": "Earlier checkout containing the validated development-Python environment used as clone source."
+  }
+}

@@ -4,15 +4,19 @@
   "kind": "pre-1.0-bootstrap",
   "source": {
     "repository": "https://github.com/MOMA-AUH/gwflow.git",
-    "commit": "8a380c2f1bbc1fe127325f3dabe89667d572bb2a"
+    "commit": "862f53c8ccf9328aaf39a69a366a052fcdf6c85c",
+    "retention_ref": "refs/tags/gwf3-bootstrap-862f53c"
   },
-  "package_version": "0.8.1",
+  "package_version": "0.10.2",
   "includes": [
     "mandatory command tracking (#211)",
     "operator recovery (#212)",
     "authoritative attempt record-state and persistent locks (#254)",
-    "mandatory completion compaction and operation obligations (#259)"
+    "mandatory completion compaction and operation obligations (#259)",
+    "native gwf 3 execution, resource and termination ownership (#344\u2013#346)",
+    "native log history, controlled Slurm, and real-container lifecycle (#347\u2013#349)"
   ],
-  "scope": "A reproducible source baseline for the current pre-1.0 record format. Issue #259 requires compaction obligations and automatic completion compaction, without legacy-format fallback. This source baseline keeps every compatibility journey active for the new format. It is not a released artifact or the future v1.0.0 stable baseline.",
-  "release_requirement": "After the first successful stable publication, set stable.original and stable.latest to its complete pinned release references. After each later stable publication, retain original and update latest through a PR before preparing another candidate. Until then, stable=null selects the provisional pinned source comparison."
+  "scope": "Provisional source comparison against the qualified native gwf 3 bootstrap. Both installed packages share dependencies; this is not an independent preserved release environment or a compatibility promise for v0.10.2. All 15 existing completed and incomplete lifecycle journeys remain active, including result installation, Repair, and compacted Completion records. The non-release retention tag preserves reachability after squash merge and integration-branch deletion; never move or delete it.",
+  "release_requirement": "After the first successful stable publication, set stable.original and stable.latest to its complete pinned release references. After each later stable publication, retain original and update latest through a PR before preparing another candidate. Until then, stable=null selects the provisional pinned source comparison.",
+  "qualification": "docs/validation/bootstrap-350.json"
 }

@@ -63,12 +63,12 @@ class OperatorRecoveryTests(LocalBackendTestCase):
 
     def test_recovery_accepts_unavailable_backend_connection(self):
         self.cli("-b", "recovery_fixture", "run", env=self.inject(reject_prefix="sample__gwflow_prepare"), success=False)
-        self.configure(**{"backend.local.port": 0})
+        self.stop_worker(self.worker)
         output = self.cli("recover", "sample")
         self.assertIn("Backend observations unavailable", output)
         self.assertIn("Resolved submission", output)
         self.assertFalse((self.work / "trace").exists())
-        self.configure(**{"backend.local.port": self.port})
+        self.worker = self.start_worker()
         self.run_complete()
         self.assertEqual((self.work / "results/sample/result.txt").read_text(), "leftright")
 

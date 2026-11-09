@@ -1,7 +1,6 @@
 """Run managed local workers using gwf's settings and wire protocol."""
 
 import asyncio
-from pathlib import Path
 
 import click
 from gwf.core import pass_context
@@ -11,11 +10,8 @@ from ._local_workers import serve
 
 
 @pass_context
-def _workers(ctx, host, port, num_workers):
-    # Local workers write logs beneath their own working directory, including
-    # when submitted jobs belong to a workflow in a nested directory.
-    Path(ctx.logs_dir).mkdir(parents=True, exist_ok=True)
-    asyncio.run(serve(ctx.working_dir, num_workers, host, port))
+def _workers(ctx, max_cores, max_memory):
+    asyncio.run(serve(ctx.working_dir, max_cores, max_memory))
 
 
 workers = click.Command("workers", callback=_workers, params=list(gwf_workers.params),

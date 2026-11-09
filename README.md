@@ -8,22 +8,30 @@ after that work is cleaned. It uses [gwf](https://gwf.app/) for scheduling.
 
 ## Install
 
-Use Linux and Bash. Install the released package from the
-[MOMA-AUH](https://anaconda.org/MOMA-AUH/gwflow) conda channel and gwf 2.1.1.
-The example also needs Apptainer on `PATH` and a Linux x86_64 host.
+This guide follows the current checkout. Use Linux, Bash, Python 3.12, and
+exactly gwf 3.0.0. The example also needs deployment-provided Apptainer 1.5.4
+on `PATH` and a Linux x86_64 host.
+
+Clone the checkout, create its Conda environment, and install gwflow:
 
 ```sh
-conda create -n gwflow --override-channels -c MOMA-AUH -c gwforg -c conda-forge gwflow
+git clone https://github.com/MOMA-AUH/gwflow.git
+cd gwflow
+conda env create -n gwflow -f environment.yml
 conda activate gwflow
+python -m pip install .
+gwf --version
 gwflow --version
 apptainer --version
-git clone https://github.com/MOMA-AUH/gwflow.git
-cd gwflow/example
+cd example
 ```
 
-If you already have this checkout, enter its `example/` directory instead of
-cloning again. All input data is synthetic and included in the checkout.
-Apptainer downloads the public Bioconda container images on first use.
+If you already have this checkout, start from its root and omit the clone commands.
+The environment installs the official, unmodified gwf 3.0.0 package from `gwforg`.
+Install that dependency before installing gwflow with pip. For an earlier released
+package, follow its [release notes](docs/history.md) and matching checkout.
+All input data is synthetic and included. Apptainer downloads the public Bioconda
+container images on first use.
 
 ## Run the example
 
@@ -39,13 +47,22 @@ gwflow config set backend local
 ```
 
 In a second terminal, activate the same environment and enter the same
-`gwflow/example` directory. Start two workers and leave them running:
+`gwflow/example` directory. Start the local scheduler with a two-core budget:
 
 ```sh
 conda activate gwflow
 cd gwflow/example
-gwflow workers -n 2
+gwflow workers -n 2 --max-memory 4g
 ```
+
+Keep the scheduler running. `-n 2` budgets requested cores, so one two-core job
+uses the entire core budget. Each workflow directory has its own scheduler and
+independent budgets. Divide machine capacity across concurrently running workflows.
+Memory reservations do not enforce actual memory use.
+
+Local jobs default to one hour, including preparation and completion jobs.
+See [local resources and walltime](docs/reference.md#local-resources-and-walltime)
+for overrides and worker requirements.
 
 Back in the first terminal, run the sample Tasks:
 

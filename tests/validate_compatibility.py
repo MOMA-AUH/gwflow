@@ -13,7 +13,7 @@ import sys
 import time
 import unittest
 
-from gwf.backends.local import Client, LocalStatus
+from gwf.backends.local import Client, LocalStatus, get_socket_path
 
 from support import FIXTURES, LocalBackendTestCase
 from compatibility_environment import disjoint_environments, installed_environment
@@ -106,59 +106,32 @@ class CompletedCompatibilityTests(InstalledCompatibilityTests):
         records = self.logical_records("operator-recovery")
         self.assertEqual(len(records), 1)
         before = self.snapshot()
-        original_records = self.logical_records()
         identities = {str(path): {"device": path.stat().st_dev, "inode": path.stat().st_ino}
                       for path in (self.work, self.work / "work", self.work / "results", self.work / ".gwf/gwflow")}
         self.finish()
-        with Client.connect(port=self.port) as client:
+        with Client.connect(get_socket_path(self.work)) as client:
             states = client.status()
             client.send("get_task_states")
             kind, response = client.recv()
         self.assertEqual(kind, "task_states")
-        durable_termination = response.get("gwflow_termination_records") == 1
+        self.assertEqual(response.get("gwflow_termination_records"), 1)
+        self.assertEqual(response.get("gwflow_process_tree"), 1)
         self.assertTrue(states and all(state == LocalStatus.COMPLETED for state in states.values()), states)
         self.stop_worker(self.worker)
         self.assertIsNotNone(self.worker.poll())
-        # The pinned legacy scheduler inherits this isolated process group.
+        # The managed scheduler inherits this isolated process group.
         # These controlled commands run synchronously and never detach. Group
         # absence therefore checks its descendants, not merely its exit code.
         with self.assertRaises(ProcessLookupError):
             os.killpg(self.worker.pid, 0)
         self.record({"baseline_jobs_completed": True, "worker_exit": self.worker.returncode,
-                     "baseline_process_group_gone": True, "durable_termination": durable_termination,
+                     "baseline_process_group_gone": True, "durable_termination": True,
                      "job_states": {str(job): state.name for job, state in states.items()},
                      "attempts": attempts, "storage": identities, "snapshot": before})
 
         self.select_installation("candidate")
         self.worker = self.start_worker()
         self.cli("status", "--details")
-        if not durable_termination:
-            # Follow the public upgrade procedure for an old worker that could
-            # not retain inactivity evidence. Do not fabricate scheduler state.
-            for flags in (("--dry-run",), ()):
-                blocked = self.cli("run", *flags, success=False)
-                self.assertIn("cannot confirm computation descendants have stopped", blocked)
-                self.assertNoSubmissions(blocked)
-                self.assertEqual(self.snapshot(), before)
-            self.assertEqual(self.trace(), Counter({name: 1 for name in names}))
-            for name in names:
-                recovery = self.cli("recover", name)
-                self.assertIn("Resolved", recovery)
-                self.assertIn("Whole-Task inactivity asserted by the operator", recovery)
-                self.assertNoSubmissions(recovery)
-            recovered = self.logical_records()
-            self.assertEqual({path: recovered[path] for path in original_records}, original_records)
-            added = {path: record for path, record in recovered.items() if path not in original_records}
-            self.assertTrue(added)
-            self.assertTrue(all(record["kind"] == "gwflow.operator-recovery" for record in added.values()))
-            after = self.snapshot()
-            retained = {path: metadata for path, metadata in before.items() if path.startswith("results/")}
-            self.assertEqual({path: after[path] for path in retained}, retained)
-            self.record({"upgrade_operator_recovery": added, "preserved_logical_records": len(original_records),
-                         "preserved_retained_files": len(retained)})
-            # Recovery appends evidence through the supported record API. All
-            # subsequent read/reuse operations must preserve its physical state.
-            before = after
         preview = self.cli("run", "--dry-run")
         for name in names:
             self.assertRegex(preview, rf"Task {name}\s+Reuse\s+")
@@ -221,7 +194,7 @@ class IncompleteCompatibilityTests(InstalledCompatibilityTests):
 
     def handoff(self, *external_roots):
         self.settle()
-        with Client.connect(port=self.port) as client:
+        with Client.connect(get_socket_path(self.work)) as client:
             states = client.status()
         self.assertTrue(states and all(state in (LocalStatus.COMPLETED, LocalStatus.FAILED,
                                                 LocalStatus.CANCELLED, LocalStatus.KILLED)
@@ -268,7 +241,9 @@ class IncompleteCompatibilityTests(InstalledCompatibilityTests):
 
 
 class PartialCompatibilityTests(IncompleteCompatibilityTests):
-    configure_workflow = TaskGraphTests.configure_workflow
+    def configure_workflow(self, **options):
+        TaskGraphTests.configure_workflow(self, **options)
+
     interrupt_computation = OperatorRecoveryTests.interrupt_computation
 
     def test_failed_branch_preserves_successful_sibling_across_upgrade(self):
@@ -377,7 +352,9 @@ class PreparationCompatibilityTests(IncompleteCompatibilityTests):
 
 
 class FinishingCompatibilityTests(IncompleteCompatibilityTests):
-    configure_workflow = TransferRecoveryTests.configure_workflow
+    def configure_workflow(self, **options):
+        TransferRecoveryTests.configure_workflow(self, **options)
+
     assert_results = TransferRecoveryTests.assert_results
     fault = TransferRecoveryTests.fault
     separate_filesystem = TransferRecoveryTests.separate_filesystem

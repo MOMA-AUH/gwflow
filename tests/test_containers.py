@@ -108,6 +108,9 @@ class ContainerRuntimeTests(LocalBackendTestCase):
     def test_image_software_runs_with_private_scratch_and_reuses_after_cleanup(self):
         self.run_complete()
         self.assertEqual((self.work / "results/sample/out.txt").read_text(), "from-image\n")
+        records = list((self.work / ".gwf/gwflow").glob("owners/*/tasks/sample/attempts/*/record-state.json"))
+        self.assertEqual(len(records), 1)
+        self.assertEqual(json.loads(records[0].read_text())["phase"], "compacted")
         scratch = list((self.work / "work").rglob("temporary"))
         self.assertEqual(len(scratch), 1)
         self.assertEqual(scratch[0].read_text(), "scratch\n")

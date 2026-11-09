@@ -257,9 +257,12 @@ class RegistryImageTests(RegistryTestCase):
         other.mkdir()
         (other / "workflow.py").write_text((self.work / "workflow.py").read_text().replace("'sample'", "'other'"))
         shutil.copyfile(self.work / ".gwfconf.json", other / ".gwfconf.json")
+        self.start_worker(working_dir=other)
         result = subprocess.run([GWFLOW, "run"], cwd=other, capture_output=True, text=True, timeout=30)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.finish()
+        result = subprocess.run([GWFLOW, "wait", "--interval", "0.05", "--timeout", "20"],
+                                cwd=other, capture_output=True, text=True, timeout=30)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual((other / "results/other/out.txt").read_text(), "fixture image\n")
         self.assertEqual(len(self.calls("pull")), 1)
         self.assertEqual([call["image"] for call in self.calls("exec")], [str(image), str(image)])

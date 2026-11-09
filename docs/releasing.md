@@ -4,8 +4,10 @@ Before v1.0.0, backward compatibility is not a release constraint; prefer the
 simplest coherent design without compatibility shims or migrations, as recorded
 in the [pre-1.0 development decision](adr/0001-pre-1-0-development.md).
 
-The supported release environment is Python 3.12 and gwf 2.1.1.
-`pyproject.toml` and `conda-recipe/meta.yaml` carry those same bounds.
+The supported release environment is Python 3.12 and exactly gwf 3.0.0.
+`pyproject.toml`, `environment.yml`, and `conda-recipe/meta.yaml` carry those same bounds.
+Install the official gwf 3.0.0 Conda package from `gwforg` before pip installation.
+Keep that upstream artifact unmodified.
 The v0.4.0 container profile is Linux local workers and Slurm with
 deployment-provided Apptainer 1.5.4. The
 [validation record](validation/containers/acceptance.md) documents real execution

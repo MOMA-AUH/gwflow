@@ -1,13 +1,19 @@
-"""Local scheduling with terminal states backed by process-tree termination."""
+"""gwf 3 scheduling with streaming logs and attested descendant termination.
+
+Only this adapter depends on upstream's private scheduler hooks. Resource and
+dependency scheduling stay upstream; execution and terminal evidence stay here.
+"""
 
 import asyncio
-import json
 import logging
-from pathlib import Path
+import os
 import signal
 import sys
+import tempfile
 
-from gwf.backends.local import LocalStatus, Scheduler, Server
+from gwf.backends.exceptions import BackendError
+from gwf.backends.local import LocalStatus, Scheduler, Server, get_socket_path
+from gwf.log_storage import get_log_paths, prepare_log_storage_for_target
 
 from . import _worker_process
 from ._local_termination import TerminationRecords
@@ -16,72 +22,83 @@ logger = logging.getLogger(__name__)
 
 
 class ManagedScheduler(Scheduler):
-    def __init__(self, working_dir, max_cores):
-        super().__init__(working_dir, max_cores)
+    def __init__(self, working_dir, max_cores, max_memory):
+        super().__init__(working_dir, max_cores, max_memory)
         self.started = set()
-        self.stopping = set()
-        self.submission_names = {}
-        self.termination_records = {}
+        self.records = TerminationRecords(self.working_dir)
 
-    async def enqueue_task(self, name, script, working_dir, time_limit, deps):
-        # Invalidate any earlier receipt before the job can run, including if
-        # an ordinary gwf client submits the same name more than once.
-        # The submitted workflow directory, not the worker's startup directory,
-        # fixes where frontends can read evidence even after reconfiguration.
-        records = TerminationRecords(working_dir)
-        records.record(name, LocalStatus.UNKNOWN)
-        tid = await super().enqueue_task(name, script, working_dir, time_limit, deps)
-        self.submission_names[tid] = name
-        self.termination_records[tid] = records
-        return tid
+    def enqueue_task(self, name, script, working_dir, time_limit, deps, cores=1, memory="1g"):
+        # Invalidate old receipts before upstream can schedule the submission.
+        self.records.record(name, LocalStatus.UNKNOWN)
+        return super().enqueue_task(name, script, working_dir, time_limit, deps, cores, memory)
 
     async def cancel_task(self, tid):
-        if self.task_states.get(tid) in (LocalStatus.SUBMITTED, LocalStatus.RUNNING) and tid not in self.stopping:
-            self.stopping.add(tid)
+        if tid not in self.tasks:
+            raise BackendError(f"Unknown task {tid}.")
+        target = self.tasks[tid]
+        state = self.task_states[tid]
+        if state == LocalStatus.SUBMITTED:
+            target.cancel_requested = True
+            self._finish_target(target, LocalStatus.CANCELLED)
+            self._schedule()
+        elif state == LocalStatus.RUNNING and not target.cancel_requested:
+            target.cancel_requested = True
+            # Before the coroutine starts, cancellation would bypass its cleanup.
             if tid in self.started:
-                self.tasks[tid].cancel()
+                target.execution.cancel()
+        # A response acknowledges the request; terminal state follows cleanup.
 
-    async def shutdown(self):
-        for tid in self.tasks:
-            await self.cancel_task(tid)
-        if self.tasks:
-            await asyncio.gather(*self.tasks.values(), return_exceptions=True)
+    def _finish_target(self, target, state):
+        if target.done.done():
+            return
+        try:
+            self.records.record(target.name, state)
+        except Exception:
+            logger.exception("Local job %s could not persist termination evidence", target.name)
+            state = LocalStatus.UNKNOWN
+        super()._finish_target(target, state)
 
-    async def try_handle_task(self, tid, name, script, working_dir, time_limit, deps):
-        self.started.add(tid)
-        acquired = False
-        launch = None
-        process = None
+    async def _run_target(self, target):
+        self.started.add(target.tid)
+        state = await self._execute_task(target)
+        target.execution = None
+        self._finish_target(target, state)
+        # Failed evidence publication is unresolved too: retain its reservation.
+        if self.task_states[target.tid] != LocalStatus.UNKNOWN:
+            self.available_cores += target.cores
+            self.available_memory += target.memory
+        self._schedule()
+
+    async def _execute_task(self, target):
+        launch = process = None
         stdout = stderr = None
         outcome = LocalStatus.UNKNOWN
         try:
-            if tid in self.stopping:
+            if target.cancel_requested:
                 raise asyncio.CancelledError
-            if deps:
-                await asyncio.wait({self.tasks[dependency] for dependency in deps})
-                for dependency in deps:
-                    if self.task_states[dependency] != LocalStatus.COMPLETED:
-                        outcome = self.task_states[dependency]
-                        return
-            await self.cores_ressource.acquire()
-            acquired = True
-            self.task_states[tid] = LocalStatus.RUNNING
-            # Shield spawn so cancellation cannot lose ownership of a process
-            # created before asyncio hands its handle back to the scheduler.
-            logs = Path(self.working_dir) / ".gwf" / "logs"
-            stdout = (logs / f"{name}.stdout").open("wb")
-            stderr = (logs / f"{name}.stderr").open("wb")
-            launch = asyncio.create_task(asyncio.create_subprocess_exec(
-                sys.executable, "-m", "gwflow._worker_process", script,
-                cwd=working_dir, stdin=asyncio.subprocess.PIPE,
-                stdout=stdout, stderr=stderr, start_new_session=True,
-            ))
-            process = await asyncio.shield(launch)
-            await asyncio.wait_for(process.wait(), timeout=time_limit)
-            # A signal-killed supervisor cannot attest that it reaped children.
+            prepare_log_storage_for_target(self.working_dir, target.name)
+            stdout_path, stderr_path = get_log_paths(self.working_dir, target.name)
+            stdout = stdout_path.open("wb")
+            stderr = stderr_path.open("wb")
+            with tempfile.NamedTemporaryFile(mode="w", prefix="gwflow_") as script:
+                script.write(target.script)
+                script.flush()
+                environment = {**os.environ, "GWF_EXEC_WORKFLOW_ROOT": str(self.working_dir)}
+                # The supervisor owns the upstream runner and all executor children.
+                # Shield spawn so cancellation cannot orphan a just-created process.
+                launch = asyncio.create_task(asyncio.create_subprocess_exec(
+                    sys.executable, "-m", "gwflow._worker_process", script.name,
+                    cwd=target.working_dir, env=environment, stdin=asyncio.subprocess.PIPE,
+                    stdout=stdout, stderr=stderr, start_new_session=True,
+                ))
+                process = await asyncio.shield(launch)
+                await asyncio.wait_for(process.wait(), timeout=target.time_limit)
             if process.returncode in _worker_process.CONFIRMED_TERMINATION:
                 outcome = LocalStatus.COMPLETED if process.returncode == _worker_process.COMPLETED else LocalStatus.FAILED
         except (asyncio.CancelledError, TimeoutError) as error:
+            # Timeout owns cleanup too. Later cancellation or shutdown must
+            # acknowledge that request without interrupting its attestation.
+            target.cancel_requested = True
             if launch is not None:
                 process = await launch
             if process is not None:
@@ -91,78 +108,30 @@ class ManagedScheduler(Scheduler):
             if process is None or process.returncode in _worker_process.CONFIRMED_TERMINATION:
                 outcome = LocalStatus.CANCELLED if isinstance(error, asyncio.CancelledError) else LocalStatus.KILLED
         except Exception:
-            logger.exception("Local job %s could not establish a terminal outcome", name)
+            logger.exception("Local job %s could not establish a terminal outcome", target.name)
         finally:
             if process is not None and process.stdin is not None:
                 process.stdin.close()
             for stream in (stdout, stderr):
                 if stream is not None:
                     stream.close()
-            # This is the sole terminal-state publication, after owned work stops.
-            try:
-                self.termination_records.pop(tid).record(name, outcome)
-            except Exception:
-                logger.exception("Local job %s could not persist termination evidence", name)
-                outcome = LocalStatus.UNKNOWN
-            self.task_states[tid] = outcome
-            if acquired:
-                self.cores_ressource.release()
+        return outcome
 
 
 class ManagedServer(Server):
-    def __init__(self, scheduler):
-        super().__init__(scheduler)
-        self.connections = set()
-
-    async def handle_connection(self, reader, writer):
-        self.connections.add(writer)
-        try:
-            while data := await reader.readline():
-                message = json.loads(data)
-                kind = message.pop("__kind__")
-                if kind == "enqueue_task":
-                    tid = await self.scheduler.enqueue_task(**message)
-                    await self.send_response(writer, "task_enqueued", tid=tid)
-                elif kind == "get_task_states":
-                    await self.send_response(writer, "task_states", tasks=self.scheduler.get_task_states())
-                elif kind == "get_task_state":
-                    await self.send_response(writer, "task_state", state=self.scheduler.get_task_state(message["tid"]))
-                elif kind == "cancel_task":
-                    await self.scheduler.cancel_task(message["tid"])
-                elif kind == "shutdown":
-                    self.server.close()
-                    break
-                elif kind == "close":
-                    break
-                else:
-                    raise ValueError(f"Unknown local worker request: {kind}")
-        finally:
-            writer.close()
-            await writer.wait_closed()
-            self.connections.discard(writer)
-
     async def send_response(self, writer, kind, **kwargs):
         if kind == "task_states":
             kwargs["gwflow_process_tree"] = 1
-            kwargs["gwflow_submissions"] = self.scheduler.submission_names
+            kwargs["gwflow_submissions"] = {tid: target.name for tid, target in self.scheduler.tasks.items()}
             kwargs["gwflow_termination_records"] = 1
         await super().send_response(writer, kind, **kwargs)
 
 
-async def serve(working_dir, max_cores, host, port):
-    scheduler = ManagedScheduler(working_dir, max_cores)
+async def serve(working_dir, max_cores, max_memory):
+    scheduler = ManagedScheduler(working_dir, max_cores, max_memory)
     server = ManagedServer(scheduler)
-    serving = asyncio.create_task(server.start_server(host, port))
+    serving = asyncio.create_task(server.start_server(get_socket_path(working_dir)))
     loop = asyncio.get_running_loop()
     for signum in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(signum, serving.cancel)
-    try:
-        await serving
-    finally:
-        if server.server is not None:
-            server.server.close()
-        await scheduler.shutdown()
-        for writer in tuple(server.connections):
-            writer.close()
-        if server.server is not None:
-            await server.server.wait_closed()
+    await serving

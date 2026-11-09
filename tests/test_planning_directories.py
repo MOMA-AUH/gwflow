@@ -24,6 +24,7 @@ class DirectoryObservationTests(LocalBackendTestCase):
                 self.configure()
                 self.configure_workflow(consumers, references)
                 self.evidence_label += f"depth-{depth}-"
+                self.start_worker()
                 self.run_complete()
                 output, report = self.probe("status")
                 self.assertEqual(output, self.cli_result("status").stdout)
@@ -90,6 +91,7 @@ class DirectoryObservationTests(LocalBackendTestCase):
         (self.work / "input.txt").write_text("hello\n")
         self.configure()
         self.configure_workflow()
+        self.start_worker()
         self.run_complete()
         for command in (("status",), ("run", "--dry-run"), ("run",)):
             with self.subTest(command=command):

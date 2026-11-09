@@ -259,7 +259,7 @@ class CancellationTests(LocalBackendTestCase):
             self.assertTrue(any(name.startswith("sample__right__") for name in requested))
             self.assertEqual(self.snapshot(), before)
             (self.work / "cancellation-requests.jsonl").unlink()
-            environment = self.inject(identity_host="different-worker", record_cancellations=True, accept_cancel_only=True)
+            environment = self.inject(identity_directory="different-worker", record_cancellations=True, accept_cancel_only=True)
             result = self.cli_result("-b", "recovery_fixture", "cancel", "sample", env=environment, success=False)
             self.assertEqual(result.stdout.count("recorded backend does not match the selected backend"), 3, result.stdout)
             self.assertIn("recorded backend does not match the selected backend", result.stderr)
@@ -580,7 +580,7 @@ class CancellationSelectionTests(LocalBackendTestCase):
         self.assertEqual(set(re.findall(r"(?m)^Task (\w+):", output)), {*"abcde", "fresh"})
         self.assertEqual(output.count("no longer declared"), 5)
         self.assertEqual(output.count("Would request cancellation"), 15)
-        self.configure(**{"backend.local.port": 0})
+        self.stop_worker(self.worker)
         for options in ((), ("--dry-run",)):
             self.assertIn("No admitted work to cancel", self.cli("cancel", "fresh", *options))
         self.assertEqual(self.snapshot(), before)

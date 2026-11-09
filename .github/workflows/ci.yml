@@ -27,7 +27,7 @@ jobs:
       - name: Install gwf and gwflow
         shell: bash -l {0}
         run: |
-          conda create -y -n gwflow-tests python=3.12 pip gwf=2.1.1 -c gwforg -c conda-forge
+          conda create -y -n gwflow-tests python=3.12 pip gwf=3.0.0 -c gwforg -c conda-forge
           conda run -n gwflow-tests python -m pip install .
           conda run -n gwflow-tests python -m pip install ./tests/fixtures/packaged_tasks/packages/summary-task ./tests/fixtures/packaged_tasks/packages/report-task
       - name: Select checkout-pinned compatibility baselines

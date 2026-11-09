@@ -3,23 +3,22 @@
 from collections import Counter
 import json
 import os
-from pathlib import Path
 import re
 import shlex
 import signal
-import socket
 
 from support import GWF, LocalBackendTestCase
 import test_graphs
 import test_registry_images
+from process_probe import ProcessProbe
 
 
-class LocalCancellationTests(LocalBackendTestCase):
+class LocalCancellationTests(ProcessProbe, LocalBackendTestCase):
     configure_workflow = test_graphs.TaskGraphTests.configure_workflow
-    settle = test_graphs.TaskGraphTests.settle
+    settle = LocalBackendTestCase.settle
     inject = test_graphs.TaskGraphTests.inject
 
-    def test_old_workers_allow_inspection_but_refuse_new_managed_jobs(self):
+    def test_ordinary_workers_allow_inspection_but_refuse_new_managed_jobs(self):
         self.stop_worker(self.worker)
         self.executable = GWF
         self.worker = self.start_worker()
@@ -33,14 +32,14 @@ class LocalCancellationTests(LocalBackendTestCase):
         self.run_complete()
         self.assertIn("Reuse", self.cli("run", "--dry-run"))
 
-    def test_old_worker_cancellation_cannot_authorize_retry_replacement_or_cleanup(self):
+    def test_ordinary_worker_cancellation_cannot_authorize_retry_replacement_or_cleanup(self):
         self.stop_worker(self.worker)
         self.executable = GWF
         self.worker = self.start_worker()
         del self.executable
         self.configure_workflow(right_command=self.probe())
-        # Existing backend fixture submits through the original local protocol,
-        # representing work admitted before the frontend was upgraded.
+        # The external backend fixture admits native work through ordinary
+        # workers, which provide no managed descendant-termination guarantee.
         self.cli("-b", "recovery_fixture", "run", env=self.inject())
         self.wait_for((self.work / "held").exists)
         attempt = re.search(r"attempt ([0-9a-f]{32})", self.cli(
@@ -52,7 +51,7 @@ class LocalCancellationTests(LocalBackendTestCase):
         for arguments in (("run", "sample"), ("run", "sample", "--force"),
                           ("clean", "--attempt", attempt, "--delete")):
             self.assertIn("cannot confirm computation descendants have stopped", self.cli(*arguments, success=False))
-        # Restart loses scheduler history, but does not stop the old child.
+        # Lost scheduler history cannot establish descendant termination.
         self.stop_worker(self.worker)
         self.worker = self.start_worker()
         for arguments in (("run", "sample"), ("run", "sample", "--force"),
@@ -90,10 +89,10 @@ class LocalCancellationTests(LocalBackendTestCase):
     def test_supervisor_loss_without_backend_id_stays_unresolved_after_worker_restart(self):
         self.supervisor_loss_after_restart(lose_tracking="sample__right")
 
-    def test_supervisor_loss_stays_unresolved_after_worker_port_changes(self):
-        self.supervisor_loss_after_restart(change_port=True, interrupt_after_acceptance="sample__right")
+    def test_supervisor_loss_stays_unresolved_after_workflow_scheduler_is_unavailable(self):
+        self.supervisor_loss_after_restart(unavailable_scheduler=True, interrupt_after_acceptance="sample__right")
 
-    def supervisor_loss_after_restart(self, *, change_port=False, **injection):
+    def supervisor_loss_after_restart(self, *, unavailable_scheduler=False, **injection):
         foreground_release = self.work / "foreground-release"
         self.addCleanup(foreground_release.touch)
         trace = shlex.quote(str(self.work / "trace"))
@@ -109,15 +108,7 @@ class LocalCancellationTests(LocalBackendTestCase):
         self.wait_for((self.work / "held").exists)
         # Follow the foreground command's actual ancestry, not a guessed PID.
         # Killing the supervisor models loss of its cleanup attestation.
-        pid = int((self.work / "pids").read_text().split()[0])
-        while pid > 1:
-            process = Path(f"/proc/{pid}")
-            if b"gwflow._worker_process" in process.joinpath("cmdline").read_bytes().split(b"\0"):
-                os.kill(pid, signal.SIGKILL)
-                break
-            pid = int(process.joinpath("stat").read_text().rsplit(")", 1)[1].split()[1])
-        else:
-            self.fail("No local supervisor owns the foreground command")
+        os.kill(self.supervisor_pid(), signal.SIGKILL)
         foreground_release.touch()
         self.wait_for(lambda: "sample__right: complete" in self.cli(
             "-b", "recovery_fixture", "logs", "sample", "--details", env=environment))
@@ -125,9 +116,12 @@ class LocalCancellationTests(LocalBackendTestCase):
         index = self.cli("logs", "sample", "--details")
         attempt = re.search(r"attempt ([0-9a-f]{32})", index).group(1)
         self.assert_unsafe_attempt_blocked(attempt)
-        self.restart_worker(change_port=change_port)
+        self.restart_worker(unavailable_scheduler=unavailable_scheduler)
+        if unavailable_scheduler:
+            self.assertIn("Job activity is unknown", self.cli("run", "sample", "--dry-run", success=False))
+            self.restart_worker()
         self.assert_unsafe_attempt_blocked(attempt)
-        if change_port:
+        if unavailable_scheduler:
             environment = self.state_backend({})
             self.assertIn("cannot confirm computation descendants have stopped", self.cli(
                 "-b", "state_fixture", "run", "sample", "--force", env=environment, success=False))
@@ -147,27 +141,17 @@ class LocalCancellationTests(LocalBackendTestCase):
         self.assertEqual(Counter((self.work / "trace").read_text().splitlines()),
                          {"left": 1, "right": 1, "join": 1})
 
-    def running_probe_processes(self):
-        running = []
-        for pid in map(int, (self.work / "pids").read_text().split()):
-            path = Path(f"/proc/{pid}/stat")
-            if path.exists() and path.read_text().rsplit(")", 1)[1].split()[0] != "Z":
-                running.append(pid)
-        return running
-
-    def restart_worker(self, *, change_port=False, working_dir=None):
+    def restart_worker(self, *, unavailable_scheduler=False, working_dir=None):
         self.stop_worker(self.worker)
-        if change_port:
-            with socket.socket() as probe:
-                probe.bind(("127.0.0.1", 0))
-                self.port = probe.getsockname()[1]
-            self.configure(**{"backend.local.port": self.port})
+        if unavailable_scheduler:
+            working_dir = self.make_workdir()
         self.worker = self.start_worker(working_dir=working_dir)
 
     def test_completed_work_keeps_receipts_across_worker_locations_and_backends(self):
-        self.restart_worker(working_dir=self.make_workdir())
         self.run_complete()
-        self.restart_worker(change_port=True, working_dir=self.make_workdir())
+        self.restart_worker(unavailable_scheduler=True)
+        self.assertIn("Job activity is unknown", self.cli("run", "sample", "--dry-run", success=False))
+        self.restart_worker()
         self.assertIn("Reuse", self.cli("run", "sample", "--dry-run"))
         environment = self.state_backend({})
         self.assertIn("Reuse", self.cli("-b", "state_fixture", "run", "sample", "--dry-run", env=environment))
@@ -230,7 +214,7 @@ class LocalCancellationTests(LocalBackendTestCase):
         self.assertEqual(Counter((self.work / "trace").read_text().splitlines()),
                          {"left": 1, "right": 2, "join": 1})
 
-    def test_reused_job_id_never_cancels_other_task_or_authorizes_old_retry(self):
+    def test_restarted_session_never_cancels_other_task_or_authorizes_old_retry(self):
         attempt = self.failed_job_after_worker_restart()
         release = self.work / "other-release"
         self.addCleanup(release.touch)
@@ -247,7 +231,7 @@ class LocalCancellationTests(LocalBackendTestCase):
                             "gwf.task(other, alias='other')\n")
         self.cli("run", "other")
         self.wait_for((self.work / "other-held").exists)
-        self.assertIn("different submission", self.cli("cancel", "sample", success=False))
+        self.assertIn("absent or belongs to a different submission", self.cli("cancel", "sample", success=False))
         self.assertIn("running", self.cli("status", "other", "--plain"))
         self.assert_unsafe_attempt_blocked(attempt)
         release.touch()
@@ -312,30 +296,6 @@ class LocalCancellationTests(LocalBackendTestCase):
         self.wait_for((self.work / "held").exists)
         self.stop_worker(self.worker)
         self.assert_probe_stopped()
-
-    def probe(self):
-        release = self.work / "release"
-        self.addCleanup(release.touch)
-        pids = self.work / "pids"
-
-        def cleanup():
-            if pids.exists():
-                for pid in map(int, pids.read_text().split()):
-                    try:
-                        os.kill(pid, signal.SIGKILL)
-                    except ProcessLookupError:
-                        pass
-        self.addCleanup(cleanup)
-        child = (f"echo $BASHPID >> {shlex.quote(str(pids))}; "
-                 f"touch {shlex.quote(str(self.work / 'held'))}; "
-                 f"while [ ! -e {shlex.quote(str(release))} ]; do sleep 0.025; done; "
-                 f"touch {shlex.quote(str(self.work / 'late-write'))}")
-        return (f"echo $BASHPID >> {shlex.quote(str(pids))}; "
-                f"/bin/bash -c {shlex.quote(child)} & wait; printf right > same.txt")
-
-    def assert_probe_stopped(self):
-        self.assertEqual(self.running_probe_processes(), [],
-                         "Computation processes still run after confirmed inactivity")
 
     def test_cancel_stops_bash_and_child_before_explicit_cleanup(self):
         self.configure_workflow(right_command=self.probe())

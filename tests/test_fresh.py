@@ -342,7 +342,7 @@ class FreshAttemptTests(LocalBackendTestCase):
         self.configure(use_spec_hashes=True)
         self.run_complete()
         before = self.attempts()
-        workflow.write_text(workflow.read_text().replace("Workflow()", "Workflow(defaults={'cores': 3})").replace(
+        workflow.write_text(workflow.read_text().replace("Workflow()", "Workflow(defaults={'cores': 2})").replace(
             "a = gwf.task", "extra.outputs.reverse()\ntask.targets = dict(reversed(list(task.targets.items())))\ntask.retained = dict(reversed(list(task.retained.items())))\na = gwf.task"))
         self.cli("run")
         self.assertEqual(self.attempts(), before)

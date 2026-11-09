@@ -9,6 +9,8 @@ import shutil
 import subprocess
 import sys
 
+from gwf.log_storage import get_log_paths
+
 from support import FIXTURES, LocalBackendTestCase
 from terminal_session import TerminalSession
 import test_graphs
@@ -55,7 +57,7 @@ class TaskLogTests(LocalBackendTestCase):
     def test_blocked_nonpaged_output_allows_another_frontend_command(self):
         self.run_complete()
         contents = "selected-output\n" * 100000
-        (self.work / ".gwf/logs/sample__left.stdout").write_text(contents)
+        get_log_paths(self.work, "sample__left")[0].write_text(contents)
         with subprocess.Popen([self.executable, "logs", "sample__left", "--no-pager"],
                               cwd=self.work, stdout=subprocess.PIPE, stderr=subprocess.PIPE) as process:
             try:
@@ -162,7 +164,7 @@ class TaskLogTests(LocalBackendTestCase):
         self.assertEqual(len(commands), 2, details)
         for command in commands:
             stream_name = "stderr" if "--stderr" in command else "stdout"
-            self.assertIn(str(self.work / ".gwf/logs" / (command[2] + "." + stream_name)), details)
+            self.assertIn(str(get_log_paths(self.work, command[2])[stream_name == "stderr"]), details)
             stream = self.cli(*command[1:])
             self.assertIn("job-error" if "--stderr" in command else "job-output", stream)
             public_command = next(item for item in public if ("--stderr" in item) == ("--stderr" in command))
@@ -170,13 +172,44 @@ class TaskLogTests(LocalBackendTestCase):
             self.assertNotIn("Task sample:", stream)
         self.assertEqual(self.snapshot(), before)
 
+    def test_cancelled_and_timed_out_jobs_keep_both_partial_streams(self):
+        for reason in ("cancelled", "timed-out"):
+            with self.subTest(reason=reason):
+                command = f"echo {reason}-output; echo {reason}-error >&2; while :; do sleep 0.025; done"
+                self.configure_workflow(right_command=command)
+                if reason == "timed-out":
+                    workflow = self.work / "workflow.py"
+                    workflow.write_text(workflow.read_text().replace(
+                        "right = task.target('right', inputs=[], outputs=['same.txt'])",
+                        "right = task.target('right', inputs=[], outputs=['same.txt'], walltime='00:00:08')"))
+                self.cli("run")
+                # Wait for execution-runner flushing. The gated cancellation case
+                # must still be active; the short timeout may already have expired.
+                for options, content in (((), reason + "-output"), (("--stderr",), reason + "-error")):
+                    def visible():
+                        result = subprocess.run([self.executable, "logs", "sample__right", *options, "--no-pager"],
+                                                cwd=self.work, capture_output=True, text=True, timeout=10)
+                        return result.returncode == 0 and content in result.stdout
+                    self.wait_for(visible)
+                if reason == "cancelled":
+                    self.assertIn("1 active", self.cli("status", "--plain"))
+                    self.cli("cancel", "sample")
+                self.settle()
+                index = self.cli("logs", "sample", "--details")
+                submission = re.search(r"sample__right: [^;]+; submission (\S+)", index).group(1)
+                self.assertIn("sample__right: " + ("cancelled" if reason == "cancelled" else "failed"), index)
+                for selector in ("sample__right", submission):
+                    self.assertIn(reason + "-output", self.cli("logs", selector, "--no-pager"))
+                    self.assertIn(reason + "-error", self.cli("logs", selector, "--stderr", "--no-pager"))
+                self.assertFalse((self.work / "results/sample/result.txt").exists())
+
     def test_scheduler_outage_and_missing_streams_preserve_recorded_evidence(self):
         self.configure_workflow(right_command="echo readable-output; echo readable-error >&2; exit 8")
         self.cli("run")
         self.settle()
         index = self.cli("logs", "sample", "--details")
         submission = re.search(r"gwflow logs (sample__right__\S+)", index).group(1)
-        (self.work / ".gwf/logs" / (submission + ".stderr")).unlink()
+        get_log_paths(self.work, submission)[1].unlink()
         before = self.snapshot()
         environment = self.inject(fail_status_prefix="sample__left")
         output = self.cli("-b", "recovery_fixture", "logs", "sample", env=environment)
@@ -189,11 +222,11 @@ class TaskLogTests(LocalBackendTestCase):
         error = self.cli("logs", submission, "--stderr", "--no-pager", success=False)
         self.assertIn("No such file", error)
         self.assertNotIn("Traceback", error)
-        (self.work / ".gwf/logs" / (submission + ".stdout")).unlink()
+        get_log_paths(self.work, submission)[0].unlink()
         self.assertIn("stdout: missing", self.cli("logs", "sample"))
         self.assertIn("No such file", self.cli("logs", submission, "--no-pager", success=False))
         # An unavailable backend connection also leaves disk evidence readable.
-        self.configure(**{"backend.local.port": 0})
+        self.stop_worker(self.worker)
         output = self.cli("logs", "sample", "--details")
         self.assertIn("live state unavailable", output)
         self.assertIn(submission, output)
@@ -601,7 +634,7 @@ class TaskLogHistoryTests(LocalBackendTestCase):
         history = self.cli("-b", "recovery_fixture", "logs", "sample", "--history", env=environment)
         self.assertIn(f"sample__left: complete (historical); submission {submission}; live state unavailable", history)
         for stream in ("stderr", "stdout"):
-            (self.work / ".gwf/logs" / (submission + "." + stream)).unlink()
+            get_log_paths(self.work, submission)[stream == "stderr"].unlink()
             history = self.cli("logs", "sample", "--history")
             entry = next(section for section in history.split("    sample__") if submission in section)
             self.assertIn(stream + ": missing", entry)

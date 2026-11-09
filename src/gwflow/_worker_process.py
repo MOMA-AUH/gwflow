@@ -32,7 +32,7 @@ def main():
         # if the worker dies, without a signal racing supervisor initialization.
         if select.select([sys.stdin], [], [], 0)[0]:
             return CANCELLED
-        process = subprocess.Popen(["/bin/sh", "-c", sys.argv[1]], stdin=subprocess.DEVNULL)
+        process = subprocess.Popen([sys.executable, "-m", "gwf.exec", sys.argv[1]], stdin=subprocess.DEVNULL)
         while process.poll() is None:
             if stopping or select.select([sys.stdin], [], [], 0.025)[0]:
                 return CANCELLED

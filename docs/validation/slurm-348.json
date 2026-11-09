@@ -1,0 +1,163 @@
+{
+  "issue": "https://github.com/MOMA-AUH/gwflow/issues/348",
+  "date": "2026-11-09",
+  "base_commit": "f8b6954aa958ec4973014502582397e8480686a1",
+  "review_checkpoint": "a4cb4afd2347bb9be137617969c16425441a1bab",
+  "scope": "Controlled Slurm command replacements exercise the installed CLI and unchanged production Slurm adapter, executing jobs on a real native managed local worker. This is not live-cluster validation.",
+  "environment": {
+    "python": "3.12.16",
+    "executable": "<ENV>/bin/python",
+    "prefix": "<ENV>",
+    "gwf": "3.0.0",
+    "gwflow": "0.10.2",
+    "repository": "<REPO>",
+    "device": 64775,
+    "inode": 268623612,
+    "gwf_conda_build": "pyh4616a5c_0",
+    "official_python_sources_verified": 33,
+    "installed_gwflow_sources_verified": 50
+  },
+  "commands": {
+    "install": "<ENV>/bin/python -m pip install --no-deps --no-build-isolation .",
+    "acceptance": "<ENV>/bin/python build/validation/slurm-348/run.py",
+    "typing": "<TYPE_ENV>/bin/mypy --follow-imports=silent --ignore-missing-imports tests/fixtures/slurm_command.py tests/test_managed_recovery.py",
+    "dependencies": "<ENV>/bin/python -m pip check",
+    "integrity": "<ENV>/bin/python build/validation/slurm-348/environment.py"
+  },
+  "acceptance_selection": "Every test method calling slurm_environment, found by AST and checked against fixture references, plus complete test_managed_recovery and test_automatic_compaction modules. This includes the graph case whose name omits Slurm.",
+  "controlled_slurm_test_ids": [
+    "test_automatic_compaction.AutomaticCompactionTests.test_pinned_slurm_blocks_dependents_after_compaction_failure_and_retries",
+    "test_cancellation.CancellationTests.test_slurm_requests_return_while_active_and_preserve_inactivity_safeguards",
+    "test_dependencies.TaskDependencyTests.test_slurm_preparation_waits_for_complete_independent_producers",
+    "test_graphs.TaskGraphTests.test_queued_dependents_block_rebinding_without_automatic_cancellation",
+    "test_interactive_status.InteractiveStatusTests.test_simulated_slurm_browsing_reuses_scheduler_observations",
+    "test_managed_recovery.ManagedCoordinationTests.test_pinned_slurm_dependency_contract_and_expired_history_reuse",
+    "test_managed_recovery.ManagedCoordinationTests.test_slurm_commands_reject_native_execution_ids",
+    "test_managed_recovery.ManagedCoordinationTests.test_slurm_lost_acknowledgement_preserves_accepted_computation",
+    "test_managed_recovery.ManagedCoordinationTests.test_slurm_logs_resources_and_result_repair_survive_expired_history",
+    "test_managed_recovery.ManagedCoordinationTests.test_slurm_wrapper_failure_cannot_publish_completion",
+    "test_managed_recovery.ManagedCoordinationTests.test_slurm_acknowledgement_survives_frontend_loss_before_tracking",
+    "test_managed_recovery.ManagedCoordinationTests.test_cancellation_request_and_unknown_status_do_not_prove_inactivity",
+    "test_packaged_tasks.PackagedExampleTests.test_packaged_slurm_dependencies_wait_for_both_complete_producers",
+    "test_status_refresh.StatusRefreshTests.test_simulated_slurm_refresh_updates_state_queries_once_and_recovers_failure",
+    "test_wait.WaitTests.test_simulated_slurm_completion_uses_one_scheduler_snapshot"
+  ],
+  "acceptance": {
+    "tests": 33,
+    "seconds": 127.074,
+    "test_ids": [
+      "test_managed_recovery.ManagedCoordinationTests.test_acknowledgement_recovers_after_frontend_dies_before_tracking_flush",
+      "test_managed_recovery.ManagedCoordinationTests.test_admitted_active_preparation_can_submit_remaining_dependencies",
+      "test_managed_recovery.ManagedCoordinationTests.test_arbitrary_backend_exception_does_not_prove_rejection",
+      "test_managed_recovery.ManagedCoordinationTests.test_cancellation_persists_ids_restored_from_acknowledgements",
+      "test_managed_recovery.ManagedCoordinationTests.test_cancellation_request_and_unknown_status_do_not_prove_inactivity",
+      "test_managed_recovery.ManagedCoordinationTests.test_completion_resources_overlay_workflow_defaults",
+      "test_managed_recovery.ManagedCoordinationTests.test_confirmed_cancelled_preparation_can_retry",
+      "test_managed_recovery.ManagedCoordinationTests.test_execution_evidence_resolves_acceptance_after_tracking_and_ack_are_lost",
+      "test_managed_recovery.ManagedCoordinationTests.test_interrupted_inspection_releases_guard_without_changing_records",
+      "test_managed_recovery.ManagedCoordinationTests.test_interruption_after_intent_before_admission_stays_uncertain",
+      "test_managed_recovery.ManagedCoordinationTests.test_missing_current_intent_does_not_resubmit_archived_admission",
+      "test_managed_recovery.ManagedCoordinationTests.test_missing_initialization_ready_evidence_blocks_admission",
+      "test_managed_recovery.ManagedCoordinationTests.test_pinned_slurm_dependency_contract_and_expired_history_reuse",
+      "test_managed_recovery.ManagedCoordinationTests.test_proven_pre_admission_rejection_can_continue",
+      "test_managed_recovery.ManagedCoordinationTests.test_saved_tracking_recovers_lost_acknowledgement_without_duplicate_execution",
+      "test_managed_recovery.ManagedCoordinationTests.test_slurm_acknowledgement_survives_frontend_loss_before_tracking",
+      "test_managed_recovery.ManagedCoordinationTests.test_slurm_commands_reject_native_execution_ids",
+      "test_managed_recovery.ManagedCoordinationTests.test_slurm_logs_resources_and_result_repair_survive_expired_history",
+      "test_managed_recovery.ManagedCoordinationTests.test_slurm_lost_acknowledgement_preserves_accepted_computation",
+      "test_managed_recovery.ManagedCoordinationTests.test_slurm_wrapper_failure_cannot_publish_completion",
+      "test_managed_recovery.ManagedCoordinationTests.test_status_waits_until_submission_tracking_is_saved",
+      "test_managed_recovery.ManagedCoordinationTests.test_unreadable_archive_cannot_make_an_admission_look_unsubmitted",
+      "test_automatic_compaction.AutomaticCompactionTests.test_lost_completion_acknowledgement_reconciles_in_compacted_storage",
+      "test_automatic_compaction.AutomaticCompactionTests.test_operation_requires_compaction_before_any_worker_finishes",
+      "test_automatic_compaction.AutomaticCompactionTests.test_pinned_slurm_blocks_dependents_after_compaction_failure_and_retries",
+      "test_automatic_compaction.AutomaticCompactionTests.test_simultaneous_completions_and_producer_reads_keep_independent_records",
+      "test_cancellation.CancellationTests.test_slurm_requests_return_while_active_and_preserve_inactivity_safeguards",
+      "test_dependencies.TaskDependencyTests.test_slurm_preparation_waits_for_complete_independent_producers",
+      "test_graphs.TaskGraphTests.test_queued_dependents_block_rebinding_without_automatic_cancellation",
+      "test_interactive_status.InteractiveStatusTests.test_simulated_slurm_browsing_reuses_scheduler_observations",
+      "test_packaged_tasks.PackagedExampleTests.test_packaged_slurm_dependencies_wait_for_both_complete_producers",
+      "test_status_refresh.StatusRefreshTests.test_simulated_slurm_refresh_updates_state_queries_once_and_recovers_failure",
+      "test_wait.WaitTests.test_simulated_slurm_completion_uses_one_scheduler_snapshot"
+    ],
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "exact_selected_completed_coverage": true,
+    "log": "<REPO>/build/validation/slurm-348/acceptance.log",
+    "raw_results": "<REPO>/build/validation/slurm-348/results.json"
+  },
+  "final_focused": {
+    "test_id": "test_managed_recovery.ManagedCoordinationTests.test_pinned_slurm_dependency_contract_and_expired_history_reuse",
+    "log": "<REPO>/build/validation/slurm-348/policy-isolation.log",
+    "tests": 1,
+    "seconds": 3.251,
+    "result": "passed",
+    "command": "PYTHONPATH=tests <ENV>/bin/python -m unittest -v test_managed_recovery.ManagedCoordinationTests.test_pinned_slurm_dependency_contract_and_expired_history_reuse",
+    "reason": "Spec review added unchanged Slurm default and retired local ownership-setting isolation assertions after the full affected run."
+  },
+  "observations": [
+    "Slurm decimal IDs are allocated independently of native execution IDs. The fixture validates and maps dependency, accounting and cancellation inputs; only fixture mapping storage contains native IDs.",
+    "Preparation, dependent computation, Completion and required compaction succeed. Existing compaction failure/retry and queued-dependent rebinding safeguards pass.",
+    "Generated output/error destinations match gwf native paths and exist. Raw public/exact logs and historical indexes remain readable after Repair, cleanup, expired history and worker shutdown.",
+    "Explicit preparation/computation/completion walltimes and Slurm account settings remain in generated scripts. The existing Slurm default is verified while retired local host/port settings are present. No production resource, ownership or cancellation policy changed.",
+    "Lost sbatch acknowledgement and frontend loss before tracking preserve accepted work without duplicate computation. Failed wrappers do not establish Completion.",
+    "Cancellation requests leave the controlled jobs active deliberately. Existing tests prove active and expired-history uncertainty blocks replacement and cleanup."
+  ],
+  "intermediate_runs": [
+    {
+      "log": "<REPO>/build/validation/slurm-348/red-existing.log",
+      "tests": 1,
+      "seconds": 0.241,
+      "result": "error",
+      "detail": "Existing Slurm test failed on removed self.port before reaching adapter.",
+      "resolution": "Migrated fixture setup and transport; same test passed in green-existing.log (3.228 seconds) and final acceptance."
+    },
+    {
+      "log": "<REPO>/build/validation/slurm-348/red-ack.log",
+      "tests": 1,
+      "seconds": 1.006,
+      "result": "failure",
+      "detail": "New acceptance scenario initially had no acknowledgement-loss injection and therefore returned success.",
+      "resolution": "Added fault after native acceptance, numeric mapping and submission recording; final acceptance passes without duplicate computation."
+    },
+    {
+      "log": "<REPO>/build/validation/slurm-348/green-ack-contract.log",
+      "tests": 2,
+      "seconds": 5.328,
+      "result": "one pass, one error",
+      "detail": "Lost-ack test passed; new log-path assertion concatenated a Path to a string.",
+      "resolution": "Corrected assertion formatting; both affected tests pass in final acceptance. No timeout or existing assertion was weakened."
+    },
+    {
+      "log": "<REPO>/build/validation/slurm-348/resources-logs.log",
+      "tests": 2,
+      "seconds": 10.817,
+      "result": "passed",
+      "detail": "Resource/log/Repair acceptance and corrected native destination contract passed."
+    }
+  ],
+  "typing": {
+    "version": "2.3.1",
+    "result": "Success: no issues found in 2 source files",
+    "scope": "Default mypy checking of both changed Python files; not stricter checking of untyped function bodies."
+  },
+  "dependencies": "No broken requirements found.",
+  "implementation_files_sha256": {
+    "tests/fixtures/slurm_command.py": "eb5afa0a89fc91109110fa2376292d6dc6befb808fa822980095a7e5d275e982",
+    "tests/test_managed_recovery.py": "2c8ee50fb84e223d7f350a832b9cd67b8432aee12bd4260ff9f89a4eaa0960d5"
+  },
+  "integrity": "All 50 installed gwflow Python sources equal the checkout. All 33 installed gwf Python sources match official Conda checksums. No reinstall overlapped a test runner.",
+  "review": {
+    "standards": "No documented violations. Optional duplication suggestion for short test JSON-lines reads retained to follow the established fixture style.",
+    "spec": "No remaining findings. Initial default-policy/local-configuration coverage gap corrected and independently reviewed with final evidence."
+  },
+  "remaining": "Real containers #349; provisional native baseline #350; full installed/Conda/container/comparison qualification and all-green CI #351. Draft PR remains unmerged. No live Slurm validation claimed.",
+  "raw_evidence": "<REPO>/build/validation/slurm-348",
+  "path_placeholders": {
+    "<REPO>": "Isolated migration checkout root. Unprefixed paths are repository-relative; raw logs stay ignored under build/validation/slurm-348.",
+    "<ENV>": "Task-owned local Conda environment with official gwf 3.0.0 and Python 3.12.16.",
+    "<TYPE_ENV>": "Separate local environment providing mypy 2.3.1."
+  },
+  "normalization": "Only paths and explanatory placeholder metadata differ from the ignored raw record."
+}

@@ -19,6 +19,7 @@ class RegistryConcurrencyTests(test_registry_images.RegistryTestCase):
         source = (self.work / "workflow.py").read_text().replace("'sample'", repr(name))
         (work / "workflow.py").write_text(source + f"from pathlib import Path\nPath({str(marker)!r}).touch()\n")
         shutil.copyfile(self.work / ".gwfconf.json", work / ".gwfconf.json")
+        self.start_worker(working_dir=work)
         process = subprocess.Popen([GWFLOW, "run", "--dry-run"], cwd=work, start_new_session=True,
                                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
         self.addCleanup(self.stop_planner, process)

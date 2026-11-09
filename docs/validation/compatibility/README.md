@@ -185,19 +185,25 @@ Changing an expected checksum to accept different bytes is not recovery.
 
 The source comparison remains a provisional regression test before the first
 stable publication. Its shared dependencies do not establish independent runtimes.
-The [baseline descriptor](baseline.json) pins source that includes the mandatory
-record-state document, persistent attempt lock, and mandatory automatic
-compaction obligations from issues #254 and #259.
-Its package metadata is `0.8.1`. The commit identifies the exact source.
+The [baseline descriptor](baseline.json) pins the native gwf 3 bootstrap at
+`862f53c8ccf9328aaf39a69a366a052fcdf6c85c`. Its package metadata is `0.10.2`.
+The permanent tag `gwf3-bootstrap-862f53c` retains that commit after squash merge
+and deletion of the integration branch. Do not move or delete this tag.
+The tag does not publish a release. CI fetches the full commit from the descriptor.
 
-Issue #259 requires compaction for every operation and excludes legacy-format
-fallback. The previous pre-1.0 source baseline lacks the required obligations.
-The new baseline keeps all compatibility journeys enabled with the new format.
-Earlier validation records still describe the earlier source and remain unchanged.
+[Bootstrap qualification](../bootstrap-350.json) records all 15 lifecycle journeys
+passing before the descriptor changed. It includes completed and cleaned Tasks,
+recoverable incomplete work, retained results, result installation, and compaction.
+The workers use native workflow sockets and must provide durable termination
+evidence. The comparison does not adapt old workers or migrate earlier state.
+Earlier validation records remain unchanged, including the failed old-baseline
+check during the migration.
 
-Installing the same source twice tests the journey, storage handoff, and baseline
-provenance. It does not prove all future upgrades. Record tested and published
-artifacts through the release procedure. Pre-1.0 artifacts are controlled fixtures.
+Installing the bootstrap twice qualifies its journey behavior and storage handoff.
+A later candidate must then pass every journey against that pinned bootstrap.
+Shared dependencies do not establish an independent preserved release environment
+or a compatibility promise for `v0.10.2`. Record tested and published artifacts
+through the release procedure. Pre-1.0 artifacts remain controlled fixtures.
 Other pre-1.0 formats, relocation, live upgrades, mixed-version workers, downgrade
 support, and blanket record migration remain outside the compatibility promise.
 
@@ -253,22 +259,15 @@ and stops the baseline worker before starting a candidate worker. Both installat
 use the same workflow and storage paths; directory device/inode observations and
 the workflow checksum verify that no relocation or rewriting was needed.
 
-The pinned legacy scheduler and its controlled synchronous commands inherit the
-worker's process group and never detach. The runner starts each worker in a
-separate group. After legacy baseline shutdown, it makes sure that this group
-contains no process, including descendants. This supplies inactivity evidence
-beyond checked output success. Updated workers also use their cleanup-backed
-terminal receipts to establish descendant inactivity across separate sessions.
+The runner starts each native worker in a separate process group. After baseline
+shutdown, it makes sure that this group contains no process. The synchronous
+fixture commands never detach. Workers must also provide durable termination
+records and managed process-tree ownership. These records establish descendant
+inactivity across separate worker sessions.
 
-If the baseline worker supplies durable termination records, the candidate must
-reuse automatically and preserve all baseline record bytes and metadata.
-If the baseline lacks those records, the candidate must first block ordinary run
-without changing any evidence or retained files. The runner then uses public
-`gwflow recover TASK` commands, as required by the
-[upgrade procedure](../../operating.md#upgrade-with-all-jobs-inactive).
-It verifies that every original logical record remains unchanged and that only
-operator-recovery records are added. Retained file bytes and metadata remain
-unchanged. The transcript records the operator assertions and resolved submissions.
+The candidate must reuse automatically and preserve all baseline record bytes
+and metadata. Public operator recovery remains covered by the recovery journeys,
+including preserved recovery records and new uncertain admissions.
 
 The candidate then previews and runs the unchanged workflow, checks recovery is
 resolved, and proves that attempt identities and computation counts remain unchanged.
@@ -298,7 +297,7 @@ or resolving a new admission.
 
 Each journey confirms actual local jobs are terminal and stops the baseline worker
 before changing installations. The local scheduler keeps history only in memory
-and reuses numeric job IDs after restart. Through the existing backend fixture, the
+and uses a new prefix for job IDs after each restart. Through the existing backend fixture, the
 journey therefore replays the terminal states observed before shutdown, keyed by
 exact old Submission names. New submissions go to the real candidate worker.
 This models a scheduler retaining its history; it does not make production code

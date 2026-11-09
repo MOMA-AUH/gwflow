@@ -17,7 +17,7 @@ import time
 from gwf import Target
 from gwf.backends import BackendStatus
 from gwf.backends.base import TrackingBackend
-from gwf.backends.local import Client, LocalStatus, LocalOps
+from gwf.backends.local import Client, LocalStatus, LocalOps, TARGET_DEFAULTS, get_socket_path
 
 
 def wait_for(predicate, timeout=20):
@@ -31,20 +31,19 @@ def wait_for(predicate, timeout=20):
 class RecoveryBackend(TrackingBackend):
     active = False
 
-    def __init__(self, working_dir, port):
+    def __init__(self, working_dir):
         if self.active:
             raise AssertionError("planning backend must close before submitting backend opens")
         self.work = Path(working_dir)
-        self.port = int(port)
         self.options = json.loads((self.work / "injection.json").read_text())
         if self.options.get("stall_connection"):
             # Model a blackholed worker, not an immediately refused port.
             def stalled_connect(sock, address):
                 time.sleep(60)
             socket.socket.connect = stalled_connect
-        super().__init__(working_dir, name="local", ops=LocalOps(working_dir, "localhost", self.port, {}))
-        if self.options.get("identity_host"):
-            self.ops.host = self.options["identity_host"]
+        super().__init__(working_dir, name="local", ops=LocalOps(working_dir, get_socket_path(working_dir), TARGET_DEFAULTS))
+        if self.options.get("identity_directory"):
+            self.ops.working_dir = str(self.work / self.options["identity_directory"])
         self.submitted = False
         self.cancelled = False
 
@@ -69,7 +68,7 @@ class RecoveryBackend(TrackingBackend):
             return BackendStatus.SUBMITTED
         if self.options.get("running_prefix") and target.name.startswith(self.options["running_prefix"] + "__"):
             return BackendStatus.RUNNING
-        # A restarted local worker forgets history and reuses numeric IDs.
+        # A restarted local worker forgets history and uses a new session ID.
         # Compatibility journeys replay observed terminal states for exact old
         # submission names; new submissions still use the real worker.
         if target.name in self.options.get("submission_states", {}):
@@ -120,7 +119,7 @@ class RecoveryBackend(TrackingBackend):
         tracked = super().get_tracked_id(target)
         prefix = self.options.get("conflicting_tracking_prefix")
         if prefix and target.name.startswith(prefix + "__") and tracked is not None:
-            return tracked + 10000
+            return "different-session:" + tracked
         return tracked
 
     def cancel(self, target):
@@ -161,7 +160,7 @@ class RecoveryBackend(TrackingBackend):
                 job_id = str(super().get_tracked_id(target))
                 (self.work / "old.release").touch()
                 def failed():
-                    with Client.connect(port=self.port) as client:
+                    with Client.connect(get_socket_path(self.work)) as client:
                         return client.status()[job_id] == LocalStatus.FAILED
                 wait_for(failed)
                 (self.work / "fail-after-release").unlink()

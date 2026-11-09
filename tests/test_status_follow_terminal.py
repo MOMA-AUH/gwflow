@@ -6,6 +6,8 @@ import subprocess
 import tempfile
 import time
 
+from gwf.log_storage import get_log_paths
+
 from support import LocalBackendTestCase
 import test_graphs
 import test_interactive_status
@@ -27,7 +29,7 @@ class StatusFollowTerminalTests(LocalBackendTestCase):
                                    str(Path(__file__).parent / 'fixtures/log_read_probe.c'), '-ldl'],
                                   capture_output=True, text=True)
         self.assertEqual(compiled.returncode, 0, compiled.stdout + compiled.stderr)
-        path = (self.work / '.gwf/logs/sample__left.stdout').resolve()
+        path = get_log_paths(self.work, 'sample__left')[0].resolve()
         gate, started = self.work / 'read-gate', self.work / 'read-started'
         workflow = self.work / 'workflow.py'
         workflow.write_text(workflow.read_text() +
@@ -95,7 +97,7 @@ class StatusFollowTerminalTests(LocalBackendTestCase):
     def test_refresh_keeps_following_a_retired_submission_then_a_removed_task(self):
         self.configure_workflow(left_command='echo ORIGINAL_FOLLOW_STREAM; printf left > same.txt')
         self.run_complete()
-        path = (self.work / '.gwf/logs/sample__left.stdout').resolve()
+        path = get_log_paths(self.work, 'sample__left')[0].resolve()
         session = self.terminal('status', size=(100, 30))
         session.wait_for('sample')
         for expected in ('Instance', 'Jobs completed:'):

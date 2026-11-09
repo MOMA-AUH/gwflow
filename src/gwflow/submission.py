@@ -7,6 +7,7 @@ import sys
 from gwf import Target
 from gwf.core import get_spec_hashes
 from gwf.exceptions import WorkflowError
+from gwf.log_storage import get_log_paths
 
 from . import _files, admission, transfer
 from .backends import create_backend
@@ -42,13 +43,13 @@ def _job(store, attempt, local, workflow, intent):
 def _log_aliases(working_dir, public_name, job_name):
     # gwflow logs continues to accept the public Task/local-target name. Actual
     # execution logs stay under their generation names independently of work.
-    with _files.directory(os.path.join(working_dir, ".gwf", "logs"), create=True) as logs:
-        for suffix in ("stdout", "stderr"):
-            alias = f"{public_name}.{suffix}"
-            if os.path.lexists(os.path.join(working_dir, ".gwf", "logs", alias)):
-                os.unlink(alias, dir_fd=logs)
-            os.symlink(f"{job_name}.{suffix}", alias, dir_fd=logs)
-        _files.sync_directory(logs)
+    for alias_path, job_path in zip(get_log_paths(working_dir, public_name),
+                                    get_log_paths(working_dir, job_name)):
+        with _files.directory(alias_path.parent, create=True) as logs:
+            if os.path.lexists(alias_path):
+                os.unlink(alias_path.name, dir_fd=logs)
+            os.symlink(os.path.relpath(job_path, alias_path.parent), alias_path.name, dir_fd=logs)
+            _files.sync_directory(logs)
 
 
 def submit_plan(plan, workflow, ctx, *, dry_run, outcomes, progress):

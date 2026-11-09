@@ -219,6 +219,7 @@ class StoragePlacementTests(LocalBackendTestCase):
         source = (first / "workflow.py").read_text()
         (second / "workflow.py").write_text(source.replace("first scratch", "second scratch").replace("first durable", "second durable"))
         shutil.copy(first / ".gwfconf.json", second)
+        self.start_worker(working_dir=second)
         try:
             self.work = second
             self.run_complete()

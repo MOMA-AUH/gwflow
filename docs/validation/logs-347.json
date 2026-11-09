@@ -1,0 +1,287 @@
+{
+  "issue": "https://github.com/MOMA-AUH/gwflow/issues/347",
+  "date": "2026-11-09",
+  "base_commit": "a38fca0b15ec928f0e2cdeb6d788c795d74f01d2",
+  "review_checkpoint": "bfe8a3f",
+  "scope": "Native raw/history/browser log consumers only; full cumulative installed/Conda/container/comparison and exact-head CI qualification remain mandatory at #351.",
+  "environment": {
+    "python": "3.12.16",
+    "executable": "<ENV>/bin/python",
+    "prefix": "<ENV>",
+    "gwf": "3.0.0",
+    "gwflow": "0.10.2",
+    "repository": "<REPO>",
+    "device": 64775,
+    "inode": 268623612,
+    "gwf_conda_build": "pyh4616a5c_0",
+    "official_python_sources_verified": 33
+  },
+  "commands": {
+    "install": "<ENV>/bin/python -m pip install --no-deps --no-build-isolation .",
+    "affected_partitions": "<ENV>/bin/python build/validation/logs-347/run.py INDEX (INDEX=0,1,2,3)",
+    "typing": "<TYPE_ENV>/bin/mypy --follow-imports=silent --ignore-missing-imports src/gwflow/inspection.py src/gwflow/status_snapshot.py src/gwflow/_browser_read.py",
+    "dependencies": "<ENV>/bin/python -m pip check"
+  },
+  "red_green": [
+    {
+      "case": "Browser opens selected stdout/stderr without reinspection",
+      "red_log": "<REPO>/build/validation/logs-347/browser-red.log",
+      "red_seconds": 23.873,
+      "failure": "Browser selected an obsolete flat pathname and did not display existing stdout.",
+      "green_log": "<REPO>/build/validation/logs-347/green.log"
+    },
+    {
+      "case": "Inspection paths remain readable after retry/force/cleanup",
+      "red_log": "<REPO>/build/validation/logs-347/inspection-red.log",
+      "red_seconds": 1.793,
+      "failure": "Reported path was flat instead of the native file returned by upstream helper.",
+      "green_log": "<REPO>/build/validation/logs-347/green.log"
+    }
+  ],
+  "affected_modules": [
+    "test_logs",
+    "test_inspection",
+    "test_status_logs",
+    "test_status_follow",
+    "test_status_log_terminal",
+    "test_status_follow_terminal",
+    "test_json_status",
+    "test_native_local.NativeLocalTests.test_both_streams_are_readable_before_gated_computation_finishes"
+  ],
+  "distinct_tests": 97,
+  "exact_selected_completed_coverage": true,
+  "skipped": 0,
+  "partitions": [
+    {
+      "index": 0,
+      "tests": 19,
+      "seconds": 188.14,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "test_ids": [
+        "test_logs.TaskLogHistoryTests.test_history_marks_resolved_lifecycle_failures",
+        "test_logs.TaskLogTests.test_cancelled_and_timed_out_jobs_keep_both_partial_streams",
+        "test_logs.TaskLogTests.test_indexes_select_declared_and_removed_tasks_and_validate_every_selector",
+        "test_logs.TaskLogTests.test_narrow_terminal_and_redirected_indexes_preserve_complete_names_and_receipts",
+        "test_status_logs.StatusLogInteractionTests.test_closing_and_quitting_during_a_blocked_history_read_reaps_its_process",
+        "test_status_logs.StatusLogWindowTests.test_historical_job_details_keep_identity_and_stream_focus_across_refresh",
+        "test_status_logs.StatusLogWindowTests.test_job_log_fields_open_selected_stream_and_restore_focus",
+        "test_status_logs.StatusLogWindowTests.test_log_formatting_preserves_styles_and_text_but_neutralizes_terminal_controls",
+        "test_status_logs.StatusLogWindowTests.test_unsubmitted_and_nonregular_streams_show_read_errors_without_tracebacks",
+        "test_status_follow.StatusFollowTests.test_following_recovers_from_replacement_truncation_and_read_failures",
+        "test_status_follow.StatusFollowTests.test_manual_recovery_preserves_older_portion_without_claiming_latest_content",
+        "test_status_follow.StatusFollowTests.test_scrolling_up_or_home_pauses_and_end_does_not_enable_following",
+        "test_status_log_terminal.StatusLogTerminalTests.test_quit_reaps_a_log_reader_blocked_in_a_real_file_read",
+        "test_status_log_terminal.StatusLogTerminalTests.test_status_refresh_keeps_retired_log_then_returns_from_removed_task_to_groups",
+        "test_json_status.JsonStatusTests.test_filtered_notices_include_required_upstream_and_exclude_unrelated_blockers",
+        "test_json_status.JsonStatusTests.test_late_inspection_failure_discards_prior_observations",
+        "test_json_status.JsonStatusTests.test_ordinary_completion_activity_does_not_require_followup",
+        "test_json_status.JsonStatusTests.test_unresolved_submission_keeps_multiple_notices_and_recovery_limits",
+        "test_json_status.JsonStatusTests.test_workflow_and_child_output_use_stderr_and_loading_failure_has_no_rows"
+      ],
+      "log": "<REPO>/build/validation/logs-347/shard-0.log"
+    },
+    {
+      "index": 1,
+      "tests": 25,
+      "seconds": 281.328,
+      "failures": 4,
+      "errors": 0,
+      "skipped": 0,
+      "test_ids": [
+        "test_logs.LogImageInspectionTests.test_logs_do_not_acquire_images_or_plan_a_future_run",
+        "test_logs.TaskLogHistoryTests.test_expired_scheduler_history_and_missing_old_streams_remain_inspectable",
+        "test_logs.TaskLogHistoryTests.test_history_distinguishes_retry_submissions_and_previous_attempts_after_cleanup",
+        "test_logs.TaskLogHistoryTests.test_history_requires_task_index_mode",
+        "test_logs.TaskLogHistoryTests.test_history_selects_removed_and_unstarted_tasks_with_every_selector_validated",
+        "test_logs.TaskLogTests.test_combined_index_flags_keep_owner_and_raw_stream_guidance",
+        "test_logs.TaskLogTests.test_index_commands_preserve_explicit_workflow_and_backend_options",
+        "test_logs.TaskLogTests.test_slow_log_open_keeps_public_and_exact_submissions_pinned_across_retry",
+        "test_inspection.FinishingInspectionTests.test_active_transfer_has_a_distinct_condition_and_no_new_submissions",
+        "test_inspection.FinishingInspectionTests.test_repair_and_fresh_fallback_identify_missing_and_changed_retained_files",
+        "test_inspection.LifecycleInspectionTests.test_all_inspectors_wait_for_tracking_then_leave_evidence_unchanged",
+        "test_inspection.LifecycleInspectionTests.test_changed_inputs_after_cleanup_are_still_explained",
+        "test_inspection.LifecycleInspectionTests.test_fresh_reuse_and_selected_force_previews_match_actual_runs",
+        "test_inspection.LifecycleInspectionTests.test_uncertainty_previews_zero_submissions_for_the_whole_workflow",
+        "test_inspection.PreparationInspectionTests.test_continue_preserves_running_preparation_and_submits_only_remaining_jobs",
+        "test_status_logs.StatusLogReadBoundsTests.test_large_file_and_long_line_reads_stay_within_each_request_budget",
+        "test_status_logs.StatusLogWindowTests.test_closing_log_before_deferred_read_position_update_keeps_browser_usable",
+        "test_status_logs.StatusLogWindowTests.test_log_information_and_content_have_separate_panels",
+        "test_status_logs.StatusLogWindowTests.test_logs_open_unwrapped_and_toggle_without_rereading",
+        "test_status_logs.StatusLogWindowTests.test_refresh_keeps_exact_log_and_position_then_esc_finds_surviving_parent",
+        "test_status_logs.StatusLogWindowTests.test_replacement_truncation_and_missing_file_keep_previous_portion_until_reload",
+        "test_status_follow.StatusFollowTests.test_minimum_terminal_keeps_follow_state_latest_text_and_failure_controls_visible",
+        "test_status_follow.StatusFollowTests.test_pausing_or_leaving_cancels_a_pending_follow_read_and_stops_retries",
+        "test_json_status.JsonStatusTests.test_flat_summary_selection_and_unallocated_identity",
+        "test_native_local.NativeLocalTests.test_both_streams_are_readable_before_gated_computation_finishes"
+      ],
+      "log": "<REPO>/build/validation/logs-347/shard-1.log"
+    },
+    {
+      "index": 2,
+      "tests": 26,
+      "seconds": 253.586,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "test_ids": [
+        "test_logs.TaskLogHistoryTests.test_previous_attempt_without_submissions_remains_visible",
+        "test_logs.TaskLogTests.test_available_live_states_distinguish_queued_and_running_jobs",
+        "test_logs.TaskLogTests.test_blocked_nonpaged_output_allows_another_frontend_command",
+        "test_logs.TaskLogTests.test_current_public_job_owner_wins_over_historical_name_overlap",
+        "test_logs.TaskLogTests.test_individual_streams_keep_pager_and_no_pager_behavior",
+        "test_logs.TaskLogTests.test_open_pager_allows_another_frontend_command",
+        "test_logs.TaskLogTests.test_scheduler_outage_and_missing_streams_preserve_recorded_evidence",
+        "test_inspection.LifecycleInspectionTests.test_active_work_previews_no_duplicate_admission_and_force_reports_conflicts",
+        "test_inspection.LifecycleInspectionTests.test_changed_structure_and_commands_have_specific_reasons",
+        "test_inspection.LifecycleInspectionTests.test_compact_status_distinguishes_condition_from_next_action_and_cleaned_work",
+        "test_inspection.LifecycleInspectionTests.test_confirmed_rejection_previews_continuation_instead_of_fresh_allocation",
+        "test_inspection.LifecycleInspectionTests.test_selected_preview_preserves_global_authoring_validation",
+        "test_status_logs.StatusLogInteractionTests.test_empty_previous_attempt_is_visible_without_any_recorded_submissions",
+        "test_status_logs.StatusLogInteractionTests.test_selected_job_opens_both_exact_streams_without_reinspection",
+        "test_status_logs.StatusLogWindowTests.test_huge_utf8_line_is_segmented_and_every_byte_remains_accessible",
+        "test_status_logs.StatusLogWindowTests.test_missing_logs_explain_absence_without_changing_job_state",
+        "test_status_logs.StatusLogWindowTests.test_wrapping_keeps_tail_when_horizontal_scrollbar_layout_reports_transient_overflow",
+        "test_status_logs.StatusLogWindowTests.test_wrapping_preserves_position_above_the_end_of_multiline_logs",
+        "test_status_follow.StatusFollowReadBoundsTests.test_follow_reads_and_resources_remain_bounded_under_file_changes_and_view_cycles",
+        "test_status_follow.StatusFollowTests.test_following_starts_off_and_uppercase_f_toggles_appended_reads",
+        "test_status_follow.StatusFollowTests.test_rapid_append_replacement_and_incomplete_utf8_keep_bounded_portions",
+        "test_status_follow.StatusFollowTests.test_scrolling_up_with_the_scrollbar_pauses_following",
+        "test_status_follow.StatusFollowTests.test_utf8_completion_during_a_follow_read_keeps_the_displayed_byte_range_consistent",
+        "test_status_follow_terminal.StatusFollowTerminalTests.test_follow_keys_mouse_pause_and_file_recovery_do_not_reinspect",
+        "test_json_status.JsonStatusTests.test_completion_followup_only_for_retry",
+        "test_json_status.JsonStatusTests.test_usage_errors_from_parser_and_callback_are_json"
+      ],
+      "log": "<REPO>/build/validation/logs-347/shard-2.log"
+    },
+    {
+      "index": 3,
+      "tests": 27,
+      "seconds": 284.304,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "test_ids": [
+        "test_logs.TaskLogTests.test_current_index_orders_failures_and_provides_readable_stream_commands",
+        "test_logs.TaskLogTests.test_details_requires_task_index_and_keeps_owner_and_command_context",
+        "test_logs.TaskLogTests.test_exact_submission_owner_survives_a_new_overlapping_public_declaration",
+        "test_logs.TaskLogTests.test_failed_preparation_and_completion_jobs_appear_first",
+        "test_logs.TaskLogTests.test_missing_public_log_does_not_select_a_later_submission",
+        "test_logs.TaskLogTests.test_retained_public_and_historical_submission_names_cannot_ambiguously_select_a_task",
+        "test_logs.TaskLogTests.test_stalled_worker_connection_falls_back_to_recorded_logs",
+        "test_inspection.FinishingInspectionTests.test_interrupted_transfer_previews_only_finishing_and_preserves_computation",
+        "test_inspection.FinishingInspectionTests.test_repair_progress_stays_reopened_through_queued_and_running_completion",
+        "test_inspection.LifecycleInspectionTests.test_changed_input_metadata_reports_the_path_and_changed_fields",
+        "test_inspection.LifecycleInspectionTests.test_detail_mapping_and_old_logs_survive_retry_force_and_cleanup",
+        "test_inspection.LifecycleInspectionTests.test_interrupted_initialization_preview_matches_actual_resume",
+        "test_inspection.LifecycleInspectionTests.test_repair_defers_existing_consumer_and_previews_exact_submissions",
+        "test_inspection.PreparationInspectionTests.test_preparation_retry_preview_matches_actual_submission",
+        "test_status_logs.StatusLogInteractionTests.test_history_reload_is_independent_of_refresh_and_survives_cleanup",
+        "test_status_logs.StatusLogInteractionTests.test_task_history_distinguishes_retries_and_attempts_without_scheduler_observation",
+        "test_status_logs.StatusLogWindowTests.test_minimum_terminal_keeps_log_content_and_read_failure_navigation_visible",
+        "test_status_logs.StatusLogWindowTests.test_repeated_log_open_close_releases_views_descriptors_processes_and_timers",
+        "test_status_logs.StatusLogWindowTests.test_tail_paging_jumps_and_reload_keep_status_and_reading_position",
+        "test_status_follow.StatusFollowTests.test_pending_and_canceled_retries_keep_the_last_failure_until_recovery",
+        "test_status_follow.StatusFollowTests.test_refresh_keeps_following_the_selected_submission_after_retry_and_task_removal",
+        "test_status_follow.StatusFollowTests.test_repeated_follow_pause_and_close_cycles_release_owned_resources",
+        "test_status_log_terminal.StatusLogTerminalTests.test_stream_history_and_paging_keys_do_not_reinspect_the_workflow",
+        "test_status_follow_terminal.StatusFollowTerminalTests.test_refresh_keeps_following_a_retired_submission_then_a_removed_task",
+        "test_json_status.JsonImageStatusTests.test_json_uses_scoped_upstream_acquisition_and_offline_warm_cache",
+        "test_json_status.JsonStatusTests.test_invalid_configuration_is_a_structured_inspection_failure",
+        "test_json_status.JsonStatusTests.test_terminal_json_is_one_shot"
+      ],
+      "log": "<REPO>/build/validation/logs-347/shard-3.log"
+    }
+  ],
+  "final_focused": [
+    {
+      "log": "<REPO>/build/validation/logs-347/green.log",
+      "tests": 2,
+      "seconds": 13.822,
+      "test_ids": [
+        "test_status_logs.StatusLogInteractionTests.test_selected_job_opens_both_exact_streams_without_reinspection",
+        "test_inspection.LifecycleInspectionTests.test_detail_mapping_and_old_logs_survive_retry_force_and_cleanup"
+      ],
+      "result": "passed",
+      "command": "PYTHONPATH=tests <ENV>/bin/python -m unittest -v test_status_logs.StatusLogInteractionTests.test_selected_job_opens_both_exact_streams_without_reinspection test_inspection.LifecycleInspectionTests.test_detail_mapping_and_old_logs_survive_retry_force_and_cleanup"
+    },
+    {
+      "log": "<REPO>/build/validation/logs-347/partial-streams-green.log",
+      "tests": 1,
+      "seconds": 37.526,
+      "test_ids": [
+        "test_logs.TaskLogTests.test_cancelled_and_timed_out_jobs_keep_both_partial_streams"
+      ],
+      "result": "passed",
+      "command": "PYTHONPATH=tests <ENV>/bin/python -m unittest -v test_logs.TaskLogTests.test_cancelled_and_timed_out_jobs_keep_both_partial_streams"
+    },
+    {
+      "log": "<REPO>/build/validation/logs-347/pinning-green.log",
+      "tests": 2,
+      "seconds": 15.518,
+      "test_ids": [
+        "test_logs.TaskLogTests.test_slow_log_open_keeps_public_and_exact_submissions_pinned_across_retry",
+        "test_logs.TaskLogTests.test_missing_public_log_does_not_select_a_later_submission"
+      ],
+      "result": "passed",
+      "command": "PYTHONPATH=tests:.: <ENV>/bin/python -m unittest -v test_logs.TaskLogTests.test_slow_log_open_keeps_public_and_exact_submissions_pinned_across_retry test_logs.TaskLogTests.test_missing_public_log_does_not_select_a_later_submission"
+    }
+  ],
+  "combined_result": "Every selected test ID passed either in its affected partition or the explicit focused recheck. Initial failures remain recorded below; the original partition results are not relabeled green.",
+  "intermediate_failures": [
+    {
+      "test_id": "test_logs.TaskLogTests.test_cancelled_and_timed_out_jobs_keep_both_partial_streams",
+      "logs": [
+        "<REPO>/build/validation/logs-347/partial-streams.log",
+        "<REPO>/build/validation/logs-347/shard-0.log"
+      ],
+      "reason": "The newly added timeout branch initially asserted active state after waiting for execution-runner flushing. Short walltime had already expired. The corrected test requires active state before requested cancellation and preserved partial output after timeout. Existing gated live-stream acceptance remains unchanged; final focused test passes.",
+      "existing_assertions_weakened": false
+    },
+    {
+      "test_id": "test_logs.TaskLogTests.test_slow_log_open_keeps_public_and_exact_submissions_pinned_across_retry",
+      "log": "<REPO>/build/validation/logs-347/shard-1.log",
+      "failed_subtests": 4,
+      "reason": "Inherited PYTHONPATH='.:' imported the copied filesystem audit gate in sibling CLI invocations with no LOG_OPEN_STREAM flag; all four subcases failed with KeyError. The isolated PYTHONPATH=tests command passed unchanged in 31.224s, distinguishing fixture import scope. The gate now returns when its explicit flag is absent. Both original pinning/missing-alias tests pass under PYTHONPATH=tests:.:, retaining all assertions and the 30-second gate deadline.",
+      "final_log": "<REPO>/build/validation/logs-347/pinning-green.log",
+      "assertions_and_timeouts_changed": false
+    }
+  ],
+  "typing": {
+    "version": "2.3.1",
+    "result": "Success: no issues found in 3 source files",
+    "scope": "Default mypy checking, not stricter untyped-body checking."
+  },
+  "dependencies": "No broken requirements found.",
+  "implementation_files_sha256": {
+    "src/gwflow/_browser_read.py": "39622a7e464298e8bd70b1a7e6c3b51cd0aa39fd05d92e43a98aad66af26bd10",
+    "src/gwflow/inspection.py": "17a5af3db0f24c107000d4b820eb75ab8b7ac98ced7603c78a47dae5eea8b081",
+    "src/gwflow/status_snapshot.py": "19e4d3b493fa93cc611dd0573995d33affcd86d7b49e1a49ba61017e5bf66cbc",
+    "tests/fixtures/log_open_gate.py": "1c5ed577840062c9ce199cde6ef6203a2cee4f9d671c092372b16a028279f119",
+    "tests/test_inspection.py": "fb8f39c0c68fbc3652bfd77c9347b7bfb76b0e5aa31af2d5e4dc164debd8bed5",
+    "tests/test_logs.py": "f75186f8586ad71d895fff7792b47adb23d27e5c2984dec98ac118d5f41f4706",
+    "tests/test_status_follow_terminal.py": "9b71b8466c900d86204c5a5bcdbe495cbb329db9a938ebfb519badfde1a364fb",
+    "tests/test_status_log_terminal.py": "7e6025feccc95b10cf2eecc3058c17253d974be91297ad0ded6cc6f607a9f2b2"
+  },
+  "installed_source_check": "All three changed production files equal the installed package sources.",
+  "review": {
+    "standards": "No findings.",
+    "spec": "No findings; status JSON path requirement applies to existing browser snapshot JSON. Public status --json schema has no log paths and is preserved."
+  },
+  "previous_ci": {
+    "run": 42532183088,
+    "head": "a38fca0b15ec928f0e2cdeb6d788c795d74f01d2",
+    "source_failure": "Installed gwf does not satisfy gwflow's gwf==2.1.1",
+    "assigned_issue": 350,
+    "raw_log": "<REPO>/build/validation/logs-347/previous-ci-source-api.log"
+  },
+  "remaining": "Slurm #348; real containers #349; provisional comparison baseline #350; final whole-suite/Conda/container/comparison/all-CI qualification and guidance #351.",
+  "raw_evidence": "<REPO>/build/validation/logs-347",
+  "path_placeholders": {
+    "<REPO>": "Isolated migration checkout root. Unprefixed paths are repository-relative; raw logs remain ignored under build/validation/logs-347.",
+    "<ENV>": "Task-owned Conda environment with official gwf 3.0.0 and Python 3.12.16.",
+    "<TYPE_ENV>": "Separate local environment providing mypy 2.3.1."
+  },
+  "normalization": "Only path strings and explanatory placeholder metadata differ from the ignored raw record."
+}
