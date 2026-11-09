@@ -1,0 +1,86 @@
+name: Withdraw mistaken v0.10.3
+
+on:
+  workflow_dispatch:
+    inputs:
+      source:
+        description: Verified v0.11.0 source commit (full SHA)
+        required: true
+        type: string
+      package_sha256:
+        description: Verified v0.11.0 package SHA256
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: withdraw-mistaken-v0.10.3
+  cancel-in-progress: false
+
+jobs:
+  withdraw:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Verify published replacement and original package identity
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE: ${{ inputs.source }}
+          PACKAGE_SHA256: ${{ inputs.package_sha256 }}
+        shell: bash
+        run: |
+          python - <<'PY'
+          import hashlib, json, os, re, subprocess, urllib.request
+          from pathlib import Path
+          source = os.environ['SOURCE']
+          checksum = os.environ['PACKAGE_SHA256']
+          assert re.fullmatch('[0-9a-f]{40}', source)
+          assert re.fullmatch('[0-9a-f]{64}', checksum)
+          def gh(*args):
+              return subprocess.check_output(['gh', *args], text=True)
+          release = json.loads(gh('release', 'view', 'v0.11.0', '--repo', 'MOMA-AUH/gwflow', '--json', 'isDraft,isPrerelease,tagName,assets'))
+          assert not release['isDraft'] and not release['isPrerelease']
+          assert release['tagName'] == 'v0.11.0'
+          commit = json.loads(gh('api', 'repos/MOMA-AUH/gwflow/commits/v0.11.0'))['sha']
+          assert commit == source
+          assets = Path('replacement-assets')
+          subprocess.run(['gh', 'release', 'download', 'v0.11.0', '--repo', 'MOMA-AUH/gwflow', '--dir', str(assets)], check=True)
+          subprocess.run(['python', 'tests/release_artifacts.py', 'unpack', '--bundle', str(assets), '--output', 'replacement-bundle', '--tag', 'v0.11.0', '--source', source], check=True)
+          filename = 'gwflow-0.11.0-py_0.conda'
+          assert hashlib.sha256((assets / filename).read_bytes()).hexdigest() == checksum
+          def package_digest(version):
+              url = f'https://conda.anaconda.org/MOMA-AUH/noarch/gwflow-{version}-py_0.conda'
+              with urllib.request.urlopen(url, timeout=120) as response:
+                  return hashlib.sha256(response.read()).hexdigest()
+          assert package_digest('0.11.0') == checksum
+          assert package_digest('0.10.3') == '00f6a98a03b1df0437ab79c05c732b3a2a0d0444b5ee1291f9ebe5f7e6d11208'
+          print('Published replacement provenance and both channel package identities verified.')
+          PY
+      - name: Remove only mistaken Anaconda version
+        env:
+          ANACONDA_API_TOKEN: ${{ secrets.ANACONDA_API_TOKEN }}
+        run: |
+          python - <<'PY'
+          import os, urllib.error, urllib.request
+          url = 'https://api.anaconda.org/release/MOMA-AUH/gwflow/0.10.3'
+          token = os.environ['ANACONDA_API_TOKEN']
+          assert token, 'ANACONDA_API_TOKEN is missing'
+          request = urllib.request.Request(url, method='DELETE', headers={'Authorization': 'token ' + token})
+          try:
+              with urllib.request.urlopen(request, timeout=60) as response:
+                  assert response.status == 201, response.status
+          except urllib.error.HTTPError as error:
+              raise SystemExit(f'Exact-version deletion failed: HTTP {error.code}') from None
+          try:
+              urllib.request.urlopen(url, timeout=60)
+          except urllib.error.HTTPError as error:
+              assert error.code == 404, error.code
+          else:
+              raise SystemExit('Mistaken version remains available')
+          print('Removed only MOMA-AUH/gwflow/0.10.3; API confirms HTTP 404.')
+          PY
