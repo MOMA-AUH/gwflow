@@ -2,6 +2,8 @@
 
 import re
 
+from gwf.backends.local import Client, get_socket_path
+
 from support import GWF, LocalBackendTestCase
 
 
@@ -46,7 +48,9 @@ class PlainWorkflowTests(LocalBackendTestCase):
         self.finish()
         default = self.cli_result("status", "--format", "default").stdout
         self.assertEqual(default, self.cli_result("status").stdout)
-        self.assertRegex(default, r"selected\s+completed \(id: (?:none|\d+)\)")
+        with Client.connect(get_socket_path(self.work)) as client:
+            job_id, = client.status()
+        self.assertRegex(default, rf"selected\s+completed \(id: {re.escape(job_id)}\)")
         self.assertRegex(default, r"consumer\s+shouldrun \(id: none\)")
         for options, expected in (
             (("sel*",), {"selected"}),
@@ -71,6 +75,8 @@ class PlainWorkflowTests(LocalBackendTestCase):
 
     def test_generic_clean_and_touch_still_work(self):
         self.cli("touch", "selected")
+        self.assertFalse((self.work / "selected.txt").exists())
+        self.cli("touch", "--create-missing", "selected")
         self.assertTrue((self.work / "selected.txt").exists())
         self.assertNoSubmissions(self.cli("run", "selected"))
         self.cli("clean", "--all", "--force", "selected")
