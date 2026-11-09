@@ -4,7 +4,7 @@
   "timezone": "Europe/Copenhagen",
   "tested_commit": "59d471c46125ec88b2a52cc93f38f4079b9b70ed",
   "cumulative_base": "49f7926cca2ca8943f88da446ebb4e9e8602eed0",
-  "scope": "Final installed integration regressions, real runtime prerequisites and operating guidance, with all original complete-CI and interrupted-local failures retained and reconciled. The exact final-head Conda/runtime/independent-comparison gate remains the unchanged CI workflow; its authoritative completed result is linked in PR #353. Neither the failed earlier CI nor interrupted local inventory is represented as passing full qualification. No live Slurm, release publication, or old-state compatibility claim is made.",
+  "scope": "Final installed integration regressions, real runtime prerequisites and operating guidance, with all original complete-CI and interrupted-local failures retained and reconciled. The exact final-head Conda/runtime/independent-comparison gate remains the unchanged CI workflow; its authoritative completed result will be linked in PR #353 when available. Neither the failed earlier CI nor interrupted local inventory is represented as passing full qualification. No live Slurm, release publication, or old-state compatibility claim is made.",
   "integrity": {
     "python": "3.12.16",
     "executable": "<ENV>/bin/python",
@@ -2599,7 +2599,7 @@
   },
   "checks": {
     "typing": "Success: no issues found in 10 source files",
-    "typing_scope": "mypy 2.3.1 default untyped-body checking, ten changed production modules",
+    "typing_scope": "mypy 2.3.1 default checking; untyped function bodies are not checked. Ten changed production modules.",
     "dependencies": "No broken requirements found.",
     "compilation": "exit 0"
   },
