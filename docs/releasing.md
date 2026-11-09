@@ -17,6 +17,12 @@ The [runtime capture and restoration procedure](validation/conda-runtime.md)
 checks exact dependency reconstruction before stable release preservation.
 Its qualification runs in the existing Conda CI job and the tag workflow.
 Pull-request validation does not publish a release.
+Keep the README's recommended installation on the published `gwflow` Conda
+package from `MOMA-AUH`, with `gwforg` and `conda-forge` for dependencies.
+Keep checkout environments and pip installation in the developer validation guide.
+Dependency upgrades must preserve this installation policy. Update the example
+checkout tag to match the published release when preparing release documentation.
+CI checks this policy with `python3 -m unittest discover -s tests -p test_readme.py -v`.
 Use the [validation guide](validation/README.md) for current setup and checks,
 and its evidence index to find the relevant historical records.
 Operators should use the [operating and upgrade guide](operating.md) for force,
