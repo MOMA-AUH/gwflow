@@ -1,7 +1,7 @@
 {
   "date": "2026-11-10",
   "issue": "https://github.com/MOMA-AUH/gwflow/issues/360",
-  "tested_source_commit": "85a48dbb156359e15f3b84a7ac723ca019daf5c7",
+  "tested_source_commit": "91b1b4b983290503baf5a6935372429aa2f9f897",
   "baseline_commit": "ece0797ded4743eb835ecf3a3d549dd0b45fc1f7",
   "paths": {
     "<ENV>": "Task-owned Python installation on local temporary storage outside the checkout.",
@@ -73,10 +73,16 @@
         "head": "85a48dbb156359e15f3b84a7ac723ca019daf5c7",
         "standards": "No findings or assertion weakening.",
         "spec": "No findings; owner-specific diagnostic and no-effect assertions are stronger."
+      },
+      {
+        "base": "dbc94e3d1d0acc725a15d9727a1a18e1dfe1d6b7",
+        "head": "91b1b4b983290503baf5a6935372429aa2f9f897",
+        "standards": "No findings across the entire integrated diff.",
+        "spec": "No findings across the entire integrated diff; used the issue requirements supplied from GitHub by the coordinator."
       }
     ]
   },
-  "scope": "Pre-1.0 behavior correction with no new persistent format, migration, or adoption of unknown data. PR #364 remains unmerged pending prerequisite #361 and successful complete final-head CI. Local passing checks do not qualify the failed initial CI run.",
+  "scope": "Pre-1.0 behavior correction with no new persistent format, migration, or adoption of unknown data. Prerequisite #361 merged separately and was integrated. Full exact-final-head CI remains required before PR #364 merges; prior failed CI is not qualification evidence.",
   "correction_checks": [
     {
       "source_commit": "a91d491e30a2b61698bd260aac32be17c0ed4384",
@@ -146,6 +152,26 @@
       "build/validation/ownership-360/resource-baseline.log",
       "build/validation/ownership-360/resource-reproduction.log"
     ],
-    "delivery": "Park PR #364 after the reviewed #360 corrections. Implement and merge #361 separately, then update #360 from master and require every final-head CI check before merge. Do not retry merely to obtain a lucky pass."
-  }
+    "delivery": "Park PR #364 after the reviewed #360 corrections. Implement and merge #361 separately, then update #360 from master and require every final-head CI check before merge. Do not retry merely to obtain a lucky pass.",
+    "completion": {
+      "merged_pull_request": "https://github.com/MOMA-AUH/gwflow/pull/365",
+      "merge_commit": "dbc94e3d1d0acc725a15d9727a1a18e1dfe1d6b7",
+      "integration_commit": "91b1b4b983290503baf5a6935372429aa2f9f897",
+      "result": "Deterministic stale-bytecode regressions established a sufficient cause and passed with shared current-source loading; #361 passed all eight checks and 965 discovered tests with zero skips. Historical CI cache contents were not independently available. See source-freshness-361.json for implementation verification."
+    }
+  },
+  "integration_checks": [
+    {
+      "source_commit": "91b1b4b983290503baf5a6935372429aa2f9f897",
+      "command": "PYTHONPATH=tests GWFLOW_TEST_SIF=<REPO>/build/validation/basic.sif <ENV>/bin/python -m unittest -v test_storage test_planning_io test_factories test_source_freshness test_local_resources.LocalResourceTests.test_confirmed_capacity_rejection_can_continue_after_request_is_reduced test_containers.ContainerRuntimeTests.test_attempt_without_image_binding_is_rejected_without_deletion",
+      "result": "Passed: 45 tests in 124.484 seconds, zero skips. Includes all three original CI failure IDs and deterministic source-freshness coverage.",
+      "raw_log": "build/validation/ownership-360/integrated-focused.log"
+    },
+    {
+      "source_commit": "91b1b4b983290503baf5a6935372429aa2f9f897",
+      "command": "<TYPE_ENV>/bin/python -m mypy --follow-imports=silent --ignore-missing-imports src/gwflow/lifecycle.py src/gwflow/planning.py src/gwflow/transfer.py src/gwflow/admission.py src/gwflow/inspection_errors.py",
+      "result": "Passed: no issues in five source files, using default untyped-body checking.",
+      "raw_log": "build/validation/ownership-360/integrated-mypy.log"
+    }
+  ]
 }
