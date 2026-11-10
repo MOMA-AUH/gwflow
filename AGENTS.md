@@ -14,6 +14,9 @@ Before exploring or specifying behavior, read `docs/agents/domain.md`: this proj
 
 ### Validation evidence
 
+Before planning validation or reviewing readiness, read the
+[maintainer-led HPC testing context](docs/validation/README.md#maintainer-led-hpc-testing).
+
 When adding or updating validation records:
 
 - Use repository-relative paths, or `<REPO>/...` when preserving absolute-path comparisons. Explain placeholders in each standalone record. Normalize user-specific paths outside the checkout with documented placeholders too.

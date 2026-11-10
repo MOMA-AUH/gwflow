@@ -18,6 +18,28 @@ documents the separate publication verification procedure.
 The [v0.8.0 publication record](v0.8.0/publication.md) identifies the published
 artifact and records its successful channel installation and smoke checks.
 
+## Maintainer-led HPC testing
+
+The maintainer routinely tests gwflow on a real Slurm HPC cluster.
+This remains maintainer-led validation alongside automated local, container,
+and controlled-Slurm checks. The maintainer confirmed this established practice
+on November 10, 2026, as recorded in
+[#363](https://github.com/MOMA-AUH/gwflow/issues/363).
+
+Use this context when planning validation or reviewing readiness.
+The absence of a checked-in or agent-run live-cluster record alone does not
+create a release blocker or justify proposing another qualification task.
+Specific observed regressions or changed requirements can still warrant
+targeted investigation. This guidance adds no HPC run, approval gate, or
+release checklist requirement.
+
+Individual CI and release records describe only the environments and checks
+actually performed. Routine maintainer testing does not establish a passing
+run for a particular commit or broaden the
+[supported deployment profile](../operating.md#compatibility-boundary).
+The [live backend prerequisites](#live-backend-acceptance), including identical
+absolute paths on frontend and compute nodes, still apply.
+
 ## Local checks
 
 Run from the repository root. Create the development environment with Python
