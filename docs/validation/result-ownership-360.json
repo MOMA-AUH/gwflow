@@ -1,13 +1,14 @@
 {
   "date": "2026-11-10",
   "issue": "https://github.com/MOMA-AUH/gwflow/issues/360",
-  "tested_source_commit": "d87b05dbde6fc4caff228b67ef70a33b3ff5c6a7",
+  "tested_source_commit": "85a48dbb156359e15f3b84a7ac723ca019daf5c7",
   "baseline_commit": "ece0797ded4743eb835ecf3a3d549dd0b45fc1f7",
   "paths": {
     "<ENV>": "Task-owned Python installation on local temporary storage outside the checkout.",
     "<TYPE_ENV>": "Existing repository-local development environment providing mypy.",
     "relative_paths": "All ordinary paths are relative to the repository checkout.",
-    "raw_logs": "build/validation/ownership-360/ (ignored; raw machine-specific output)"
+    "raw_logs": "build/validation/ownership-360/ (ignored; raw machine-specific output)",
+    "<REPO>": "Repository checkout, used where an absolute image path is required."
   },
   "versions": {
     "python": "3.12.16",
@@ -23,17 +24,26 @@
     {
       "command": "<ENV>/bin/python -m unittest discover -s tests -p test_storage.py -v",
       "result": "Passed: 19 tests in 52.358 seconds.",
-      "raw_log": "build/validation/ownership-360/storage-final.log"
+      "raw_log": "build/validation/ownership-360/storage-final.log",
+      "source_commit": "d87b05dbde6fc4caff228b67ef70a33b3ff5c6a7"
     },
     {
       "command": "<ENV>/bin/python -m unittest discover -s tests -p test_planning_workload.py -v",
       "result": "Passed: 1 test in 67.315 seconds, including 418 real local jobs and unchanged planning I/O bounds.",
-      "raw_log": "build/validation/ownership-360/workload-final.log"
+      "raw_log": "build/validation/ownership-360/workload-final.log",
+      "source_commit": "d87b05dbde6fc4caff228b67ef70a33b3ff5c6a7"
     },
     {
       "command": "<TYPE_ENV>/bin/python -m mypy --follow-imports=silent --ignore-missing-imports src/gwflow/lifecycle.py src/gwflow/planning.py src/gwflow/transfer.py src/gwflow/admission.py",
       "result": "Passed: no issues in four source files, using default untyped-body checking.",
-      "raw_log": "build/validation/ownership-360/mypy-final.log"
+      "raw_log": "build/validation/ownership-360/mypy-final.log",
+      "source_commit": "d87b05dbde6fc4caff228b67ef70a33b3ff5c6a7"
+    },
+    {
+      "command": "PYTHONPATH=tests <ENV>/bin/python -m unittest -v test_fresh test_cleanup test_recovery test_managed_recovery test_planning_io",
+      "result": "Passed: 107 tests in 367.318 seconds.",
+      "source_commit": "d87b05dbde6fc4caff228b67ef70a33b3ff5c6a7",
+      "raw_log": "build/validation/ownership-360/focused.log"
     }
   ],
   "coverage": [
@@ -52,7 +62,90 @@
     "base": "ece0797ded4743eb835ecf3a3d549dd0b45fc1f7",
     "head": "d87b05dbde6fc4caff228b67ef70a33b3ff5c6a7",
     "standards": "No findings.",
-    "spec": "No implementation findings. Final validation evidence and all CI remained required."
+    "spec": "No implementation findings. Final validation evidence and all CI remained required.",
+    "followups": [
+      {
+        "head": "a91d491e30a2b61698bd260aac32be17c0ed4384",
+        "standards": "No findings.",
+        "spec": "No findings."
+      },
+      {
+        "head": "85a48dbb156359e15f3b84a7ac723ca019daf5c7",
+        "standards": "No findings or assertion weakening.",
+        "spec": "No findings; owner-specific diagnostic and no-effect assertions are stronger."
+      }
+    ]
   },
-  "scope": "This is pre-1.0 behavior correction, with no new persistent format, migration, or adoption of unknown data. Complete exact-head CI is a separate merge gate; see the linked PR for its final checks."
+  "scope": "Pre-1.0 behavior correction with no new persistent format, migration, or adoption of unknown data. PR #364 remains unmerged pending prerequisite #361 and successful complete final-head CI. Local passing checks do not qualify the failed initial CI run.",
+  "correction_checks": [
+    {
+      "source_commit": "a91d491e30a2b61698bd260aac32be17c0ed4384",
+      "command": "GWFLOW_TEST_SIF=<REPO>/build/validation/basic.sif <ENV>/bin/python -m unittest discover -s tests -p test_containers.py -k test_attempt_without_image_binding_is_rejected_without_deletion -v",
+      "result": "Passed: 1 test in 2.378 seconds after reproducing the exact diagnostic failure in 3.528 seconds. No assertion changed.",
+      "raw_logs": [
+        "build/validation/ownership-360/diagnostic-red.log",
+        "build/validation/ownership-360/diagnostic-green.log"
+      ]
+    },
+    {
+      "source_commit": "a91d491e30a2b61698bd260aac32be17c0ed4384",
+      "command": "PYTHONPATH=tests <ENV>/bin/python -m unittest -v test_storage test_planning_io",
+      "result": "Passed: 33 tests in 103.161 seconds.",
+      "raw_log": "build/validation/ownership-360/corrected-focused.log"
+    },
+    {
+      "source_commit": "a91d491e30a2b61698bd260aac32be17c0ed4384",
+      "command": "<TYPE_ENV>/bin/python -m mypy --follow-imports=silent --ignore-missing-imports src/gwflow/lifecycle.py src/gwflow/planning.py src/gwflow/inspection_errors.py",
+      "result": "Passed: no issues in three source files, using default untyped-body checking.",
+      "raw_log": "build/validation/ownership-360/mypy-corrected.log"
+    },
+    {
+      "source_commit": "85a48dbb156359e15f3b84a7ac723ca019daf5c7",
+      "command": "<ENV>/bin/python -m unittest discover -s tests -p test_factories.py -v",
+      "result": "Passed: 7 tests in 4.930 seconds. The existing no-adoption case now requires both conflicting Task names, destination, zero submissions, and unchanged evidence in addition to the original retained-content check. Its obsolete generic-diagnostic expectation reproduced a failure in 2.282 seconds.",
+      "raw_logs": [
+        "build/validation/ownership-360/factory-red.log",
+        "build/validation/ownership-360/factories-green.log"
+      ]
+    }
+  ],
+  "initial_ci": {
+    "url": "https://github.com/MOMA-AUH/gwflow/actions/runs/42809272017",
+    "pull_request_head": "5b84d731700d25d9caa6d313cc423b62054c45dd",
+    "tested_merge_commit": "cdd9541a6edcd9000ec82fd3b107a242943024a3",
+    "status": "Failed, not qualification evidence. All 968 distinct test IDs ran once across four partitions, with three failures and zero skips. Source, build, containers, and partition 2 passed. The aggregate correctly failed.",
+    "partition_counts": [
+      238,
+      255,
+      243,
+      232
+    ],
+    "failures": [
+      {
+        "test": "test_containers.ContainerRuntimeTests.test_attempt_without_image_binding_is_rejected_without_deletion",
+        "resolution": "Corrected by preserving the original evidence failure unless the diagnostic probe establishes a specific ResultOwnershipConflict."
+      },
+      {
+        "test": "test_factories.FactoryReuseTests.test_module_move_reordering_and_cleanup_preserve_reuse_but_new_name_cannot_adopt",
+        "resolution": "Updated obsolete generic-diagnostic expectation to the specified owner-specific refusal, strengthening all no-effect assertions."
+      },
+      {
+        "test": "test_local_resources.LocalResourceTests.test_confirmed_capacity_rejection_can_continue_after_request_is_reduced",
+        "resolution": "Reproduced on unchanged baseline. Deferred to prerequisite issue #361; no fixture or timeout workaround."
+      }
+    ],
+    "raw_evidence": "build/validation/ownership-360/initial-ci-shards/ and ci-shard1-failed.log, ci-shard3-failed.log, ci-shard4-failed.log in the raw-log directory."
+  },
+  "prerequisite": {
+    "issue": "https://github.com/MOMA-AUH/gwflow/issues/361",
+    "baseline_commit": "ece0797ded4743eb835ecf3a3d549dd0b45fc1f7",
+    "baseline_install": "Installed git-archived baseline from build/validation/ownership-360/baseline-source with pip --no-deps --no-build-isolation. The working branch did not change.",
+    "command": "PYTHONPATH=tests <ENV>/bin/python -m unittest -v test_local_resources.LocalResourceTests.test_confirmed_capacity_rejection_can_continue_after_request_is_reduced test_local_resources.LocalResourceTests.test_confirmed_capacity_rejection_can_continue_after_request_is_reduced test_local_resources.LocalResourceTests.test_confirmed_capacity_rejection_can_continue_after_request_is_reduced",
+    "result": "One failure and two passes in 5.728 seconds on unchanged baseline. The same failure reproduced once on the initial candidate in 1.265 seconds. After changing the declaration to two cores, execution still requested three. Source-freshness causality remains for #361 to establish.",
+    "raw_logs": [
+      "build/validation/ownership-360/resource-baseline.log",
+      "build/validation/ownership-360/resource-reproduction.log"
+    ],
+    "delivery": "Park PR #364 after the reviewed #360 corrections. Implement and merge #361 separately, then update #360 from master and require every final-head CI check before merge. Do not retry merely to obtain a lucky pass."
+  }
 }
