@@ -5,7 +5,6 @@ import io
 import json
 from pathlib import Path
 import signal
-import sys
 import time
 
 import click
@@ -35,11 +34,7 @@ def capture(ctx, destination, selectors):
 
 
 def capture_snapshot(ctx, destination, selectors):
-    # Fresh source must not reuse timestamp/size-valid bytecode after a rapid
-    # same-size edit. This private, empty cache namespace affects this child only.
-    sys.pycache_prefix = str(destination.parent / "pycache")
-    sys.dont_write_bytecode = True
-    workflow = load_workflow(ctx)
+    workflow = load_workflow(ctx, cache_parent=destination.parent)
     with _submission_guard(ctx.working_dir):
         names = status_selection(workflow, selectors)
         plan = plan_workflow(workflow, ctx, selectors=names)

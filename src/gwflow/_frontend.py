@@ -4,6 +4,8 @@ from contextlib import contextmanager
 import fcntl
 import signal
 from pathlib import Path
+import sys
+import tempfile
 
 import click
 from gwf import Workflow as GwfWorkflow
@@ -37,12 +39,27 @@ class ManagedContext(Context):
     """Identify the managed executable without changing gwf command objects."""
 
 
-def load_workflow(ctx):
+@contextmanager
+def _fresh_source(cache_parent):
+    # Disabling writes alone still permits timestamp/size-valid stale bytecode.
+    # Use an empty namespace for all imports made by the workflow, then restore
+    # the interpreter settings. Inspection children keep it in their owned tree.
+    with tempfile.TemporaryDirectory(prefix="gwflow-source-", dir=cache_parent) as directory:
+        previous = sys.pycache_prefix, sys.dont_write_bytecode
+        sys.pycache_prefix = str(Path(directory) / "pycache")
+        sys.dont_write_bytecode = True
+        try:
+            yield
+        finally:
+            sys.pycache_prefix, sys.dont_write_bytecode = previous
+
+
+def load_workflow(ctx, *, cache_parent=None):
     from .workflow import Workflow
 
     if not ctx.workflow_file.is_file():
         raise WorkflowError(f"Could not find workflow file {ctx.workflow_file}; use --file PATH[:OBJECT] to select one.")
-    with activity("Inspecting workflow..."):
+    with activity("Inspecting workflow..."), _fresh_source(cache_parent):
         workflow = GwfWorkflow.from_context(ctx)
     if not isinstance(workflow, Workflow):
         raise WorkflowError("Managed commands require a gwflow.Workflow; use gwf for ordinary workflows.")

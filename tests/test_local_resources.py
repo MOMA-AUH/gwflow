@@ -6,6 +6,7 @@ import time
 
 from support import LocalBackendTestCase, TASK_FACTORY
 from process_probe import ProcessProbe
+from test_source_freshness import replace_with_cached_source
 
 
 class LocalResourceTests(ProcessProbe, LocalBackendTestCase):
@@ -106,13 +107,21 @@ class LocalResourceTests(ProcessProbe, LocalBackendTestCase):
         self.assertFalse((self.work / "first-held").exists())
         self.settle()
         before = self.task_attempts()["first"]
-        self.configure_workflow(cores=2)
+        preparation = next(job for job in json.loads(self.cli_result(
+            "status", "first", "--json", "--details").stdout)["tasks"][0]["jobs"]
+                           if job["name"] == "first__gwflow_prepare")
+        replace_with_cached_source(self, self.work / "workflow.py", "cores=3,", "cores=2,")
         self.assertIn("Continue", self.cli("run", "first", "--dry-run"))
         self.cli("run", "first")
         self.wait_for((self.work / "first-held").exists)
         (self.work / "first-release").touch()
         self.finish()
         self.assertEqual(self.task_attempts()["first"], before)
+        completed_preparation = next(job for job in json.loads(self.cli_result(
+            "status", "first", "--json", "--details").stdout)["tasks"][0]["jobs"]
+                                     if job["name"] == "first__gwflow_prepare")
+        self.assertEqual(completed_preparation["submission_name"], preparation["submission_name"])
+        self.assertEqual(completed_preparation["backend_id"], preparation["backend_id"])
         self.assertIn("Reuse", self.cli("run", "first", "--dry-run"))
 
     def test_failure_releases_reserved_capacity(self):
