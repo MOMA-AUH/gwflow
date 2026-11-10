@@ -177,7 +177,15 @@ class FactoryReuseTests(LocalBackendTestCase):
             self.assertEqual((path.read_bytes(), path.stat().st_mtime_ns), evidence)
         workflow.write_text(workflow.read_text().replace("gwf.task(definition, key='A')",
                                                        "gwf.task(definition, key='C', result_dir='producer__A')"))
-        self.assertIn("existing files are not adopted", self.cli("run", success=False))
+        output = self.cli("run", success=False)
+        self.assertIn("ownership conflict", output)
+        self.assertIn("Task 'producer__A'", output)
+        self.assertIn("Task 'producer__C'", output)
+        self.assertIn(str(self.work / "results/producer__A"), output)
+        self.assertNoSubmissions(output)
+        self.assertEqual(before, {p: (p.read_bytes(), p.stat().st_mtime_ns)
+                                  for root in (self.work / ".gwf/gwflow", self.work / "results")
+                                  for p in root.rglob("*") if p.is_file()})
         self.assertEqual((self.work / "results/producer__A/out.txt").read_text(), "hello\n")
 
     def test_nested_and_same_named_factories_keep_distinct_names_and_work(self):
