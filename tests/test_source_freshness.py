@@ -4,12 +4,13 @@ import os
 import json
 from pathlib import Path
 import py_compile
+import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
 
-from support import LocalBackendTestCase
+from support import FIXTURES, LocalBackendTestCase
 from terminal_session import TerminalSession
 
 
@@ -40,6 +41,11 @@ class LoadingIsolationTests(unittest.TestCase):
     def test_embedded_cli_restores_python_settings_and_cleans_loading_files(self):
         with tempfile.TemporaryDirectory(prefix="gwflow loading isolation ") as directory:
             work = Path(directory)
+            shutil.copy(FIXTURES / "state_backend.py", work)
+            metadata = work / "state_backend-1.0.dist-info"
+            metadata.mkdir()
+            (metadata / "entry_points.txt").write_text("[gwf.backends]\nstate_fixture = state_backend:setup\n")
+            (work / "backend-state.json").write_text("{}")
             for failure in (False, True):
                 with self.subTest(failure=failure):
                     (work / "workflow.py").write_text(
@@ -53,14 +59,15 @@ class LoadingIsolationTests(unittest.TestCase):
                         "sys.pycache_prefix = str(Path('caller-cache').absolute())\n"
                         "sys.dont_write_bytecode = False\n"
                         "previous = sys.pycache_prefix, sys.dont_write_bytecode\n"
-                        "try:\n    main(['--backend', 'local', 'clean'], standalone_mode=False)\n"
+                        "try:\n    main(['--backend', 'state_fixture', 'clean'], standalone_mode=False)\n"
                         "except click.ClickException as error:\n"
                         f"    assert {failure!r} and 'authored failure' in str(error), error\n"
                         f"else:\n    assert not {failure!r}\n"
                         "assert (sys.pycache_prefix, sys.dont_write_bytecode) == previous\n"
                         "assert not Path(Path('loading-cache').read_text()).parent.exists()\n")
                     result = subprocess.run([sys.executable, "-c", script], cwd=work,
-                                            capture_output=True, text=True, timeout=30)
+                                            capture_output=True, text=True, timeout=30,
+                                            env={**os.environ, "PYTHONPATH": str(work)})
                     self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
 
