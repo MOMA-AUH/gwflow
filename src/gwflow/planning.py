@@ -8,7 +8,7 @@ from gwf.exceptions import WorkflowError
 
 from . import _files, _observations, _records, admission, images, inputs, transfer
 from .activity import activity as report_activity
-from .inspection_errors import InspectionBlocker
+from .inspection_errors import InspectionBlocker, ResultOwnershipConflict
 from .lifecycle import Store, TaskObservation, declarations, ordered_tasks, ordered_targets, producer_names, target_dependencies
 from .selection import task_selection
 from .workflow import lifecycle_jobs
@@ -253,7 +253,13 @@ def plan_workflow(workflow, ctx, *, selectors=(), force=False):
                     attempt = store.current(name, workflow._result_dirs[name])
                 except WorkflowError:
                     # An omitted owner can explain an otherwise unowned destination.
-                    store.validate_result_ownership(workflow._result_dirs)
+                    try:
+                        store.validate_result_ownership(workflow._result_dirs)
+                    except ResultOwnershipConflict:
+                        raise
+                    except WorkflowError:
+                        # Uncertain ownership cannot replace the original evidence failure.
+                        pass
                     raise
                 observation = TaskObservation(name, "fresh", "no completed managed attempt", structure, commands, attempt)
                 try:

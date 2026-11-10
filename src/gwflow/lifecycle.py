@@ -14,7 +14,7 @@ from gwf.utils import is_valid_name
 from . import _files, _observations, _records, images, inputs, staging
 from ._records import _uuid
 from .commands import Command, shell
-from .inspection_errors import InspectionBlocker
+from .inspection_errors import InspectionBlocker, ResultOwnershipConflict
 from .workflow import RetainedOutput, TargetOutput, relative_path, validate_destinations
 
 
@@ -626,8 +626,8 @@ class Store:
             path = self.locations["results"] / destination
             for previous, previous_path in seen:
                 if _overlap(path, previous_path):
-                    raise WorkflowError(f"Results directory ownership conflict: Task {name!r} at {path} "
-                                        f"overlaps Task {previous!r} at {previous_path}")
+                    raise ResultOwnershipConflict(f"Results directory ownership conflict: Task {name!r} at {path} "
+                                                  f"overlaps Task {previous!r} at {previous_path}")
             seen.append((name, path))
 
     def producer_attempt(self, attempt, name):
