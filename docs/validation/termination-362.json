@@ -7037,6 +7037,26 @@
   },
   "scope": "Native local bookkeeping only. No live-Slurm qualification or legacy-format migration.",
   "required_ci": "Final PR commit must pass every required check. Local evidence does not establish final CI success.",
+  "ci_fixture_correction": {
+    "first_head": "27f371664a02ad3007341fdc6692627880a695fd",
+    "failed_run": "https://github.com/MOMA-AUH/gwflow/actions/runs/42828842249",
+    "failed_test": "test_consolidated_records.ConsolidatedRecordTests.test_absent_backend_requires_local_termination_evidence",
+    "cause": "The test fixture still looked for a per-submission JSON field and raised KeyError before its missing-evidence assertion. The corrected fixture deletes only the selected Submission entry from the ledger, preserving the assertion and other entries. Production code and timeouts are unchanged.",
+    "reproduction": {
+      "log": "<REPO>/build/validation/termination-362/consolidated-red.log",
+      "tests": 1,
+      "seconds": 1.825,
+      "result": "FAILED (errors=1)",
+      "command": "PYTHONPATH=tests <RUNTIME>/bin/python -m unittest -v test_consolidated_records.ConsolidatedRecordTests.test_absent_backend_requires_local_termination_evidence"
+    },
+    "corrected_module": {
+      "log": "<REPO>/build/validation/termination-362/consolidated-green.log",
+      "tests": 11,
+      "seconds": 30.198,
+      "result": "OK",
+      "command": "PYTHONPATH=tests <RUNTIME>/bin/python -m unittest -v test_consolidated_records"
+    }
+  },
   "path_placeholders": {
     "<REPO>": "Checkout root. All other repository paths are relative to this root.",
     "<RUNTIME>": "Temporary installed candidate Python environment outside the checkout.",
