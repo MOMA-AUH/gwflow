@@ -8,32 +8,38 @@ after that work is cleaned. It uses [gwf](https://gwf.app/) for scheduling.
 
 ## Install
 
-This guide follows the current checkout. Use Linux, Bash, Python 3.12, and
-exactly gwf 3.0.0. The example also needs deployment-provided Apptainer 1.5.4
+Use Linux and Bash. The recommended installation is the released Conda package
+from the [MOMA-AUH channel](https://anaconda.org/MOMA-AUH/gwflow).
+Conda installs Python 3.12 and the official gwf 3.0.0 package from `gwforg`
+as dependencies. The example also needs deployment-provided Apptainer 1.5.4
 on `PATH` and a Linux x86_64 host.
 
-Clone the checkout, create its Conda environment, and install gwflow:
+Create and activate the environment:
 
 ```sh
-git clone https://github.com/MOMA-AUH/gwflow.git
-cd gwflow
-conda env create -n gwflow -f environment.yml
+conda create -n gwflow --override-channels -c MOMA-AUH -c gwforg -c conda-forge gwflow
 conda activate gwflow
-python -m pip install .
 gwf --version
 gwflow --version
 apptainer --version
-cd example
 ```
 
-If you already have this checkout, start from its root and omit the clone commands.
-The environment installs the official, unmodified gwf 3.0.0 package from `gwforg`.
-Install that dependency before installing gwflow with pip. For an earlier released
-package, follow its [release notes](docs/history.md) and matching checkout.
-All input data is synthetic and included. Apptainer downloads the public Bioconda
-container images on first use.
+For release details, see the [release notes](docs/history.md).
+For development from source, use the [validation guide](docs/validation/README.md).
 
 ## Run the example
+
+Clone the release that matches `gwflow --version`, then enter its example directory.
+For v0.11.0:
+
+```sh
+git clone --branch v0.11.0 https://github.com/MOMA-AUH/gwflow.git
+cd gwflow/example
+```
+
+If you already have the matching checkout, enter its `example/` directory.
+All input data is synthetic and included. Apptainer downloads the public Bioconda
+container images on first use.
 
 The [workflow](example/workflow.py) aligns reads from two samples and produces a
 combined report. A read is a short DNA sequence. Each sample uses one Task
