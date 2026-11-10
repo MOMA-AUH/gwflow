@@ -249,7 +249,12 @@ def plan_workflow(workflow, ctx, *, selectors=(), force=False):
                 if name not in scope:
                     continue
                 structure, commands = declared[name]
-                attempt = store.current(name, workflow._result_dirs[name])
+                try:
+                    attempt = store.current(name, workflow._result_dirs[name])
+                except WorkflowError:
+                    # An omitted owner can explain an otherwise unowned destination.
+                    store.validate_result_ownership(workflow._result_dirs)
+                    raise
                 observation = TaskObservation(name, "fresh", "no completed managed attempt", structure, commands, attempt)
                 try:
                     images.resolve(workflow._task_declarations[name], structure, store.locations)
@@ -351,9 +356,11 @@ def plan_workflow(workflow, ctx, *, selectors=(), force=False):
                 observations_by_name[name] = observation
                 inspected(len(tasks))
         with report_activity("Checking Task dependencies..."):
+            recorded = store.recorded_tasks()
+            store.validate_result_ownership(workflow._result_dirs, attempts=recorded)
             changing_results = {task.name for task in tasks if task.attempt is not None
                                 and task.action in ("fresh", "initialize", "transfer", "repair")}
-            consumers = admission.consumer_activity(store, backend, ctx.backend, producers=changing_results)
+            consumers = admission.consumer_activity(store, backend, ctx.backend, producers=changing_results, attempts=recorded)
             for observation in tasks:
                 if observation.attempt is not None:
                     observation.consumers = consumers.get((observation.name, observation.attempt["attempt"]), {})
