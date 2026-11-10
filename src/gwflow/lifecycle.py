@@ -14,7 +14,7 @@ from gwf.utils import is_valid_name
 from . import _files, _observations, _records, images, inputs, staging
 from ._records import _uuid
 from .commands import Command, shell
-from .inspection_errors import InspectionBlocker
+from .inspection_errors import InspectionBlocker, ResultOwnershipConflict
 from .workflow import RetainedOutput, TargetOutput, relative_path, validate_destinations
 
 
@@ -483,6 +483,7 @@ class Store:
 
     def start_repair(self, attempt, sources):
         """Select a new finishing operation only after its repair intent is durable."""
+        self.validate_result_ownership({attempt["task"]: attempt["result_dir"]})
         if self.current(attempt["task"], attempt["result_dir"]) != attempt:
             raise WorkflowError("Task selection changed before repair")
         self.records(attempt).restore()
@@ -611,6 +612,23 @@ class Store:
                     raise WorkflowError("Missing or malformed recorded Task attempt")
                 result.append(attempt)
         return result
+
+    def validate_result_ownership(self, destinations, *, attempts=None):
+        """Check a planning snapshot, or reread ownership at mutation boundaries."""
+        owners = dict(destinations)
+        for attempt in self.recorded_tasks() if attempts is None else attempts:
+            name, destination = attempt["task"], attempt["result_dir"]
+            if name in owners and owners[name] != destination:
+                raise WorkflowError(f"Recorded Task results location changed for {name!r}")
+            owners[name] = destination
+        seen = []
+        for name, destination in owners.items():
+            path = self.locations["results"] / destination
+            for previous, previous_path in seen:
+                if _overlap(path, previous_path):
+                    raise ResultOwnershipConflict(f"Results directory ownership conflict: Task {name!r} at {path} "
+                                                  f"overlaps Task {previous!r} at {previous_path}")
+            seen.append((name, path))
 
     def producer_attempt(self, attempt, name):
         producer = self.recorded_current(name)
@@ -930,6 +948,7 @@ class Store:
 
     def finish_initialization(self, attempt):
         self.validate_roots()
+        self.validate_result_ownership({attempt["task"]: attempt["result_dir"]})
         record = self.initialization(attempt)
         if self.current(attempt["task"], attempt["result_dir"]) != attempt:
             raise WorkflowError("Task selection changed during initialization")
@@ -952,6 +971,7 @@ class Store:
 
     def initialize(self, observation, result_dir, *, tracking, managed_tmpdir, producers):
         self.validate_roots()
+        self.validate_result_ownership({observation.name: result_dir})
         if self.owner is None:
             owner = uuid4().hex
             for path in self.locations.values():

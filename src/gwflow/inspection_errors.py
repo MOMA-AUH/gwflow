@@ -7,3 +7,7 @@ class InspectionBlocker(WorkflowError):
     def __init__(self, code, message):
         super().__init__(message)
         self.code = code
+
+
+class ResultOwnershipConflict(WorkflowError):
+    """Different Tasks claim overlapping retained-results directories."""

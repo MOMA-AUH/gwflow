@@ -6,8 +6,10 @@ from pathlib import Path
 import shlex
 import shutil
 import tempfile
+import subprocess
+import sys
 
-from record_fixtures import record_path
+from record_fixtures import read_record, record_path, write_record
 
 from support import TASK_FACTORY, FIXTURES, LocalBackendTestCase
 import test_managed
@@ -268,6 +270,123 @@ class StoragePlacementTests(LocalBackendTestCase):
         self.assertIn("symlink", self.cli("run", success=False))
         self.assertEqual([p.name for p in outside.iterdir()], ["sentinel"])
         self.assertFalse((self.work / ".gwf/gwflow").exists())
+
+    def test_omitted_task_keeps_results_directory_ownership_after_cleanup(self):
+        self.check_omitted_ownership(clean=True)
+
+    def test_omitted_task_keeps_results_directory_ownership_before_cleanup(self):
+        self.check_omitted_ownership(clean=False)
+
+    def test_missing_results_do_not_release_omitted_task_directory_ownership(self):
+        self.check_omitted_ownership(clean=True, missing_results=True)
+
+    def check_omitted_ownership(self, *, clean, missing_results=False):
+        self.run_complete()
+        original = (self.work / "workflow.py").read_text()
+        attempt = self.task_attempts()["a"]
+        if clean:
+            self.cli("clean", "--delete")
+        if missing_results:
+            shutil.rmtree(self.work / "results/samples/a/report")
+        before = self.storage_snapshot()
+        for destination in ("samples/a/report/child", "samples/a", "samples/a/report"):
+            with self.subTest(destination=destination):
+                (self.work / "workflow.py").write_text(original.replace(
+                    "alias='a', result_dir='samples/a/report'",
+                    f"alias='b', result_dir={destination!r}"))
+                for arguments in (("run", "--dry-run"), ("run",), ("run", "--force")):
+                    output = self.cli(*arguments, success=False)
+                    self.assertIn("Task 'a'", output)
+                    self.assertIn("Task 'b'", output)
+                    self.assertIn(destination, output)
+                    self.assertIn("samples/a/report", output)
+                    self.assertNoSubmissions(output)
+                    self.assertEqual(before, self.storage_snapshot())
+        (self.work / "workflow.py").write_text(original + "\n")
+        self.assertEqual(self.task_attempts()["a"], attempt)
+        if not missing_results:
+            self.assertNoSubmissions(self.cli("run"))
+        self.cli("run", "--force")
+        self.finish()
+        self.assertNotEqual(self.task_attempts()["a"], attempt)
+        self.assert_results(self.work / "results/samples/a/report")
+
+    def test_missing_or_malformed_omitted_ownership_is_not_adopted(self):
+        self.run_complete()
+        self.cli("clean", "--delete")
+        workflow = self.work / "workflow.py"
+        workflow.write_text(workflow.read_text().replace("alias='a'", "alias='b'") + "\n")
+        current = record_path(self.work, "a", "attempt.json").parents[2] / "current.json"
+        original = current.read_bytes()
+        for contents in (None, b"not-json", b"{}"):
+            with self.subTest(contents=contents):
+                if contents is None:
+                    current.unlink()
+                else:
+                    current.write_bytes(contents)
+                before = self.storage_snapshot()
+                for arguments in (("run", "--dry-run"), ("run",), ("run", "--force")):
+                    self.assertNoSubmissions(self.cli(*arguments, success=False))
+                    self.assertEqual(self.storage_snapshot(), before)
+                current.write_bytes(original)
+        self.assert_results(self.work / "results/samples/a/report")
+
+    def test_omitted_sibling_results_survive_cleanup_reintroduction_and_force(self):
+        self.run_complete()
+        workflow = self.work / "workflow.py"
+        original = workflow.read_text()
+        a_attempt = self.task_attempts()["a"]
+        self.cli("clean", "--delete")
+        sibling = original.replace("alias='a', result_dir='samples/a/report'",
+                                   "alias='b', result_dir='samples/b/report'")
+        workflow.write_text(sibling + "\n")
+        self.run_complete()
+        b_attempt = self.task_attempts()["b"]
+        self.cli("clean", "--delete")
+        result = self.work / "results/samples/b/report"
+        before = {path: (path.stat().st_ino, path.read_bytes()) for path in result.rglob("*") if path.is_file()}
+        workflow.write_text(original)
+        self.assertNoSubmissions(self.cli("run"))
+        self.assertEqual(self.task_attempts()["a"], a_attempt)
+        self.cli("run", "--force")
+        self.finish()
+        self.assertEqual(before, {path: (path.stat().st_ino, path.read_bytes())
+                                  for path in result.rglob("*") if path.is_file()})
+        workflow.write_text(sibling + "\n")
+        self.assertNoSubmissions(self.cli("run"))
+        self.assertEqual(self.task_attempts()["b"], b_attempt)
+
+    def test_replacement_rechecks_recorded_ownership_before_removal_and_on_resume(self):
+        workflow = self.work / "workflow.py"
+        original = workflow.read_text()
+        workflow.write_text(original + "gwf.task(task, alias='b', result_dir='samples/b/report')\n")
+        self.run_complete()
+        self.cli("clean", "--delete", "b")
+        workflow.write_text(original)
+        process = subprocess.Popen(
+            [sys.executable, str(FIXTURES / "frontend_fault.py"), str(self.work),
+             "gate_before_removal", "a", "run", "--force", "a"],
+            cwd=self.work, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        try:
+            self.wait_for(lambda: (self.work / "frontend-held").exists())
+            b_record = record_path(self.work, "b", "attempt.json")
+            record = read_record(b_record)
+            record["result_dir"] = "samples/a/report/child"
+            write_record(b_record, record)
+            (self.work / "results/samples/b/report").rename(self.work / "results/samples/a/report/child")
+            before = self.storage_snapshot()
+        finally:
+            (self.work / "frontend-release").touch()
+            stdout, stderr = process.communicate(timeout=30)
+        self.assertNotEqual(process.returncode, 0, stdout + stderr)
+        self.assertIn("ownership conflict", stdout + stderr)
+        self.assertEqual(self.storage_snapshot(), before)
+        for arguments in (("run", "--dry-run"), ("run",), ("run", "--force")):
+            output = self.cli(*arguments, success=False)
+            self.assertIn("Task 'a'", output)
+            self.assertIn("Task 'b'", output)
+            self.assertEqual(self.storage_snapshot(), before)
+        self.assert_results(self.work / "results/samples/a/report/child")
 
     def test_unsupported_timestamp_preservation_records_actual_result_metadata(self):
         self.result_timestamp_observation("unsupported_mtime")

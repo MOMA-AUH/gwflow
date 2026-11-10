@@ -1640,6 +1640,10 @@ Roots default to `work/` and `results/` beneath the workflow directory. A Task's
 results directory defaults to its name; `result_dir` supplies an optional relative
 grouping path, and the factory's retained mappings supply filenames inside it.
 Task directories can share grouping parents but cannot contain one another.
+A recorded Task keeps ownership of its results directory when omitted from the
+workflow, including after cleanup. Another Task cannot use that directory or a
+directory above or below it. Preview and execution reject these conflicts before
+changing retained results or selecting a new attempt.
 
 The default transfer staging is `.gwf/gwflow/staging/` when bookkeeping and
 results share a filesystem. Otherwise configure staging explicitly on the

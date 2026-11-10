@@ -173,6 +173,7 @@ def finish(store, attempt):
     store.validate_roots()
     if store.current(attempt["task"], attempt["result_dir"]) != attempt:
         raise WorkflowError("Current Task attempt changed before results commit")
+    store.validate_result_ownership({attempt["task"]: attempt["result_dir"]})
     store.check_inputs(attempt)
     if recovery.action == "complete":
         if not _checked_set(store.result_dir(attempt), manifest):
