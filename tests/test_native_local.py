@@ -165,9 +165,7 @@ class NativeTerminationTests(ProcessProbe, LocalBackendTestCase):
 
     def test_failed_termination_receipt_publication_stays_unresolved(self):
         self.start_probe()
-        receipts = self.work / '.gwf/local-termination'
-        receipt = next(path for path in receipts.glob('*.json')
-                       if json.loads(path.read_text())['submission'].startswith('sample__right__'))
+        receipt = self.work / '.gwf/local-termination/records.json'
         receipt.unlink()
         receipt.mkdir()  # Real filesystem failure at durable evidence publication.
         (self.work / 'release').touch()

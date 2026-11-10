@@ -166,11 +166,10 @@ class LocalCancellationTests(ProcessProbe, LocalBackendTestCase):
         index = self.cli("logs", "sample", "--details")
         attempt = re.search(r"attempt ([0-9a-f]{32})", index).group(1)
         submission = re.search(r"sample__right: complete; submission (\S+)", index).group(1)
-        receipt = next(path for path in (self.work / ".gwf/local-termination").glob("*.json")
-                       if json.loads(path.read_text())["submission"] == submission)
+        receipt = self.work / ".gwf/local-termination/records.json"
         original = receipt.read_bytes()
-        malformed = (None, b"{broken", json.dumps({"submission": "another-submission", "state": "COMPLETED"}).encode(),
-                     json.dumps({"submission": submission, "state": "RUNNING"}).encode())
+        malformed = (None, b"{broken", json.dumps({"version": 1, "submissions": {"another-submission": "COMPLETED"}}).encode(),
+                     json.dumps({"version": 1, "submissions": {submission: "RUNNING"}}).encode())
         for contents in malformed:
             with self.subTest(contents=contents):
                 self.stop_worker(self.worker)

@@ -26,3 +26,26 @@ For the gwf 3 upgrade, [ADR 0020](0020-adopt-gwf-3-local-schedulers-per-workflow
 replaces the earlier worker configuration with a scheduler per workflow
 directory. The descendant ownership and termination guarantees above remain
 required.
+
+On 2026-11-10, issue #362 replaced one termination file per Submission with a
+single workflow ledger and a persistent writer lock. The ledger retains every
+exact Submission name and state. History increases bytes, not file counts.
+Quiescent storage uses two files in `.gwf/local-termination` and one directory.
+The separate attempt bound remains two files and one directory.
+
+Writers serialize complete ledger updates and sync an atomic replacement before
+the scheduler exposes a terminal state. Readers use the complete previous or
+new document without taking the writer lock. Writers never take attempt locks
+or wait for jobs. The completion job's termination publication follows its exit,
+so it updates the ledger independently of attempt compaction.
+
+An interrupted replacement leaves the previous ledger authoritative. Missing,
+malformed, or nonterminal evidence cannot establish inactivity. A later writer
+or scheduler restart removes abandoned temporary files under the writer lock.
+It never promotes a temporary file to evidence. Failed publication retains the
+running job's resource reservation and unresolved state. Operator recovery
+still requires independent evidence that computation stopped.
+
+Under the pre-1.0 policy, this format does not migrate earlier loose receipts.
+After stopping an earlier scheduler and establishing inactivity, operators use
+the existing recovery command before reusing that work.

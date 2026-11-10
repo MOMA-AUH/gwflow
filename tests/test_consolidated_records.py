@@ -90,9 +90,10 @@ class ConsolidatedRecordTests(LocalBackendTestCase):
         store, attempt, _, _ = self.compact_fixture()
         observed = admission.observe(store, attempt, None, "local")
         submission = observed["right"].intent["submission"]
-        receipt = next(path for path in (self.work / ".gwf/local-termination").glob("*.json")
-                       if json.loads(path.read_text())["submission"] == submission)
-        receipt.unlink()
+        receipt = self.work / ".gwf/local-termination/records.json"
+        ledger = json.loads(receipt.read_text())
+        del ledger["submissions"][submission]
+        receipt.write_text(json.dumps(ledger))
         self.assertTrue(store.completed(attempt))
         with self.assertRaisesRegex(WorkflowError, "cannot confirm computation descendants have stopped"):
             admission.observe(store, attempt, None, "local")

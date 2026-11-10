@@ -26,6 +26,7 @@ class ManagedScheduler(Scheduler):
         super().__init__(working_dir, max_cores, max_memory)
         self.started = set()
         self.records = TerminationRecords(self.working_dir)
+        self.records.resume()
 
     def enqueue_task(self, name, script, working_dir, time_limit, deps, cores=1, memory="1g"):
         # Invalidate old receipts before upstream can schedule the submission.

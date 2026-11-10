@@ -78,8 +78,7 @@ class LocalResourceTests(ProcessProbe, LocalBackendTestCase):
 
     def test_failed_receipt_keeps_reservation_and_blocks_unsafe_operations(self):
         self.queue_second()
-        receipt = next(path for path in (self.work / ".gwf/local-termination").glob("*.json")
-                       if json.loads(path.read_text())["submission"].startswith("first__compute__"))
+        receipt = self.work / ".gwf/local-termination/records.json"
         receipt.unlink()
         receipt.mkdir()
         (self.work / "first-release").touch()

@@ -265,9 +265,14 @@ fixture commands never detach. Workers must also provide durable termination
 records and managed process-tree ownership. These records establish descendant
 inactivity across separate worker sessions.
 
-The candidate must reuse automatically and preserve all baseline record bytes
-and metadata. Public operator recovery remains covered by the recovery journeys,
-including preserved recovery records and new uncertain admissions.
+For the bounded termination ledger from issue #362, the candidate must reuse
+automatically and preserve all baseline record bytes and metadata. The pinned
+pre-1.0 bootstrap instead writes one receipt per Submission. The candidate first
+refuses both preview and execution without changing records or outputs. After
+the process-group absence proof above, the comparison uses public operator
+recovery. It preserves every existing logical record and retained-output byte
+and timestamp. Only operator-recovery records are added. No legacy receipt
+migration or new baseline pin is required.
 
 The candidate then previews and runs the unchanged workflow, checks recovery is
 resolved, and proves that attempt identities and computation counts remain unchanged.

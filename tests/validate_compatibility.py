@@ -129,8 +129,31 @@ class CompletedCompatibilityTests(InstalledCompatibilityTests):
                      "job_states": {str(job): state.name for job, state in states.items()},
                      "attempts": attempts, "storage": identities, "snapshot": before})
 
+        bounded_receipts = (self.work / '.gwf/local-termination/records.json').is_file()
         self.select_installation("candidate")
         self.worker = self.start_worker()
+        if not bounded_receipts:
+            # #362 deliberately has no legacy receipt migration before 1.0.
+            # The controlled synchronous jobs and process-group absence above
+            # establish inactivity independently before explicit recovery.
+            old_records = self.logical_records()
+            for arguments in (("run", "--dry-run"), ("run",)):
+                self.assertIn("cannot confirm computation descendants have stopped",
+                              self.cli(*arguments, success=False))
+                self.assertEqual(self.snapshot(), before)
+            for name in names:
+                self.assertIn("Resolved submission", self.cli("recover", name))
+            recovered = self.logical_records()
+            self.assertEqual({name: recovered.get(name) for name in old_records}, old_records)
+            added = {name: record for name, record in recovered.items() if name not in old_records}
+            self.assertTrue(added)
+            self.assertEqual({record['kind'] for record in added.values()}, {'gwflow.operator-recovery'})
+            after_recovery = self.snapshot()
+            self.assertEqual({name: record for name, record in after_recovery.items() if name.startswith('results/')},
+                             {name: record for name, record in before.items() if name.startswith('results/')})
+            self.record({"legacy_termination_recovery": True, "added_recoveries": len(added),
+                         "old_records_unchanged": True, "retained_outputs_unchanged": True})
+            before = after_recovery
         self.cli("status", "--details")
         preview = self.cli("run", "--dry-run")
         for name in names:
