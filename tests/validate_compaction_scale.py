@@ -125,6 +125,18 @@ class ScaleCase(LocalBackendTestCase):
                 self.assertEqual(attempt['files'], 2)
                 self.assertEqual(attempt['directories'], 1)
             self.assertNotIn('transient_conversion', snapshot['categories'])
+            counts = {category: {kind: value for kind, value in values.items() if kind != 'bytes'}
+                      for category, values in snapshot['categories'].items()
+                      if category in ('task_bookkeeping', 'workflow_bookkeeping')}
+            self.assertEqual(counts, getattr(self, 'bounded_bookkeeping', counts))
+            self.bounded_bookkeeping = counts
+            ledger = json.loads((self.work / '.gwf/local-termination/records.json').read_text())['submissions']
+            previous = getattr(self, 'termination_history', {})
+            self.assertEqual({name: ledger.get(name) for name in previous}, previous)
+            self.termination_history = ledger
+            snapshot['termination'] = dict(submissions=len(ledger), previous_preserved=len(previous),
+                                          files=2, directories=1,
+                                          sha256=hashlib.sha256(json.dumps(ledger, sort_keys=True).encode()).hexdigest())
         self.evidence['snapshots'].append(snapshot)
         return snapshot
 
@@ -228,7 +240,8 @@ def main():
     root.mkdir(parents=True, exist_ok=False)
     cases = []
     variants = [(f'targets-{n}', n, 1, 0, 0) for n in args.targets]
-    variants += [(f'history-{n}', 1, 1, n, n) for n in args.histories]
+    variants += [(f'retries-{n}', 1, 1, n, 0) for n in args.histories]
+    variants += [(f'recoveries-{n}', 1, 1, 0, n) for n in args.histories]
     variants += [('cache-eviction-16-tasks', 1, 16, 0, 0)]
     for name, targets, tasks, retries, recoveries in variants:
         case = ScaleCase()
@@ -237,12 +250,16 @@ def main():
         case.retries, case.recoveries = retries, recoveries
         cases.append(case)
     result = unittest.TextTestRunner(verbosity=2).run(unittest.TestSuite(cases))
+    counts = [case.bounded_bookkeeping for case in cases if case.task_count == 1
+              and hasattr(case, 'bounded_bookkeeping')]
+    bounded = bool(counts) and all(count == counts[0] for count in counts)
     summary = dict(command=[sys.executable, *sys.argv], python=platform.python_version(),
                    packages={name: importlib.metadata.version(name) for name in ('gwflow', 'gwf', 'rich', 'textual')},
                    tests_run=result.testsRun, failures=len(result.failures), errors=len(result.errors),
+                   bookkeeping_independent_of_targets_and_history=bounded,
                    cases=[dict(path=str(case.work_root), **getattr(case, 'evidence', {})) for case in cases])
     (root / 'summary.json').write_text(json.dumps(summary, indent=2) + '\n')
-    return 0 if result.wasSuccessful() else 1
+    return 0 if result.wasSuccessful() and bounded else 1
 
 
 if __name__ == '__main__':
