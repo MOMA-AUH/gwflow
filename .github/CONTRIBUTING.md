@@ -9,6 +9,10 @@ GitHub deletes the merged feature branch automatically. Protection applies to
 administrators, with no bypass actors, and blocks force pushes and deletion of
 `master`.
 
+For validation planning and readiness reviews, read the
+[maintainer-led HPC testing context](../docs/validation/README.md#maintainer-led-hpc-testing)
+and the validation procedures in that guide.
+
 Dependabot checks supported dependency manifests weekly and assigns its pull
 requests to `micknudsen`. Review dependency updates through the same PR and CI
 process. Keep Python metadata, development environments, and Conda recipe
