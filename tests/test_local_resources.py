@@ -100,6 +100,10 @@ class LocalResourceTests(ProcessProbe, LocalBackendTestCase):
         self.assertFalse((self.work / "first-held").exists())
 
     def test_confirmed_capacity_rejection_can_continue_after_request_is_reduced(self):
+        def preparation_job():
+            task = json.loads(self.cli_result("status", "first", "--json", "--details").stdout)["tasks"][0]
+            return next(job for job in task["jobs"] if job["name"] == "first__gwflow_prepare")
+
         self.configure_workflow(cores=3)
         output = self.cli("run", "first", success=False)
         self.assertIn("requested 3 cores", output)
@@ -107,9 +111,7 @@ class LocalResourceTests(ProcessProbe, LocalBackendTestCase):
         self.assertFalse((self.work / "first-held").exists())
         self.settle()
         before = self.task_attempts()["first"]
-        preparation = next(job for job in json.loads(self.cli_result(
-            "status", "first", "--json", "--details").stdout)["tasks"][0]["jobs"]
-                           if job["name"] == "first__gwflow_prepare")
+        preparation = preparation_job()
         replace_with_cached_source(self, self.work / "workflow.py", "cores=3,", "cores=2,")
         self.assertIn("Continue", self.cli("run", "first", "--dry-run"))
         self.cli("run", "first")
@@ -117,9 +119,7 @@ class LocalResourceTests(ProcessProbe, LocalBackendTestCase):
         (self.work / "first-release").touch()
         self.finish()
         self.assertEqual(self.task_attempts()["first"], before)
-        completed_preparation = next(job for job in json.loads(self.cli_result(
-            "status", "first", "--json", "--details").stdout)["tasks"][0]["jobs"]
-                                     if job["name"] == "first__gwflow_prepare")
+        completed_preparation = preparation_job()
         self.assertEqual(completed_preparation["submission_name"], preparation["submission_name"])
         self.assertEqual(completed_preparation["backend_id"], preparation["backend_id"])
         self.assertIn("Reuse", self.cli("run", "first", "--dry-run"))
