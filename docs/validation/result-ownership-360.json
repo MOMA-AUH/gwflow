@@ -1,0 +1,58 @@
+{
+  "date": "2026-11-10",
+  "issue": "https://github.com/MOMA-AUH/gwflow/issues/360",
+  "tested_source_commit": "d87b05dbde6fc4caff228b67ef70a33b3ff5c6a7",
+  "baseline_commit": "ece0797ded4743eb835ecf3a3d549dd0b45fc1f7",
+  "paths": {
+    "<ENV>": "Task-owned Python installation on local temporary storage outside the checkout.",
+    "<TYPE_ENV>": "Existing repository-local development environment providing mypy.",
+    "relative_paths": "All ordinary paths are relative to the repository checkout.",
+    "raw_logs": "build/validation/ownership-360/ (ignored; raw machine-specific output)"
+  },
+  "versions": {
+    "python": "3.12.16",
+    "gwf": "3.0.0",
+    "gwflow": "0.11.0",
+    "pip": "26.2.2",
+    "setuptools": "84.2.1",
+    "rich": "15.0.0",
+    "textual": "8.2.8"
+  },
+  "environment": "Installed the candidate wheel with pip --no-deps --no-build-isolation. pip check passed. Real local worker tests ran serially with socket and process observation access.",
+  "checks": [
+    {
+      "command": "<ENV>/bin/python -m unittest discover -s tests -p test_storage.py -v",
+      "result": "Passed: 19 tests in 52.358 seconds.",
+      "raw_log": "build/validation/ownership-360/storage-final.log"
+    },
+    {
+      "command": "<ENV>/bin/python -m unittest discover -s tests -p test_planning_workload.py -v",
+      "result": "Passed: 1 test in 67.315 seconds, including 418 real local jobs and unchanged planning I/O bounds.",
+      "raw_log": "build/validation/ownership-360/workload-final.log"
+    },
+    {
+      "command": "<TYPE_ENV>/bin/python -m mypy --follow-imports=silent --ignore-missing-imports src/gwflow/lifecycle.py src/gwflow/planning.py src/gwflow/transfer.py src/gwflow/admission.py",
+      "result": "Passed: no issues in four source files, using default untyped-body checking.",
+      "raw_log": "build/validation/ownership-360/mypy-final.log"
+    }
+  ],
+  "coverage": [
+    "Equal, ancestor, and descendant collisions against omitted Tasks, before and after disposable-work cleanup.",
+    "Persisted ownership when retained results are missing; conservative refusal of missing and malformed ownership.",
+    "Valid sibling destinations, unchanged Task Reuse after reintroduction, and exclusive-directory force.",
+    "Recorded conflict injected after current-attempt selection but before result removal; preview, resumed initialization, and force preserve all retained contents and identity evidence."
+  ],
+  "red_evidence": {
+    "baseline": "The nested omitted-Task destination was accepted in run --dry-run (exit 0), where the new regression requires refusal. This diagnostic probe used baseline installed code and the new regression fixture.",
+    "baseline_raw_log": "build/validation/ownership-360/red.log",
+    "precommit_correction": "An initial additional ownership scan caused the existing 418-job workload to read producer evidence twice against a bound of one. Sharing the already-required recorded-Task observation corrected the failure without changing bounds or timeouts.",
+    "precommit_failure_raw_log": "build/validation/ownership-360/workload.log"
+  },
+  "review": {
+    "base": "ece0797ded4743eb835ecf3a3d549dd0b45fc1f7",
+    "head": "d87b05dbde6fc4caff228b67ef70a33b3ff5c6a7",
+    "standards": "No findings.",
+    "spec": "No implementation findings. Final validation evidence and all CI remained required."
+  },
+  "scope": "This is pre-1.0 behavior correction, with no new persistent format, migration, or adoption of unknown data. Complete exact-head CI is a separate merge gate; see the linked PR for its final checks."
+}
