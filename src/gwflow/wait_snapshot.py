@@ -3,7 +3,6 @@
 import json
 from pathlib import Path
 import signal
-import sys
 
 import click
 from gwf.core import pass_context
@@ -37,11 +36,9 @@ def capture(ctx, destination, selectors):
 
 
 def capture_snapshot(ctx, destination, selectors):
-    sys.pycache_prefix = str(destination.parent / 'pycache')
-    sys.dont_write_bytecode = True
     request_path = destination.parent / "request.json"
     awaited = json.loads(request_path.read_text()) if request_path.exists() else None
-    workflow = load_workflow(ctx)
+    workflow = load_workflow(ctx, cache_parent=destination.parent)
     if awaited is not None:
         missing = set(awaited) - workflow._task_declarations.keys()
         if missing:

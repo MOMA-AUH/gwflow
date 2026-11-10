@@ -1,0 +1,75 @@
+{
+  "issue": "https://github.com/MOMA-AUH/gwflow/issues/361",
+  "date": "2026-11-10",
+  "baseline_source": "ece0797ded4743eb835ecf3a3d549dd0b45fc1f7",
+  "candidate_source": "2a115d5de564cf945ec7591fb98f5722bd35f563",
+  "paths": {
+    "policy": "All repository paths are relative to the checkout. <ENV> denotes the isolated temporary Python installation outside the checkout; <TYPECHECK> denotes build/validation/cancellation-307/typecheck. Raw machine-specific logs remain ignored.",
+    "raw_logs": "build/validation/source-freshness-361/"
+  },
+  "environment": {
+    "python": "3.12.16",
+    "gwflow": "0.11.0",
+    "gwf": "3.0.0",
+    "click": "8.5.1",
+    "textual": "8.2.8",
+    "rich": "15.0.0",
+    "setuptools": "84.2.1",
+    "readiness": "Python, pip, sibling gwf launcher, pip check, and candidate installation verified. Real-worker cases ran serially with socket and process-observation access."
+  },
+  "reproduction": [
+    {
+      "command": "<ENV>/bin/python -m unittest discover -s tests -p test_source_freshness.py -v",
+      "source": "baseline_source",
+      "tests": 2,
+      "failures": 2,
+      "seconds": 3.832,
+      "result": "Entry-point and imported Task command edits both retained output 'old' instead of 'new'. Timestamp-mode bytecode remained present; source size and whole-second modification timestamp remained unchanged.",
+      "log": "red.log"
+    },
+    {
+      "command": "PYTHONPATH=tests <ENV>/bin/python -m unittest test_local_resources.LocalResourceTests.test_confirmed_capacity_rejection_can_continue_after_request_is_reduced -v",
+      "source": "baseline_source",
+      "tests": 1,
+      "failures": 1,
+      "seconds": 1.369,
+      "result": "After confirmed three-core capacity rejection and a same-size/same-second edit to two cores, the next run still requested three cores. The candidate passes this same deterministic regression, preserving the Task attempt and preparation submission/backend identity.",
+      "log": "red-resource.log"
+    }
+  ],
+  "causal_conclusion": "Timestamp-valid stale bytecode is a demonstrated sufficient cause of the resource-recovery failure signature seen in master CI run 42781051578 and PR 364. The historical CI run did not retain its source/cache pair, so this record does not independently prove that run's cache contents. No independent cause was found in the deterministic reproduction or related candidate tests.",
+  "candidate_checks": [
+    {
+      "command": "PYTHONPATH=tests <ENV>/bin/python -m unittest -v test_source_freshness test_local_resources test_cli test_wait",
+      "tests": 62,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "seconds": 216.603,
+      "log": "related.log",
+      "scope": "Installed source/current command behavior, resource budgets and recovery, ordinary gwf isolation, wait and inspection-child timeout/descendant cleanup. The later embedded-CLI isolation case was run separately and in the final focused check."
+    },
+    {
+      "command": "PYTHONPATH=tests <ENV>/bin/python -m unittest -v test_source_freshness test_local_resources.LocalResourceTests.test_confirmed_capacity_rejection_can_continue_after_request_is_reduced",
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "seconds": 13.781,
+      "log": "final-focused.log",
+      "scope": "Final reviewed tests: entry point and imported Task definitions agree across preview, execution, static/JSON status, actual terminal browser and wait; existing bytecode remains unchanged. Public embedded CLI restores interpreter settings and cleans temporary loading files on success and authored failure. Resource recovery retains valid preparation."
+    },
+    {
+      "command": "<TYPECHECK>/bin/python -m mypy --follow-imports=silent --ignore-missing-imports src/gwflow/_frontend.py src/gwflow/status_snapshot.py src/gwflow/wait_snapshot.py",
+      "result": "Success: no issues found in 3 source files",
+      "scope": "Default mypy checking; does not enable check-untyped-defs.",
+      "log": "mypy.log"
+    },
+    {
+      "command": "<ENV>/bin/python -m compileall -q src tests example",
+      "result": "passed"
+    }
+  ],
+  "review": "Parallel Standards and Spec reviews found no implementation violations. One optional duplicated test observation was extracted in candidate_source; Standards confirmed resolution.",
+  "full_suite": "The local checks are focused evidence. Complete installed Conda suite coverage and all eight exact-final-head CI checks remain the PR merge gate; this pre-CI record does not claim that gate passed."
+}
