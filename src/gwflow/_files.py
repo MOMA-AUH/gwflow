@@ -208,17 +208,17 @@ def _unchanged(path, expected, observed):
         raise WorkflowError(f"Managed file changed while observing evidence: {path}")
 
 
-def _observed_file(path, kind, read, *, parent_directory=None):
+def _observed_file(path, kind, read, *, parent_directory=None, select=None):
     with parent_directory if parent_directory is not None else _read_directory(path.parent) as parent:
         if not _observations.active():
-            return read(parent, None)
+            return _observations.reuse(kind, None, lambda: read(parent, None), select=select)
         try:
             info = os.stat(path.name, dir_fd=parent, follow_symlinks=False)
         except OSError:
             # Preserve the reader's missing-file/error semantics and permit
             # publication after this absent observation to be seen immediately.
-            return read(parent, None)
-        return _observations.reuse(kind, (str(path), _signature(info)), lambda: read(parent, info))
+            return _observations.reuse(kind, None, lambda: read(parent, None), refresh=True, select=select)
+        return _observations.reuse(kind, (str(path), _signature(info)), lambda: read(parent, info), select=select)
 
 
 def metadata(root, filenames, *, sync=False):
@@ -271,7 +271,12 @@ def file_set(root):
     return files
 
 
-def read_json(path, *, parent_directory=None):
+def read_json(path, *, parent_directory=None, validate=None, select=None):
+    """Read current evidence, optionally validating once and copying a selection.
+
+    Validators and selectors are private readers and must not mutate evidence.
+    Validation belongs to the cached document; selection runs on every lookup.
+    """
     path = Path(path)
     def read(parent, expected):
         fd = os.open(path.name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=parent)
@@ -281,9 +286,11 @@ def read_json(path, *, parent_directory=None):
             if not stat.S_ISREG(info.st_mode):
                 return None
             value = json.load(stream)
-            return value if isinstance(value, dict) else None
+            return value if (isinstance(value, dict)
+                             and (validate is None or validate(value))) else None
     try:
-        return _observed_file(path, "json", read, parent_directory=parent_directory)
+        kind = "json" if validate is None else ("json", validate)
+        return _observed_file(path, kind, read, parent_directory=parent_directory, select=select)
     except (FileNotFoundError, ValueError, UnicodeError):
         return None
     except OSError as exc:

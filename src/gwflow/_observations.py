@@ -46,10 +46,11 @@ def resource(kind, open_resource):
     return facts[key]
 
 
-def reuse(kind, key, observe, *, refresh=False):
+def reuse(kind, key, observe, *, refresh=False, select=None):
     scope = _current.get()
     if scope is None:
-        return observe()
+        value = observe()
+        return value if select is None else deepcopy(select(value))
     facts, _ = scope
     key = kind, key
     if refresh:
@@ -57,4 +58,8 @@ def reuse(kind, key, observe, *, refresh=False):
     if key not in facts:
         facts[key] = observe()
     # Callers own their observations, including nested admission records.
-    return deepcopy(facts[key])
+    # A private selector can extract a small value without copying a complete
+    # history. It must not modify the stored observation; callers still own
+    # the returned value, never the cached authority.
+    value = facts[key] if select is None else select(facts[key])
+    return deepcopy(value)
