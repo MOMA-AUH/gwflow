@@ -621,14 +621,15 @@ class Store:
             if name in owners and owners[name] != destination:
                 raise WorkflowError(f"Recorded Task results location changed for {name!r}")
             owners[name] = destination
-        seen = []
-        for name, destination in owners.items():
-            path = self.locations["results"] / destination
-            for previous, previous_path in seen:
-                if _overlap(path, previous_path):
-                    raise ResultOwnershipConflict(f"Results directory ownership conflict: Task {name!r} at {path} "
-                                                  f"overlaps Task {previous!r} at {previous_path}")
-            seen.append((name, path))
+        # Component order puts every ancestor directly before its first
+        # descendant. String order would allow a sibling such as "a-" to
+        # separate "a" from "a/child" and hide the conflict.
+        ordered = sorted(((self.locations["results"] / destination, name)
+                          for name, destination in owners.items()), key=lambda item: item[0].parts)
+        for (previous_path, previous), (path, name) in zip(ordered, ordered[1:]):
+            if _overlap(path, previous_path):
+                raise ResultOwnershipConflict(f"Results directory ownership conflict: Task {name!r} at {path} "
+                                              f"overlaps Task {previous!r} at {previous_path}")
 
     def producer_attempt(self, attempt, name):
         producer = self.recorded_current(name)

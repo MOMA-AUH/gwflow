@@ -1,0 +1,189 @@
+{
+  "date": "2026-11-13",
+  "issue": "https://github.com/MOMA-AUH/gwflow/issues/369",
+  "baseline_source": "cad65b7055696166ac4042a2189722d79a3256de",
+  "candidate_source": "b1293f5b8aa7fa9bcb0cd4e0a481f9b9e1939e58",
+  "runtime": {
+    "python": "3.12.16",
+    "gwf": "3.0.0",
+    "gwflow": "0.11.0"
+  },
+  "path_placeholders": {
+    "<ENV>": "Temporary candidate Python installation outside the checkout; the same interpreter measures both versions"
+  },
+  "commands": [
+    "git archive cad65b7055696166ac4042a2189722d79a3256de src | tar -x -C build/validation/ownership-369/baseline",
+    "PYTHONPATH=build/validation/ownership-369/baseline/src:tests <ENV>/bin/python tests/benchmark_result_ownership.py --output build/validation/ownership-369/baseline.json",
+    "PYTHONPATH=tests <ENV>/bin/python tests/benchmark_result_ownership.py --output build/validation/ownership-369/candidate.json",
+    "PYTHONPATH=tests GWFLOW_IO_EVIDENCE=build/validation/ownership-369/probes <ENV>/bin/python -m unittest -v test_result_ownership.OwnershipCommandScalingTests",
+    "PYTHONPATH=tests <ENV>/bin/python -m unittest -v test_result_ownership.OwnershipMutationTests test_result_ownership.ResultOwnershipScalingTests"
+  ],
+  "measurement_scope": [
+    "Complete ownership checks use synthetic recorded inventories and exclude filesystem record reads, workflow authoring, and scheduling.",
+    "Growing checks simulate the two ownership validations per initialization against each successive inventory; public run checks separately measure actual initialization.",
+    "Counts observe calls to the unchanged overlap predicate, excluding builtin sorting. Component sorting is O(n log n); adjacent overlap checks are linear for fixed path depth. Repeated initialization retains fresh reads and has O(n^2 log n) aggregate comparison work instead of cubic.",
+    "Uninstrumented single-run wall times are supporting measurements from this machine, not portable latency guarantees or regression thresholds.",
+    "Public workflow expands from 8 to 16 to 32 Tasks; already completed Tasks are reused. Completion happens in separate workers and is covered by safety regressions, not these frontend comparison counts.",
+    "Raw machine-specific logs and probe paths remain under ignored build/validation/ownership-369/. No path substitutions were required in benchmark numeric data."
+  ],
+  "baseline": {
+    "python": "3.12.16",
+    "lifecycle_sha256": "6e7cc15fe3c03b53468d9c614a585b01e0945be6e629014377387bed7307bc2b",
+    "scope": "Real ownership validator with synthetic recorded inventory; excludes record I/O, authoring and scheduling",
+    "counts": "Calls to the overlap predicate; excludes builtin component sorting",
+    "complete_counts": [
+      {
+        "tasks": 64,
+        "overlap_comparisons": 2016
+      },
+      {
+        "tasks": 128,
+        "overlap_comparisons": 8128
+      },
+      {
+        "tasks": 256,
+        "overlap_comparisons": 32640
+      }
+    ],
+    "growing_counts": [
+      {
+        "tasks": 16,
+        "overlap_comparisons": 1360
+      },
+      {
+        "tasks": 32,
+        "overlap_comparisons": 10912
+      },
+      {
+        "tasks": 64,
+        "overlap_comparisons": 87360
+      }
+    ],
+    "complete_timings": [
+      {
+        "tasks": 1000,
+        "seconds": 11.550081540946849
+      },
+      {
+        "tasks": 2000,
+        "seconds": 46.11820326198358
+      }
+    ],
+    "growing_timings": [
+      {
+        "tasks": 64,
+        "seconds": 2.030213468009606
+      },
+      {
+        "tasks": 128,
+        "seconds": 16.16041865805164
+      },
+      {
+        "tasks": 256,
+        "seconds": 131.4511833949946
+      }
+    ]
+  },
+  "candidate": {
+    "python": "3.12.16",
+    "lifecycle_sha256": "4510bfba2973e669dac57ca697c302fd82b5f2b996ca12244f87d4d9e3c0b3c9",
+    "scope": "Real ownership validator with synthetic recorded inventory; excludes record I/O, authoring and scheduling",
+    "counts": "Calls to the overlap predicate; excludes builtin component sorting",
+    "complete_counts": [
+      {
+        "tasks": 64,
+        "overlap_comparisons": 63
+      },
+      {
+        "tasks": 128,
+        "overlap_comparisons": 127
+      },
+      {
+        "tasks": 256,
+        "overlap_comparisons": 255
+      }
+    ],
+    "growing_counts": [
+      {
+        "tasks": 16,
+        "overlap_comparisons": 240
+      },
+      {
+        "tasks": 32,
+        "overlap_comparisons": 992
+      },
+      {
+        "tasks": 64,
+        "overlap_comparisons": 4032
+      }
+    ],
+    "complete_timings": [
+      {
+        "tasks": 1000,
+        "seconds": 0.029438819969072938
+      },
+      {
+        "tasks": 2000,
+        "seconds": 0.057935236021876335
+      }
+    ],
+    "growing_timings": [
+      {
+        "tasks": 64,
+        "seconds": 0.11309945292305201
+      },
+      {
+        "tasks": 128,
+        "seconds": 0.45156945392955095
+      },
+      {
+        "tasks": 256,
+        "seconds": 1.8292379229096696
+      }
+    ]
+  },
+  "public_command_counts": [
+    {
+      "probe": "ownership-16-run---dry-run.json",
+      "overlap_comparisons": 15
+    },
+    {
+      "probe": "ownership-16-run.json",
+      "overlap_comparisons": 199
+    },
+    {
+      "probe": "ownership-16-status.json",
+      "overlap_comparisons": 15
+    },
+    {
+      "probe": "ownership-32-run---dry-run.json",
+      "overlap_comparisons": 31
+    },
+    {
+      "probe": "ownership-32-run.json",
+      "overlap_comparisons": 783
+    },
+    {
+      "probe": "ownership-32-status.json",
+      "overlap_comparisons": 31
+    },
+    {
+      "probe": "ownership-8-run---dry-run.json",
+      "overlap_comparisons": 7
+    },
+    {
+      "probe": "ownership-8-run.json",
+      "overlap_comparisons": 63
+    },
+    {
+      "probe": "ownership-8-status.json",
+      "overlap_comparisons": 7
+    }
+  ],
+  "validation": {
+    "baseline_red": "The full-inventory linear bound failed at all three sizes: 2016, 8128, 32640 comparisons.",
+    "candidate": "Nine new cases passed across serial focused invocations: actual command scaling plus eight mutation and component-order cases. Bounded mypy passed lifecycle.py.",
+    "safety": "Current malformed or conflicting omitted records prevent initialization, Repair selection and retained installation; checks preserve retained contents, inode and mtime, selected attempt and computation counts. Existing omitted/cleaned/missing-result and interrupted-initialization suites remain part of qualification.",
+    "limits": "This record does not claim final full-suite CI or live-HPC qualification. Maintainer-led HPC testing context remains docs/validation/README.md#maintainer-led-hpc-testing."
+  }
+}

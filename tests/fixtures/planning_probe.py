@@ -44,6 +44,9 @@ class Probe:
         if event == "call":
             module = frame.f_globals.get("__name__", "")
             name = frame.f_code.co_name
+            if (module == "gwflow.lifecycle" and name == "_overlap"
+                    and frame.f_back.f_code.co_name == "validate_result_ownership"):
+                self.counts[self.phase]["ownership_comparisons"] += 1
             if module == "gwflow.lifecycle" and name == "input_baseline":
                 self.counts[self.phase]["input_validations"] += 1
             if module == "gwflow.lifecycle" and name == "require_producers":
