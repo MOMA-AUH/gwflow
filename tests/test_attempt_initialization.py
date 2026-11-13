@@ -59,7 +59,10 @@ class AttemptInitializationTests(LocalBackendTestCase):
             self.assertEqual(pending, previous)
         if not ready:
             self.assertEqual(retained.read_text(), "a")
-            self.assertEqual(retained.stat(), before)
+            after = retained.stat()
+            # Reading the contents can update access time on this filesystem.
+            self.assertEqual((after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns),
+                             (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns))
         self.cli("status", "--json")
         self.cli("recover", "a")
         self.cli("clean", "--delete")
