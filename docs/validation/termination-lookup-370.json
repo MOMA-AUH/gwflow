@@ -1,0 +1,195 @@
+{
+  "date": "2026-11-13",
+  "issue": "https://github.com/MOMA-AUH/gwflow/issues/370",
+  "baseline_source": "32557bf2cd86e8f8a82b49be9103064cd121e6a4",
+  "candidate_source": "168ca32991663a6bb3857869c2d5958f14e7f0ae",
+  "path_placeholders": {
+    "<ENV>": "Temporary installed Python 3.12 candidate environment outside the checkout; also supplies dependencies for the isolated baseline source"
+  },
+  "commands": [
+    "git archive 32557bf2cd86e8f8a82b49be9103064cd121e6a4 src | tar -x -C build/validation/termination-370/baseline",
+    "PYTHONPATH=build/validation/termination-370/baseline/src:tests <ENV>/bin/python -c \"from benchmark_termination_lookup import measure; print([measure(h, l) for h in (32, 128, 512) for l in (1, 16, 64)])\"",
+    "<ENV>/bin/python tests/benchmark_termination_lookup.py --output build/validation/termination-370/candidate.json",
+    "PYTHONPATH=tests <ENV>/bin/python -m unittest -v test_local_termination_records",
+    "PYTHONPATH=tests <ENV>/bin/python -m unittest -v test_local_cancellation.LocalCancellationTests.test_confirmed_completion_remains_reusable_after_worker_restart"
+  ],
+  "scope": [
+    "The unchanged-ledger deterministic gate varies histories of 32/128/512 and lookup counts of 1/16/64. Independent readers share the same observation.",
+    "Additional regressions cover supported atomic publications, in-place modifications with changed signatures, removal, corruption, unsupported and nonterminal states, exact names, directory and file symlink substitutions, mutable returned values, and observation teardown.",
+    "Baseline code is an isolated checkout export with candidate-environment dependencies; candidate code is installed and its three module bytes were compared with the committed checkout. Neither measurement is total CLI latency.",
+    "Timings are single-run supporting observations without pass thresholds. Deterministic operation counts are measured separately. The installed regression suite was running on the host during benchmark collection.",
+    "Reader identity remains the existing device/inode/mode/size/mtime_ns/ctime_ns signature plus current no-follow directory ancestry. Normal writers atomically replace the ledger inode. Equal-size external in-place writes sharing every signature field within one filesystem timestamp tick remain undetectable by the pre-existing cache; this change does not broaden that limitation. In-place regression fixtures explicitly establish a changed mtime or ctime, including a same-size/restored-mtime check.",
+    "The installed CLI journey restarts to an empty scheduler, checks reusable status and dry-run Reuse, executes without submissions, cleans, and confirms Reuse plus unchanged exact-Submission ledger bytes, tracking, retained output, and computation trace.",
+    "Publication code and persisted format are unchanged. This record is focused acceptance evidence, not full-suite or live-HPC qualification. Raw logs remain under ignored build/validation/termination-370/."
+  ],
+  "baseline": [
+    {
+      "history": 32,
+      "lookups": 1,
+      "seconds_uninstrumented": 0.00039860408287495375,
+      "operations": {
+        "decodes": 1,
+        "copies": 69,
+        "validation_visits": 33
+      }
+    },
+    {
+      "history": 32,
+      "lookups": 16,
+      "seconds_uninstrumented": 0.001076417975127697,
+      "operations": {
+        "decodes": 1,
+        "copies": 1104,
+        "validation_visits": 528
+      }
+    },
+    {
+      "history": 32,
+      "lookups": 64,
+      "seconds_uninstrumented": 0.00359575601760298,
+      "operations": {
+        "decodes": 1,
+        "copies": 4416,
+        "validation_visits": 2112
+      }
+    },
+    {
+      "history": 128,
+      "lookups": 1,
+      "seconds_uninstrumented": 0.00030115991830825806,
+      "operations": {
+        "decodes": 1,
+        "copies": 261,
+        "validation_visits": 129
+      }
+    },
+    {
+      "history": 128,
+      "lookups": 16,
+      "seconds_uninstrumented": 0.0017843019450083375,
+      "operations": {
+        "decodes": 1,
+        "copies": 4176,
+        "validation_visits": 2064
+      }
+    },
+    {
+      "history": 128,
+      "lookups": 64,
+      "seconds_uninstrumented": 0.0061367860762402415,
+      "operations": {
+        "decodes": 1,
+        "copies": 16704,
+        "validation_visits": 8256
+      }
+    },
+    {
+      "history": 512,
+      "lookups": 1,
+      "seconds_uninstrumented": 0.0005603699246421456,
+      "operations": {
+        "decodes": 1,
+        "copies": 1029,
+        "validation_visits": 513
+      }
+    },
+    {
+      "history": 512,
+      "lookups": 16,
+      "seconds_uninstrumented": 0.004325501038692892,
+      "operations": {
+        "decodes": 1,
+        "copies": 16464,
+        "validation_visits": 8208
+      }
+    },
+    {
+      "history": 512,
+      "lookups": 64,
+      "seconds_uninstrumented": 0.016238149954006076,
+      "operations": {
+        "decodes": 1,
+        "copies": 65856,
+        "validation_visits": 32832
+      }
+    }
+  ],
+  "candidate": {
+    "python": "3.12.16",
+    "versions": {
+      "gwflow": "0.11.0",
+      "gwf": "3.0.0"
+    },
+    "installed_source_sha256": {
+      "gwflow._files": "c677a04e87f0c1e44f66495b719c19eafecacc00f67608d4b68fb2017db1a667",
+      "gwflow._local_termination": "41d6bac0c2e617add51307c68e57bcd3a8a1f08c20642e3cd90e47338c067278",
+      "gwflow._observations": "dc3093c919afcc212efc8ade403a39ea7d24edd659ffa5a70a6144b551813b0e"
+    },
+    "measurements": [
+      {
+        "history": 1000,
+        "lookups": 1000,
+        "seconds_uninstrumented": 0.03556639899034053,
+        "operations": {
+          "decodes": 1,
+          "validation_visits": 1001,
+          "copies": 1000
+        }
+      },
+      {
+        "history": 10000,
+        "lookups": 1000,
+        "seconds_uninstrumented": 0.037637850968167186,
+        "operations": {
+          "decodes": 1,
+          "validation_visits": 10001,
+          "copies": 1000
+        }
+      },
+      {
+        "history": 1000,
+        "lookups": 10000,
+        "seconds_uninstrumented": 0.3496914269635454,
+        "operations": {
+          "decodes": 1,
+          "validation_visits": 1001,
+          "copies": 10000
+        }
+      },
+      {
+        "history": 10000,
+        "lookups": 10000,
+        "seconds_uninstrumented": 0.35146869090385735,
+        "operations": {
+          "decodes": 1,
+          "validation_visits": 10001,
+          "copies": 10000
+        }
+      }
+    ],
+    "scope": "Exact-Submission lookup in one observation; not total CLI latency. Timings and operation counts are separate runs; no timing pass threshold."
+  },
+  "focused_results": {
+    "lookup_tests": {
+      "run": 9,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0
+    },
+    "installed_restart_reuse": {
+      "run": 1,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0
+    },
+    "bounded_typecheck": {
+      "modules": [
+        "gwflow._files",
+        "gwflow._local_termination",
+        "gwflow._observations"
+      ],
+      "mypy": "2.4.1",
+      "result": "passed"
+    }
+  }
+}
