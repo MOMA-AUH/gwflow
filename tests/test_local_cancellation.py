@@ -184,11 +184,23 @@ class LocalCancellationTests(ProcessProbe, LocalBackendTestCase):
 
     def test_confirmed_completion_remains_reusable_after_worker_restart(self):
         self.run_complete()
+        ledger = self.work / ".gwf/local-termination/records.json"
+        original = ledger.read_bytes()
+        tracked = (self.work / ".gwf/local-backend-tracked.json").read_bytes()
         self.stop_worker(self.worker)
         self.worker = self.start_worker()
+        # The restarted scheduler has no job identities, so these commands
+        # must observe the durable exact-Submission history.
+        from gwf.backends.local import Client, get_socket_path
+        with Client.connect(get_socket_path(self.work)) as client:
+            self.assertEqual(client.status(), {})
+        self.assertIn("reusable", self.cli("status", "sample", "--plain"))
         self.assertIn("Reuse", self.cli("run", "sample", "--dry-run"))
+        self.assertNoSubmissions(self.cli("run", "sample"))
         self.cli("clean", "sample", "--delete")
         self.assertIn("Reuse", self.cli("run", "sample", "--dry-run"))
+        self.assertEqual(ledger.read_bytes(), original)
+        self.assertEqual((self.work / ".gwf/local-backend-tracked.json").read_bytes(), tracked)
         self.assertEqual((self.work / "results/sample/result.txt").read_text(), "leftright")
         self.assertEqual(Counter((self.work / "trace").read_text().splitlines()),
                          {"left": 1, "right": 1, "join": 1})

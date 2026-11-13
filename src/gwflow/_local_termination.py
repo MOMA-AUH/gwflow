@@ -24,7 +24,8 @@ class TerminationRecords:
         self.root = Path(working_dir) / ".gwf" / "local-termination"
         self.path = self.root / "records.json"
 
-    def _valid(self, record):
+    @staticmethod
+    def _valid(record):
         return (isinstance(record, dict) and set(record) == {"version", "submissions"}
                 and type(record["version"]) is int and record["version"] == 1
                 and isinstance(record["submissions"], dict)
@@ -34,11 +35,11 @@ class TerminationRecords:
     def read(self, submission):
         # Atomic replacement gives readers a complete snapshot without taking
         # a workflow lock while they may already hold an attempt record lock.
-        record = _files.read_json(self.path)
-        if self._valid(record):
-            state = record["submissions"].get(submission)
-            if state in TERMINAL_NAMES:
-                return LocalStatus[state]
+        state = _files.read_json(
+            self.path, validate=self._valid,
+            select=lambda record: record["submissions"].get(submission) if record is not None else None)
+        if state in TERMINAL_NAMES:
+            return LocalStatus[state]
         return LocalStatus.UNKNOWN
 
     def record(self, submission, state):
