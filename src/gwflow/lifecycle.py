@@ -992,11 +992,35 @@ class Store:
                           operation=operation, preparation=preparation, executions=executions, jobs=jobs, result_dir=result_dir,
                           structure=observation.structure, commands=observation.commands, producers=producers,
                           command_tracking=bool(tracking), fingerprint=fingerprint, managed_tmpdir=managed_tmpdir)
-        self.records(attempt).initialize()
-        self.records(attempt).publish("attempt.json", attempt)
+        self.allocate_attempt(attempt)
         self.publish(attempt, "initialization.json", "initialization", destination=str(self.result_dir(attempt)),
                      previous=observation.attempt["attempt"] if observation.attempt else None,
                      result_identity=observation.removal)
         _files.publish(self._task_dir(observation.name) / "current.json",
                        _record("current", **self.identity(attempt)))
         return self.finish_initialization(attempt)
+
+    def allocate_attempt(self, attempt):
+        """Expose only complete initial records in the recorded Task inventory.
+
+        Private allocations are never selected, adopted, or enumerated as
+        attempts. An interrupted allocation can remain there without weakening
+        the checks on missing evidence in an established Task namespace.
+        """
+        task_dir = self._task_dir(attempt["task"])
+        allocation = task_dir.parent.parent / (".initializing-" + attempt["attempt"])
+        with _files.directory(allocation.parent, create=True) as parent:
+            os.mkdir(allocation.name, dir_fd=parent)
+            _files.sync_directory(parent)
+        identity = _files.identity(allocation)
+        staged_task = allocation / "tasks" / attempt["task"]
+        records = _records.AttemptRecords(staged_task, attempt)
+        records.initialize()
+        records.publish("attempt.json", attempt)
+        if _files.exists(task_dir):
+            _files.commit_directory(staged_task / "attempts" / attempt["attempt"],
+                                    task_dir / "attempts" / attempt["attempt"])
+        else:
+            # Installing the first Task must not expose an empty Task directory.
+            _files.commit_directory(staged_task, task_dir)
+        _files.remove_directory(allocation, identity)

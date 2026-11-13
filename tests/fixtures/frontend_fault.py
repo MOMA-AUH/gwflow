@@ -13,6 +13,7 @@ work, phase, task = Path(sys.argv[1]), sys.argv[2], sys.argv[3]
 sys.argv = ["gwflow", *sys.argv[4:]]
 original_replace, original_unlink, original_rename, original_rmdir = os.replace, os.unlink, os.rename, os.rmdir
 original_symlink, original_link = os.symlink, os.link
+original_mkdir = os.mkdir
 recovery_writes = 0
 
 
@@ -33,6 +34,10 @@ def replace(source, destination, **kwargs):
     global recovery_writes
     parent = directory(kwargs, "dst_dir_fd")
     selected = parent is not None and f"/tasks/{task}/" in str(parent) + "/"
+    if selected and destination == "attempt.json" and phase == "before_attempt_record":
+        os._exit(120)
+    if selected and destination == "ready.json" and phase == "before_ready":
+        os._exit(121)
     if selected and destination == "recovery.json":
         recovery_writes += 1
         if phase == "recovery_second_write_error" and recovery_writes == 2:
@@ -74,6 +79,8 @@ def replace(source, destination, **kwargs):
         if phase == "restoration_before_" + restoration_phase:
             os._exit(116)
     result = original_replace(source, destination, **kwargs)
+    if selected and destination == "attempt.json" and phase == "after_attempt_record":
+        os._exit(122)
     if restoration_phase and phase == "restoration_after_" + restoration_phase:
         os._exit(117)
     if restoration_phase and phase == "restoration_error_after_" + restoration_phase:
@@ -119,7 +126,15 @@ def replace(source, destination, **kwargs):
 
 
 def rename(source, destination, **kwargs):
+    parent = directory(kwargs, "dst_dir_fd")
+    attempt_install = parent is not None and (
+        parent.name == "tasks" and destination == task
+        or parent.name == "attempts" and parent.parent.name == task)
+    if attempt_install and phase == "before_attempt_install":
+        os._exit(123)
     result = original_rename(source, destination, **kwargs)
+    if attempt_install and phase == "after_attempt_install":
+        os._exit(124)
     if phase == "restoration_during_install" and any(
             part.startswith(".restoring-") for part in directory(kwargs, "src_dir_fd").parts):
         os._exit(118)
@@ -159,15 +174,31 @@ def symlink(source, destination, **kwargs):
 
 
 def link(source, destination, **kwargs):
-    result = original_link(source, destination, **kwargs)
     parent = directory(kwargs, "dst_dir_fd")
+    selected = parent is not None and f"/tasks/{task}/" in str(parent) + "/"
+    if selected and destination == "record-state.json" and phase == "before_record_state":
+        os._exit(125)
+    result = original_link(source, destination, **kwargs)
+    if selected and destination == "record-state.json" and phase == "after_record_state":
+        os._exit(126)
     if phase == "restoration_during_reconstruction" and parent is not None and any(
             part.startswith(".restoring-") for part in parent.parts):
         os._exit(119)
     return result
 
 
+def mkdir(path, *args, **kwargs):
+    result = original_mkdir(path, *args, **kwargs)
+    parent = directory(kwargs, "dir_fd")
+    if phase == "after_attempt_allocation" and parent is not None and parent.name == "attempts" and parent.parent.name == task:
+        os._exit(127)
+    if phase == "after_private_allocation" and str(path).startswith(".initializing-"):
+        os._exit(128)
+    return result
+
+
 os.replace, os.unlink, os.rename, os.rmdir = replace, unlink, rename, rmdir
+os.mkdir = mkdir
 os.link = link
 os.symlink = symlink
 main()
