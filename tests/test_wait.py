@@ -98,6 +98,7 @@ class WaitTests(LocalBackendTestCase):
     def test_timeout_caps_polling_pause_without_canceling_submitted_work(self):
         self.gate_computation()
         self.cli('run', 'a')
+        self.wait_for(lambda: json.loads(self.cli_result('status', 'a', '--json').stdout)['tasks'][0]['state'] == 'running')
         attempts = self.task_attempts()
         process = self.start_wait('wait', '--interval', '60', '--timeout', '10', 'a')
         self.assertEqual(process.wait(timeout=18), 124, self.wait_messages())

@@ -91,7 +91,10 @@ class ManagedSlurmOps(SlurmOps):
             raise SlurmIdentityUnresolved("no supported numeric job ID")
         self.prepare_observations([job_id])
         if self.query_error is not None:
-            raise SlurmIdentityUnresolved(self.query_error)
+            # A failed query is not a successful snapshot with missing identity.
+            # Keep frontend refresh/wait error handling and its last good result.
+            raise BackendError("Slurm Submission identity unavailable: " + self.query_error +
+                               ". No inactivity is established.")
         queue = (self.queue or {}).get(job_id, set())
         accounting = self.accounting.get(job_id, set())
         records = queue | accounting
