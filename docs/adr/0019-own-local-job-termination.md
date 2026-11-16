@@ -20,7 +20,8 @@ remain available for observation, but cannot accept new managed submissions or
 verified cancellation requests. Their unsafe terminal observations cannot authorize retry,
 replacement, or cleanup. An operator must establish inactivity before using the
 existing [recovery operation](0013-provide-explicit-recovery-for-unresolved-submissions.md).
-Slurm retains its existing cancellation behavior.
+The original decision retained Slurm's cancellation behavior. The revision below
+replaces that part of the decision.
 
 For the gwf 3 upgrade, [ADR 0020](0020-adopt-gwf-3-local-schedulers-per-workflow.md)
 replaces the earlier worker configuration with a scheduler per workflow
@@ -49,3 +50,27 @@ still requires independent evidence that computation stopped.
 Under the pre-1.0 policy, this format does not migrate earlier loose receipts.
 After stopping an earlier scheduler and establishing inactivity, operators use
 the existing recovery command before reusing that work.
+
+On 2026-11-16, issue #377 extends exact Submission identity checks to Slurm.
+Slurm can reuse numeric job IDs while gwflow retains earlier Task attempts.
+Both observations and Cancellation must identify the full Submission name.
+A Public job name, truncated name, or numeric-only terminal cache cannot do so.
+gwflow owns this adapter without changing the pinned gwf package.
+
+Each observation shares scheduler snapshots and batches accounting queries.
+Only observations verified for the exact Submission enter the invocation's
+verified state map. Numeric-only upstream caches are ignored. Missing or
+conflicting identity leaves activity unresolved. Independent checked Completion
+and operator recovery retain their meanings when scheduler identity is unavailable.
+A foreign job cannot change the original Task's Completion.
+
+Cancellation sends the numeric ID and exact Submission name together with
+`scancel --ctld --name`. The controller applies both filters while it holds the
+job write lock. A lookup followed by cancellation of a bare ID cannot close the
+ID-reuse race. Unsupported clients and failed controller requests must refuse
+without falling back to that unsafe path. Request acceptance still does not
+establish inactivity. Local descendant ownership and termination requirements
+remain unchanged.
+
+The deployment requirement and refusal guidance appear in
+[Slurm Submission identity](../operating.md#slurm-submission-identity).

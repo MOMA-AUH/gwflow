@@ -70,6 +70,53 @@ inactive before changing environments. Start new gwf 3 runs in separate workflow
 and storage locations. The upgrade procedure below applies only to supported
 baseline and candidate combinations.
 
+## Slurm Submission identity
+
+gwflow compares the full Submission name before attributing Slurm state to a
+recorded job. Slurm can reuse numeric job IDs. Matching numbers alone do not
+identify the original Submission. A truncated name or Public job name does not
+establish identity either.
+
+Observations use `squeue` and batched `sacct` queries on the local cluster.
+gwflow shares these results within each inspection. Verified states carry the
+exact Submission identity in memory. The numeric-only gwf terminal cache is
+ignored, including entries written by earlier frontends. No cache migration is
+performed. If accounting is disabled, only visible queue records supply state.
+
+Missing history, unreadable queries, and contradictory names leave activity
+unresolved. They cannot establish inactivity or authorize Cancellation.
+Independent checked Completion remains valid, including when another job has
+the old ID. Existing operator recovery assertions keep their documented meaning.
+If an incomplete Task stays unresolved, inspect its full Submission names and
+establish whole-Task inactivity before using `gwflow recover`.
+
+Safe Cancellation requires `scancel` 24.11 or newer and a controller that supports
+the filtered `kill_jobs` request. gwflow passes the numeric ID and exact name
+together through `scancel --verbose --ctld --name=SUBMISSION ID`.
+The controller applies the identity filter when it acts on the request.
+This protects against ID reuse after the frontend observation.
+gwflow removes ambient `SCANCEL_*` and `SLURM_CLUSTERS` overrides for this request.
+Federation, job arrays, heterogeneous jobs, and job-step IDs are outside this
+managed cancellation contract.
+
+An older or unrecognized client produces a refusal before any request.
+A controller that rejects the filtered request produces a failed receipt.
+Update the deployment to supply this capability. gwflow never retries with a
+bare numeric ID. Mixed selections continue with independently identified jobs
+and return a nonzero exit code if any Cancellation remains incomplete.
+Dry runs send no cancellation requests, and accepted requests do not establish inactivity.
+
+The implementation was checked against deployment-provided Slurm 25.11.6 and
+its published source. The
+[client sends both filters](https://github.com/SchedMD/slurm/blob/slurm-25-11-6-1/src/scancel/scancel.c),
+the [controller holds the job write lock](https://github.com/SchedMD/slurm/blob/slurm-25-11-6-1/src/slurmctld/proc_req.c),
+and the [job manager compares full names](https://github.com/SchedMD/slurm/blob/slurm-25-11-6-1/src/slurmctld/job_mgr.c).
+The same filtered client path exists in
+[Slurm 24.11](https://github.com/SchedMD/slurm/blob/slurm-24-11-0-1/src/scancel/scancel.c).
+Controlled CLI tests exercise the race without contacting a production scheduler.
+See Slurm's [accounting](https://slurm.schedmd.com/sacct.html) and
+[cancellation](https://slurm.schedmd.com/scancel.html) references for ID reuse and filtering.
+
 ## Command changes and untracked changes
 
 Managed workflows always track computation commands. Changing command text

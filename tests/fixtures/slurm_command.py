@@ -22,6 +22,11 @@ lock = (work / "slurm-fixture.lock").open("a")
 fcntl.flock(lock, fcntl.LOCK_EX)
 mapping_path = work / "slurm-local-jobs.json"
 mapping = json.loads(mapping_path.read_text()) if mapping_path.exists() else {}
+submitted_path = work / "slurm-submitted.jsonl"
+names = {item["id"]: item["name"] for item in
+         (map(json.loads, submitted_path.read_text().splitlines()) if submitted_path.exists() else [])}
+override_path = work / "slurm-observations.json"
+overrides = json.loads(override_path.read_text()) if override_path.exists() else {}
 
 
 def local_id(slurm_id):
@@ -70,15 +75,34 @@ elif command in ("squeue", "sacct"):
         short = {LocalStatus.SUBMITTED: "PD", LocalStatus.RUNNING: "R"}
         for job_id, execution_id in selected.items():
             state = states.get(execution_id, LocalStatus.UNKNOWN)
-            if command == "squeue" and state in short:
-                print(f"{job_id};{short[state]}")
+            name = names[job_id]
+            override = overrides.get(command, {}).get(job_id, {})
+            name = override.get("name", name)
+            state_name = override.get("state", 'PENDING' if state == LocalStatus.SUBMITTED else 'TIMEOUT' if state == LocalStatus.KILLED else state.name)
+            if override.get("missing"):
+                continue
+            fields = any("jobname" in arg.lower() or "%j" in arg for arg in sys.argv)
+            if fields:
+                if command == "sacct" or state_name in ("PENDING", "RUNNING"):
+                    print(f"{job_id}|{state_name}|{name}")
+                continue
+            if command == "squeue" and state_name in ("PENDING", "RUNNING"):
+                print(f"{job_id};{'PD' if state_name == 'PENDING' else 'R'}")
             elif command == "sacct":
-                print(f"{job_id}|{'PENDING' if state == LocalStatus.SUBMITTED else 'TIMEOUT' if state == LocalStatus.KILLED else state.name}")
+                print(f"{job_id}|{state_name}")
 elif command == "scancel":
+    if "--version" in sys.argv:
+        print(os.environ.get("GWFLOW_TEST_SCANCEL_VERSION", "slurm 25.11.6"))
+        raise SystemExit(0)
     local_id(sys.argv[-1])
+    job_id = sys.argv[-1]
+    name = overrides.get("scancel", {}).get(job_id, {}).get("name", names[job_id])
+    expected = next((arg.removeprefix("--name=") for arg in sys.argv if arg.startswith("--name=")), None)
+    if "--ctld" in sys.argv and expected != name:
+        raise SystemExit("scancel: error: No active jobs match ALL job filters")
     # A cancellation request is deliberately not a confirmed cancellation.
     with (work / "slurm-cancelled.jsonl").open("a") as stream:
-        stream.write(json.dumps({"id": sys.argv[-1], "args": sys.argv[1:]}) + "\n")
+        stream.write(json.dumps({"id": job_id, "name": name, "args": sys.argv[1:]}) + "\n")
     (work / "cancellation-requested").touch()
 else:
     raise SystemExit(f"unexpected fixture command: {command}")

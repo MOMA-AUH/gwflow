@@ -28,6 +28,7 @@ from .activity import activity as report_activity
 from ._frontend import observation_deadline
 from .diagnostics import report_error
 from .inspection_errors import InspectionBlocker
+from ._slurm import ManagedSlurmOps, SlurmIdentityUnresolved
 from .lifecycle import _uuid, ordered_targets, target_dependencies
 from .workflow import lifecycle_jobs
 
@@ -270,7 +271,9 @@ def observe(store, attempt, backend, name):
 def observe_submissions(store, attempt, backend, name, *, tolerate_state_errors=False):
     """Inspect all archived admissions, including superseded retry submissions."""
     observations = []
-    for intent in recorded_intents(store, attempt):
+    intents = recorded_intents(store, attempt)
+    prepare_slurm_observations(store, attempt, intents, backend)
+    for intent in intents:
         local = intent["job"].removeprefix(attempt["task"] + "__").rsplit("__", 1)[0]
         with observation_deadline() if tolerate_state_errors else nullcontext():
             observations.extend(_observe(store, attempt, backend, name, {local: intent},
@@ -365,7 +368,26 @@ def activity(store, attempt, backend, name):
     return current + superseded_activity(store, attempt, backend, name)
 
 
+def prepare_slurm_observations(store, attempt, intents, backend):
+    """Batch saved acknowledgements even when upstream tracking was lost."""
+    if not isinstance(getattr(backend, "ops", None), ManagedSlurmOps):
+        return
+    job_ids = []
+    for intent in intents:
+        if intent is None or intent["backend"] != {"name": "slurm"}:
+            continue
+        try:
+            ack = store.read(attempt, f"admissions/{intent['admission']}/ack.json", "submission-ack", **identity(intent))
+        except (WorkflowError, OSError):
+            # The individual observation retains its own unreadable-record error.
+            continue
+        if ack is not None:
+            job_ids.append(ack.get("job_id"))
+    backend.ops.prepare_observations(job_ids)
+
+
 def _observe(store, attempt, backend, name, intents, *, tolerate_state_errors=False, historical=False):
+    prepare_slurm_observations(store, attempt, intents.values(), backend)
     observations = {}
     for local, intent in intents.items():
         if intent is None:
@@ -409,8 +431,12 @@ def _observe(store, attempt, backend, name, intents, *, tolerate_state_errors=Fa
                     if local_without_backend:
                         state = local_termination_state(store.working_dir, intent["submission"])
                     else:
-                        state = backend.status(target)
-                        if tracked_id is None and job_id is not None and isinstance(backend, TrackingBackend):
+                        if isinstance(getattr(backend, "ops", None), ManagedSlurmOps):
+                            state = backend.ops.observe_submission(job_id, submission=intent["submission"])
+                        else:
+                            state = backend.status(target)
+                        if (tracked_id is None and job_id is not None and isinstance(backend, TrackingBackend)
+                                and not isinstance(backend.ops, ManagedSlurmOps)):
                             with report_activity("Waiting for scheduler..."):
                                 state = backend.ops.get_job_states([job_id]).get(job_id, BackendStatus.UNKNOWN)
                         if isinstance(getattr(backend, "ops", None), ManagedLocalOps) and rejection is None:
@@ -418,12 +444,13 @@ def _observe(store, attempt, backend, name, intents, *, tolerate_state_errors=Fa
             except Exception as error:
                 termination_unresolved = isinstance(error, LocalTerminationUnresolved)
                 errors = _wait_scheduler_errors.get()
-                if errors is not None:
+                if errors is not None and not isinstance(error, SlurmIdentityUnresolved):
                     errors.append(str(error))
                 # A missing backend ID already has structured unresolved-job
                 # guidance. Keep that observation uncertain even when checked
                 # output exists, instead of replacing it with a query error.
-                elif not tolerate_state_errors and not (termination_unresolved and job_id is None):
+                elif (not tolerate_state_errors and not (termination_unresolved and job_id is None)
+                      and not isinstance(error, SlurmIdentityUnresolved)):
                     recovery = read_recovery(store, attempt, intent)
                     if recovery is None:
                         raise
@@ -543,7 +570,7 @@ def require_cancellation_identity(backend, name, observation):
     tracked = backend.get_tracked_id(target) if hasattr(backend, "get_tracked_id") else None
     if tracked is not None and tracked != observation.job_id:
         raise WorkflowError("conflicting backend job IDs")
-    if isinstance(getattr(backend, "ops", None), ManagedLocalOps):
+    if isinstance(getattr(backend, "ops", None), (ManagedLocalOps, ManagedSlurmOps)):
         backend.ops.require_cancellation_identity(observation.job_id, observation.submission)
 
 
