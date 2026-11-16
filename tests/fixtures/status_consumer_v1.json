@@ -1,0 +1,8 @@
+{
+  "name": "schema-1-reference-consumer",
+  "status": "provisional-until-v1.0.0",
+  "schema_version": 1,
+  "path": "tests/fixtures/status_consumer_v1.py",
+  "sha256": "260d79e9679ae6b4f59951c6d8f69d09a84b404ebe098afb45f0d8026c1a6c6f",
+  "origin": "https://github.com/MOMA-AUH/gwflow/issues/379"
+}

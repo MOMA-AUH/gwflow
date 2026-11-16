@@ -105,8 +105,11 @@ def compare(args: argparse.Namespace) -> None:
                 "baseline_capture": record, "environments": {"baseline": baseline, "candidate": candidate},
                 "native_packages": {"baseline": identities(baseline_packages), "candidate": identities(candidate_packages)},
                 "journeys": json.loads((root / "journeys/summary.json").read_text()), "observations": observations,
+                "status_consumer": json.loads((root / "journeys/status-consumer.json").read_text()),
                 "replacement": {"reason": args.replacement_reason, "capture": proposed} if replacement else None,
                 "restoration": json.loads((restored / "gwflow-runtime.json").read_text())}
+    if not args.test and evidence["status_consumer"]["status"] != "passed":
+        raise ValueError("Reference status consumer did not complete")
     (root / "comparison.raw.json").write_text(json.dumps(evidence, indent=2) + "\n")
     evidence = normalized(evidence, {str(restored): "<BASELINE>", str(candidate_prefix): "<CANDIDATE>",
                                     str(root): "<COMPARISON>", str(SOURCE): "<REPO>", str(Path(sys.prefix)): "<DRIVER>",
