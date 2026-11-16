@@ -58,7 +58,7 @@ class SlurmIdentityTests(LocalBackendTestCase):
         self.assertIn('"submission_unresolved"', status)
         waiting = self.cli_result("-b", "slurm", "wait", "sample", "--timeout", "10",
                                   env=self.environment, success=False)
-        self.assertEqual(waiting.returncode, 1)
+        self.assertEqual(waiting.returncode, 124)
         self.assertIn("unresolved", waiting.stdout + waiting.stderr)
 
     def test_controller_rechecks_full_name_after_observation(self):
@@ -146,6 +146,9 @@ class SlurmIdentityTests(LocalBackendTestCase):
     def test_full_long_names_and_selected_removed_tasks_keep_scope(self):
         alias = "long_task_" + "x" * 100
         job = self.held_submission(alias=alias, extra_task=True)
+        unrelated = self.work / "results/other/out"
+        self.wait_for(unrelated.exists)
+        unrelated_before = (unrelated.read_bytes(), unrelated.stat().st_mtime_ns)
         self.assertGreater(len(job["name"]), 128)
         preview = self.cli("-b", "slurm", "cancel", alias, "--dry-run", "--details", env=self.environment)
         self.assertIn(job["name"], preview)
@@ -162,6 +165,7 @@ class SlurmIdentityTests(LocalBackendTestCase):
         self.assertIn(job["name"], [item["name"] for item in self.requests()])
         self.assertTrue(all(item["name"] in {item["name"] for item in self.submissions()}
                             for item in self.requests()))
+        self.assertEqual((unrelated.read_bytes(), unrelated.stat().st_mtime_ns), unrelated_before)
 
     def test_earlier_admission_of_current_attempt_is_still_identified(self):
         failing = self.work / "fail-right"
@@ -182,4 +186,31 @@ class SlurmIdentityTests(LocalBackendTestCase):
         (self.work / "slurm-cancelled.jsonl").unlink()
         self.overrides(old, "unrelated-replacement")
         self.cli("-b", "slurm", "cancel", "*", env=self.environment, success=False)
+        self.assertFalse(self.requests())
+
+    def test_incomplete_scheduler_row_does_not_hide_identifiable_siblings(self):
+        job = self.held_submission()
+        (self.work / "slurm-observations.json").write_text(json.dumps({
+            "squeue": {job["id"]: {"reported_state": "   "}}}))
+        output = self.cli("-b", "slurm", "cancel", "sample", "--details", env=self.environment, success=False)
+        self.assertIn("Slurm Submission identity", output)
+        self.assertNotIn(job["id"], [item["id"] for item in self.requests()])
+        self.assertEqual(len(self.requests()), 2)
+
+    def test_finishing_job_is_active_and_unrelated_arrays_do_not_block_it(self):
+        job = self.held_submission()
+        (self.work / "slurm-observations.json").write_text(json.dumps({
+            "squeue": {job["id"]: {"state": "COMPLETING", "extra_rows": ["900_[1-20]|PD|other-array"]}}}))
+        output = self.cli("-b", "slurm", "cancel", "sample", "--dry-run", env=self.environment)
+        self.assertIn("Would request cancellation", output)
+        self.assertIn("active work", self.cli("-b", "slurm", "run", "--force", env=self.environment, success=False))
+        self.assertFalse(self.requests())
+
+    def test_unparseable_live_identity_cannot_leave_terminal_accounting_authoritative(self):
+        job = self.held_submission()
+        (self.work / "slurm-observations.json").write_text(json.dumps({
+            "squeue": {job["id"]: {"reported_id": "unreadable-id"}},
+            "sacct": {job["id"]: {"state": "COMPLETED"}}}))
+        output = self.cli("-b", "slurm", "cancel", "sample", "--dry-run", env=self.environment, success=False)
+        self.assertIn("Slurm Submission identity", output)
         self.assertFalse(self.requests())

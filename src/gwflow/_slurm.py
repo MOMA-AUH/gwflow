@@ -43,16 +43,23 @@ class ManagedSlurmOps(SlurmOps):
     def _records(self, output):
         records: dict[str, set[tuple[str, BackendStatus]]] = {}
         for line in output.splitlines():
+            if not line.strip():
+                continue
             fields = line.split("|")
             if not re.fullmatch(r"[1-9][0-9]*", fields[0]):
                 # squeue also lists other users' arrays and heterogeneous jobs.
-                # They cannot identify a managed plain numeric job.
-                continue
+                # Ignore only recognizable out-of-scope IDs. A malformed live
+                # identity must not disappear behind terminal accounting.
+                if re.fullmatch(r"[1-9][0-9]*(?:_(?:[0-9]+|\[[0-9,:%-]+\])|\+[0-9]+)?"
+                                r"(?:\.(?:[0-9]+|batch|extern))?", fields[0]):
+                    continue
+                raise BackendError("Malformed Slurm job identity in scheduler response")
             if len(fields) != 3:
                 records.setdefault(fields[0], set()).add(("", BackendStatus.UNKNOWN))
                 continue
             job_id, state, name = fields
-            state = state.split()[0] if state else ""
+            words = state.split()
+            state = words[0] if words else ""
             value = (name, SLURM_JOB_STATES[SLURM_LONG_STATES.get(state, state)])
             records.setdefault(job_id, set()).add(value)
         return records
@@ -64,7 +71,7 @@ class ManagedSlurmOps(SlurmOps):
             return
         try:
             if self.queue is None:
-                self.queue = self._records(call("squeue", "--noheader", "--format=%i|%T|%j", "--all", "--local"))
+                self.queue = self._records(call("squeue", "--noheader", "--format=%i|%t|%j", "--all", "--local"))
             missing = sorted(self.tracked_ids - self.queried_ids)
             for start in range(0, len(missing), 1024):
                 batch = missing[start:start + 1024]

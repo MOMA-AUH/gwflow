@@ -83,8 +83,15 @@ elif command in ("squeue", "sacct"):
                 continue
             fields = any("jobname" in arg.lower() or "%j" in arg for arg in sys.argv)
             if fields:
-                if command == "sacct" or state_name in ("PENDING", "RUNNING"):
-                    print(f"{job_id}|{state_name}|{name}")
+                active_states = {"PENDING": "PD", "RUNNING": "R", "COMPLETING": "CG",
+                                 "CONFIGURING": "CF", "STOPPED": "ST"}
+                if command == "sacct" or state_name in active_states:
+                    reported = active_states.get(state_name, state_name) if any("%t" in arg for arg in sys.argv) else state_name
+                    reported = override.get("reported_state", reported)
+                    reported_id = override.get("reported_id", job_id)
+                    print(f"{reported_id}|{reported}|{name}")
+                    for extra in override.get("extra_rows", []):
+                        print(extra)
                 continue
             if command == "squeue" and state_name in ("PENDING", "RUNNING"):
                 print(f"{job_id};{'PD' if state_name == 'PENDING' else 'R'}")
