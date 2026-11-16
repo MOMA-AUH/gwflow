@@ -11,6 +11,14 @@ the protected PR, CI, Conda publication, and GitHub release process.
 
 Before reading or publishing specs and tickets, read `docs/agents/issue-tracker.md`: use GitHub Issues in `MOMA-AUH/gwflow`.
 
+### Fix issues
+
+For “Fix open issues”, “Fix the next N issues”, a specified issue list, or
+resuming that work, use [.agents/skills/fix-issues/SKILL.md](.agents/skills/fix-issues/SKILL.md).
+It implements one issue at a time, creates a PR, repairs CI failures, and merges
+after checks pass before continuing. Workflow questions and skill edits do not
+start the queue.
+
 ### Triage labels
 
 Before triaging or applying issue labels, read `docs/agents/triage-labels.md` for the five standard roles.
