@@ -1,5 +1,12 @@
 ## Agent skills
 
+### Releases
+
+For a concrete request such as “Make release vX.Y.Z” or “Make vX.Y.Z release”,
+use [.agents/skills/gwflow-release/SKILL.md](.agents/skills/gwflow-release/SKILL.md).
+It proposes notes for agreement, then delivers the approved release through
+the protected PR, CI, Conda publication, and GitHub release process.
+
 ### Issue tracker
 
 Before reading or publishing specs and tickets, read `docs/agents/issue-tracker.md`: use GitHub Issues in `MOMA-AUH/gwflow`.
