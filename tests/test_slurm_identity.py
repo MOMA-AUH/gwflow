@@ -214,3 +214,27 @@ class SlurmIdentityTests(LocalBackendTestCase):
         output = self.cli("-b", "slurm", "cancel", "sample", "--dry-run", env=self.environment, success=False)
         self.assertIn("Slurm Submission identity", output)
         self.assertFalse(self.requests())
+
+    def test_recovered_earlier_admissions_without_tracking_share_accounting_batch(self):
+        failing = self.work / "fail-right"
+        failing.touch()
+        self.configure_workflow(right_command=(
+            f"if test -e {shlex.quote(str(failing))}; then exit 7; fi; printf right > same.txt"))
+        self.environment = self.slurm_environment()
+        self.cli("-b", "slurm", "run", env=self.environment)
+        test_graphs.TaskGraphTests.settle(self)
+        # Computation stopped independently; lost accounting requires the
+        # ordinary operator assertion before retrying these admissions.
+        forgotten = self.work / "forgotten-slurm-history"
+        forgotten.touch()
+        self.cli("-b", "slurm", "recover", "sample", env=self.environment)
+        forgotten.unlink()
+        failing.unlink()
+        self.cli("-b", "slurm", "run", env=self.environment)
+        test_graphs.TaskGraphTests.settle(self)
+        self.assertEqual((self.work / "results/sample/result.txt").read_text(), "leftright")
+        (self.work / ".gwf/slurm-backend-tracked.json").write_text("{}")
+        self.environment["GWFLOW_TEST_RECORD_SLURM_QUERIES"] = "1"
+        self.assertIn("Reuse", self.cli("-b", "slurm", "run", "--dry-run", env=self.environment))
+        queries = list(map(json.loads, (self.work / "slurm-queries.jsonl").read_text().splitlines()))
+        self.assertLessEqual(len(queries), 3, queries)

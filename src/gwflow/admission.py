@@ -351,11 +351,15 @@ def cancellation_diagnostic_identity(store, attempt, candidate):
 def superseded_activity(store, attempt, backend, name):
     """Recovery never overrides later activity, including after a retry."""
     active = []
+    previous = []
     for token in store.records(attempt).names("recoveries"):
         intent = _archived_intent(store, attempt, token)
         local = intent["job"].removeprefix(attempt["task"] + "__").rsplit("__", 1)[0]
         if intent == read_intent(store, attempt, local):
             continue
+        previous.append((local, intent))
+    prepare_slurm_observations(store, attempt, (intent for _, intent in previous), backend)
+    for local, intent in previous:
         item = _observe(store, attempt, backend, name, {local: intent})[local]
         if item.state in ("active", "uncertain"):
             active.append(item)
