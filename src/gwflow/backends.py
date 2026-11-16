@@ -149,6 +149,9 @@ class ManagedLocalBackend(TrackingBackend):
 
 
 def create_backend(name, working_dir, config):
+    if name == "slurm":
+        from ._slurm import create_slurm_backend
+        return create_slurm_backend(working_dir, config)
     if name != "local":
         return gwf_create_backend(name, working_dir=working_dir, config=config)
     settings = config.get_namespace("backend.local")

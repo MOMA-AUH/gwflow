@@ -96,6 +96,7 @@ def cancel(ctx, selectors, dry_run, details, plain):
 def cancel_jobs(store, attempt, candidates, backend, backend_name, dry_run):
     """Yield each observed or requested outcome without changing Task records."""
     name = attempt["task"]
+    admission.prepare_slurm_observations(store, attempt, (item.intent for item in candidates), backend)
     for candidate in candidates:
         local = candidate.local
         try:
