@@ -23,6 +23,11 @@ from test_inputs import ExternalInputTests
 from test_transfer import TransferRecoveryTests
 from test_repair import ResultsRepairTests
 from test_recovery import OperatorRecoveryTests
+from fixtures.status_consumer_v1 import consume, check_handoff
+
+
+CONSUMER_REPORTS = {"cleaned-summary", "cleaned-details", "partial-summary", "partial-details",
+                    "empty-filter", "usage-error", "inspection-error", "blocked", "unallocated"}
 
 
 class InstalledCompatibilityTests(LocalBackendTestCase):
@@ -44,7 +49,8 @@ class InstalledCompatibilityTests(LocalBackendTestCase):
         self.executable = str(Path(self.installations[side]["executable"]).with_name("gwflow"))
         self.environment = {key: value for key, value in os.environ.items()
                             if key not in ("PYTHONPATH", "PYTHONHOME", "PYTHONUSERBASE", "CONDA_PREFIX", "VIRTUAL_ENV",
-                                           "GWFLOW_COMPAT_CONSUMER", "GWFLOW_COMPAT_UNOWNED")}
+                                           "GWFLOW_COMPAT_CONSUMER", "GWFLOW_COMPAT_UNOWNED",
+                                           "GWFLOW_COMPAT_DIAGNOSTICS", "GWFLOW_COMPAT_INSPECTION_ERROR")}
         self.environment["PYTHONNOUSERSITE"] = "1"
         self.environment["PATH"] = str(Path(self.executable).parent) + os.pathsep + self.environment.get("PATH", "")
 
@@ -82,6 +88,28 @@ class InstalledCompatibilityTests(LocalBackendTestCase):
         } for directory in (".gwf/gwflow", "results")
                 for path in (self.work / directory).rglob("*") if path.is_file()}
 
+    def submission_identities(self, task):
+        # Dynamic identities are observed before handoff; the reference consumer
+        # independently fixes the expected field names and lifecycle meanings.
+        report = json.loads(self.cli_result("status", task, "--json", "--details").stdout)
+        return {job["name"]: (job["submission_name"], job["backend_id"])
+                for job in report["tasks"][0]["jobs"]}
+
+    def consume_status(self, label, *arguments, exit_code=0, env=None):
+        self.assertEqual(self.side, "candidate")
+        result = self.cli_result("status", "--json", *arguments, success=exit_code == 0, env=env)
+        self.assertEqual(result.returncode, exit_code)
+        report = consume(result.stdout, details="--details" in arguments, exit_code=result.returncode)
+        self.consumer_reports.append(label)
+        self.record({"reference_consumer_report": label})
+        return report, result
+
+    def consume_handoff(self, case, attempt_id, identities):
+        name = "cleaned" if case == "cleaned" else "sample"
+        for arguments, suffix in (((name,), "summary"), ((name, "--details"), "details")):
+            report, _ = self.consume_status(case + "-" + suffix, *arguments)
+            check_handoff(report, case=case, attempt_id=attempt_id, identities=identities)
+
 
 class CompletedCompatibilityTests(InstalledCompatibilityTests):
     def configure_workflow(self):
@@ -97,6 +125,7 @@ class CompletedCompatibilityTests(InstalledCompatibilityTests):
         self.run_complete()
         self.cli("clean", "--delete", "cleaned")
         attempts = self.task_attempts()
+        cleaned_identities = self.submission_identities("cleaned")
         for name in names:
             self.assertEqual((self.work / "results" / name / "text.txt").read_text(), "hello\n")
             self.assert_runtime(name, "baseline")
@@ -162,7 +191,44 @@ class CompletedCompatibilityTests(InstalledCompatibilityTests):
         self.assertIn("No unresolved submissions", self.cli("recover", "recovered"))
         self.assertEqual(self.task_attempts(), attempts)
         self.assertEqual(self.snapshot(), before)
+        self.consume_handoff("cleaned", attempts["cleaned"], cleaned_identities)
+        noisy = {**self.environment, "GWFLOW_COMPAT_DIAGNOSTICS": "1"}
+        empty, result = self.consume_status("empty-filter", "cleaned", "--status", "failed", env=noisy)
+        self.assertEqual(empty["tasks"], [])
+        self.assertEqual(empty["notices"], [])
+        for message in ("compatibility workflow diagnostic", "compatibility child diagnostic"):
+            self.assertIn(message, result.stderr)
+        error, _ = self.consume_status("usage-error", "--plain", exit_code=2)
+        self.assertEqual(error["error"]["code"], "usage_error")
+        error, result = self.consume_status("inspection-error", exit_code=1,
+            env={**noisy, "GWFLOW_COMPAT_INSPECTION_ERROR": "1"})
+        self.assertEqual(error["error"]["code"], "inspection_failed")
+        for message in ("compatibility workflow diagnostic", "compatibility child diagnostic"):
+            self.assertIn(message, result.stderr)
+        source = self.work / "input.txt"
+        source.rename(self.work / "saved-input.txt")
+        try:
+            blocked, _ = self.consume_status("blocked", "cleaned")
+            task = blocked["tasks"][0]
+            self.assertEqual((task["name"], task["attempt_id"], task["state"], task["next_action"],
+                              task["reason"]["code"]),
+                             ("cleaned", attempts["cleaned"], "blocked", "blocked", "input_unavailable"))
+            self.assertEqual([(notice["code"], notice["task_names"]) for notice in blocked["notices"]],
+                             [("workflow_blocked", ["cleaned"])])
+        finally:
+            (self.work / "saved-input.txt").rename(source)
+        self.assertEqual(self.snapshot(), before)
         environment = {**self.environment, "GWFLOW_COMPAT_CONSUMER": "1"}
+        unallocated, _ = self.consume_status("unallocated", "consumer", "--details", env=environment)
+        task = unallocated["tasks"][0]
+        self.assertIsNone(task["attempt_id"])
+        self.assertEqual((task["name"], task["state"], task["next_action"], task["progress"], task["reason"]["code"]),
+                         ("consumer", "pending", "run", {"completed": 0, "total": 3}, "no_attempt"))
+        self.assertEqual({job["name"] for job in task["jobs"]},
+                         {"consumer__gwflow_prepare", "consumer__join", "consumer__gwflow_complete"})
+        for job in task["jobs"]:
+            self.assertEqual((job["submission_name"], job["backend_id"], job["observed_state"]), (None, None, None))
+            self.assertEqual(job["state"], "pending")
         output = self.cli("run", "consumer", "--details", env=environment)
         self.finish()
         self.assertIn("consumer__join: confirmed submitted", output)
@@ -279,7 +345,9 @@ class PartialCompatibilityTests(IncompleteCompatibilityTests):
         self.settle()
         attempts = self.task_attempts()
         self.assertEqual(Counter((self.work / "trace").read_text().splitlines()), {"left": 1, "right": 1})
+        identities = self.submission_identities("sample")
         self.handoff()
+        self.consume_handoff("partial", attempts["sample"], identities)
         failing.unlink()
         self.assertRegex(self.cli("run", "--dry-run"), r"Task sample\s+Retry\s+")
         self.cli("run")
@@ -546,15 +614,30 @@ def main():
     loader = unittest.TestLoader()
     loader.testNamePatterns = args.test
     suite = unittest.TestSuite()
+    consumer_reports = []
     for base in (CompletedCompatibilityTests, PartialCompatibilityTests, PreparationCompatibilityTests,
                  FinishingCompatibilityTests):
-        case = type(base.__name__, (base,), {"root": root, "installations": installations})
+        case = type(base.__name__, (base,), {"root": root, "installations": installations,
+                                            "consumer_reports": consumer_reports})
         suite.addTests(loader.loadTestsFromTestCase(case))
     if not suite.countTestCases():
         parser.error("No compatibility tests matched")
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     (root / "summary.json").write_text(json.dumps({"run": result.testsRun, "failures": len(result.failures),
         "errors": len(result.errors), "skips": len(result.skipped)}, indent=2) + "\n")
+    complete = (set(consumer_reports) == CONSUMER_REPORTS and len(consumer_reports) == len(CONSUMER_REPORTS)
+                and result.wasSuccessful() and not result.skipped)
+    snapshot = json.loads((FIXTURES / "status_consumer_v1.json").read_text())
+    actual_digest = hashlib.sha256((FIXTURES / "status_consumer_v1.py").read_bytes()).hexdigest()
+    intact = actual_digest == snapshot["sha256"]
+    consumer_evidence = {"snapshot": snapshot, "actual_sha256": actual_digest,
+                         "reports": sorted(consumer_reports), "expected_reports": sorted(CONSUMER_REPORTS),
+                         "status": "passed" if complete and intact and not args.test else "incomplete",
+                         "selection": args.test}
+    (root / "status-consumer.json").write_text(json.dumps(consumer_evidence, indent=2) + "\n")
+    if not intact or (not args.test and not complete):
+        print("Reference status consumer incomplete or snapshot changed", file=sys.stderr)
+        return 1
     return 0 if result.wasSuccessful() and not result.skipped else 1
 
 

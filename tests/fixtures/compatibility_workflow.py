@@ -3,8 +3,16 @@
 import os
 from pathlib import Path
 import shlex
+import subprocess
 
 from gwflow import Task, Workflow, shell, task_template
+
+
+if os.environ.get("GWFLOW_COMPAT_DIAGNOSTICS") == "1":
+    print("compatibility workflow diagnostic")
+    subprocess.run(["printf", "compatibility child diagnostic\n"], check=True)
+if os.environ.get("GWFLOW_COMPAT_INSPECTION_ERROR") == "1":
+    raise RuntimeError("controlled compatibility inspection failure")
 
 
 trace = str(Path(__file__).with_name("trace.txt"))

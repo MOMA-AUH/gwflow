@@ -330,3 +330,53 @@ The extended record selects commands and their exit codes plus each journey's
 handoff and outcome observations; full command output remains in the raw transcript.
 It summarizes accepted submissions and exact-name history maps with counts and
 digests before normalizing paths, as explained in that record's selection field.
+
+## Preserved JSON status consumer
+
+The [reference consumer](../../../tests/fixtures/status_consumer_v1.py) reads the
+public schema-1 status reports with Python's standard library. It imports no
+gwflow implementation code. Its [snapshot descriptor](../../../tests/fixtures/status_consumer_v1.json)
+records the file's SHA-256 digest and its provisional status. The reader and its
+fixed lifecycle assertions form one preserved snapshot.
+
+The consumer remains provisional until v1.0.0 is published. Existing CI exercises
+it through the controlled-artifact comparisons in independent runtimes. These
+comparisons do not establish a stable release baseline. The source comparison
+also runs it, with the existing shared-dependency limitation.
+
+Two existing upgrade journeys supply candidate reports after the baseline stops.
+One reuses a completed Task after cleanup. The other preserves successful
+computation in an inactive attempt that needs a retry. Summary and detailed
+reports check Task identity, state, Next action, progress, reasons, notices, and
+job identities. Only dynamic attempt and submission identifiers come from the
+baseline. Fixed names, counts, states, actions, and reasons come from the snapshot.
+
+Five additional reports cover an empty filter, an unallocated Task, a blocked
+Task, a usage error, and a caught inspection error. Workflow and child-process
+diagnostics must leave stdout as one JSON document. The reader keeps unfamiliar
+fields, values, and readable messages. It never treats an unfamiliar job state
+as successful or inactive. Report mutation tests distinguish compatible additions
+from missing fields, changed types, and changed established meanings.
+
+Each journey run writes `status-consumer.json` alongside `environment.json` and
+`summary.json`. Independent comparisons include this record in normalized
+`comparison.json`, together with both tested installations and runtime identities.
+The record contains the preserved digest, observed digest, and completed report
+names. Failed, skipped, missing, changed-snapshot, and focused-only runs cannot
+claim a complete consumer comparison. Existing lifecycle journeys and runtime
+preservation checks still apply.
+
+After v1.0.0 publication, compare the snapshot with the published schema and
+record that release in the descriptor through a reviewed PR. Keep the consumer
+bytes and original assertions unchanged when they match the published contract.
+If publication requires a correction, retain this provisional snapshot and give
+the corrected v1 consumer a separate identity. Update the stable baseline
+references only through the existing post-publication procedure. The existing
+original/latest selection then runs the same consumer after both upgrade journeys.
+This consumer adds no publication gate.
+
+For later 1.x releases, add separate cases or a separately named supplemental
+consumer. Keep the original v1 reader, digest, and assertions. Do not regenerate
+expectations from the candidate serializer or update the snapshot to accept an
+incompatible candidate. A changed digest requires explicit review of the reason
+and preservation of the original v1 expectations.

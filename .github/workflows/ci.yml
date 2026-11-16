@@ -76,6 +76,7 @@ jobs:
             build/validation/compatibility-plan.json
             build/validation/compatibility/environment.json
             build/validation/compatibility/summary.json
+            build/validation/compatibility/status-consumer.json
           if-no-files-found: error
 
   build:
@@ -297,6 +298,7 @@ jobs:
                       else:
                           assert name not in candidate["versions"], candidate
                   assert evidence["journeys"] == {"run": 15, "failures": 0, "errors": 0, "skips": 0}, evidence
+                  assert evidence["status_consumer"]["status"] == "passed", evidence
           PYTHON
       - name: Compare pinned stable releases in independent runtimes
         if: steps.compatibility.outputs.mode == 'preserved-release'
