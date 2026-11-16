@@ -3,6 +3,6 @@
   "status": "provisional-until-v1.0.0",
   "schema_version": 1,
   "path": "tests/fixtures/status_consumer_v1.py",
-  "sha256": "6bc3986bf5f1194473c018a7ef398c868d0b23391e02ccae8f96f5ffcb52026f",
+  "sha256": "260d79e9679ae6b4f59951c6d8f69d09a84b404ebe098afb45f0d8026c1a6c6f",
   "origin": "https://github.com/MOMA-AUH/gwflow/issues/379"
 }

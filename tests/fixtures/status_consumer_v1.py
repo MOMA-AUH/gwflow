@@ -66,6 +66,15 @@ def job_outcome(job):
             "inactive": job["state"] in ("completed", "failed", "canceled")}
 
 
+def check_notices(document, expected):
+    """Check established notices without discarding unfamiliar guidance."""
+    known = {"workflow_blocked", "upstream_recovery_pending", "completion_followup_required",
+             "submission_investigation_required"}
+    observed = {notice["code"]: set(notice["task_names"]) for notice in document["notices"]
+                if notice["code"] in known}
+    require(observed == expected, "Changed established notices")
+
+
 def check_handoff(document, *, case, attempt_id, identities):
     """Selected established meanings, independent of current serializer code.
 
@@ -86,7 +95,7 @@ def check_handoff(document, *, case, attempt_id, identities):
     require((task["name"], task["state"], task["next_action"], task["progress"]["completed"],
              task["progress"]["total"], task["reason"]["code"]) == expected, "Changed handoff meaning")
     require(task["attempt_id"] == attempt_id and isinstance(attempt_id, str), "Changed attempt identity")
-    require(document["notices"] == [], "Unexpected handoff notice")
+    check_notices(document, {})
     if "jobs" in task:
         jobs = {job["name"]: job for job in task["jobs"]}
         require(len(jobs) == len(task["jobs"]) == len(states), "Changed job count")

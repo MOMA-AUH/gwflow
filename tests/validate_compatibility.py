@@ -23,7 +23,7 @@ from test_inputs import ExternalInputTests
 from test_transfer import TransferRecoveryTests
 from test_repair import ResultsRepairTests
 from test_recovery import OperatorRecoveryTests
-from fixtures.status_consumer_v1 import consume, check_handoff
+from fixtures.status_consumer_v1 import consume, check_handoff, check_notices
 
 
 CONSUMER_REPORTS = {"cleaned-summary", "cleaned-details", "partial-summary", "partial-details",
@@ -195,7 +195,7 @@ class CompletedCompatibilityTests(InstalledCompatibilityTests):
         noisy = {**self.environment, "GWFLOW_COMPAT_DIAGNOSTICS": "1"}
         empty, result = self.consume_status("empty-filter", "cleaned", "--status", "failed", env=noisy)
         self.assertEqual(empty["tasks"], [])
-        self.assertEqual(empty["notices"], [])
+        check_notices(empty, {})
         for message in ("compatibility workflow diagnostic", "compatibility child diagnostic"):
             self.assertIn(message, result.stderr)
         error, _ = self.consume_status("usage-error", "--plain", exit_code=2)
@@ -213,8 +213,7 @@ class CompletedCompatibilityTests(InstalledCompatibilityTests):
             self.assertEqual((task["name"], task["attempt_id"], task["state"], task["next_action"],
                               task["reason"]["code"]),
                              ("cleaned", attempts["cleaned"], "blocked", "blocked", "input_unavailable"))
-            self.assertEqual([(notice["code"], notice["task_names"]) for notice in blocked["notices"]],
-                             [("workflow_blocked", ["cleaned"])])
+            check_notices(blocked, {"workflow_blocked": {"cleaned"}})
         finally:
             (self.work / "saved-input.txt").rename(source)
         self.assertEqual(self.snapshot(), before)
@@ -222,8 +221,9 @@ class CompletedCompatibilityTests(InstalledCompatibilityTests):
         unallocated, _ = self.consume_status("unallocated", "consumer", "--details", env=environment)
         task = unallocated["tasks"][0]
         self.assertIsNone(task["attempt_id"])
-        self.assertEqual((task["name"], task["state"], task["next_action"], task["progress"], task["reason"]["code"]),
-                         ("consumer", "pending", "run", {"completed": 0, "total": 3}, "no_attempt"))
+        self.assertEqual((task["name"], task["state"], task["next_action"], task["progress"]["completed"],
+                          task["progress"]["total"], task["reason"]["code"]),
+                         ("consumer", "pending", "run", 0, 3, "no_attempt"))
         self.assertEqual({job["name"] for job in task["jobs"]},
                          {"consumer__gwflow_prepare", "consumer__join", "consumer__gwflow_complete"})
         for job in task["jobs"]:

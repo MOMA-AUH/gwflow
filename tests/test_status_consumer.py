@@ -75,6 +75,16 @@ class StatusConsumerTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     check_handoff(changed, case='cleaned', attempt_id='attempt-A', identities=identities)
 
+    def test_compatible_additions_pass_the_preserved_handoff_assertions(self):
+        report = completed_report()
+        task = report['tasks'][0]
+        identities = {job['name']: (job['submission_name'], job['backend_id']) for job in task['jobs']}
+        for record in (report, task, task['progress'], task['reason'], *task['jobs'], *report['notices']):
+            record['future_field'] = {'information': 'preserve me'}
+        observed = consume(json.dumps(report), details=True, exit_code=0)
+        self.assertEqual(observed, report)
+        check_handoff(observed, case='cleaned', attempt_id='attempt-A', identities=identities)
+
     def test_partial_handoff_keeps_successful_work_separate_from_retry(self):
         report = completed_report()
         report['notices'] = []
