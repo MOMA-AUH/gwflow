@@ -1,5 +1,33 @@
 # Conda release
 
+## Ask the release assistant
+
+Say **Make release vX.Y.Z** or **Make vX.Y.Z release**, using a concrete version.
+The repository's [gwflow-release skill](../.agents/skills/gwflow-release/SKILL.md)
+proposes release notes from merged changes and waits for your explicit agreement.
+You can revise the notes before agreeing. Version changes, PRs, and tags begin
+after that agreement.
+
+Your notes approval authorizes the remaining delivery: prepare and merge the
+version PR through required CI, wait for master CI at the exact release commit,
+push the tag, monitor Conda publication, verify the draft assets, and publish the
+GitHub release. The assistant then merges synchronized final notes and any
+applicable stable baseline pins through the protected PR process. No separate
+publish confirmation is needed. Material changes to the agreed release scope
+or notes require renewed agreement.
+
+Releases are normal GitHub releases by default, including pre-1.0 releases.
+Request a prerelease explicitly when desired. Proposed notes, approval, source
+revisions, and delivery progress are saved under ignored
+`build/validation/releases/` so interrupted work can resume. Questions about
+releasing and edits to this process do not start a release.
+
+The Actions workflow still prepares a draft after Conda publication. The
+assistant completes GitHub publication after notes approval and asset checks;
+when following the guide manually, review and publish the draft yourself.
+
+## Release requirements and delivery
+
 Before v1.0.0, backward compatibility is not a release constraint; prefer the
 simplest coherent design without compatibility shims or migrations, as recorded
 in the [pre-1.0 development decision](adr/0001-pre-1-0-development.md).
@@ -183,7 +211,8 @@ to compare the two captures.
 The command stages intermediate files in a fresh temporary directory on each attempt.
 A failed check or attachment upload leaves no completed local output directory.
 If output copying itself fails, retain that partial evidence and choose another output directory.
-Final publication of the checked draft remains a separate manual step.
+Final publication of the checked draft remains a separate step, performed
+manually or by the release assistant after release-note agreement.
 
 ## Stable release attachments
 
