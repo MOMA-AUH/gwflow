@@ -1,6 +1,7 @@
 """Interrupt a real CLI at initialization filesystem boundaries."""
 
 import os
+import errno
 import json
 from pathlib import Path
 import sys
@@ -14,11 +15,13 @@ sys.argv = ["gwflow", *sys.argv[4:]]
 original_replace, original_unlink, original_rename, original_rmdir = os.replace, os.unlink, os.rename, os.rmdir
 original_symlink, original_link = os.symlink, os.link
 original_mkdir = os.mkdir
+original_open, original_fsync = os.open, os.fsync
 recovery_writes = 0
+bootstrap_opens = 0
 
 
 def directory(kwargs, key):
-    return Path(os.readlink(f"/proc/self/fd/{kwargs[key]}")) if key in kwargs else None
+    return Path(os.readlink(f"/proc/self/fd/{kwargs[key]}")) if kwargs.get(key) is not None else None
 
 
 def gate(name):
@@ -30,9 +33,45 @@ def gate(name):
         time.sleep(0.025)
 
 
+def bootstrap_fault(boundary):
+    if phase == "bootstrap_" + boundary + "_interrupt":
+        print("Injected interruption during managed storage initialization", file=sys.stderr, flush=True)
+        os._exit(129)
+    if phase == "bootstrap_" + boundary + "_error":
+        raise OSError(errno.ENOSPC, "injected bootstrap storage full")
+
+
+def open_file(path, flags, *args, **kwargs):
+    global bootstrap_opens
+    parent = directory(kwargs, "dir_fd")
+    if str(path).startswith(".gwflow-bootstrap-") and flags & os.O_DIRECTORY:
+        bootstrap_opens += 1
+        if bootstrap_opens == 2 and phase == "bootstrap_private_gate":
+            gate("bootstrap")
+    pending_owner = (parent is not None and parent.name.startswith(".gwflow-bootstrap-")
+                     and str(path).startswith(".pending-"))
+    if pending_owner:
+        bootstrap_fault("before_temporary")
+    result = original_open(path, flags, *args, **kwargs)
+    if pending_owner:
+        bootstrap_fault("temporary")
+    return result
+
+
+def fsync(fd):
+    path = Path(os.readlink(f"/proc/self/fd/{fd}"))
+    if path.parent.name.startswith(".gwflow-bootstrap-") and path.name.startswith(".pending-"):
+        bootstrap_fault("temporary_sync")
+    if path == work / ".gwf/gwflow" and (path / "owner.json").exists():
+        bootstrap_fault("installed_sync")
+    return original_fsync(fd)
+
+
 def replace(source, destination, **kwargs):
     global recovery_writes
     parent = directory(kwargs, "dst_dir_fd")
+    if destination == "owner.json":
+        bootstrap_fault("owner")
     selected = parent is not None and f"/tasks/{task}/" in str(parent) + "/"
     if selected and destination == "attempt.json" and phase == "before_attempt_record":
         os._exit(120)
@@ -175,10 +214,19 @@ def symlink(source, destination, **kwargs):
 
 def link(source, destination, **kwargs):
     parent = directory(kwargs, "dst_dir_fd")
+    installed_owner = destination == "owner.json" and parent == work / ".gwf/gwflow"
+    if destination == "owner.json" and parent is not None and parent.name.startswith(".gwflow-bootstrap-"):
+        bootstrap_fault("owner")
+    if installed_owner:
+        bootstrap_fault("install")
+        if phase == "bootstrap_gate":
+            gate("bootstrap")
     selected = parent is not None and f"/tasks/{task}/" in str(parent) + "/"
     if selected and destination == "record-state.json" and phase == "before_record_state":
         os._exit(125)
     result = original_link(source, destination, **kwargs)
+    if installed_owner:
+        bootstrap_fault("installed")
     if selected and destination == "record-state.json" and phase == "after_record_state":
         os._exit(126)
     if phase == "restoration_during_reconstruction" and parent is not None and any(
@@ -190,6 +238,14 @@ def link(source, destination, **kwargs):
 def mkdir(path, *args, **kwargs):
     result = original_mkdir(path, *args, **kwargs)
     parent = directory(kwargs, "dir_fd")
+    if str(path).startswith(".gwflow-bootstrap-"):
+        bootstrap_fault("allocation")
+    if parent == work / ".gwf" and path == "gwflow":
+        bootstrap_fault("root")
+    if parent == work and path in ("work", "results", "explicit-staging"):
+        bootstrap_fault(str(path))
+    if parent == work / ".gwf/gwflow" and path == "staging":
+        bootstrap_fault("staging")
     if phase == "after_attempt_allocation" and parent is not None and parent.name == "attempts" and parent.parent.name == task:
         os._exit(127)
     if phase == "after_private_allocation" and str(path).startswith(".initializing-"):
@@ -199,6 +255,7 @@ def mkdir(path, *args, **kwargs):
 
 os.replace, os.unlink, os.rename, os.rmdir = replace, unlink, rename, rmdir
 os.mkdir = mkdir
+os.open, os.fsync = open_file, fsync
 os.link = link
 os.symlink = symlink
 main()

@@ -152,6 +152,13 @@ may continue. Use the failed or uncertain submission identities in that receipt
 to investigate; `run --details` requests all receipts for an invocation. Do not
 repeat a mutating run merely to obtain earlier diagnostic output.
 
+If initial managed storage setup fails, resolve the reported storage problem,
+then rerun `gwflow run`. You can inspect the workflow with `gwflow status` or
+`gwflow run --dry-run` first. Setup admits no jobs until ownership and Task
+initialization records are valid. This retry needs no `recover` command or
+manual deletion of bookkeeping. Existing files without valid ownership evidence
+remain protected from adoption.
+
 A fresh attempt removes the selected Task's previous retained results before
 replacement jobs are submitted. A later failure does not restore those results.
 When downstream consumers are considered by a later run, the changed producer

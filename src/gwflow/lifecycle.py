@@ -1,5 +1,6 @@
 """Owned storage and persistent evidence for the managed Task lifecycle."""
 
+from contextlib import nullcontext
 from copy import deepcopy
 from dataclasses import dataclass, field
 import hashlib
@@ -974,13 +975,7 @@ class Store:
         self.validate_roots()
         self.validate_result_ownership({observation.name: result_dir})
         if self.owner is None:
-            owner = uuid4().hex
-            for path in self.locations.values():
-                _files.mkdir(path)
-            self.owner = _record("owner", owner=owner, task=None, working_dir=str(self.working_dir),
-                                 locations={key: str(path) for key, path in self.locations.items()})
-            _files.publish(self.owner_path, self.owner)
-            self.validate_roots()
+            self.initialize_storage()
         if self.current(observation.name, result_dir) != observation.attempt:
             raise WorkflowError("Task selection changed before initialization")
         attempt_id, operation, preparation = uuid4().hex, uuid4().hex, uuid4().hex
@@ -1000,6 +995,46 @@ class Store:
         _files.publish(self._task_dir(observation.name) / "current.json",
                        _record("current", **self.identity(attempt)))
         return self.finish_initialization(attempt)
+
+    def initialize_storage(self):
+        """Publish ownership before populating the managed namespace.
+
+        Interrupted private allocations are never adopted. The canonical root
+        stays absent or empty until a complete owner record is installed; no
+        temporary ownership files or staging directories can obstruct retry.
+        The frontend submission guard serializes this operation.
+        """
+        owner = _record("owner", owner=uuid4().hex, task=None, working_dir=str(self.working_dir),
+                        locations={key: str(path) for key, path in self.locations.items()})
+        allocation = self.root.with_name(".gwflow-bootstrap-" + owner["owner"])
+        try:
+            with _files.directory(allocation.parent, create=True) as parent:
+                os.mkdir(allocation.name, dir_fd=parent)
+                _files.sync_directory(parent)
+            identity = _files.identity(allocation)
+            with _files.directory(allocation) as source:
+                if not _files.same_directory({"inode": os.fstat(source).st_ino}, identity):
+                    raise WorkflowError("Managed storage allocation changed during initialization")
+                _files.publish(allocation / "owner.json", owner, replace=False, parent_directory=nullcontext(source))
+                if not _files.same_directory(_files.identity(allocation), identity):
+                    raise WorkflowError("Managed storage allocation changed during initialization")
+                with _files.directory(self.root, create=True) as destination:
+                    if os.listdir(destination):
+                        raise WorkflowError("Managed storage appeared during initialization; existing files are not adopted")
+                    # A no-clobber link exposes only the complete, synchronized file.
+                    os.link("owner.json", "owner.json", src_dir_fd=source, dst_dir_fd=destination,
+                            follow_symlinks=False)
+                    if not _files.same_directory({"inode": os.fstat(destination).st_ino}, _files.identity(self.root)):
+                        raise WorkflowError("Managed storage directory changed during initialization")
+                    _files.sync_directory(destination)
+            self.owner = owner
+            _files.remove_directory(allocation, identity)
+            for path in self.locations.values():
+                _files.mkdir(path)
+            self.validate_roots()
+        except OSError as exc:
+            raise WorkflowError(f"Managed storage initialization failed: {exc}. "
+                                "Resolve the storage problem and rerun the ordinary workflow command.") from exc
 
     def allocate_attempt(self, attempt):
         """Expose only complete initial records in the recorded Task inventory.
