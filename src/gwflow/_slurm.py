@@ -48,9 +48,11 @@ class ManagedSlurmOps(SlurmOps):
             fields = line.split("|")
             if not re.fullmatch(r"[1-9][0-9]*", fields[0]):
                 # squeue also lists other users' arrays and heterogeneous jobs.
+                # Its array expressions can be truncated before the closing
+                # bracket by Slurm's display limit (SLURM_BITSTR_LEN).
                 # Ignore only recognizable out-of-scope IDs. A malformed live
                 # identity must not disappear behind terminal accounting.
-                if re.fullmatch(r"[1-9][0-9]*(?:_(?:[0-9]+|\[[0-9,:%-]+\])|\+[0-9]+)?"
+                if re.fullmatch(r"[1-9][0-9]*(?:_(?:[0-9]+|\[[0-9,:%-]+\]?)|\+[0-9]+)?"
                                 r"(?:\.(?:[0-9]+|batch|extern))?", fields[0]):
                     continue
                 raise BackendError("Malformed Slurm job identity in scheduler response")

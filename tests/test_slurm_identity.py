@@ -215,6 +215,20 @@ class SlurmIdentityTests(LocalBackendTestCase):
         self.assertIn("Slurm Submission identity", output)
         self.assertFalse(self.requests())
 
+    def test_truncated_unrelated_array_ids_do_not_break_status(self):
+        job = self.held_submission()
+        for array_id in ("900_[185,188-191,194-195,19", "900_[25,33,42-43,45-46,48,5",
+                         "900_[334-335,338-339,342-34"):
+            with self.subTest(array_id=array_id):
+                (self.work / "slurm-observations.json").write_text(json.dumps({
+                    "squeue": {job["id"]: {"extra_rows": [f"{array_id}|PD|other-array"]}}}))
+                result = self.cli_result("-b", "slurm", "status", "sample", "--json", env=self.environment)
+                status = json.loads(result.stdout)
+                self.assertEqual(status["tasks"][0]["state"], "running")
+                output = self.cli("-b", "slurm", "cancel", "sample", "--dry-run", env=self.environment)
+                self.assertIn("Would request cancellation", output)
+                self.assertFalse(self.requests())
+
     def test_recovered_earlier_admissions_without_tracking_share_accounting_batch(self):
         failing = self.work / "fail-right"
         failing.touch()
