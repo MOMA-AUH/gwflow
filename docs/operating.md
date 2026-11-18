@@ -90,6 +90,11 @@ the old ID. Existing operator recovery assertions keep their documented meaning.
 If an incomplete Task stays unresolved, inspect its full Submission names and
 establish whole-Task inactivity before using `gwflow recover`.
 
+Recovery refuses the whole Task when the queue shows an exact Submission name
+from its current attempt as queued or running. This includes earlier submissions
+within that attempt, even if accounting failed or the frontend lost the job ID
+acknowledgement.
+
 Safe Cancellation requires `scancel` 24.11 or newer and a controller that supports
 the filtered `kill_jobs` request. gwflow passes the numeric ID and exact name
 together through `scancel --verbose --ctld --name=SUBMISSION ID`.

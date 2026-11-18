@@ -44,6 +44,41 @@ class SlurmIdentityTests(LocalBackendTestCase):
         path = self.work / "slurm-cancelled.jsonl"
         return list(map(json.loads, path.read_text().splitlines())) if path.exists() else []
 
+    def test_live_computation_and_completion_veto_recovery_when_accounting_fails(self):
+        self.environment = self.slurm_environment()
+        self.cli("-b", "slurm", "run", env=self.environment)
+        running = next(job for job in self.submissions() if "__right__" in job["name"])
+        pending = next(job for job in self.submissions() if "__gwflow_complete__" in job["name"])
+        (self.work / "slurm-observations.json").write_text(json.dumps({
+            "squeue": {running["id"]: {"state": "RUNNING"}, pending["id"]: {"state": "PENDING"}}}))
+        (self.work / "sacct-error").touch()
+        output = self.cli("-b", "slurm", "recover", "sample", env=self.environment, success=False)
+        self.assertIn("queued or running submissions", output)
+        self.assertIn(running["name"], output)
+        self.assertIn(pending["name"], output)
+        self.assertFalse(list(self.work.rglob("recovery.json")))
+        preview = self.cli("-b", "slurm", "run", "--dry-run", "--details", env=self.environment, success=False)
+        self.assertNotIn("Would submit", preview)
+
+    def test_live_computation_vetoes_recovery_after_lost_acknowledgement(self):
+        release = self.work / "release"
+        self.addCleanup(release.touch)
+        self.configure_workflow(right_command=(
+            f"while [ ! -e {shlex.quote(str(release))} ]; do sleep 0.025; done; printf right > same.txt"))
+        env = self.slurm_environment()
+        output = self.cli("-b", "slurm", "run", success=False,
+                          env={**env, "GWFLOW_TEST_SLURM_LOSE_ACK": "sample__right"})
+        self.assertIn("lost Slurm acknowledgement", output)
+        job = next(job for job in self.submissions() if "__right__" in job["name"])
+        self.overrides(job, job["name"], "RUNNING")
+        output = self.cli("-b", "slurm", "recover", "sample", env=env, success=False)
+        self.assertIn("queued or running submissions", output)
+        self.assertIn(job["name"], output)
+        self.assertFalse(list(self.work.rglob("recovery.json")))
+        preview = self.cli("-b", "slurm", "run", "--dry-run", "--details", env=env, success=False)
+        self.assertIn("unresolved submission", preview)
+        self.assertNotIn("Would submit", preview)
+
     def test_recycled_running_id_is_unresolved_and_never_cancelled(self):
         job = self.held_submission()
         self.overrides(job, "unrelated-same-user-job")
@@ -181,6 +216,9 @@ class SlurmIdentityTests(LocalBackendTestCase):
         test_graphs.TaskGraphTests.settle(self)
         self.assertEqual((self.work / "results/sample/result.txt").read_text(), "leftright")
         self.overrides(old, old["name"])
+        recovery = self.cli("-b", "slurm", "recover", "sample", env=self.environment, success=False)
+        self.assertIn(old["name"], recovery)
+        self.assertFalse(list(self.work.rglob("recovery.json")))
         self.cli("-b", "slurm", "cancel", "sample", env=self.environment)
         self.assertEqual([item["name"] for item in self.requests()], [old["name"]])
         (self.work / "slurm-cancelled.jsonl").unlink()

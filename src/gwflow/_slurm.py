@@ -112,6 +112,11 @@ class ManagedSlurmOps(SlurmOps):
         self.verified[key] = state
         return state
 
+    def active_queue_names(self):
+        """Positive evidence for the whole-Task recovery veto, even if accounting failed."""
+        return {name for records in (self.queue or {}).values() for name, state in records
+                if state in (BackendStatus.SUBMITTED, BackendStatus.RUNNING)}
+
     def require_cancellation_identity(self, job_id, submission):
         self.observe_submission(job_id, submission=submission)
         if not self.cancel_capable:

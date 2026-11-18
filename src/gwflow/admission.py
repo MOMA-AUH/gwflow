@@ -199,9 +199,12 @@ def read_recovery(store, attempt, intent):
     return record
 
 
-def resolve_submissions(store, attempt, observations):
+def resolve_submissions(store, attempt, observations, backend):
+    ops = getattr(backend, "ops", None)
+    active_names = ops.active_queue_names() if isinstance(ops, ManagedSlurmOps) else set()
     active = [item.submission for item in observations
-              if item.backend_state in (BackendStatus.SUBMITTED, BackendStatus.RUNNING)]
+              if item.backend_state in (BackendStatus.SUBMITTED, BackendStatus.RUNNING)
+              or (item.intent["backend"] == {"name": "slurm"} and item.submission in active_names)]
     if active:
         raise WorkflowError("Recovery requires whole-Task inactivity; queued or running submissions: " + ", ".join(active))
     unresolved = [item for item in observations if item.state == "uncertain"]
