@@ -18,6 +18,8 @@ import test_conda_runtime
 class CiSuiteTests(unittest.TestCase):
     def test_shard_plan_is_explicit_deterministic_and_rejects_unsupported_counts(self):
         command = [sys.executable, str(Path(__file__).with_name("ci_suite.py")), "plan"]
+        default_plan = subprocess.check_output(command, text=True, timeout=10)
+        self.assertEqual(json.loads(default_plan), {"include": [{"shard": 0, "group": 1}, {"shard": 1, "group": 2}]})
         for count in (2, 4):
             with self.subTest(count=count):
                 result = subprocess.run([*command, "--count", str(count)], capture_output=True, text=True, timeout=10)

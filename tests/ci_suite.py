@@ -94,7 +94,7 @@ def main() -> None:
     parser.add_argument("--source", type=Path, default=Path.cwd())
     parser.add_argument("--conda", default="conda")
     parser.add_argument("--index", type=int, default=0)
-    parser.add_argument("--count", type=int, default=4)
+    parser.add_argument("--count", type=int, default=2)
     parser.add_argument("--output", type=Path)
     parser.add_argument("--records", type=Path)
     args = parser.parse_args()

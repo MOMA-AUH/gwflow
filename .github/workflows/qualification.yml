@@ -9,7 +9,7 @@ on:
       shard-count:
         description: Measured installed-suite partition count (two or four)
         type: number
-        default: 4
+        default: 2
       release-simulations:
         description: Run or skip extra release plumbing checks; only ordinary PRs may skip
         type: string
