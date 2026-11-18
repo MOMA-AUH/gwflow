@@ -40,7 +40,7 @@
   "limitations": [
     "One sample per count, run concurrently on independent hosted machines. Between-run variance and a confidence interval cannot be estimated.",
     "Identical runner labels/image versions do not control host hardware, region, network, scheduler or package-service conditions.",
-    "Two-shard test execution totaled 3075.677 seconds versus 3626.724 with four. This variation is not a causal effect of shard count and contributes to the observed cost difference.",
+    "Two-shard test execution totaled 3075.677 seconds versus 3626.724 with four. These samples do not identify how much of this difference is caused by shard count; it contributes to the observed cost difference.",
     "Cache availability, composite restoration delays, artifact transfers and all final simulations remain included. No synthetic timing replaces the measured full workloads.",
     "The provisional pre-1.0 source compatibility check ran. Stable preserved-release comparison steps were inapplicable under the checkout-pinned descriptor, not skipped required application coverage.",
     "These observations apply to this source and environment. No generic cost saving, feedback SLA or tight CI timing threshold follows from them."
