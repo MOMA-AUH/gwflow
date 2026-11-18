@@ -11,28 +11,70 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  classification:
+    runs-on: ubuntu-24.04
+    outputs:
+      mode: ${{ steps.changes.outputs.mode }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # Both PR parents and their merge base are needed for the complete diff.
+          fetch-depth: 0
+      - name: Classify the complete pull request diff
+        id: changes
+        env:
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          python3 tests/ci_changes.py classify --base "$PR_BASE" --head "$PR_HEAD" \
+            --github-output "$GITHUB_OUTPUT"
+
+  documentation:
+    needs: classification
+    if: needs.classification.outputs.mode == 'docs'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Check prose diff formatting
+        env:
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: git diff --check "$PR_BASE...$PR_HEAD"
+      - name: Check recommended README installation
+        run: python3 -m unittest discover -s tests -p test_readme.py -v
+      - name: Check change classification and required result handling
+        run: python3 -m unittest discover -s tests -p test_ci_changes.py -v
+
   qualification:
+    needs: classification
+    if: needs.classification.outputs.mode == 'full'
     uses: ./.github/workflows/qualification.yml
     with:
       source: ${{ github.sha }}
 
-  # Preserve the existing required check names across reusable-workflow jobs.
+  # Preserve the required names and explicitly verify selected and unselected jobs.
   tests:
     if: always()
-    needs: qualification
+    needs: [classification, documentation, qualification]
     runs-on: ubuntu-24.04
     steps:
-      - name: Require full qualification
+      - uses: actions/checkout@v7
+      - name: Require every selected validation to pass
         env:
-          RESULT: ${{ needs.qualification.result }}
-        run: test "$RESULT" = success
+          MODE: ${{ needs.classification.outputs.mode }}
+          RESULTS: ${{ toJSON(needs) }}
+        run: python3 tests/ci_changes.py gate --mode "$MODE" --needs "$RESULTS"
 
   conda:
     if: always()
-    needs: qualification
+    needs: [classification, documentation, qualification]
     runs-on: ubuntu-24.04
     steps:
-      - name: Require full qualification
+      - uses: actions/checkout@v7
+      - name: Require every selected validation to pass
         env:
-          RESULT: ${{ needs.qualification.result }}
-        run: test "$RESULT" = success
+          MODE: ${{ needs.classification.outputs.mode }}
+          RESULTS: ${{ toJSON(needs) }}
+        run: python3 tests/ci_changes.py gate --mode "$MODE" --needs "$RESULTS"
