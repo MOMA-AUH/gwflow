@@ -4,12 +4,14 @@ from collections import Counter
 import copy
 import json
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
 
 from ci_suite import cases, check_runtime, partition, verify_records
+from conda_runtime import host_platform
 import test_conda_runtime
 
 
@@ -93,6 +95,47 @@ class CiSuiteTests(unittest.TestCase):
         (fixture.prefix / "lib/gwflow.payload").write_text("changed installed package")
         with self.assertRaises(ValueError):
             check_runtime(str(fixture.conda), fixture.bundle, fixture.prefix, source)
+
+    def test_fixture_installation_preserves_the_checked_out_container_inputs(self):
+        fixture = test_conda_runtime.CondaRuntimeTests()
+        fixture.setUp()
+        self.addCleanup(fixture.doCleanups)
+        for name, version, build, checksum in (("python", "3.12.14", "h123_0", "1" * 64),
+                                                ("libnative", "2.0", "h456_3", "2" * 64)):
+            fixture.package(name, version, build, host_platform(),
+                            f"https://packages.example/{host_platform()}/{name}-{version}-{build}.conda", checksum)
+        source = fixture.root / "source"
+        packages = source / "tests/fixtures/packaged_tasks/packages"
+        shutil.copytree(test_conda_runtime.ROOT / "tests/fixtures/packaged_tasks/packages", packages,
+                        ignore=shutil.ignore_patterns("__pycache__", "*.egg-info", "build"))
+        for args in (("init", "-q"), ("add", "."),
+                     ("-c", "user.name=Fixture", "-c", "user.email=fixture@example.test", "commit", "-qm", "fixtures")):
+            subprocess.run(["git", *args], cwd=source, check=True, capture_output=True)
+        fixture.command("capture", "--prefix", str(fixture.prefix), "--artifact", str(fixture.artifact),
+                        "--source", str(source), "--output", str(fixture.bundle))
+        probe = fixture.root / "python-probe"
+        probe.write_text("#!" + sys.executable + "\n"
+                         "import json,pathlib,sys,tomllib\n"
+                         "prefix=pathlib.Path(__file__).resolve().parents[1]\n"
+                         "assert sys.argv[1:5]==['-m','pip','install','--no-deps'],sys.argv\n"
+                         "projects=[]\n"
+                         "for value in sys.argv[5:]:\n"
+                         "    package=pathlib.Path(value)\n"
+                         "    (package/'generated.egg-info').mkdir()\n"
+                         "    project=tomllib.loads((package/'pyproject.toml').read_text())['project']\n"
+                         "    projects.append({'name':project['name'],'version':project['version'],'channel':'pypi'})\n"
+                         "(prefix/'extra-packages.json').write_text(json.dumps(projects))\n")
+        probe.chmod(0o755)
+        target = fixture.root / "installed"
+        environment = {**fixture.environment, "GWFLOW_CONDA_PROBE": str(probe)}
+        result = subprocess.run([sys.executable, str(Path(__file__).with_name("ci_suite.py")), "install",
+                                 "--conda", str(fixture.conda), "--bundle", str(fixture.bundle),
+                                 "--source", str(source), "--prefix", str(target)],
+                                env=environment, capture_output=True, text=True, timeout=30)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        generated = subprocess.check_output(["git", "ls-files", "--others", "--exclude-standard"], cwd=source, text=True)
+        self.assertEqual(generated, "")
+        self.assertEqual(list(packages.rglob("*.egg-info")), [])
 
     def test_runner_records_passes_and_rejects_failures_skips_and_discovery_errors(self):
         # Only Conda inventory is controlled here; execute discovery, tests, timing,
