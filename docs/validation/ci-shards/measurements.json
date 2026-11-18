@@ -1,0 +1,1713 @@
+{
+  "schema_version": 1,
+  "recorded_date": "2026-11-18",
+  "repository": "MOMA-AUH/gwflow",
+  "issue": 407,
+  "source_commit": "ad55248131be0e5f9a0344e6662d0ed0b160d4cb",
+  "package_version": "0.11.2",
+  "scope": "Matched two/four shard manual CI, including the complete qualification workload at the workflow configuration used during issue #407 implementation.",
+  "path_convention": "All paths are repository-relative. <REPO> denotes a checkout root. Raw machine logs and full per-test records remain ignored under build/validation/fix-issues/20261118-ci-efficiency/.",
+  "commands": [
+    "cd <REPO>",
+    "git switch fix/407-measured-ci-shards  # source ad55248131be0e5f9a0344e6662d0ed0b160d4cb at dispatch",
+    "gh workflow run ci.yml --repo MOMA-AUH/gwflow --ref fix/407-measured-ci-shards -f shard-count=2",
+    "gh workflow run ci.yml --repo MOMA-AUH/gwflow --ref fix/407-measured-ci-shards -f shard-count=4",
+    "gh api repos/MOMA-AUH/gwflow/actions/runs/RUN_ID/jobs --paginate",
+    "gh api repos/MOMA-AUH/gwflow/actions/runs/RUN_ID/artifacts",
+    "gh api repos/MOMA-AUH/gwflow/actions/runs/RUN_ID/timing",
+    "gh run download RUN_ID --repo MOMA-AUH/gwflow --pattern 'conda-suite-*' --dir build/validation/fix-issues/20261118-ci-efficiency/407-suite-COUNT",
+    "gh run download RUN_ID --repo MOMA-AUH/gwflow --name gwflow-ci-runtime --dir build/validation/fix-issues/20261118-ci-efficiency/407-runtime-COUNT"
+  ],
+  "command_placeholders": "RUN_ID is 44371388219 for COUNT=2 or 44371404467 for COUNT=4. The branch must still point at the recorded source when reproducing these dispatches.",
+  "timing_definitions": {
+    "runner_seconds": "Sum completed_at minus started_at for every allocated non-skipped job, including classification, build, fixture preparation, pip/compatibility, suites, real acceptance, aggregate, transfers, cleanup, and required gates. No queue time or per-job billing rounding.",
+    "elapsed_seconds": "Latest completed_at minus earliest started_at across those jobs. Includes dependency and inter-job scheduling waits. Initial dispatch queue time is separate.",
+    "whole_job_stage_seconds": "Disjoint job groups that sum exactly to runner_seconds.",
+    "test_execution_seconds": "Sum monotonic per-test durations from all passing shard records. This is a subset of suite execution-step and whole-job time.",
+    "overlapping_details": "suite_restore_and_fixture_transfer_seconds and standalone_artifact_action_seconds are diagnostic subsets of whole jobs. Composite restore includes embedded runtime/image download and cache transfer. Never add these subsets again to runner_seconds."
+  },
+  "coverage": {
+    "every_run": "1126 discovered tests, each exactly once across its expected count; zero failures and zero skipped tests. Exact runtime identity checked before/after every shard and by the coverage aggregate.",
+    "release_process": "Both workflow_dispatch runs forced full simulations. Fresh-cache qualification, independent profile/replacement comparisons, bundle verification and both required gates passed.",
+    "retries": "Both samples are attempt 1 with no retries. Fail-fast remains false. Focused regressions verify deterministic plans/assignments, independent retry membership, and missing/duplicate/count rejection."
+  },
+  "cross_run_environment": {
+    "dependency_manifest_identical": true,
+    "fixtures_and_source_identical": true,
+    "candidate_package_bytes_identical": false,
+    "explanation": "The independent builds produced different candidate package checksums. Each run enforced its own exact candidate artifact and identical dependencies in all shards. This compares the same source/workload, not a shared candidate binary across runs."
+  },
+  "limitations": [
+    "One sample per count, run concurrently on independent hosted machines. Between-run variance and a confidence interval cannot be estimated.",
+    "Identical runner labels/image versions do not control host hardware, region, network, scheduler or package-service conditions.",
+    "Two-shard test execution totaled 3075.677 seconds versus 3626.724 with four. This variation is not a causal effect of shard count and contributes to the observed cost difference.",
+    "Cache availability, composite restoration delays, artifact transfers and all final simulations remain included. No synthetic timing replaces the measured full workloads.",
+    "The provisional pre-1.0 source compatibility check ran. Stable preserved-release comparison steps were inapplicable under the checkout-pinned descriptor, not skipped required application coverage.",
+    "These observations apply to this source and environment. No generic cost saving, feedback SLA or tight CI timing threshold follows from them."
+  ],
+  "selection": {
+    "default_shards": 2,
+    "balancing": "Existing deterministic SHA-256 assignment by test identity.",
+    "observed_runner_minutes_saved": 19.833,
+    "observed_runner_reduction_percent": 22.41,
+    "observed_feedback_minutes_added": 9.017,
+    "rationale": "Choose the lower observed allocation cost for this CI-efficiency goal. Two shards took about 39 minutes instead of 30, near the 38.4-minute complete pipeline already observed earlier in the same queue. This accepts slower feedback for fewer replicated setup jobs and lower measured runner allocation. One sample does not establish a guaranteed reduction.",
+    "balance_rationale": "Timing-aware redistribution can shorten the longest shard but does not remove test work. Historical predictions suggested only a few minutes of benefit and require a maintained timing baseline. Keep the simpler stable assignment and remeasure before adding that policy."
+  },
+  "measurements": [
+    {
+      "shards": 2,
+      "run_id": 44371388219,
+      "run_url": "https://github.com/MOMA-AUH/gwflow/actions/runs/44371388219",
+      "source": "ad55248131be0e5f9a0344e6662d0ed0b160d4cb",
+      "event": "workflow_dispatch",
+      "run_attempt": 1,
+      "samples": 1,
+      "runner_seconds": 4119.0,
+      "runner_minutes": 68.65,
+      "elapsed_seconds": 2343.0,
+      "initial_queue_seconds": 3.0,
+      "test_count": 1126,
+      "skips": 0,
+      "failures": 0,
+      "runtime": {
+        "schema_version": 1,
+        "platform": "linux-64",
+        "source_commit": "ad55248131be0e5f9a0344e6662d0ed0b160d4cb",
+        "artifact": {
+          "filename": "gwflow-0.11.2-py_0.conda",
+          "sha256": "0d5896806accc5ed69a41502dadd5c1bf906737a7ed368d36989fc190523d8bf",
+          "subdir": "noarch"
+        },
+        "manifest": {
+          "filename": "runtime.explicit.txt",
+          "sha256": "a3be80c9690c41ed9f9d6276c8c6f8dd57cc1648fbd9ef24db2826ed9572172a"
+        },
+        "fixtures": {
+          "tests/fixtures/packaged_tasks/packages/report-task/pyproject.toml": "3f45201374ea52994468e6be05827cb7e4faa9bbca581ff82bc9b1817ce4cbe5",
+          "tests/fixtures/packaged_tasks/packages/report-task/src/report_task/__init__.py": "0d8075f32b73a3b474e32253ee74766876300a490f6a9d1c3a59fe48095c2faf",
+          "tests/fixtures/packaged_tasks/packages/report-task/src/report_task/__main__.py": "8d01b6b2b71ea8e0aca62282e89e3dd278c86a203fdd52bd4d509b508c095ee2",
+          "tests/fixtures/packaged_tasks/packages/report-task/src/report_task/templates.py": "07853d444b95d7445f2befc361843b2d6f983d6cec5388f8d8ab9729605c64b0",
+          "tests/fixtures/packaged_tasks/packages/summary-task/pyproject.toml": "639ec58c1d88bf4b29a42f48636b2baeb3262aeb734a5e014fd9a4b669de2cbe",
+          "tests/fixtures/packaged_tasks/packages/summary-task/src/summary_task/__init__.py": "0d8075f32b73a3b474e32253ee74766876300a490f6a9d1c3a59fe48095c2faf",
+          "tests/fixtures/packaged_tasks/packages/summary-task/src/summary_task/__main__.py": "702f3335a8b4584f582934db883704b67ca480b9316ae9f20f169de36bc5355d",
+          "tests/fixtures/packaged_tasks/packages/summary-task/src/summary_task/templates.py": "70626cb355e8b8192d912e339a6465179153fca368698c48b6b0d2f84a9d6068"
+        },
+        "fixture_versions": {
+          "gwflow-summary-task": "0.5.0",
+          "gwflow-report-task": "0.5.0"
+        }
+      },
+      "per_shard_test_seconds": [
+        1300.628,
+        1775.049
+      ],
+      "test_execution_seconds": 3075.677,
+      "within_run_shard_test_range_seconds": 474.421,
+      "within_run_shard_test_population_stddev_seconds": 237.211,
+      "jobs": [
+        {
+          "name": "classification",
+          "job_id": 135038814269,
+          "runner_labels": [
+            "ubuntu-24.04"
+          ],
+          "runner_id": 1000011531,
+          "runner_group": "GitHub Actions",
+          "seconds": 5.0,
+          "result": "success",
+          "steps": [
+            {
+              "name": "Set up job",
+              "seconds": 1.0,
+              "result": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "seconds": 1.0,
+              "result": "success"
+            },
+            {
+              "name": "Classify the complete pull request diff",
+              "seconds": 0.0,
+              "result": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "seconds": 0.0,
+              "result": "success"
+            },
+            {
+              "name": "Complete job",
+              "seconds": 0.0,
+              "result": "success"
+            }
+          ]
+        },
+        {
+          "name": "qualification / build",
+          "job_id": 135038880851,
+          "runner_labels": [
+            "ubuntu-24.04"
+          ],
+          "runner_id": 1000011535,
+          "runner_group": "GitHub Actions",
+          "seconds": 55.0,
+          "result": "success",
+          "steps": [
+            {
+              "name": "Set up job",
+              "seconds": 0.0,
+              "result": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "seconds": 1.0,
+              "result": "success"
+            },
+            {
+              "name": "Validate the complete suite shard plan",
+              "seconds": 0.0,
+              "result": "success"
+            },
+            {
+              "name": "Run conda-incubator/setup-miniconda@v4",
+              "seconds": 9.0,
+              "result": "success"
+            },
+            {
+              "name": "Run ./.github/actions/cache-conda-downloads",
+              "seconds": 2.0,
+              "result": "success"
+            },
+            {
+              "name": "Build and install the candidate once",
+              "seconds": 36.0,
+              "result": "success"
+            },
+            {
+              "name": "Run actions/upload-artifact@v7",
+              "seconds": 2.0,
+              "result": "success"
+            },
+            {
+              "name": "Run actions/upload-artifact@v7",
+              "seconds": 1.0,
+              "result": "success"
+            },
+            {
+              "name": "Post Run ./.github/actions/cache-conda-downloads",
+              "seconds": 0.0,
+              "result": "success"
+            },
+            {
+              "name": "Post Run conda-incubator/setup-miniconda@v4",
+              "seconds": 0.0,
+              "result": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "seconds": 0.0,
+              "result": "success"
+            },
+            {
+              "name": "Complete job",
+              "seconds": 1.0,
+              "result": "success"
+            }
+          ]
+        },
+        {
+          "name": "qualification / tests",
+          "job_id": 135038880912,
+          "runner_labels": [
+            "ubuntu-24.04"
+          ],
+          "runner_id": 1000011533,
+          "runner_group": "GitHub Actions",
+          "seconds": 173.0,
+          "result": "success",
+          "steps": [
+            {
+              "name": "Set up job",
+              "seconds": 1.0,
+              "result": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "seconds": 2.0,
+              "result": "success"
+            },
+            {
+              "name": "Check recommended README installation",
+              "seconds": 0.0,
+              "result": "success"
+            },
+            {
+              "name": "Run conda-incubator/setup-miniconda@v4",
+              "seconds": 8.0,
+              "result": "success"
+            },
+            {
+              "name": "Run ./.github/actions/cache-conda-downloads",
+              "seconds": 3.0,
+              "result": "success"
+            },
+            {
+              "name": "Install gwf and gwflow",
+              "seconds": 22.0,
+              "result": "success"
+            },
+            {
+              "name": "Select checkout-pinned compatibility baselines",
+              "seconds": 2.0,
+              "result": "success"
+            },
+            {
+              "name": "Verify provisional installed Task compatibility",
+              "seconds": 81.0,
+              "result": "success"
+            },
+            {
+              "name": "Check pip installation and representative behavior",
+              "seconds": 48.0,
+              "result": "success"
+            },
+            {
+              "name": "Run actions/upload-artifact@v7",
+              "seconds": 2.0,
+              "result": "success"
+            },
+            {
+              "name": "Post Run ./.github/actions/cache-conda-downloads",
+              "seconds": 0.0,
+              "result": "success"
+            },
+            {
+              "name": "Post Run conda-incubator/setup-miniconda@v4",
+              "seconds": 0.0,
+              "result": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "seconds": 0.0,
+              "result": "success"
+            },
+            {
+              "name": "Complete job",
+              "seconds": 0.0,
+              "result": "success"
+            }
+          ]
+        },
+        {
+          "name": "qualification / prepare-fixtures / prepare",
+          "job_id": 135038881318,
+          "runner_labels": [
+            "ubuntu-24.04"
+          ],
+          "runner_id": 1000011534,
+          "runner_group": "GitHub Actions",
+          "seconds": 20.0,
+          "result": "success",
+          "steps": [
+            {
+              "name": "Set up job",
+              "seconds": 1.0,
+              "result": "success"
+            },
+            {
+              "name": "Require master for standalone cache population",
+              "seconds": 0.0,
+              "result": "skipped"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "seconds": 1.0,
+              "result": "success"
+            },
+            {
+              "name": "Run ./.github/actions/install-apptainer",
+              "seconds": 11.0,
+              "result": "success"
+            },
+            {
+              "name": "Identify every fixture build input",
+              "seconds": 0.0,
+              "result": "success"
+            },
+            {
+              "name": "Run actions/cache/restore@v6",
+              "seconds": 2.0,
+              "result": "success"
+            },
+            {
+              "name": "Prepare and verify the complete current-run fixture artifact",
+              "seconds": 0.0,
+              "result": "success"
+            },
+            {
+              "name": "Execute the prepared images",
+              "seconds": 1.0,
+              "result": "success"
+            },
+            {
+              "name": "Run actions/cache/save@v6",
+              "seconds": 0.0,
+              "result": "skipped"
+            },
+            {
+              "name": "Run actions/upload-artifact@v7",
+              "seconds": 2.0,
+              "result": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "seconds": 0.0,
+              "result": "success"
+            },
+            {
+              "name": "Complete job",
+              "seconds": 0.0,
+              "result": "success"
+            }
+          ]
+        },
+        {
+          "name": "qualification / containers",
+          "job_id": 135039489688,
+          "runner_labels": [
+            "ubuntu-24.04"
+          ],
+          "runner_id": 1000011541,
+          "runner_group": "GitHub Actions",
+          "seconds": 234.0,
+          "result": "success",
+          "steps": [
+            {
+              "name": "Set up job",
+              "seconds": 3.0,
+              "result": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "seconds": 6.0,
+              "result": "success"
+            },
+            {
+              "name": "Run ./.github/actions/restore-ci-runtime",
+              "seconds": 136.0,
+              "result": "success"
+            },
+            {
+              "name": "Run consolidated container acceptance against the Conda package",
+              "seconds": 83.0,
+              "result": "success"
+            },
+            {
+              "name": "Run actions/upload-artifact@v7",
+              "seconds": 2.0,
+              "result": "success"
+            },
+            {
+              "name": "Post Run ./.github/actions/restore-ci-runtime",
+              "seconds": 1.0,
+              "result": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "seconds": 0.0,
+              "result": "success"
+            },
+            {
+              "name": "Complete job",
+              "seconds": 0.0,
+              "result": "success"
+            }
+          ]
+        },
+        {
+          "name": "qualification / Conda tests (1/2)",
+          "job_id": 135039489719,
+          "runner_labels": [
+            "ubuntu-24.04"
+          ],
+          "runner_id": 1000011539,
+          "runner_group": "GitHub Actions",
+          "seconds": 1354.0,
+          "result": "success",
+          "steps": [
+            {
+              "name": "Set up job",
+              "seconds": 0.0,
+              "result": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "seconds": 2.0,
+              "result": "success"
+            },
+            {
+              "name": "Run ./.github/actions/restore-ci-runtime",
+              "seconds": 40.0,
+              "result": "success"
+            },
+            {
+              "name": "Run one partition of the full installed Conda suite",
+              "seconds": 1306.0,
+              "result": "success"
+            },
+            {
+              "name": "Run actions/upload-artifact@v7",
+              "seconds": 2.0,
+              "result": "success"
+            },
+            {
+              "name": "Post Run ./.github/actions/restore-ci-runtime",
+              "seconds": 0.0,
+              "result": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "seconds": 0.0,
+              "result": "success"
+            },
+            {
+              "name": "Complete job",
+              "seconds": 0.0,
+              "result": "success"
+            }
+          ]
+        },
+        {
+          "name": "qualification / Conda tests (2/2)",
+          "job_id": 135039489738,
+          "runner_labels": [
+            "ubuntu-24.04"
+          ],
+          "runner_id": 1000011540,
+          "runner_group": "GitHub Actions",
+          "seconds": 1896.0,
+          "result": "success",
+          "steps": [
+            {
+              "name": "Set up job",
+              "seconds": 2.0,
+              "result": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "seconds": 4.0,
+              "result": "success"
+            },
+            {
+              "name": "Run ./.github/actions/restore-ci-runtime",
+              "seconds": 103.0,
+              "result": "success"
+            },
+            {
+              "name": "Run one partition of the full installed Conda suite",
+              "seconds": 1783.0,
+              "result": "success"
+            },
+            {
+              "name": "Run actions/upload-artifact@v7",
+              "seconds": 1.0,
+              "result": "success"
+            },
+            {
+              "name": "Post Run ./.github/actions/restore-ci-runtime",
+              "seconds": 0.0,
+              "result": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "seconds": 0.0,
+              "result": "success"
+            },
+            {
+              "name": "Complete job",
+              "seconds": 0.0,
+              "result": "success"
+            }
+          ]
+        },
+        {
+          "name": "qualification / conda",
+          "job_id": 135059632891,
+          "runner_labels": [
+            "ubuntu-24.04"
+          ],
+          "runner_id": 1000011550,
+          "runner_group": "GitHub Actions",
+          "seconds": 374.0,
+          "result": "success",
+          "steps": [
+            {
+              "name": "Set up job",
+              "seconds": 4.0,
+              "result": "success"
+            },
+            {
+              "name": "Require every Conda prerequisite to pass",
+              "seconds": 0.0,
+              "result": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "seconds": 3.0,
+              "result": "success"
+            },
+            {
+              "name": "Select release-process simulation coverage",
+              "seconds": 0.0,
+              "result": "success"
+            },
+            {
+              "name": "Run ./.github/actions/restore-ci-runtime",
+              "seconds": 31.0,
+              "result": "success"
+            },
+            {
+              "name": "Run actions/download-artifact@v8",
+              "seconds": 1.0,
+              "result": "success"
+            },
+            {
+              "name": "Verify complete suite coverage in the exact runtime",
+              "seconds": 17.0,
+              "result": "success"
+            },
+            {
+              "name": "Select checkout-pinned compatibility baselines",
+              "seconds": 1.0,
+              "result": "success"
+            },
+            {
+              "name": "Capture and qualify the tested Conda runtime",
+              "seconds": 31.0,
+              "result": "success"
+            },
+            {
+              "name": "Run actions/download-artifact@v8",
+              "seconds": 2.0,
+              "result": "success"
+            },
+            {
+              "name": "Compare independent controlled runtimes",
+              "seconds": 274.0,
+              "result": "success"
+            },
+            {
+              "name": "Prepare completely qualified release bundle",
+              "seconds": 1.0,
+              "result": "success"
+            },
+            {
+              "name": "Require selected release-process simulations to pass",
+              "seconds": 0.0,
+              "result": "success"
+            },
+            {
+              "name": "Install independent candidate for preserved-release compatibility",
+              "seconds": 0.0,
+              "result": "skipped"
+            },
+            {
+              "name": "Compare pinned stable releases in independent runtimes",
+              "seconds": 0.0,
+              "result": "skipped"
+            },
+            {
+              "name": "Run actions/upload-artifact@v7",
+              "seconds": 2.0,
+              "result": "success"
+            },
+            {
+              "name": "Run actions/upload-artifact@v7",
+              "seconds": 2.0,
+              "result": "success"
+            },
+            {
+              "name": "Post Run ./.github/actions/restore-ci-runtime",
+              "seconds": 0.0,
+              "result": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "seconds": 1.0,
+              "result": "success"
+            },
+            {
+              "name": "Complete job",
+              "seconds": 0.0,
+              "result": "success"
+            }
+          ]
+        },
+        {
+          "name": "conda",
+          "job_id": 135063656596,
+          "runner_labels": [
+            "ubuntu-24.04"
+          ],
+          "runner_id": 1000011552,
+          "runner_group": "GitHub Actions",
+          "seconds": 4.0,
+          "result": "success",
+          "steps": [
+            {
+              "name": "Set up job",
+              "seconds": 1.0,
+              "result": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "seconds": 1.0,
+              "result": "success"
+            },
+            {
+              "name": "Require every selected validation to pass",
+              "seconds": 0.0,
+              "result": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "seconds": 0.0,
+              "result": "success"
+            },
+            {
+              "name": "Complete job",
+              "seconds": 0.0,
+              "result": "success"
+            }
+          ]
+        },
+        {
+          "name": "tests",
+          "job_id": 135063656695,
+          "runner_labels": [
+            "ubuntu-24.04"
+          ],
+          "runner_id": 1000011551,
+          "runner_group": "GitHub Actions",
+          "seconds": 4.0,
+          "result": "success",
+          "steps": [
+            {
+              "name": "Set up job",
+              "seconds": 0.0,
+              "result": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "seconds": 1.0,
+              "result": "success"
+            },
+            {
+              "name": "Require every selected validation to pass",
+              "seconds": 0.0,
+              "result": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "seconds": 1.0,
+              "result": "success"
+            },
+            {
+              "name": "Complete job",
+              "seconds": 0.0,
+              "result": "success"
+            }
+          ]
+        }
+      ],
+      "intentional_skips": [
+        "documentation"
+      ],
+      "versions": {
+        "gwflow": "0.11.2",
+        "python_under_test": "3.12.16",
+        "gwf": "3.0.0",
+        "capture_tools": {
+          "conda": "conda 26.9.4",
+          "python": "3.12.3"
+        },
+        "apptainer": "1.5.4"
+      },
+      "elapsed_minutes": 39.05,
+      "runner_environment": {
+        "os_label": "ubuntu-24.04",
+        "image_version": "20261111.370.1",
+        "runner_version": "2.338.2",
+        "sampled_build_region": "centralus",
+        "sampled_first_shard_region": "westus2",
+        "hardware_pairing": "Independent hosted machines; hardware was not paired or controlled."
+      },
+      "cache_observations": {
+        "build_downloads": "Both restored the identical existing master cache key.",
+        "fixtures": "Both reused verified digest-pinned fixture images from the master cache.",
+        "first_shard_runtime_downloads": "Both missed the identical dependency-archive cache key."
+      },
+      "artifacts": [
+        {
+          "name": "gwflow-conda-release",
+          "id": 14463295098,
+          "bytes": 117260,
+          "digest": "sha256:16b2b6f7959dc841c71807a85e5562ce2efba5acfe49cc3e90e70e89ece4a00a"
+        },
+        {
+          "name": "conda-runtime-evidence",
+          "id": 14461584740,
+          "bytes": 230138,
+          "digest": "sha256:80300aef94121641f980015b5d5768b015cd1c7a107739a22dbcb574eb59c165"
+        },
+        {
+          "name": "conda-suite-1",
+          "id": 14461503926,
+          "bytes": 30728,
+          "digest": "sha256:ef14c9e70916b53e6cb885789f1d4feb44592ca6876ef3ae06d03564c68f144c"
+        },
+        {
+          "name": "conda-suite-0",
+          "id": 14460367804,
+          "bytes": 29893,
+          "digest": "sha256:4d9a0f122c03c5730e2a25161458bc00e2a33769699ba45912410c9bd7a6eb00"
+        },
+        {
+          "name": "gwflow-ci-channel",
+          "id": 14459028989,
+          "bytes": 114722,
+          "digest": "sha256:a326cc6f01513232e39da34a9357b9c1351bad0c7cea6938992bb407f5493a1f"
+        },
+        {
+          "name": "gwflow-ci-runtime",
+          "id": 14458753882,
+          "bytes": 112987,
+          "digest": "sha256:a236990ac39935e71ada764e1616e53a6f3a2ca92ebf5468400029d2be9d1c2c"
+        },
+        {
+          "name": "container-acceptance-evidence",
+          "id": 14458504743,
+          "bytes": 934,
+          "digest": "sha256:a882a916f3041157c7dc0791fa6dbf52a06a22a173caf82c28105eb2ee3447c6"
+        },
+        {
+          "name": "gwflow-container-fixtures",
+          "id": 14457659275,
+          "bytes": 148653634,
+          "digest": "sha256:9d08d4118832a50a3c298cfa40af41eecacb7f504c3b671226605c7199015ec6"
+        },
+        {
+          "name": "installed-source-evidence",
+          "id": 14457579661,
+          "bytes": 5229,
+          "digest": "sha256:2dc75bc19081b052ef4f9f58815716862658276a3d6dad914005a549eddab1d7"
+        }
+      ],
+      "whole_job_stage_seconds": {
+        "source_installation_and_pip_compatibility": 173.0,
+        "package_build_and_runtime_capture": 55.0,
+        "fixture_preparation_and_transfer": 20.0,
+        "real_container_acceptance": 234.0,
+        "aggregate_runtime_verification_and_release_simulations": 374.0,
+        "suite_shards_including_all_setup_transfers_tests_and_cleanup": 3250.0,
+        "classification_and_required_gates": 13.0
+      },
+      "suite_restore_and_fixture_transfer_seconds": 143.0,
+      "suite_execution_step_seconds": 3089.0,
+      "standalone_artifact_action_seconds": 19.0,
+      "billing_api": {
+        "reported_billable_ms": 0,
+        "interpretation": "This is not the allocation measure. Public hosted billing reported zero; runner time uses complete job timestamps."
+      }
+    },
+    {
+      "shards": 4,
+      "run_id": 44371404467,
+      "run_url": "https://github.com/MOMA-AUH/gwflow/actions/runs/44371404467",
+      "source": "ad55248131be0e5f9a0344e6662d0ed0b160d4cb",
+      "event": "workflow_dispatch",
+      "run_attempt": 1,
+      "samples": 1,
+      "runner_seconds": 5309.0,
+      "runner_minutes": 88.483,
+      "elapsed_seconds": 1802.0,
+      "initial_queue_seconds": 5.0,
+      "test_count": 1126,
+      "skips": 0,
+      "failures": 0,
+      "runtime": {
+        "schema_version": 1,
+        "platform": "linux-64",
+        "source_commit": "ad55248131be0e5f9a0344e6662d0ed0b160d4cb",
+        "artifact": {
+          "filename": "gwflow-0.11.2-py_0.conda",
+          "sha256": "e138c54d64d63215c740ad053d84d4f4ac2d608668111bc8809090aa225c1982",
+          "subdir": "noarch"
+        },
+        "manifest": {
+          "filename": "runtime.explicit.txt",
+          "sha256": "a3be80c9690c41ed9f9d6276c8c6f8dd57cc1648fbd9ef24db2826ed9572172a"
+        },
+        "fixtures": {
+          "tests/fixtures/packaged_tasks/packages/report-task/pyproject.toml": "3f45201374ea52994468e6be05827cb7e4faa9bbca581ff82bc9b1817ce4cbe5",
+          "tests/fixtures/packaged_tasks/packages/report-task/src/report_task/__init__.py": "0d8075f32b73a3b474e32253ee74766876300a490f6a9d1c3a59fe48095c2faf",
+          "tests/fixtures/packaged_tasks/packages/report-task/src/report_task/__main__.py": "8d01b6b2b71ea8e0aca62282e89e3dd278c86a203fdd52bd4d509b508c095ee2",
+          "tests/fixtures/packaged_tasks/packages/report-task/src/report_task/templates.py": "07853d444b95d7445f2befc361843b2d6f983d6cec5388f8d8ab9729605c64b0",
+          "tests/fixtures/packaged_tasks/packages/summary-task/pyproject.toml": "639ec58c1d88bf4b29a42f48636b2baeb3262aeb734a5e014fd9a4b669de2cbe",
+          "tests/fixtures/packaged_tasks/packages/summary-task/src/summary_task/__init__.py": "0d8075f32b73a3b474e32253ee74766876300a490f6a9d1c3a59fe48095c2faf",
+          "tests/fixtures/packaged_tasks/packages/summary-task/src/summary_task/__main__.py": "702f3335a8b4584f582934db883704b67ca480b9316ae9f20f169de36bc5355d",
+          "tests/fixtures/packaged_tasks/packages/summary-task/src/summary_task/templates.py": "70626cb355e8b8192d912e339a6465179153fca368698c48b6b0d2f84a9d6068"
+        },
+        "fixture_versions": {
+          "gwflow-summary-task": "0.5.0",
+          "gwflow-report-task": "0.5.0"
+        }
+      },
+      "per_shard_test_seconds": [
+        770.875,
+        1020.215,
+        1008.457,
+        827.177
+      ],
+      "test_execution_seconds": 3626.724,
+      "within_run_shard_test_range_seconds": 249.34,
+      "within_run_shard_test_population_stddev_seconds": 109.559,
+      "jobs": [
+        {
+          "name": "classification",
+          "job_id": 135038877633,
+          "runner_labels": [
+            "ubuntu-24.04"
+          ],
+          "runner_id": 1000011532,
+          "runner_group": "GitHub Actions",
+          "seconds": 4.0,
+          "result": "success",
+          "steps": [
+            {
+              "name": "Set up job",
+              "seconds": 1.0,
+              "result": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "seconds": 1.0,
+              "result": "success"
+            },
+            {
+              "name": "Classify the complete pull request diff",
+              "seconds": 0.0,
+              "result": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "seconds": 1.0,
+              "result": "success"
+            },
+            {
+              "name": "Complete job",
+              "seconds": 0.0,
+              "result": "success"
+            }
+          ]
+        },
+        {
+          "name": "qualification / tests",
+          "job_id": 135038953900,
+          "runner_labels": [
+            "ubuntu-24.04"
+          ],
+          "runner_id": 1000011537,
+          "runner_group": "GitHub Actions",
+          "seconds": 139.0,
+          "result": "success",
+          "steps": [
+            {
+              "name": "Set up job",
+              "seconds": 2.0,
+              "result": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "seconds": 3.0,
+              "result": "success"
+            },
+            {
+              "name": "Check recommended README installation",
+              "seconds": 0.0,
+              "result": "success"
+            },
+            {
+              "name": "Run conda-incubator/setup-miniconda@v4",
+              "seconds": 9.0,
+              "result": "success"
+            },
+            {
+              "name": "Run ./.github/actions/cache-conda-downloads",
+              "seconds": 2.0,
+              "result": "success"
+            },
+            {
+              "name": "Install gwf and gwflow",
+              "seconds": 19.0,
+              "result": "success"
+            },
+            {
+              "name": "Select checkout-pinned compatibility baselines",
+              "seconds": 2.0,
+              "result": "success"
+            },
+            {
+              "name": "Verify provisional installed Task compatibility",
+              "seconds": 62.0,
+              "result": "success"
+            },
+            {
+              "name": "Check pip installation and representative behavior",
+              "seconds": 37.0,
+              "result": "success"
+            },
+            {
+              "name": "Run actions/upload-artifact@v7",
+              "seconds": 1.0,
+              "result": "success"
+            },
+            {
+              "name": "Post Run ./.github/actions/cache-conda-downloads",
+              "seconds": 0.0,
+              "result": "success"
+            },
+            {
+              "name": "Post Run conda-incubator/setup-miniconda@v4",
+              "seconds": 0.0,
+              "result": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "seconds": 0.0,
+              "result": "success"
+            },
+            {
+              "name": "Complete job",
+              "seconds": 0.0,
+              "result": "success"
+            }
+          ]
+        },
+        {
+          "name": "qualification / build",
+          "job_id": 135038953982,
+          "runner_labels": [
+            "ubuntu-24.04"
+          ],
+          "runner_id": 1000011536,
+          "runner_group": "GitHub Actions",
+          "seconds": 77.0,
+          "result": "success",
+          "steps": [
+            {
+              "name": "Set up job",
+              "seconds": 1.0,
+              "result": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "seconds": 1.0,
+              "result": "success"
+            },
+            {
+              "name": "Validate the complete suite shard plan",
+              "seconds": 1.0,
+              "result": "success"
+            },
+            {
+              "name": "Run conda-incubator/setup-miniconda@v4",
+              "seconds": 9.0,
+              "result": "success"
+            },
+            {
+              "name": "Run ./.github/actions/cache-conda-downloads",
+              "seconds": 3.0,
+              "result": "success"
+            },
+            {
+              "name": "Build and install the candidate once",
+              "seconds": 58.0,
+              "result": "success"
+            },
+            {
+              "name": "Run actions/upload-artifact@v7",
+              "seconds": 1.0,
+              "result": "success"
+            },
+            {
+              "name": "Run actions/upload-artifact@v7",
+              "seconds": 1.0,
+              "result": "success"
+            },
+            {
+              "name": "Post Run ./.github/actions/cache-conda-downloads",
+              "seconds": 0.0,
+              "result": "success"
+            },
+            {
+              "name": "Post Run conda-incubator/setup-miniconda@v4",
+              "seconds": 0.0,
+              "result": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "seconds": 0.0,
+              "result": "success"
+            },
+            {
+              "name": "Complete job",
+              "seconds": 0.0,
+              "result": "success"
+            }
+          ]
+        },
+        {
+          "name": "qualification / prepare-fixtures / prepare",
+          "job_id": 135038954299,
+          "runner_labels": [
+            "ubuntu-24.04"
+          ],
+          "runner_id": 1000011538,
+          "runner_group": "GitHub Actions",
+          "seconds": 22.0,
+          "result": "success",
+          "steps": [
+            {
+              "name": "Set up job",
+              "seconds": 1.0,
+              "result": "success"
+            },
+            {
+              "name": "Require master for standalone cache population",
+              "seconds": 0.0,
+              "result": "skipped"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "seconds": 1.0,
+              "result": "success"
+            },
+            {
+              "name": "Run ./.github/actions/install-apptainer",
+              "seconds": 10.0,
+              "result": "success"
+            },
+            {
+              "name": "Identify every fixture build input",
+              "seconds": 0.0,
+              "result": "success"
+            },
+            {
+              "name": "Run actions/cache/restore@v6",
+              "seconds": 3.0,
+              "result": "success"
+            },
+            {
+              "name": "Prepare and verify the complete current-run fixture artifact",
+              "seconds": 0.0,
+              "result": "success"
+            },
+            {
+              "name": "Execute the prepared images",
+              "seconds": 1.0,
+              "result": "success"
+            },
+            {
+              "name": "Run actions/cache/save@v6",
+              "seconds": 0.0,
+              "result": "skipped"
+            },
+            {
+              "name": "Run actions/upload-artifact@v7",
+              "seconds": 3.0,
+              "result": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "seconds": 0.0,
+              "result": "success"
+            },
+            {
+              "name": "Complete job",
+              "seconds": 0.0,
+              "result": "success"
+            }
+          ]
+        },
+        {
+          "name": "qualification / Conda tests (4/4)",
+          "job_id": 135039810087,
+          "runner_labels": [
+            "ubuntu-24.04"
+          ],
+          "runner_id": 1000011545,
+          "runner_group": "GitHub Actions",
+          "seconds": 1072.0,
+          "result": "success",
+          "steps": [
+            {
+              "name": "Set up job",
+              "seconds": 1.0,
+              "result": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "seconds": 1.0,
+              "result": "success"
+            },
+            {
+              "name": "Run ./.github/actions/restore-ci-runtime",
+              "seconds": 47.0,
+              "result": "success"
+            },
+            {
+              "name": "Run one partition of the full installed Conda suite",
+              "seconds": 1017.0,
+              "result": "success"
+            },
+            {
+              "name": "Run actions/upload-artifact@v7",
+              "seconds": 2.0,
+              "result": "success"
+            },
+            {
+              "name": "Post Run ./.github/actions/restore-ci-runtime",
+              "seconds": 0.0,
+              "result": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "seconds": 1.0,
+              "result": "success"
+            },
+            {
+              "name": "Complete job",
+              "seconds": 0.0,
+              "result": "success"
+            }
+          ]
+        },
+        {
+          "name": "qualification / Conda tests (2/4)",
+          "job_id": 135039810147,
+          "runner_labels": [
+            "ubuntu-24.04"
+          ],
+          "runner_id": 1000011542,
+          "runner_group": "GitHub Actions",
+          "seconds": 1139.0,
+          "result": "success",
+          "steps": [
+            {
+              "name": "Set up job",
+              "seconds": 3.0,
+              "result": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "seconds": 4.0,
+              "result": "success"
+            },
+            {
+              "name": "Run ./.github/actions/restore-ci-runtime",
+              "seconds": 98.0,
+              "result": "success"
+            },
+            {
+              "name": "Run one partition of the full installed Conda suite",
+              "seconds": 1027.0,
+              "result": "success"
+            },
+            {
+              "name": "Run actions/upload-artifact@v7",
+              "seconds": 2.0,
+              "result": "success"
+            },
+            {
+              "name": "Post Run ./.github/actions/restore-ci-runtime",
+              "seconds": 1.0,
+              "result": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "seconds": 0.0,
+              "result": "success"
+            },
+            {
+              "name": "Complete job",
+              "seconds": 0.0,
+              "result": "success"
+            }
+          ]
+        },
+        {
+          "name": "qualification / Conda tests (3/4)",
+          "job_id": 135039810248,
+          "runner_labels": [
+            "ubuntu-24.04"
+          ],
+          "runner_id": 1000011546,
+          "runner_group": "GitHub Actions",
+          "seconds": 1084.0,
+          "result": "success",
+          "steps": [
+            {
+              "name": "Set up job",
+              "seconds": 1.0,
+              "result": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "seconds": 1.0,
+              "result": "success"
+            },
+            {
+              "name": "Run ./.github/actions/restore-ci-runtime",
+              "seconds": 240.0,
+              "result": "success"
+            },
+            {
+              "name": "Run one partition of the full installed Conda suite",
+              "seconds": 835.0,
+              "result": "success"
+            },
+            {
+              "name": "Run actions/upload-artifact@v7",
+              "seconds": 2.0,
+              "result": "success"
+            },
+            {
+              "name": "Post Run ./.github/actions/restore-ci-runtime",
+              "seconds": 0.0,
+              "result": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "seconds": 1.0,
+              "result": "success"
+            },
+            {
+              "name": "Complete job",
+              "seconds": 0.0,
+              "result": "success"
+            }
+          ]
+        },
+        {
+          "name": "qualification / Conda tests (1/4)",
+          "job_id": 135039810249,
+          "runner_labels": [
+            "ubuntu-24.04"
+          ],
+          "runner_id": 1000011544,
+          "runner_group": "GitHub Actions",
+          "seconds": 997.0,
+          "result": "success",
+          "steps": [
+            {
+              "name": "Set up job",
+              "seconds": 1.0,
+              "result": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "seconds": 1.0,
+              "result": "success"
+            },
+            {
+              "name": "Run ./.github/actions/restore-ci-runtime",
+              "seconds": 214.0,
+              "result": "success"
+            },
+            {
+              "name": "Run one partition of the full installed Conda suite",
+              "seconds": 777.0,
+              "result": "success"
+            },
+            {
+              "name": "Run actions/upload-artifact@v7",
+              "seconds": 1.0,
+              "result": "success"
+            },
+            {
+              "name": "Post Run ./.github/actions/restore-ci-runtime",
+              "seconds": 1.0,
+              "result": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "seconds": 0.0,
+              "result": "success"
+            },
+            {
+              "name": "Complete job",
+              "seconds": 0.0,
+              "result": "success"
+            }
+          ]
+        },
+        {
+          "name": "qualification / containers",
+          "job_id": 135039810385,
+          "runner_labels": [
+            "ubuntu-24.04"
+          ],
+          "runner_id": 1000011543,
+          "runner_group": "GitHub Actions",
+          "seconds": 201.0,
+          "result": "success",
+          "steps": [
+            {
+              "name": "Set up job",
+              "seconds": 3.0,
+              "result": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "seconds": 4.0,
+              "result": "success"
+            },
+            {
+              "name": "Run ./.github/actions/restore-ci-runtime",
+              "seconds": 99.0,
+              "result": "success"
+            },
+            {
+              "name": "Run consolidated container acceptance against the Conda package",
+              "seconds": 80.0,
+              "result": "success"
+            },
+            {
+              "name": "Run actions/upload-artifact@v7",
+              "seconds": 2.0,
+              "result": "success"
+            },
+            {
+              "name": "Post Run ./.github/actions/restore-ci-runtime",
+              "seconds": 10.0,
+              "result": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "seconds": 0.0,
+              "result": "success"
+            },
+            {
+              "name": "Complete job",
+              "seconds": 0.0,
+              "result": "success"
+            }
+          ]
+        },
+        {
+          "name": "qualification / conda",
+          "job_id": 135051919082,
+          "runner_labels": [
+            "ubuntu-24.04"
+          ],
+          "runner_id": 1000011547,
+          "runner_group": "GitHub Actions",
+          "seconds": 566.0,
+          "result": "success",
+          "steps": [
+            {
+              "name": "Set up job",
+              "seconds": 4.0,
+              "result": "success"
+            },
+            {
+              "name": "Require every Conda prerequisite to pass",
+              "seconds": 0.0,
+              "result": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "seconds": 5.0,
+              "result": "success"
+            },
+            {
+              "name": "Select release-process simulation coverage",
+              "seconds": 0.0,
+              "result": "success"
+            },
+            {
+              "name": "Run ./.github/actions/restore-ci-runtime",
+              "seconds": 32.0,
+              "result": "success"
+            },
+            {
+              "name": "Run actions/download-artifact@v8",
+              "seconds": 182.0,
+              "result": "success"
+            },
+            {
+              "name": "Verify complete suite coverage in the exact runtime",
+              "seconds": 18.0,
+              "result": "success"
+            },
+            {
+              "name": "Select checkout-pinned compatibility baselines",
+              "seconds": 0.0,
+              "result": "success"
+            },
+            {
+              "name": "Capture and qualify the tested Conda runtime",
+              "seconds": 32.0,
+              "result": "success"
+            },
+            {
+              "name": "Run actions/download-artifact@v8",
+              "seconds": 2.0,
+              "result": "success"
+            },
+            {
+              "name": "Compare independent controlled runtimes",
+              "seconds": 282.0,
+              "result": "success"
+            },
+            {
+              "name": "Prepare completely qualified release bundle",
+              "seconds": 0.0,
+              "result": "success"
+            },
+            {
+              "name": "Require selected release-process simulations to pass",
+              "seconds": 0.0,
+              "result": "success"
+            },
+            {
+              "name": "Install independent candidate for preserved-release compatibility",
+              "seconds": 0.0,
+              "result": "skipped"
+            },
+            {
+              "name": "Compare pinned stable releases in independent runtimes",
+              "seconds": 0.0,
+              "result": "skipped"
+            },
+            {
+              "name": "Run actions/upload-artifact@v7",
+              "seconds": 3.0,
+              "result": "success"
+            },
+            {
+              "name": "Run actions/upload-artifact@v7",
+              "seconds": 2.0,
+              "result": "success"
+            },
+            {
+              "name": "Post Run ./.github/actions/restore-ci-runtime",
+              "seconds": 0.0,
+              "result": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "seconds": 0.0,
+              "result": "success"
+            },
+            {
+              "name": "Complete job",
+              "seconds": 0.0,
+              "result": "success"
+            }
+          ]
+        },
+        {
+          "name": "conda",
+          "job_id": 135057944912,
+          "runner_labels": [
+            "ubuntu-24.04"
+          ],
+          "runner_id": 1000011548,
+          "runner_group": "GitHub Actions",
+          "seconds": 4.0,
+          "result": "success",
+          "steps": [
+            {
+              "name": "Set up job",
+              "seconds": 0.0,
+              "result": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "seconds": 1.0,
+              "result": "success"
+            },
+            {
+              "name": "Require every selected validation to pass",
+              "seconds": 0.0,
+              "result": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "seconds": 1.0,
+              "result": "success"
+            },
+            {
+              "name": "Complete job",
+              "seconds": 0.0,
+              "result": "success"
+            }
+          ]
+        },
+        {
+          "name": "tests",
+          "job_id": 135057944929,
+          "runner_labels": [
+            "ubuntu-24.04"
+          ],
+          "runner_id": 1000011549,
+          "runner_group": "GitHub Actions",
+          "seconds": 4.0,
+          "result": "success",
+          "steps": [
+            {
+              "name": "Set up job",
+              "seconds": 1.0,
+              "result": "success"
+            },
+            {
+              "name": "Run actions/checkout@v7",
+              "seconds": 1.0,
+              "result": "success"
+            },
+            {
+              "name": "Require every selected validation to pass",
+              "seconds": 0.0,
+              "result": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v7",
+              "seconds": 0.0,
+              "result": "success"
+            },
+            {
+              "name": "Complete job",
+              "seconds": 0.0,
+              "result": "success"
+            }
+          ]
+        }
+      ],
+      "intentional_skips": [
+        "documentation"
+      ],
+      "versions": {
+        "gwflow": "0.11.2",
+        "python_under_test": "3.12.16",
+        "gwf": "3.0.0",
+        "capture_tools": {
+          "conda": "conda 26.9.4",
+          "python": "3.12.3"
+        },
+        "apptainer": "1.5.4"
+      },
+      "elapsed_minutes": 30.033,
+      "runner_environment": {
+        "os_label": "ubuntu-24.04",
+        "image_version": "20261111.370.1",
+        "runner_version": "2.338.2",
+        "sampled_build_region": "eastus",
+        "sampled_first_shard_region": "centralus",
+        "hardware_pairing": "Independent hosted machines; hardware was not paired or controlled."
+      },
+      "cache_observations": {
+        "build_downloads": "Both restored the identical existing master cache key.",
+        "fixtures": "Both reused verified digest-pinned fixture images from the master cache.",
+        "first_shard_runtime_downloads": "Both missed the identical dependency-archive cache key."
+      },
+      "artifacts": [
+        {
+          "name": "gwflow-conda-release",
+          "id": 14461886314,
+          "bytes": 116898,
+          "digest": "sha256:09a617f56720a4f33406ea9af208c1e9f5474ebab3bd042df6d388ad9c5bbe41"
+        },
+        {
+          "name": "conda-runtime-evidence",
+          "id": 14461796414,
+          "bytes": 235555,
+          "digest": "sha256:c454339d312e595594c5b0d0678b48e7996bea8948699e860f550080f099a07b"
+        },
+        {
+          "name": "conda-suite-2",
+          "id": 14461082043,
+          "bytes": 17384,
+          "digest": "sha256:e4cf3b24f74db54e12418f0e5de4ba064908bf9f4e26cb3d76b79ef27c89113c"
+        },
+        {
+          "name": "conda-suite-0",
+          "id": 14460412091,
+          "bytes": 14639,
+          "digest": "sha256:9e55e980e53391b50aa86b7996e200a36a4a45f2719155d84e43b9448274df93"
+        },
+        {
+          "name": "gwflow-ci-runtime",
+          "id": 14459670894,
+          "bytes": 112626,
+          "digest": "sha256:597b4c7b2fc2153f05189fd87817d1de71d288d614294e03f23d9f58d66dc64e"
+        },
+        {
+          "name": "conda-suite-1",
+          "id": 14459449538,
+          "bytes": 18009,
+          "digest": "sha256:f91cfaa6efd16d0d04dc3bff806955a8638e2a7294eca58ef8e84f2b383247a5"
+        },
+        {
+          "name": "installed-source-evidence",
+          "id": 14459426324,
+          "bytes": 5274,
+          "digest": "sha256:60ac697367a2a035afa4a3030b0b605ca8a614b99b30f215c02733e0f246aa54"
+        },
+        {
+          "name": "gwflow-ci-channel",
+          "id": 14459361203,
+          "bytes": 114354,
+          "digest": "sha256:64814bb5b18a25a23e715696cbacacfb7fd7f045c8b70ae99979cdc3dd5acdcf"
+        },
+        {
+          "name": "conda-suite-3",
+          "id": 14459304469,
+          "bytes": 15749,
+          "digest": "sha256:18ba58acfac94f4b4d924e9f5e68bc0ce7e2b6fd29622ea1d724461ae7d602f4"
+        },
+        {
+          "name": "gwflow-container-fixtures",
+          "id": 14458159018,
+          "bytes": 148653634,
+          "digest": "sha256:642ad74f922bf8cb37607c8a65eb254c1014ae1bdbe7b8d40794df4a50997fbe"
+        },
+        {
+          "name": "container-acceptance-evidence",
+          "id": 14457489887,
+          "bytes": 935,
+          "digest": "sha256:9fc2127d7e2d4bb509d673379ac6cc7af662fd5f01a71496af207e71e4988380"
+        }
+      ],
+      "whole_job_stage_seconds": {
+        "source_installation_and_pip_compatibility": 139.0,
+        "package_build_and_runtime_capture": 77.0,
+        "fixture_preparation_and_transfer": 22.0,
+        "real_container_acceptance": 201.0,
+        "aggregate_runtime_verification_and_release_simulations": 566.0,
+        "suite_shards_including_all_setup_transfers_tests_and_cleanup": 4292.0,
+        "classification_and_required_gates": 12.0
+      },
+      "suite_restore_and_fixture_transfer_seconds": 599.0,
+      "suite_execution_step_seconds": 3656.0,
+      "standalone_artifact_action_seconds": 204.0,
+      "billing_api": {
+        "reported_billable_ms": 0,
+        "interpretation": "This is not the allocation measure. Public hosted billing reported zero; runner time uses complete job timestamps."
+      }
+    }
+  ]
+}

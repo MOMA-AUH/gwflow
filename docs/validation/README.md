@@ -70,6 +70,37 @@ complete diff, classification fails instead of accepting a prose-only result.
 Explicit release qualification always runs the complete pipeline. It does not
 use the pull request classification.
 
+### Compare suite shard counts
+
+A shard runs one deterministic part of the discovered test suite. CI uses two
+shards by default. The coverage gate requires every discovered test exactly once
+across the expected shards, with the same runtime identity and no skipped tests.
+Retries keep each shard's assignment unchanged.
+
+To compare two and four shards, dispatch `ci.yml` twice from the same source ref:
+
+```sh
+gh workflow run ci.yml --repo MOMA-AUH/gwflow --ref SOURCE_REF -f shard-count=2
+gh workflow run ci.yml --repo MOMA-AUH/gwflow --ref SOURCE_REF -f shard-count=4
+```
+
+`SOURCE_REF` names the branch or tag that contains the source under test. Make
+sure that both runs report the same full source SHA before comparing results.
+Each manual run selects the full pipeline and all release-process simulations.
+The runs use separate artifacts and cannot cancel each other. These CI runs do
+not authorize release publication.
+
+Compare total runner time separately from elapsed feedback time. Include package
+building, setup, runtime restoration, artifact transfers, tests, and aggregation.
+Record sample count, failures, skips, cache state, and runner differences.
+Per-test timings remain in each `conda-suite-*` artifact. If a shard fails, rerun
+its failed job and the aggregate through GitHub Actions. The aggregate still
+requires one passing record from every expected shard.
+
+The [November 18, 2026 comparison](ci-shards/README.md) records the two/four-shard
+cost and feedback tradeoff that selected this default. It also records the
+sample limits and runner differences.
+
 ### Release-process simulations
 
 Release-process simulations test the machinery that preserves and publishes a
