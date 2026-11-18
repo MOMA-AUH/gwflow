@@ -15,6 +15,7 @@ jobs:
     runs-on: ubuntu-24.04
     outputs:
       mode: ${{ steps.changes.outputs.mode }}
+      release-simulations: ${{ steps.changes.outputs.release_simulations }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -53,6 +54,7 @@ jobs:
     uses: ./.github/workflows/qualification.yml
     with:
       source: ${{ github.sha }}
+      release-simulations: ${{ needs.classification.outputs.release-simulations }}
 
   # Preserve the required names and explicitly verify selected and unselected jobs.
   tests:

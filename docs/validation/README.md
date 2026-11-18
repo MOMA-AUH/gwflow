@@ -70,6 +70,34 @@ complete diff, classification fails instead of accepting a prose-only result.
 Explicit release qualification always runs the complete pipeline. It does not
 use the pull request classification.
 
+### Release-process simulations
+
+Release-process simulations test the machinery that preserves and publishes a
+release. They differ from application regression tests and routine compatibility
+comparisons against the checkout-pinned baselines from ADR 0018.
+
+| Check | Prose-only PR | Unrelated application PR | Relevant or unknown PR | Explicit release qualification |
+| --- | --- | --- | --- | --- |
+| README installation and selection regressions | Run | Run | Run | Run |
+| Full application suite and real container acceptance | Omit | Run | Run | Run |
+| Routine checkout-pinned compatibility | Omit | Run | Run | Run |
+| Fresh-cache qualification round trip | Omit | Omit | Run | Run |
+| Controlled dependency replacement and fixture profiles | Omit | Omit | Run | Run |
+| Qualified release bundle | Omit | Omit | Prepare | Prepare |
+
+The complete PR diff also selects the release-process simulations. Only an
+explicit set of presentation, browser, and terminal paths can omit them.
+The classifier in `tests/ci_changes.py` records that set. Both paths of a rename
+must qualify. Unknown paths and changes to release implementation, packaging,
+dependency policy, fixtures, workflows, or qualification inputs run the simulations.
+A failed comparison or invalid classification cannot select omission.
+
+An unrelated application PR still runs every application test, real container
+acceptance, and the applicable provisional or preserved-release compatibility
+comparison. It produces no qualified release bundle. Explicit release
+qualification always runs the simulations for its exact source and package,
+regardless of the PR path selection.
+
 ## Local checks
 
 Run from the repository root. Create the development environment with Python

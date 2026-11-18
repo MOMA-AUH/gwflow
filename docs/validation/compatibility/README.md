@@ -91,8 +91,11 @@ baseline or candidate runtime.
 The candidate can contain the two packaged examples. Their installed versions
 must match the example `pyproject.toml` files in the checkout that runs the tool.
 The tool checks these versions before and after the journeys. Baseline example
-versions come from the preserved capture. CI runs all journeys with and without
-candidate examples for both original and replacement dependency environments.
+versions come from the preserved capture. The release-process simulations run all
+journeys with and without candidate examples for both original and replacement
+dependency environments. CI selects these extra simulations for relevant or
+unknown PR changes and every explicit release qualification. See the
+[execution matrix](../README.md#release-process-simulations).
 
 In this example, `BASELINE_CAPTURE` contains the preserved capture files.
 `CANDIDATE_PYTHON` identifies the independently installed candidate interpreter.
@@ -110,8 +113,8 @@ DRIVER_PYTHON tests/compare_runtime.py \
 ```
 
 Use `--baseline-kind controlled-artifact` for controlled package fixtures before
-stable publication. The Conda CI job uses the exact candidate artifact on both
-sides. The baseline comes from the runtime that passed the full suite and release
+stable publication. The controlled simulation uses the exact candidate artifact
+on both sides. The baseline comes from the runtime that passed the full suite and release
 smoke tests. CI installs the candidate separately with Python 3.12.14 and requires
 a different baseline Python patch. This proves that the journeys support this
 runtime variation. It does not establish a published stable baseline.
@@ -168,8 +171,8 @@ Append both options to the comparison command:
 The tool retains the original manifest, records the replacement and reason, and
 runs the same journeys. Successful replacement evidence sets
 `exact_baseline_runtime` to `false`. It does not claim to reproduce the original
-dependency installation. CI also tests this route with a controlled replacement
-capture and requires all 15 journeys to pass. That fixture does not claim an
+dependency installation. The release-process simulations test this route with a
+controlled replacement capture and require all 15 journeys to pass. That fixture does not claim an
 actual dependency loss or establish a stable baseline.
 
 For a selected stable release, first use `select_compatibility.py fetch` with

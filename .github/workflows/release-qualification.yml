@@ -44,3 +44,4 @@ jobs:
     uses: ./.github/workflows/qualification.yml
     with:
       source: ${{ github.sha }}
+      release-simulations: run
