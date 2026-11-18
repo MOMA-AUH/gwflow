@@ -1,0 +1,32 @@
+name: Conda download cache
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  populate:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [source, build]
+    steps:
+      - name: Require trusted master cache population
+        run: test "$GITHUB_REF" = refs/heads/master
+      - uses: actions/checkout@v7
+      - uses: conda-incubator/setup-miniconda@v4
+        with:
+          miniforge-version: latest
+          channels: conda-forge
+          conda-remove-defaults: "true"
+      - uses: ./.github/actions/cache-conda-downloads
+        with:
+          profile: ${{ matrix.profile }}
+      - name: Construct and verify a new installation and measure setup
+        shell: bash -l {0}
+        env:
+          CACHE_PROFILE: ${{ matrix.profile }}
+        run: bash tests/prepare_ci_conda.sh "$CACHE_PROFILE"

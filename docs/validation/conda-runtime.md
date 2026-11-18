@@ -89,6 +89,46 @@ The optional cache path must not exist. The tool creates it and sets
 unavailable downloads. Without `--fresh-cache`, Conda can use configured caches.
 Existing target prefixes are rejected.
 
+CI can reuse downloaded Conda package archives during ordinary restoration.
+The cache contains package downloads, not installed environments or extracted
+package trees. It also excludes locally built gwflow artifacts. Each consumer
+creates a new environment from its declared
+selection. It still checks the explicit manifest, package checksums, installed
+files, and runtime identity. A cache hit does not establish that the current
+source or candidate passed any tests.
+
+The download cache key includes the runner platform, Conda version, and relevant
+dependency and tool configuration. Runtime restoration also includes the exact
+dependency manifest. Cache misses use the normal download path. Qualification
+with `--fresh-cache` and the controlled missing or corrupt download checks keep
+their new, empty caches. Independent baseline and candidate installations remain
+separate under ADR 0018.
+
+Ordinary restoration compares cached dependency archives with the trusted
+manifest before installation. A checksum mismatch fails before creating the
+environment. Remove the affected cache entry and rerun with a cache miss.
+
+GitHub scopes a cache written by a pull request to that request's merge ref.
+It does not populate the base branch cache. A pull request can read its base
+branch cache, subject to the
+[GitHub cache access rules](https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching#restrictions-for-accessing-a-cache).
+After merging dependency or tool changes, run the download-cache workflow on
+`master` to populate the build and installed-source caches:
+
+```sh
+gh workflow run conda-cache.yml --ref master --repo MOMA-AUH/gwflow
+```
+
+This workflow constructs new environments. It does not publish a release or
+establish full qualification. Its evidence records cache status, archive size,
+and setup times. Run it twice on the same inputs to compare cold and warm
+behavior. Include cache transfer time when assessing the result. Runtime
+restoration caches use the preserved explicit manifest and populate during
+ordinary pipeline runs. They do not change fresh-cache qualification.
+
+To refresh a download cache, change its declared dependency inputs or remove
+its key from the repository's Actions cache. Cache misses remain supported.
+
 Restoration checks both preserved checksums and the host platform before
 installation. A manifest comment alone cannot enforce platform compatibility.
 Conda installs the explicit selection without a dependency solve or default

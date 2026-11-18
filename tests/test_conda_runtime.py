@@ -117,6 +117,21 @@ class CondaRuntimeTests(unittest.TestCase):
         self.assertIn("unsupported package sources", self.capture(success=False).stderr)
         self.assertFalse(self.bundle.exists())
 
+    def test_restore_checks_cached_archives_and_fresh_cache_ignores_them(self):
+        self.capture()
+        packages = self.root / "download-cache"
+        packages.mkdir()
+        (packages / "libnative-2.0-h456_3.conda").write_bytes(b"corrupt cached archive")
+        self.environment["CONDA_PKGS_DIRS"] = str(packages)
+        target = self.root / "from-cache"
+        result = self.command("restore", "--capture", str(self.bundle), "--prefix", str(target), success=False)
+        self.assertIn("Cached dependency SHA-256", result.stderr)
+        self.assertFalse(target.exists())
+        self.command("restore", "--capture", str(self.bundle), "--prefix", str(target),
+                     "--fresh-cache", str(self.root / "fresh-downloads"))
+        installed = json.loads((target / "installation.json").read_text())
+        self.assertEqual(installed["cache"], str(self.root / "fresh-downloads"))
+
     def test_capture_rejects_missing_hash_url_and_wrong_platform(self):
         path = self.prefix / "conda-meta/libnative.json"
         original = json.loads(path.read_text())
