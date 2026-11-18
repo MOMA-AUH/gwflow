@@ -117,23 +117,9 @@ jobs:
           if-no-files-found: error
 
   prepare-fixtures:
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ inputs.source }}
-      - uses: ./.github/actions/install-apptainer
-      - name: Build the three shared fixture images
-        run: |
-          python3 tests/ci_fixtures.py build \
-            --bundle "$RUNNER_TEMP/container-fixtures" --run-id "$GITHUB_RUN_ID"
-      - uses: actions/upload-artifact@v7
-        with:
-          overwrite: true
-          name: gwflow-container-fixtures
-          path: ${{ runner.temp }}/container-fixtures/*
-          compression-level: 0
-          if-no-files-found: error
+    uses: ./.github/workflows/fixture-cache.yml
+    with:
+      source: ${{ inputs.source }}
 
   conda-suite:
     name: Conda tests (${{ matrix.group }}/4)

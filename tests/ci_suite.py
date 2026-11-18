@@ -5,6 +5,7 @@ from collections import Counter
 import hashlib
 import json
 from pathlib import Path
+import shutil
 import sys
 import tempfile
 import time
@@ -33,9 +34,15 @@ def check_runtime(conda: str, bundle: Path, prefix: Path, source: Path) -> dict:
 
 def install(conda: str, bundle: Path, prefix: Path, source: Path) -> None:
     restore(conda, bundle, prefix)
-    run(str(prefix / "bin/python"), "-m", "pip", "install", "--no-deps",
-        *(str(source / "tests/fixtures/packaged_tasks/packages" / name) for name in ("summary-task", "report-task")),
-        show_output=True)
+    # Package builders write metadata beside their inputs. Keep the checkout
+    # unchanged so shared container fixture identities still describe it.
+    with tempfile.TemporaryDirectory(prefix="gwflow-ci-fixture-install-") as directory:
+        projects = []
+        for name in ("summary-task", "report-task"):
+            staged = Path(directory) / name
+            shutil.copytree(source / "tests/fixtures/packaged_tasks/packages" / name, staged)
+            projects.append(str(staged))
+        run(str(prefix / "bin/python"), "-m", "pip", "install", "--no-deps", *projects, show_output=True)
     check_runtime(conda, bundle, prefix, source)
 
 

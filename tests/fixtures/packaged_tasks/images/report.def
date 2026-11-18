@@ -1,11 +1,13 @@
 Bootstrap: docker
-From: python:3.12-slim-bookworm
+From: python:3.12-slim-bookworm@sha256:935c3c5b12357a7e10caa9c1e6ca5692344d97cf229832ef584be2cec9fc03df
 
 %files
     tests/fixtures/packaged_tasks/packages/report-task /opt/report-task
+    tests/fixtures/image-build-requirements.txt /opt/image-build-requirements.txt
 
 %post
-    python -m pip install --no-deps /opt/report-task
+    python -m pip --isolated install --no-deps --require-hashes --only-binary=:all: -r /opt/image-build-requirements.txt
+    python -m pip --isolated install --no-deps --no-build-isolation --no-index /opt/report-task
 
 %test
     python -c 'import importlib.util; assert importlib.util.find_spec("gwflow") is None'

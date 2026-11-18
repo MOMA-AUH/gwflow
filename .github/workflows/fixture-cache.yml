@@ -1,0 +1,57 @@
+name: Fixture cache
+
+on:
+  workflow_call:
+    inputs:
+      source:
+        required: true
+        type: string
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Require master for standalone cache population
+        if: github.event_name == 'workflow_dispatch' && inputs.source == ''
+        run: test "$GITHUB_REF" = refs/heads/master
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.source || github.sha }}
+      - uses: ./.github/actions/install-apptainer
+      - name: Identify every fixture build input
+        id: fixtures
+        run: echo "key=$(python3 tests/ci_fixtures.py key)" >> "$GITHUB_OUTPUT"
+      # Exact keys only. A PR may read base caches but its own writes remain
+      # scoped to its merge ref. Manual master runs populate the shared base.
+      - uses: actions/cache/restore@v6
+        id: cache
+        with:
+          path: ${{ runner.temp }}/fixture-cache
+          key: ${{ steps.fixtures.outputs.key }}
+      - name: Prepare and verify the complete current-run fixture artifact
+        run: |
+          python3 tests/ci_fixtures.py prepare \
+            --cache "$RUNNER_TEMP/fixture-cache" \
+            --bundle "$RUNNER_TEMP/container-fixtures" --run-id "$GITHUB_RUN_ID"
+          cat "$RUNNER_TEMP/container-fixtures/fixtures.json"
+      - name: Execute the prepared images
+        run: |
+          test "$(apptainer exec "$RUNNER_TEMP/container-fixtures/basic.sif" gwflow-image-tool)" = from-image
+          apptainer test "$RUNNER_TEMP/container-fixtures/summary.sif"
+          apptainer test "$RUNNER_TEMP/container-fixtures/report.sif"
+      - uses: actions/cache/save@v6
+        if: steps.cache.outputs.cache-hit != 'true'
+        with:
+          path: ${{ runner.temp }}/fixture-cache
+          key: ${{ steps.fixtures.outputs.key }}
+      - uses: actions/upload-artifact@v7
+        with:
+          overwrite: true
+          name: gwflow-container-fixtures
+          path: ${{ runner.temp }}/container-fixtures/*
+          compression-level: 0
+          if-no-files-found: error

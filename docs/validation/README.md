@@ -83,17 +83,52 @@ include real container execution. The
 [packaged Task fixtures](../../tests/fixtures/packaged_tasks/README.md) retain
 coverage for installed Task packages and the producer-cleanup-consumer scenario.
 
-CI prepares these three images once per pipeline. A separate preparation job
-builds them from the current checkout and uploads one artifact for that run.
-The artifact records image checksums, source identities, and the Apptainer
-version. Each test group and container acceptance job installs Apptainer,
-downloads the artifact, and compares its identities and checksums before use.
-Missing images, corrupt bytes, or failed preparation fail validation.
+CI prepares one complete fixture set for each pipeline. The preparation job
+can reuse a cache, a saved copy of unchanged images from an earlier run.
+It accepts only an exact match for the runner platform, Apptainer version,
+image definitions, copied sources, and build configuration. The definitions
+pin the base image by its immutable digest. Changes to these inputs select
+a new cache entry.
+
+The preparation job compares every cached image with its recorded checksum.
+It rebuilds incomplete or corrupt cache entries. It then uploads one artifact
+with the current source and run identities.
+Each test group and container acceptance job installs Apptainer, downloads
+that artifact, and compares its identities and checksums before use.
+Missing images or corrupt bytes in that artifact fail validation.
+Failed preparation also fails validation.
 
 The fixture artifact remains separate from the tested gwflow Conda package
 and its runtime record. Container and bioinformatics tests remain enabled in
 every full-suite group. CI retains preparation and consumer setup timings
 with the fixture evidence to compare elapsed time and total runner time.
+
+GitHub limits cache access by branch. A pull request can read its base branch
+cache. A cache saved by a pull request belongs to that request's merge ref.
+Other pull requests and the base branch cannot read it. See the
+[GitHub cache access rules](https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching#restrictions-for-accessing-a-cache).
+Do not assume that a successful pull request populates the shared base cache.
+
+To populate the cache for other pull requests, run the fixture workflow on
+`master` after the fixture changes merge:
+
+```sh
+gh workflow run fixture-cache.yml --ref master --repo MOMA-AUH/gwflow
+```
+
+This workflow prepares fixtures without release publication or the full suite.
+The full qualification pipeline still runs every installed-package test and
+real container acceptance when it reuses cached images. The fixture manifest
+records whether preparation built or reused the images, with setup timings.
+
+To refresh the base image, resolve the replacement digest from its registry.
+Update all three definitions and run full qualification before merging.
+The pinned build tools are in `tests/fixtures/image-build-requirements.txt`.
+Changes to that file, the definitions, or copied sources change the cache key.
+Changes to the fixture helper or Apptainer installation policy also invalidate it.
+To discard an otherwise unchanged entry, delete its key from the repository's
+Actions cache and rerun the fixture workflow. Cache misses rebuild all three
+images. Unavailable cache storage does not remove the full build path.
 
 ## Bioinformatics example
 
