@@ -59,7 +59,7 @@ def recover(ctx, task):
                     backend = None
                 observations = admission.observe_submissions(store, attempt, backend, ctx.backend,
                                                             tolerate_state_errors=True)
-                outcomes.extend(admission.resolve_submissions(store, attempt, observations))
+                outcomes.extend(admission.resolve_submissions(store, attempt, observations, backend))
         except BaseException:
             interrupted = True
             raise
