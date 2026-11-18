@@ -900,3 +900,5 @@ def output_options(command):
         if not isinstance(command, click.Command) or not any(parameter.name == name for parameter in command.params):
             command = click.option("--" + name.replace("_", "-"), is_flag=True, help=help_text)(command)
     return command
+
+# Temporary UI-only CI selection acceptance probe for issue #406.
