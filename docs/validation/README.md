@@ -40,6 +40,36 @@ run for a particular commit or broaden the
 The [live backend prerequisites](#live-backend-acceptance), including identical
 absolute paths on frontend and compute nodes, still apply.
 
+## Pull request checks
+
+CI compares the complete pull request with its base commit. It uses a lightweight
+path only when every changed pathname belongs to this exact prose allowlist:
+
+- `README.md`
+- `CHANGELOG.md`
+- `docs/authoring.md`
+- `docs/operating.md`
+- `docs/reference.md`
+- `docs/history.md`
+
+The lightweight path runs the recommended README installation check and the CI
+classification and result checks. It also checks the complete diff for whitespace
+errors. It does not build packages or execute containers.
+
+Unknown paths select full qualification. Source, tests, package configuration,
+workflows, actions, image inputs, compatibility records, ADRs, and agent guidance
+therefore select full qualification. A change to both prose and any such path
+also selects full qualification. Renames check both the old and new pathname.
+Executable files and symbolic links do not qualify as prose.
+
+Both required checks, `tests` and `conda`, run for either path. They require
+successful classification and every selected check. A failed, cancelled, or
+unexpectedly skipped selected job fails both checks. If CI cannot compare the
+complete diff, classification fails instead of accepting a prose-only result.
+
+Explicit release qualification always runs the complete pipeline. It does not
+use the pull request classification.
+
 ## Local checks
 
 Run from the repository root. Create the development environment with Python
