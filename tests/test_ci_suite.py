@@ -16,7 +16,23 @@ import test_conda_runtime
 
 
 class CiSuiteTests(unittest.TestCase):
-    def fixture(self):
+    def test_shard_plan_is_explicit_deterministic_and_rejects_unsupported_counts(self):
+        command = [sys.executable, str(Path(__file__).with_name("ci_suite.py")), "plan"]
+        for count in (2, 4):
+            with self.subTest(count=count):
+                result = subprocess.run([*command, "--count", str(count)], capture_output=True, text=True, timeout=10)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(json.loads(result.stdout), {
+                    "include": [{"shard": index, "group": index + 1} for index in range(count)]})
+                repeated = subprocess.check_output([*command, "--count", str(count)], text=True, timeout=10)
+                self.assertEqual(repeated, result.stdout)
+        for count in (0, 1, 3, 5):
+            with self.subTest(count=count):
+                result = subprocess.run([*command, "--count", str(count)], capture_output=True, text=True, timeout=10)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("two or four", result.stderr)
+
+    def fixture(self, count=4):
         class Case(unittest.TestCase):
             def __init__(self, index):
                 super().__init__("runTest")
@@ -28,9 +44,9 @@ class CiSuiteTests(unittest.TestCase):
         tests = [Case(index) for index in range(80)]
         identity = {"source_commit": "a" * 40, "manifest": {"sha256": "b" * 64}}
         records = []
-        for index in range(4):
-            identifiers = [test.id() for test in partition(tests, index, 4)]
-            records.append({"status": "passed", "index": index, "count": 4, "runtime": identity,
+        for index in range(count):
+            identifiers = [test.id() for test in partition(tests, index, count)]
+            records.append({"status": "passed", "index": index, "count": count, "runtime": identity,
                             "tests": identifiers, "run": len(identifiers), "skipped": 0})
         return tests, identity, records
 
@@ -41,6 +57,19 @@ class CiSuiteTests(unittest.TestCase):
         self.assertEqual(Counter(test.id() for test in tests), Counter(name for record in records for name in record["tests"]))
         self.assertEqual(partition(tests, 2, 4), list(reversed(partition(list(reversed(tests)), 2, 4))))
         verify_records(tests, records, identity, 4)
+
+    def test_two_shards_preserve_exact_coverage_and_independent_retries(self):
+        tests, identity, records = self.fixture(2)
+        verify_records(tests, records, identity, 2)
+        self.assertEqual(Counter(test.id() for test in tests),
+                         Counter(name for record in records for name in record["tests"]))
+        for index in range(2):
+            self.assertEqual([test.id() for test in partition(tests, index, 2)], records[index]["tests"])
+        for changed in (records[:1], [records[0], records[0]], [*records, records[0]]):
+            with self.subTest(indices=[record["index"] for record in changed]), self.assertRaises(ValueError):
+                verify_records(tests, changed, identity, 2)
+        with self.assertRaises(ValueError):
+            verify_records(tests, records, identity, 4)
 
     def test_missing_duplicate_failed_skipped_or_changed_shards_are_rejected(self):
         tests, identity, records = self.fixture()
