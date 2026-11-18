@@ -16,6 +16,10 @@ runs:
       with:
         name: gwflow-ci-runtime
         path: ${{ runner.temp }}/ci-runtime
+    - uses: ./.github/actions/cache-conda-downloads
+      with:
+        profile: runtime
+        manifest: ${{ runner.temp }}/ci-runtime/runtime.explicit.txt
     - name: Restore the exact build runtime and install fixtures
       shell: bash -l {0}
       run: |

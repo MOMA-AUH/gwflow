@@ -1,0 +1,40 @@
+name: Cache Conda package downloads
+description: Reuse only dependency archives, then construct and verify a new environment.
+inputs:
+  profile:
+    description: Dependency policy (source, build, or runtime).
+    required: true
+  manifest:
+    description: Exact runtime manifest, required for runtime restores.
+    default: ""
+runs:
+  using: composite
+  steps:
+    - name: Identify download inputs and enable Conda integrity checks
+      id: downloads
+      shell: bash -l {0}
+      env:
+        CACHE_PROFILE: ${{ inputs.profile }}
+        CACHE_MANIFEST: ${{ inputs.manifest }}
+      run: |
+        arguments=(--profile "$CACHE_PROFILE" --conda-version "$(conda --version)")
+        if [ -n "$CACHE_MANIFEST" ]; then arguments+=(--manifest "$CACHE_MANIFEST"); fi
+        echo "key=$(python tests/conda_downloads.py key "${arguments[@]}")" >> "$GITHUB_OUTPUT"
+        echo "CONDA_PKGS_DIRS=$RUNNER_TEMP/conda-package-downloads" >> "$GITHUB_ENV"
+        echo "CONDA_SAFETY_CHECKS=enabled" >> "$GITHUB_ENV"
+        echo "CONDA_EXTRA_SAFETY_CHECKS=true" >> "$GITHUB_ENV"
+    # Never save extracted directories, repodata, environments, or the current
+    # candidate. A local candidate can retain a filename across source changes.
+    # No prefix restore keys: changed input/tool identities get a clean miss.
+    - uses: actions/cache@v6
+      id: cache
+      with:
+        path: |
+          ${{ runner.temp }}/conda-package-downloads/*.conda
+          ${{ runner.temp }}/conda-package-downloads/*.tar.bz2
+          !${{ runner.temp }}/conda-package-downloads/gwflow-*.conda
+          !${{ runner.temp }}/conda-package-downloads/gwflow-*.tar.bz2
+        key: ${{ steps.downloads.outputs.key }}
+    - name: Record restored download bytes
+      shell: bash
+      run: python3 tests/conda_downloads.py summary --packages "$RUNNER_TEMP/conda-package-downloads"

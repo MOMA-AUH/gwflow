@@ -269,6 +269,16 @@ def restore(conda: str, bundle: Path, prefix: Path, fresh_cache: Path | None = N
     if fresh_cache is not None:
         fresh_cache.mkdir(parents=True, exist_ok=False)
         environment["CONDA_PKGS_DIRS"] = str(fresh_cache)
+    # An archive cache is only a transport optimization. Verify its bytes against
+    # the trusted explicit manifest before Conda can extract or install them.
+    for directory in environment.get("CONDA_PKGS_DIRS", "").split(os.pathsep):
+        if not directory:
+            continue
+        for package in expected.values():
+            cached = Path(directory) / package["fn"]
+            if cached.exists() and (cached.is_symlink() or not cached.is_file()
+                                    or digest(cached) != package["sha256"]):
+                raise ValueError(f"Cached dependency SHA-256 does not match: {package['fn']}")
     with tempfile.TemporaryDirectory(prefix="gwflow-explicit-") as directory:
         explicit = Path(directory) / "installation.txt"
         explicit.write_text("@EXPLICIT\n" + "\n".join(lines) + "\n" + artifact.as_uri() + "#" + record["artifact"]["sha256"] + "\n")
