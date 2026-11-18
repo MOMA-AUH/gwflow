@@ -35,8 +35,11 @@ def identity(source: Path, apptainer: str, run_id: str) -> dict:
     names = set(INPUTS)
     for name in IMAGES.values():
         definition = (source / name).read_text()
-        if not re.search(r"^From: \S+@sha256:[0-9a-f]{64}$", definition, re.MULTILINE):
+        reference = re.search(r"^From: ([^@\s]+)@sha256:[0-9a-f]{64}$", definition, re.MULTILINE)
+        if reference is None:
             raise ValueError(f"Fixture base image must use an immutable SHA-256 digest: {name}")
+        if ":" in reference[1].rsplit("/", 1)[-1]:
+            raise ValueError(f"Apptainer requires a digest-only fixture reference without a tag: {name}")
         files = False
         for line in definition.splitlines():
             if line.startswith("%"):
@@ -51,11 +54,15 @@ def identity(source: Path, apptainer: str, run_id: str) -> dict:
         path = source / name
         if not path.exists():
             raise ValueError(f"Missing fixture build input: {name}")
-        paths.extend(path.rglob("*") if path.is_dir() else (path,))
+        paths.append(path)
+        if path.is_dir():
+            paths.extend(path.rglob("*"))
     if any(path.is_symlink() for path in paths):
         raise ValueError("Copied fixture inputs must not contain symbolic links")
-    inputs = {path.relative_to(source).as_posix(): {"sha256": digest(path), "mode": path.stat().st_mode & 0o777}
-              for path in sorted(paths) if path.is_file()}
+    inputs = {path.relative_to(source).as_posix(): {"sha256": digest(path) if path.is_file() else None,
+                                                 "mode": path.stat().st_mode & 0o777,
+                                                 "kind": "file" if path.is_file() else "directory"}
+              for path in sorted(paths)}
     if not set(IMAGES.values()).issubset(inputs) or "tests/fixtures/gwflow-image-tool" not in inputs:
         raise ValueError("Fixture definitions and image tool must belong to the checkout")
     version = subprocess.check_output([apptainer, "--version"], text=True).strip()

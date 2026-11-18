@@ -102,13 +102,32 @@ class CiFixtureTests(unittest.TestCase):
         self.env["ImageOS"] = "different-runner-image"
         self.assertNotEqual(self.command("key").stdout.strip(), current)
 
-    def test_mutable_base_images_are_rejected_before_building_or_reusing_cache(self):
+    def test_copied_directory_entries_and_permissions_change_the_cache_key(self):
+        original = self.command("key").stdout.strip()
+        directory = self.source / "tests/fixtures/packaged_tasks/packages/summary-task/empty"
+        directory.mkdir()
+        added = self.command("key").stdout.strip()
+        self.assertNotEqual(added, original)
+        directory.chmod(0o700)
+        self.assertNotEqual(self.command("key").stdout.strip(), added)
+
+    def test_mutable_or_unsupported_base_images_are_rejected_before_using_the_cache(self):
         path = self.source / "tests/fixtures/container.def"
         text = path.read_text()
-        path.write_text(text.replace(text.splitlines()[1], "From: python:3.12-slim-bookworm"))
-        self.command("key", success=False)
-        self.command("prepare", success=False)
-        self.assertFalse((self.bundle / "fixtures.json").exists())
+        digest = text.splitlines()[1].split("@", 1)[1]
+        for reference in ("python:3.12-slim-bookworm", f"python:3.12-slim-bookworm@{digest}"):
+            with self.subTest(reference=reference):
+                path.write_text(text.replace(text.splitlines()[1], "From: " + reference))
+                self.command("key", success=False)
+                self.command("prepare", success=False)
+                self.assertFalse((self.bundle / "fixtures.json").exists())
+
+    def test_digest_only_references_allow_a_registry_port(self):
+        path = self.source / "tests/fixtures/container.def"
+        text = path.read_text()
+        digest = text.splitlines()[1].split("@", 1)[1]
+        path.write_text(text.replace(text.splitlines()[1], f"From: registry.example:5000/python@{digest}"))
+        self.command("key")
 
     def test_invalid_cache_entries_are_rebuilt_and_build_failure_cannot_publish_a_bundle(self):
         self.command("prepare")
