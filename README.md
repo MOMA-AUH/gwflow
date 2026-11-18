@@ -163,3 +163,5 @@ Ordinary `gwf.Workflow` workflows continue to use `gwf`.
 - [Selection, status, logs, and backend configuration](docs/reference.md#commands-and-reports)
 - [Container images and staged inputs](docs/reference.md#containers)
 - [Lifecycle, recovery, cleanup, and storage](docs/reference.md#lifecycle-and-recovery)
+
+<!-- Temporary issue 405 prose-only CI acceptance probe. Do not merge. -->
