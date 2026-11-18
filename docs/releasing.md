@@ -57,7 +57,7 @@ Operators should use the [operating and upgrade guide](operating.md) for force,
 cleanup, unresolved submissions, and upgrades with all affected jobs inactive.
 
 Pull requests run the reusable `qualification.yml` pipeline and build one Conda
-package. Ordinary pushes to `master` do not repeat that pipeline. Four parallel jobs
+package. Ordinary pushes to `master` do not repeat that pipeline. Two parallel jobs
 run separate parts of the full suite against that package, including the real
 Apptainer tests. Each job restores the same exact dependencies from a transfer
 capture. A separate job runs consolidated container acceptance. The `tests` job
@@ -82,7 +82,11 @@ The `tests` and `conda` checks remain required before merging into protected
 superseded PR runs. Release qualification uses a separate concurrency group that
 new PRs and merges cannot cancel. Individual failed test groups and container checks can be retried without rerunning successful
 siblings. Test records include per-test durations for future balancing. Hash-based
-partitioning spreads cases across four runners but does not guarantee equal time.
+partitioning spreads cases across two runners but does not guarantee equal time.
+The [shard comparison](validation/ci-shards/README.md) records the measured cost
+and feedback tradeoff. Manual CI dispatches can compare two and four shards on
+the same source. They run the complete qualification workload but cannot
+authorize publication.
 Live Slurm evidence remains separate. Branch protection applies to administrators
 with no bypass actors, requires a pull request and linear history, and the
 repository permits squash merges only. Reviewer approval is optional; the branch

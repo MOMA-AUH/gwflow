@@ -88,16 +88,23 @@ def verify_records(tests: list, records: list[dict], identity: dict, count: int)
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("install", "run", "verify"))
-    parser.add_argument("--bundle", type=Path, required=True)
-    parser.add_argument("--prefix", type=Path, required=True)
+    parser.add_argument("command", choices=("plan", "install", "run", "verify"))
+    parser.add_argument("--bundle", type=Path)
+    parser.add_argument("--prefix", type=Path)
     parser.add_argument("--source", type=Path, default=Path.cwd())
     parser.add_argument("--conda", default="conda")
     parser.add_argument("--index", type=int, default=0)
-    parser.add_argument("--count", type=int, default=4)
+    parser.add_argument("--count", type=int, default=2)
     parser.add_argument("--output", type=Path)
     parser.add_argument("--records", type=Path)
     args = parser.parse_args()
+    if args.command == "plan":
+        if args.count not in (2, 4):
+            parser.error("Qualification requires two or four shards")
+        print(json.dumps({"include": [{"shard": index, "group": index + 1} for index in range(args.count)]}))
+        return
+    if args.bundle is None or args.prefix is None:
+        parser.error(f"{args.command} requires --bundle and --prefix")
     args.bundle, args.prefix, args.source = args.bundle.resolve(), args.prefix.resolve(), args.source.resolve()
     try:
         if args.command == "install":
