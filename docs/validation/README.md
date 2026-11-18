@@ -83,6 +83,18 @@ include real container execution. The
 [packaged Task fixtures](../../tests/fixtures/packaged_tasks/README.md) retain
 coverage for installed Task packages and the producer-cleanup-consumer scenario.
 
+CI prepares these three images once per pipeline. A separate preparation job
+builds them from the current checkout and uploads one artifact for that run.
+The artifact records image checksums, source identities, and the Apptainer
+version. Each test group and container acceptance job installs Apptainer,
+downloads the artifact, and compares its identities and checksums before use.
+Missing images, corrupt bytes, or failed preparation fail validation.
+
+The fixture artifact remains separate from the tested gwflow Conda package
+and its runtime record. Container and bioinformatics tests remain enabled in
+every full-suite group. CI retains preparation and consumer setup timings
+with the fixture evidence to compare elapsed time and total runner time.
+
 ## Bioinformatics example
 
 The [public example](../../example/README.md) uses committed synthetic reads and

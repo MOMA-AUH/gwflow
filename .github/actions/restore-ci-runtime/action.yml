@@ -1,8 +1,8 @@
 name: Restore CI runtime
-description: Restore the shared exact Conda build and optionally prepare real container tests.
+description: Restore the shared exact Conda build and optionally restore verified shared container fixtures.
 inputs:
   containers:
-    description: Prepare fixture images and enable real Apptainer and bioinformatics example tests.
+    description: Restore verified fixture images and enable real Apptainer and bioinformatics example tests.
     default: "false"
 runs:
   using: composite
@@ -21,18 +21,17 @@ runs:
       run: |
         python tests/ci_suite.py install \
           --bundle "$RUNNER_TEMP/ci-runtime" --prefix "$RUNNER_TEMP/gwflow-smoke"
-    - name: Prepare real Apptainer container tests
+    - uses: ./.github/actions/install-apptainer
+      if: inputs.containers == 'true'
+    - uses: actions/download-artifact@v8
+      if: inputs.containers == 'true'
+      with:
+        name: gwflow-container-fixtures
+        path: ${{ runner.temp }}/container-fixtures
+    - name: Verify shared Apptainer fixtures and enable real container tests
       if: inputs.containers == 'true'
       shell: bash
       run: |
-        curl -fsSL -o "$RUNNER_TEMP/apptainer.deb" https://github.com/apptainer/apptainer/releases/download/v1.5.4/apptainer_1.5.4_amd64.deb
-        sudo apt-get update
-        sudo apt-get install -y "$RUNNER_TEMP/apptainer.deb"
-        apptainer --version
-        apptainer build "$RUNNER_TEMP/gwflow-test.sif" tests/fixtures/container.def
-        echo "GWFLOW_TEST_SIF=$RUNNER_TEMP/gwflow-test.sif" >> "$GITHUB_ENV"
-        apptainer build "$RUNNER_TEMP/summary.sif" tests/fixtures/packaged_tasks/images/summary.def
-        apptainer build "$RUNNER_TEMP/report.sif" tests/fixtures/packaged_tasks/images/report.def
-        echo "GWFLOW_TEST_SUMMARY_SIF=$RUNNER_TEMP/summary.sif" >> "$GITHUB_ENV"
-        echo "GWFLOW_TEST_REPORT_SIF=$RUNNER_TEMP/report.sif" >> "$GITHUB_ENV"
-        echo "GWFLOW_TEST_BIOINFORMATICS=1" >> "$GITHUB_ENV"
+        python tests/ci_fixtures.py verify \
+          --bundle "$RUNNER_TEMP/container-fixtures" --run-id "$GITHUB_RUN_ID" \
+          --github-env "$GITHUB_ENV"

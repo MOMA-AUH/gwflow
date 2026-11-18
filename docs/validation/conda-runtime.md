@@ -26,6 +26,14 @@ share this pipeline. After successful tag qualification, publication consumes
 the complete qualified bundle without
 building another package. Ordinary master pushes do not repeat qualification.
 
+CI builds the three Apptainer fixture images in a separate preparation job.
+Every test group and container acceptance job downloads the same images and
+makes sure that their source identities and checksums match before use.
+These images do not change the qualified package or dependency manifest.
+Each consumer still installs the Apptainer runtime and enables real container
+and bioinformatics execution. Failed preparation or image verification prevents
+successful qualification.
+
 Supply the exact installed gwflow Conda artifact and its source checkout.
 In this example, `TESTED_PREFIX` and `TESTED_ARTIFACT` are placeholders for those
 paths. The source checkout must contain Git metadata and matching internal Task

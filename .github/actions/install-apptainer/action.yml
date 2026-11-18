@@ -1,0 +1,12 @@
+name: Install Apptainer
+description: Install the pinned runtime used by fixture preparation and real container tests.
+runs:
+  using: composite
+  steps:
+    - name: Install Apptainer 1.5.4
+      shell: bash
+      run: |
+        curl -fsSL -o "$RUNNER_TEMP/apptainer.deb" https://github.com/apptainer/apptainer/releases/download/v1.5.4/apptainer_1.5.4_amd64.deb
+        sudo apt-get update
+        sudo apt-get install -y "$RUNNER_TEMP/apptainer.deb"
+        test "$(apptainer --version)" = 'apptainer version 1.5.4'
