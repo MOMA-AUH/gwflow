@@ -53,6 +53,43 @@ class CiChangesTests(unittest.TestCase):
         self.assertEqual(plan["mode"], "docs")
         self.assertEqual(plan["paths"], ["README.md", "docs/operating.md"])
 
+    def test_known_application_changes_omit_only_release_simulations(self):
+        self.write("src/gwflow/presentation.py", "# Application presentation\n")
+        self.write("tests/test_presentation.py", "# Application regression\n")
+        self.commit()
+        plan = self.plan()
+        self.assertEqual(plan["mode"], "full")
+        self.assertEqual(plan["release_simulations"], "skip")
+        output = self.root / "outputs"
+        self.command("classify", "--source", str(self.root), "--base", self.base, "--head", "HEAD",
+                     "--github-output", str(output))
+        self.assertEqual(output.read_text(), "mode=full\nrelease_simulations=skip\n")
+
+    def test_release_simulation_plan_is_conservative_and_release_events_cannot_skip(self):
+        for event, selection, expected in (("pull_request", "skip", False), ("pull_request", "run", True),
+                                           ("workflow_dispatch", "skip", True), ("push", "skip", True),
+                                           ("unknown", "skip", True)):
+            result = self.command("simulation-plan", "--event", event, "--selection", selection)
+            self.assertEqual(json.loads(result.stdout)["run"], expected)
+        for selection in ("", "false", "unknown"):
+            self.command("simulation-plan", "--event", "pull_request", "--selection", selection, success=False)
+
+    def test_release_simulation_gate_rejects_failures_cancellation_or_incomplete_selection(self):
+        for selected in ("true", "false"):
+            outcome = "success" if selected == "true" else "skipped"
+            needs = {"selection": {"result": "success"},
+                     **{name: {"result": outcome} for name in ("capture", "controlled", "bundle")}}
+            self.command("simulation-gate", "--run", selected, "--needs", json.dumps(needs))
+            for name in needs:
+                for result in ("failure", "cancelled", "skipped", "success"):
+                    if result == needs[name]["result"]:
+                        continue
+                    changed = {key: dict(value) for key, value in needs.items()}
+                    changed[name]["result"] = result
+                    self.command("simulation-gate", "--run", selected, "--needs", json.dumps(changed), success=False)
+        self.command("simulation-gate", "--run", "", "--needs", "{}", success=False)
+        self.command("simulation-gate", "--run", "true", "--needs", "{}", success=False)
+
     def test_required_gate_rejects_failed_cancelled_or_unexpectedly_skipped_jobs(self):
         for mode, selected, unselected in (("docs", "documentation", "qualification"),
                                             ("full", "qualification", "documentation")):
@@ -74,13 +111,17 @@ class CiChangesTests(unittest.TestCase):
                      "conda-recipe/meta.yaml", ".github/workflows/ci.yml", ".github/actions/example/action.yml",
                      "tests/fixtures/container.def", "docs/validation/compatibility/baseline.json",
                      "docs/new.md", "docs/releasing.md", "docs/adr/0024-example.md", "AGENTS.md",
-                     "docs/operating.md\nextra", "docs/é.md"):
+                     "docs/operating.md\nextra", "docs/é.md", "tests/conda_runtime.py",
+                     "tests/compare_runtime.py", "tests/qualification_event.py", "src/gwflow/lifecycle.py",
+                     "tests/test_new_release_feature.py"):
             with self.subTest(path=name):
                 self.git("reset", "--hard", self.base)
                 self.write("README.md", "# Updated\n")
                 self.write(name, "changed\n")
                 self.commit()
-                self.assertEqual(self.plan()["mode"], "full")
+                plan = self.plan()
+                self.assertEqual(plan["mode"], "full")
+                self.assertEqual(plan["release_simulations"], "run")
 
     def test_additions_deletions_and_both_rename_paths_are_classified(self):
         self.write("docs/operating.md", "# Operations\n")
@@ -96,6 +137,7 @@ class CiChangesTests(unittest.TestCase):
         self.git("mv", "docs/reference.md", "implementation.py")
         self.commit()
         self.assertEqual(self.plan()["mode"], "full")
+        self.assertEqual(self.plan()["release_simulations"], "run")
         self.base = self.git("rev-parse", "HEAD").strip()
         self.git("mv", "implementation.py", "README.md")
         self.commit()
@@ -115,16 +157,20 @@ class CiChangesTests(unittest.TestCase):
         plan = self.plan()
         self.assertEqual(plan["mode"], "full")
         self.assertEqual(plan["paths"], ["README.md", "src/module.py"])
+        self.assertEqual(plan["release_simulations"], "run")
 
     def test_empty_invalid_and_file_type_changes_never_select_lightweight(self):
         self.assertEqual(self.plan()["mode"], "full")
+        self.assertEqual(self.plan()["release_simulations"], "run")
         self.command("classify", "--source", str(self.root), "--base", "missing-ref", "--head", "HEAD", success=False)
         path = self.root / "README.md"
         path.chmod(0o755)
         self.commit()
         self.assertEqual(self.plan()["mode"], "full")
+        self.assertEqual(self.plan()["release_simulations"], "run")
         self.git("reset", "--hard", self.base)
         path.unlink()
         path.symlink_to("untrusted.md")
         self.commit()
         self.assertEqual(self.plan()["mode"], "full")
+        self.assertEqual(self.plan()["release_simulations"], "run")

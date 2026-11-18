@@ -6,6 +6,10 @@ on:
       source:
         required: true
         type: string
+      release-simulations:
+        description: Run or skip extra release plumbing checks; only ordinary PRs may skip
+        type: string
+        default: run
 
 permissions:
   contents: read
@@ -192,6 +196,16 @@ jobs:
       - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.source }}
+      - name: Select release-process simulation coverage
+        id: simulations
+        shell: bash
+        env:
+          SIMULATION_SELECTION: ${{ inputs.release-simulations }}
+        run: |
+          mkdir -p build/validation
+          python3 tests/ci_changes.py simulation-plan --event "$GITHUB_EVENT_NAME" \
+            --selection "$SIMULATION_SELECTION" --github-output "$GITHUB_OUTPUT" \
+            | tee build/validation/simulation-plan.json
       - uses: ./.github/actions/restore-ci-runtime
       - uses: actions/download-artifact@v8
         with:
@@ -215,6 +229,8 @@ jobs:
           mode=$(python -c 'import json; print(json.load(open("build/validation/compatibility-plan.json"))["mode"])')
           echo "mode=$mode" >> "$GITHUB_OUTPUT"
       - name: Capture and qualify the tested Conda runtime
+        id: capture
+        if: steps.simulations.outputs.run == 'true'
         shell: bash -l {0}
         run: |
           artifact=$(find "$RUNNER_TEMP/ci-runtime" -name 'gwflow-*.conda' -print -quit)
@@ -225,19 +241,14 @@ jobs:
           python tests/validate_conda_runtime.py \
             --capture "$RUNNER_TEMP/conda-runtime" --source "$PWD" \
             --root build/validation/conda-runtime
-          version=$(python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')
-          source=$(git rev-parse HEAD)
-          python tests/release_artifacts.py prepare \
-            --capture "$RUNNER_TEMP/conda-runtime" \
-            --qualification build/validation/conda-runtime/restored/gwflow-runtime.json \
-            --tag "v$version" --source "$source" --output "$RUNNER_TEMP/qualified-release"
-          python tests/release_artifacts.py verify \
-            --bundle "$RUNNER_TEMP/qualified-release" --tag "v$version" --source "$source"
       - uses: actions/download-artifact@v8
+        if: steps.simulations.outputs.run == 'true' || steps.compatibility.outputs.mode == 'preserved-release'
         with:
           name: gwflow-ci-channel
           path: ${{ runner.temp }}/conda-dist
       - name: Compare independent controlled runtimes
+        id: controlled
+        if: steps.simulations.outputs.run == 'true'
         shell: bash -l {0}
         run: |
           version=$(python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')
@@ -304,6 +315,37 @@ jobs:
                   assert evidence["journeys"] == {"run": 15, "failures": 0, "errors": 0, "skips": 0}, evidence
                   assert evidence["status_consumer"]["status"] == "passed", evidence
           PYTHON
+      - name: Prepare completely qualified release bundle
+        id: bundle
+        if: steps.simulations.outputs.run == 'true'
+        shell: bash -l {0}
+        run: |
+          version=$(python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')
+          source=$(git rev-parse HEAD)
+          python tests/release_artifacts.py prepare \
+            --capture "$RUNNER_TEMP/conda-runtime" \
+            --qualification build/validation/conda-runtime/restored/gwflow-runtime.json \
+            --tag "v$version" --source "$source" --output "$RUNNER_TEMP/qualified-release"
+          python tests/release_artifacts.py verify \
+            --bundle "$RUNNER_TEMP/qualified-release" --tag "v$version" --source "$source"
+      - name: Require selected release-process simulations to pass
+        if: always()
+        env:
+          SIMULATIONS_RUN: ${{ steps.simulations.outputs.run }}
+          SIMULATION_RESULTS: >-
+            {"selection":{"result":"${{ steps.simulations.outcome }}"},
+             "capture":{"result":"${{ steps.capture.outcome }}"},
+             "controlled":{"result":"${{ steps.controlled.outcome }}"},
+             "bundle":{"result":"${{ steps.bundle.outcome }}"}}
+        run: python3 tests/ci_changes.py simulation-gate --run "$SIMULATIONS_RUN" --needs "$SIMULATION_RESULTS"
+      - name: Install independent candidate for preserved-release compatibility
+        if: steps.compatibility.outputs.mode == 'preserved-release'
+        shell: bash -l {0}
+        run: |
+          version=$(python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')
+          conda create -y -p "$RUNNER_TEMP/gwflow-preserved-candidate" python=3.12.14 "gwflow=$version" -c "file://$RUNNER_TEMP/conda-dist" -c gwforg -c conda-forge
+          conda run -p "$RUNNER_TEMP/gwflow-preserved-candidate" python -m pip install --no-deps \
+            ./tests/fixtures/packaged_tasks/packages/summary-task ./tests/fixtures/packaged_tasks/packages/report-task
       - name: Compare pinned stable releases in independent runtimes
         if: steps.compatibility.outputs.mode == 'preserved-release'
         shell: bash -l {0}
@@ -312,7 +354,7 @@ jobs:
           test -n "$artifact"
           conda run -p "$RUNNER_TEMP/gwflow-smoke" python tests/select_compatibility.py run \
             --descriptor docs/validation/compatibility/baseline.json \
-            --candidate-python "$RUNNER_TEMP/gwflow-compat-candidate/bin/python" \
+            --candidate-python "$RUNNER_TEMP/gwflow-preserved-candidate/bin/python" \
             --candidate-artifact "$artifact" --candidate-source "$(git rev-parse HEAD)" \
             --root build/validation/pinned-compatibility
       - uses: actions/upload-artifact@v7
@@ -322,6 +364,7 @@ jobs:
           name: conda-runtime-evidence
           path: |
             build/validation/ci-suite/shard-*.json
+            build/validation/simulation-plan.json
             build/validation/compatibility-plan.json
             build/validation/pinned-compatibility/selection.json
             build/validation/pinned-compatibility/**/comparison.json
@@ -334,6 +377,7 @@ jobs:
             ${{ runner.temp }}/qualified-release/SHA256SUMS
           if-no-files-found: error
       - uses: actions/upload-artifact@v7
+        if: steps.simulations.outputs.run == 'true' && success()
         with:
           overwrite: true
           name: gwflow-conda-release
