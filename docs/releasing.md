@@ -65,8 +65,17 @@ checks pip installation, CLI startup, interactive status, and the release smoke
 scenarios. It also retains the provisional source comparison until stable
 baselines exist. The `conda` job requires all Conda test jobs to pass and verifies
 that their records cover the complete discovered suite without skips. It then
-captures and qualifies the tested runtime and runs the independent comparisons.
-The transfer capture is not a qualified release or a passing test result.
+captures and qualifies the tested runtime and runs the release-process simulations
+when the complete PR diff selects them. Unrelated application PRs retain the full
+application suite, real containers, and routine checkout-pinned compatibility.
+They omit the extra release round trip and controlled replacement/profile
+simulations, and produce no qualified release bundle. See the
+[execution matrix](validation/README.md#release-process-simulations) for selection
+rules. The transfer capture is not a qualified release or a passing test result.
+
+Every explicit release qualification runs all simulations and prepares the exact
+qualified bundle. Ordinary PR selection cannot authorize publication. Publication
+still requires complete successful qualification for the final source and package.
 
 The `tests` and `conda` checks remain required before merging into protected
 `master`. A failed or skipped Conda prerequisite fails `conda`. New commits cancel
