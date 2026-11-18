@@ -39,7 +39,10 @@ run consistently tested its own exact artifact.
 
 Choose two shards for the CI cost goal. This sample used 19.83 fewer allocated
 runner minutes, with 9.02 minutes more elapsed feedback time. Its 39-minute
-feedback time was near an earlier 38.4-minute full pipeline in this issue queue.
+feedback time was near an earlier
+[38.4-minute full pipeline](https://github.com/MOMA-AUH/gwflow/actions/runs/44355316458)
+in this issue queue. That earlier source provides feedback context, not a
+matched performance baseline.
 This choice accepts that delay in exchange for fewer repeated setup jobs and
 the lower observed allocation cost. It does not establish a feedback SLA.
 

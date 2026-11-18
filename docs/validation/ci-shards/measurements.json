@@ -1709,5 +1709,14 @@
         "interpretation": "This is not the allocation measure. Public hosted billing reported zero; runner time uses complete job timestamps."
       }
     }
-  ]
+  ],
+  "historical_feedback_context": {
+    "source_commit": "b23d30662d5e9ae4786cae82327c8cad035d1b88",
+    "run_url": "https://github.com/MOMA-AUH/gwflow/actions/runs/44355316458",
+    "package_version": "0.11.2",
+    "shards": 4,
+    "test_count": 1121,
+    "elapsed_minutes": 38.383,
+    "use": "Earlier-source feedback context only, not a matched comparison or causal baseline."
+  }
 }
