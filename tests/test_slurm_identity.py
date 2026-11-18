@@ -44,6 +44,16 @@ class SlurmIdentityTests(LocalBackendTestCase):
         path = self.work / "slurm-cancelled.jsonl"
         return list(map(json.loads, path.read_text().splitlines())) if path.exists() else []
 
+    def assert_recovery_veto(self, env, *jobs):
+        receipts = {path: path.read_bytes() for path in self.work.rglob("recovery.json")}
+        output = self.cli("-b", "slurm", "recover", "sample", env=env, success=False)
+        self.assertIn("queued or running submissions", output)
+        for job in jobs:
+            self.assertIn(job["name"], output)
+        self.assertEqual({path: path.read_bytes() for path in self.work.rglob("recovery.json")}, receipts)
+        preview = self.cli("-b", "slurm", "run", "--dry-run", "--details", env=env, success=False)
+        self.assertNotIn("Would submit", preview)
+
     def test_live_computation_and_completion_veto_recovery_when_accounting_fails(self):
         self.environment = self.slurm_environment()
         self.cli("-b", "slurm", "run", env=self.environment)
@@ -52,13 +62,12 @@ class SlurmIdentityTests(LocalBackendTestCase):
         (self.work / "slurm-observations.json").write_text(json.dumps({
             "squeue": {running["id"]: {"state": "RUNNING"}, pending["id"]: {"state": "PENDING"}}}))
         (self.work / "sacct-error").touch()
-        output = self.cli("-b", "slurm", "recover", "sample", env=self.environment, success=False)
-        self.assertIn("queued or running submissions", output)
-        self.assertIn(running["name"], output)
-        self.assertIn(pending["name"], output)
-        self.assertFalse(list(self.work.rglob("recovery.json")))
-        preview = self.cli("-b", "slurm", "run", "--dry-run", "--details", env=self.environment, success=False)
-        self.assertNotIn("Would submit", preview)
+        self.assert_recovery_veto(self.environment, running, pending)
+        (self.work / "sacct-error").unlink()
+        (self.work / "slurm-observations.json").write_text(json.dumps({
+            "squeue": {running["id"]: {"state": "RUNNING", "extra_rows": ["bad-id|R|other"]},
+                       pending["id"]: {"state": "PENDING"}}}))
+        self.assert_recovery_veto(self.environment, running, pending)
 
     def test_live_computation_vetoes_recovery_after_lost_acknowledgement(self):
         release = self.work / "release"
@@ -71,13 +80,13 @@ class SlurmIdentityTests(LocalBackendTestCase):
         self.assertIn("lost Slurm acknowledgement", output)
         job = next(job for job in self.submissions() if "__right__" in job["name"])
         self.overrides(job, job["name"], "RUNNING")
-        output = self.cli("-b", "slurm", "recover", "sample", env=env, success=False)
-        self.assertIn("queued or running submissions", output)
-        self.assertIn(job["name"], output)
-        self.assertFalse(list(self.work.rglob("recovery.json")))
-        preview = self.cli("-b", "slurm", "run", "--dry-run", "--details", env=env, success=False)
-        self.assertIn("unresolved submission", preview)
-        self.assertNotIn("Would submit", preview)
+        self.assert_recovery_veto(env, job)
+        # An earlier operator assertion cannot suppress a reappearing Submission.
+        forgotten = self.work / "forgotten-slurm-history"
+        forgotten.touch()
+        self.assertIn(job["name"], self.cli("-b", "slurm", "recover", "sample", env=env))
+        forgotten.unlink()
+        self.assert_recovery_veto(env, job)
 
     def test_recycled_running_id_is_unresolved_and_never_cancelled(self):
         job = self.held_submission()

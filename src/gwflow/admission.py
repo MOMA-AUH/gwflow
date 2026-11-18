@@ -201,7 +201,7 @@ def read_recovery(store, attempt, intent):
 
 def resolve_submissions(store, attempt, observations, backend):
     ops = getattr(backend, "ops", None)
-    active_names = ops.active_queue_names() if isinstance(ops, ManagedSlurmOps) else set()
+    active_names = ops.active_queue_names if isinstance(ops, ManagedSlurmOps) else set()
     active = [item.submission for item in observations
               if item.backend_state in (BackendStatus.SUBMITTED, BackendStatus.RUNNING)
               or (item.intent["backend"] == {"name": "slurm"} and item.submission in active_names)]
@@ -426,6 +426,7 @@ def _observe(store, attempt, backend, name, intents, *, tolerate_state_errors=Fa
         target = Target(intent["submission"], [], [], {})
         tracked_id, state = None, BackendStatus.UNKNOWN
         same_backend = backend is not None and intent["backend"] == backend_identity(backend, name)
+        ops = getattr(backend, "ops", None)
         if same_backend:
             tracked_id = backend.get_tracked_id(target) if hasattr(backend, "get_tracked_id") else None
         saved_id = ack.get("job_id") if ack else None
@@ -438,8 +439,8 @@ def _observe(store, attempt, backend, name, intents, *, tolerate_state_errors=Fa
                     if local_without_backend:
                         state = local_termination_state(store.working_dir, intent["submission"])
                     else:
-                        if isinstance(getattr(backend, "ops", None), ManagedSlurmOps):
-                            state = backend.ops.observe_submission(job_id, submission=intent["submission"])
+                        if isinstance(ops, ManagedSlurmOps):
+                            state = ops.observe_submission(job_id, submission=intent["submission"])
                         else:
                             state = backend.status(target)
                         if (tracked_id is None and job_id is not None and isinstance(backend, TrackingBackend)
@@ -474,6 +475,10 @@ def _observe(store, attempt, backend, name, intents, *, tolerate_state_errors=Fa
             status = "cancelled" if state == BackendStatus.CANCELLED else "failed"
         elif checked:
             status = "complete"
+        elif same_backend and isinstance(ops, ManagedSlurmOps) and intent["submission"] in ops.active_queue_names:
+            # A name alone cannot supply a dependency or cancellation ID.
+            # It still prevents retry, including after an operator recovery.
+            status = "uncertain"
         elif rejection is not None:
             status = "pending"
         elif outcome and outcome.get("state") == "failed":

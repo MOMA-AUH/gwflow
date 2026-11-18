@@ -30,6 +30,7 @@ class ManagedSlurmOps(SlurmOps):
         self.queried_ids = set()
         self.accounting = {}
         self.queue = None
+        self.active_queue_names = set()
         self.query_error = None
         self.cancel_capable = False
         self.verified = {}
@@ -55,7 +56,8 @@ class ManagedSlurmOps(SlurmOps):
                 if re.fullmatch(r"[1-9][0-9]*(?:_(?:[0-9]+|\[[0-9,:%-]+\]?)|\+[0-9]+)?"
                                 r"(?:\.(?:[0-9]+|batch|extern))?", fields[0]):
                     continue
-                raise BackendError("Malformed Slurm job identity in scheduler response")
+                self.query_error = "Malformed Slurm job identity in scheduler response"
+                continue
             if len(fields) != 3:
                 records.setdefault(fields[0], set()).add(("", BackendStatus.UNKNOWN))
                 continue
@@ -74,6 +76,13 @@ class ManagedSlurmOps(SlurmOps):
         try:
             if self.queue is None:
                 self.queue = self._records(call("squeue", "--noheader", "--format=%i|%t|%j", "--all", "--local"))
+                # Retain positive activity even if another row or accounting
+                # prevents verification of the numeric cancellation identity.
+                self.active_queue_names = {
+                    name for records in self.queue.values() for name, state in records
+                    if state in (BackendStatus.SUBMITTED, BackendStatus.RUNNING)}
+                if self.query_error is not None:
+                    return
             missing = sorted(self.tracked_ids - self.queried_ids)
             for start in range(0, len(missing), 1024):
                 batch = missing[start:start + 1024]
@@ -111,11 +120,6 @@ class ManagedSlurmOps(SlurmOps):
             raise SlurmIdentityUnresolved(f"incomplete scheduler state for job {job_id}")
         self.verified[key] = state
         return state
-
-    def active_queue_names(self):
-        """Positive evidence for the whole-Task recovery veto, even if accounting failed."""
-        return {name for records in (self.queue or {}).values() for name, state in records
-                if state in (BackendStatus.SUBMITTED, BackendStatus.RUNNING)}
 
     def require_cancellation_identity(self, job_id, submission):
         self.observe_submission(job_id, submission=submission)
