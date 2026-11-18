@@ -16,7 +16,7 @@ import tempfile
 from release_artifacts import (VALIDATION_FILES, archive_name, attach, digest, draft_assets, final_tag, github,
                                pack, unpack, verify)
 from release_provenance import identity_arguments, publication_identity
-from select_ci_release import select_run
+from select_ci_release import select_run, verify_master_source
 
 
 def channel_package(args, release):
@@ -96,6 +96,8 @@ def publish(args):
     selected = select_run([source_ci], args.repo, args.source)
     if str(selected["id"]) != args.source_ci_run:
         raise ValueError("Source CI response does not match the requested run ID")
+    comparison = json.loads(github(args.gh, "api", f"repos/{args.repo}/compare/{args.source}...master").stdout)
+    verify_master_source(comparison, args.source)
     ensure_channel_package(args, release)
     with tempfile.TemporaryDirectory(prefix="gwflow-publication-") as temporary:
         work = Path(temporary)

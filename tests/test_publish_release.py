@@ -144,6 +144,18 @@ class PublicationTests(artifacts.ReleaseArtifactFixture):
                 self.assertFalse((self.channel / "package.conda").exists())
                 self.assertFalse((self.remote / "state.json").exists())
 
+    def test_local_successful_feature_dispatch_cannot_publish_unmerged_source(self):
+        self.environment.pop("GITHUB_REPOSITORY", None)
+        self.environment.pop("GITHUB_RUN_ID", None)
+        self.environment["GWFLOW_SOURCE_CI_CHANGES"] = json.dumps(
+            {"event": "workflow_dispatch", "head_branch": "v-feature"})
+        self.environment["GWFLOW_SOURCE_MASTER_CHANGES"] = json.dumps(
+            {"status": "diverged", "merge_base_commit": {"sha": "b" * 40}})
+        self.publish(success=False, extra=("--local",))
+        self.assertEqual(self.channel_calls(), [])
+        self.assertFalse((self.channel / "package.conda").exists())
+        self.assertFalse((self.remote / "state.json").exists())
+
     def test_retry_after_upload_runs_checks_and_finishes_without_replacing_package(self):
         self.environment["GWFLOW_PUBLICATION_FAIL"] = "smoke"
         failed = self.publish(success=False)

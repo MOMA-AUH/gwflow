@@ -62,21 +62,24 @@ actual agreement and verified remote state.
    PR head. Squash-merge using that exact head SHA and record the resulting master
    commit. Use the approved existing master commit if preparation was unnecessary.
    Apply this protected PR process to subsequent archive/baseline changes too.
-4. Wait for successful `ci.yml` **push CI on master at that exact release commit**,
-   including the qualified `gwflow-conda-release` bundle. A green PR run alone is
-   insufficient. Record the selected run and immutable artifact ID using
-   `tests/select_ci_release.py`. Follow the release guide if the bundle expired.
-5. Create an annotated tag at the recorded release commit and push only that tag
+4. Create an annotated tag at the recorded release commit and push only that tag
    using authenticated user Git so Actions runs. Reuse an existing tag only after
    verifying its peeled commit matches the approved release source. Preserve
-   existing tags; moving or force-pushing a release tag is outside this workflow.
-6. Monitor `release.yml` for that tag and source through successful verification
-   and publication. It publishes the exact CI package to Anaconda.org, verifies
-   a fresh channel installation, and stages final-version draft assets. Keep its
-   selected CI bundle on retries; follow the interrupted-publication guide rather
-   than rebuilding or substituting artifacts. Retry a transient failure at most
-   once for the same cause, then report a repeated blocker. Different tagged code
-   requires a new version agreed with the user.
+   existing tags. Moving or force-pushing a release tag is outside this workflow.
+5. Monitor `release-qualification.yml` for that exact tag and source through
+   successful completion. It runs the reusable full qualification pipeline after
+   checking master membership and package versions. A green PR run alone is
+   insufficient. Record the trusted run and immutable artifact ID with
+   `tests/select_ci_release.py`. Follow the release guide for manual qualification
+   without publication, qualification retries, or expired artifacts.
+6. Monitor `release.yml` after successful tag qualification through verification
+   and publication. It publishes the exact qualified package to Anaconda.org,
+   verifies a fresh channel installation, and stages final-version draft assets.
+   Keep its selected qualification bundle on retries. Follow the interrupted
+   publication guide rather than rebuilding or substituting artifacts.
+   Retry a transient failure at most once for the same cause, then report a
+   repeated blocker. Different tagged code requires a new version agreed with
+   the user. Ordinary merges do not start full master CI.
 7. Verify the draft's tag resolves to the recorded source. Download all three
    draft assets to a fresh directory and run the existing verifier:
 

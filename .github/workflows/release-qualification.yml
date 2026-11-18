@@ -1,0 +1,46 @@
+name: Release qualification
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      source:
+        description: Full source SHA, which must equal the selected ref's commit
+        required: true
+        type: string
+      tag:
+        description: Expected release version, such as v0.8.0
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+# Qualification cannot be superseded by another PR, merge, or release.
+concurrency:
+  group: qualification-${{ github.ref }}-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - name: Require exact master source and matching package version
+        env:
+          REQUESTED_SOURCE: ${{ inputs.source || github.sha }}
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          python tests/qualification_event.py qualify \
+            --event "$GITHUB_EVENT_PATH" --repo "$GITHUB_REPOSITORY" \
+            --source "$GITHUB_SHA" --requested-source "$REQUESTED_SOURCE" --tag "$RELEASE_TAG"
+
+  qualification:
+    needs: verify
+    uses: ./.github/workflows/qualification.yml
+    with:
+      source: ${{ github.sha }}

@@ -9,8 +9,8 @@ You can revise the notes before agreeing. Version changes, PRs, and tags begin
 after that agreement.
 
 Your notes approval authorizes the remaining delivery: prepare and merge the
-version PR through required CI, wait for master CI at the exact release commit,
-push the tag, monitor Conda publication, verify the draft assets, and publish the
+version PR through required CI, push the tag, wait for qualification of that exact
+release commit, monitor Conda publication, verify the draft assets, and publish the
 GitHub release. The assistant then merges synchronized final notes and any
 applicable stable baseline pins through the protected PR process. No separate
 publish confirmation is needed. Material changes to the agreed release scope
@@ -56,7 +56,8 @@ and its evidence index to find the relevant historical records.
 Operators should use the [operating and upgrade guide](operating.md) for force,
 cleanup, unresolved submissions, and upgrades with all affected jobs inactive.
 
-Pull requests and pushes to `master` build one Conda package. Four parallel jobs
+Pull requests run the reusable `qualification.yml` pipeline and build one Conda
+package. Ordinary pushes to `master` do not repeat that pipeline. Four parallel jobs
 run separate parts of the full suite against that package, including the real
 Apptainer tests. Each job restores the same exact dependencies from a transfer
 capture. A separate job runs consolidated container acceptance. The `tests` job
@@ -69,8 +70,8 @@ The transfer capture is not a qualified release or a passing test result.
 
 The `tests` and `conda` checks remain required before merging into protected
 `master`. A failed or skipped Conda prerequisite fails `conda`. New commits cancel
-superseded PR runs. Master runs remain available for release selection. Individual
-failed test groups and container checks can be retried without rerunning successful
+superseded PR runs. Release qualification uses a separate concurrency group that
+new PRs and merges cannot cancel. Individual failed test groups and container checks can be retried without rerunning successful
 siblings. Test records include per-test durations for future balancing. Hash-based
 partitioning spreads cases across four runners but does not guarantee equal time.
 Live Slurm evidence remains separate. Branch protection applies to administrators
@@ -78,29 +79,45 @@ with no bypass actors, requires a pull request and linear history, and the
 repository permits squash merges only. Reviewer approval is optional; the branch
 must be up to date with `master` before merging.
 
-For a release, ensure the version in `pyproject.toml` and
-`conda-recipe/meta.yaml` matches the intended release, updating them together if
-needed. Merge the release preparation PR through CI, then push a
-matching `v<version>` tag on `master`. The tag workflow rejects a tag whose
-version differs from `pyproject.toml` or whose commit is absent from `master`.
-Wait for successful `master` CI at the exact release commit before pushing
-the tag. The tag workflow selects a successful push run of `ci.yml` from this
-repository at that commit. A successful PR run, another commit, a fork, or a
-matching version number alone is insufficient. It downloads the complete
-`gwflow-conda-release` bundle by its immutable artifact ID. CI retains that bundle
-for 90 days, subject to repository retention limits. Missing or expired bundles
-fail release selection. Rerun CI at that exact master commit, then retry the tag
-workflow. Do not rebuild a package in the publication workflow or substitute a
-bundle from another commit.
+For a release, make sure that `pyproject.toml` and `conda-recipe/meta.yaml`
+match the intended version. Merge the preparation PR through required CI.
+Push a matching `v<version>` tag at the approved commit on `master`.
+The `release-qualification.yml` workflow runs complete qualification for that
+exact tagged commit through the same reusable pipeline as PRs.
+Its preflight rejects commits absent from `master` and mismatched tag or package versions.
+A PR's synthetic merge commit cannot qualify the final release commit.
 
-The tag workflow does not rerun the full suite or runtime qualification. It
-verifies the bundle's tag, source, package, manifest, checksums, and qualification
-before passing the same artifact ID to `publish`. Qualification already restores
-the tested package and exact dependency builds with an empty cache and runs the
-release smoke scenarios. CI runs capture after all test groups pass and checks
-that every group used the same package, fixture source, and dependency manifest.
-The release requires the entire selected CI run to succeed, including pip and
-compatibility checks.
+To qualify a commit without publishing, dispatch `release-qualification.yml`:
+
+```sh
+gh workflow run release-qualification.yml --repo MOMA-AUH/gwflow \
+  --ref master -f source=FULL_SOURCE_COMMIT -f tag=vVERSION
+```
+
+Replace the placeholders with the full commit SHA and matching package version.
+The chosen ref must resolve to that exact commit.
+Use an existing matching release tag as `--ref` for an older release commit.
+If `master` moves before dispatch, the source mismatch fails qualification.
+Manual qualification never starts publication.
+
+After tag qualification succeeds, `release.yml` selects that trusted successful
+run and downloads `gwflow-conda-release` by its immutable artifact ID.
+Selection requires the same repository, exact commit, recognized qualification
+workflow, and successful completion. PR runs and fork runs cannot qualify publication.
+Failed, cancelled, missing, expired, or mismatched qualification stops publication.
+The bundle remains available for 90 days, subject to repository retention limits.
+Rerun failed qualification jobs, then retry publication after the complete run succeeds.
+Keep the original artifact for interrupted publication retries as described below.
+
+Publication makes sure that the bundle's tag, source, package, manifest,
+checksums, and qualification agree before passing the same artifact ID to `publish`.
+It publishes that qualified package without rebuilding it.
+Qualification restores the tested package and exact dependency builds with an
+empty cache and runs the release smoke scenarios.
+It also requires the full installed suite, real container acceptance, pip checks,
+and independent compatibility comparisons from ADR 0018.
+Capture follows successful test groups and verifies their shared package,
+fixture source, and dependency manifest identities.
 
 The publish job uploads the same artifact to the `MOMA-AUH` Anaconda.org channel
 or downloads and verifies an identical existing distribution.
@@ -113,10 +130,10 @@ The workflow verifies the downloaded artifact's SHA256 before upload and matches
 the fresh installation's Conda metadata to that same artifact afterward.
 The independently solved channel installation proves published package identity.
 It does not replace the captured and reconstructed dependency environment.
-Download `gwflow-publication-evidence` from the successful tag run to obtain
+Download `gwflow-publication-evidence` from the successful publication run to obtain
 the three public release assets under `assets/` and the separate
 `publication-attempt.json` record of this attempt. Download `gwflow-conda-release`
-from the selected master CI run to obtain the original flat bundle.
+from the selected release qualification run to obtain the original flat bundle.
 Pre-1.0 and prerelease versions do not establish a stable baseline.
 
 After the tag workflow has successfully uploaded and installed the published
@@ -195,13 +212,13 @@ python tests/publish_release.py \
 ```
 
 `SOURCE_COMMIT` must be the full commit SHA.
-`SOURCE_CI_RUN_ID` must be the positive numeric ID of the successful master CI run that supplied this exact bundle.
+`SOURCE_CI_RUN_ID` must be the positive numeric ID of the successful release qualification run that supplied this exact bundle.
 Use the run selected by the successful `verify` job.
 Do not substitute the publication run ID.
 `--local` explicitly records local verification and requires no Actions environment variables.
 
 Before upload or draft changes, the command validates these inputs and checks
-that the source run was successful CI for a push to `master` in this repository at this commit.
+that the source run was successful trusted release qualification in this repository at this exact commit.
 Without `--local`, `GITHUB_REPOSITORY` must match `--repo` and `GITHUB_RUN_ID`
 must identify the Actions publication run. The release workflow supplies these values.
 The qualified bundle checks verify its source and bytes. Use the exact selected
