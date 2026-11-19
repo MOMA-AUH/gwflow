@@ -129,6 +129,30 @@ comparison. It produces no qualified release bundle. Explicit release
 qualification always runs the simulations for its exact source and package,
 regardless of the PR path selection.
 
+### Artifact retention and reruns
+
+Transfer artifacts carry files between jobs in the same workflow run.
+`gwflow-container-fixtures`, `gwflow-ci-runtime`, and `gwflow-ci-channel` expire
+after three days. The fixture policy applies to standalone cache preparation
+and full qualification, which use the same upload step. Fixture caches remain
+separate, with the exact input keys and branch access rules described below.
+Consumers still require the recorded source and run identities and checksums.
+
+Diagnostic artifacts retain their existing retention policy. These include
+`installed-source-evidence`, `conda-suite-*`, `container-acceptance-evidence`,
+`conda-runtime-evidence`, and `gwflow-publication-evidence`.
+The qualified `gwflow-conda-release` bundle keeps its 90-day retention for
+release qualification and publication. Published release attachments remain
+subject to the [release preservation policy](../adr/0018-preserve-independent-compatibility-environments.md).
+The three-day policy applies to new transfer uploads. It does not change the
+expiry of existing artifacts or delete them early.
+
+After a transfer artifact expires, rerunning only a failed consumer job cannot
+download it. Rerun the complete workflow to recreate all transfers and their
+matching identities. For a standalone fixture-cache run, dispatch that workflow
+again on `master`. Available caches can reduce preparation time, but they do
+not replace the required artifacts for that run.
+
 ## Local checks
 
 Run from the repository root. Create the development environment with Python

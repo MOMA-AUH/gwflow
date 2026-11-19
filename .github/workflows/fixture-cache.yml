@@ -52,6 +52,7 @@ jobs:
         with:
           overwrite: true
           name: gwflow-container-fixtures
+          retention-days: 3
           path: ${{ runner.temp }}/container-fixtures/*
           compression-level: 0
           if-no-files-found: error
