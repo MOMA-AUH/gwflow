@@ -88,6 +88,10 @@ b = copy('b', a.outputs['one'], 'middle')
         for name in ("b", "existing", "new"):
             self.assertRegex(preview, rf"Task {name}\s+Defer\s+")
             self.assertEqual((rows[name]["state"], rows[name]["next_action"]), ("deferred", "defer"))
+        self.assertEqual(rows["b"]["progress"], {"completed": 3, "total": 3})
+        for name in ("existing", "new"):
+            self.assertEqual(rows[name]["progress"], {"completed": 0, "total": 3})
+            self.assertEqual({job["state"] for job in rows[name]["jobs"]}, {"pending"})
 
         receipt = self.run_complete("--details")
         self.assertIn("a__gwflow_complete: confirmed submitted", receipt)

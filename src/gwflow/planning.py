@@ -54,7 +54,7 @@ def definition_change(store, observation, observations_by_name, *, force_option,
     for producer in producer_names(observation.structure):
         upstream = observations_by_name[producer]
         expected = attempt["producers"].get(producer)
-        if upstream.action == "fresh":
+        if upstream.action == "fresh" or upstream.attempt is None:
             return "upstream_attempt_changed", f"producer {producer} will start a fresh attempt; expected producer attempt was {expected}"
         if upstream.attempt["attempt"] != expected:
             return "upstream_attempt_changed", f"producer {producer} attempt changed: expected {expected}, current {upstream.attempt['attempt']}"
@@ -348,17 +348,19 @@ def plan_workflow(workflow, ctx, *, selectors=(), force=False, for_submission=Fa
                         pending = pending_submissions(attempt, jobs)
                         failed = [local for local, item in jobs.items() if item.state in ("failed", "cancelled") and local not in pending]
                         if superseded:
-                            observation.action, observation.reason = "blocked", "Unresolved or active recovered submissions: " + ", ".join(item.submission for item in superseded)
-                            observation.reason_code = ("submission_unresolved" if any(item.state == "uncertain" for item in superseded)
-                                                       else "activity_conflict")
-                        elif uncertain:
-                            observation.action, observation.reason = "blocked", "unresolved submission: " + ", ".join(uncertain)
-                            observation.reason_code = "submission_unresolved"
-                        elif producer_deferred:
+                            code = ("submission_unresolved" if any(item.state == "uncertain" for item in superseded)
+                                    else "activity_conflict")
+                            raise InspectionBlocker(code, "Unresolved or active recovered submissions: " +
+                                                    ", ".join(item.submission for item in superseded))
+                        if uncertain:
+                            raise InspectionBlocker("submission_unresolved", "unresolved submission: " + ", ".join(uncertain))
+                        change = definition_change(store, observation, observations_by_name,
+                                                   force_option="--force" if force and name in selected_names else None,
+                                                   initializing=initializing)
+                        if producer_deferred and not (change and active):
+                            observation.restart_required = bool(change or initializing)
                             defer_observation(observation)
-                        elif change := definition_change(store, observation, observations_by_name,
-                                                          force_option="--force" if force and name in selected_names else None,
-                                                          initializing=initializing):
+                        elif change:
                             code, reason = change
                             fresh_observation(store, observation, reason, code=code)
                         elif initializing:
@@ -413,6 +415,7 @@ def plan_workflow(workflow, ctx, *, selectors=(), force=False, for_submission=Fa
                             observation.action, observation.reason = "blocked", "incomplete attempt or damaged results; retry/recovery is not yet supported"
                             observation.reason_code = "validation_failed"
                     elif producer_deferred:
+                        observation.observations_available = True
                         defer_observation(observation)
                     else:
                         fresh_observation(store, observation, "no completed managed attempt", code="no_attempt")
