@@ -68,6 +68,12 @@ class WaitTests(LocalBackendTestCase):
         gate = shlex.quote(str(self.work / 'release'))
         workflow.write_text(workflow.read_text().replace('echo a >>', f'while test ! -e {gate}; do sleep 0.05; done; echo a >>'))
 
+    def wait_until_running(self, task):
+        def running():
+            report = self.cli_result('status', task, '--json')
+            return json.loads(report.stdout)['tasks'][0]['state'] == 'running'
+        self.wait_for(running)
+
     def block_loading_with_detached_child(self):
         workflow = self.work / 'workflow.py'
         child = ("import os, signal, time\nfrom pathlib import Path\n"
@@ -98,7 +104,7 @@ class WaitTests(LocalBackendTestCase):
     def test_timeout_caps_polling_pause_without_canceling_submitted_work(self):
         self.gate_computation()
         self.cli('run', 'a')
-        self.wait_for(lambda: json.loads(self.cli_result('status', 'a', '--json').stdout)['tasks'][0]['state'] == 'running')
+        self.wait_until_running('a')
         attempts = self.task_attempts()
         process = self.start_wait('wait', '--interval', '60', '--timeout', '10', 'a')
         self.assertEqual(process.wait(timeout=18), 124, self.wait_messages())
@@ -447,6 +453,9 @@ class WaitTests(LocalBackendTestCase):
     def test_default_pause_is_quiet_unlocks_inspection_and_interrupt_leaves_jobs_running(self):
         self.gate_computation()
         self.cli('run', 'a')
+        # The first wait snapshot must observe the held computation. If it
+        # still sees preparation, the next poll is a full default interval away.
+        self.wait_until_running('a')
         workflow = self.work / 'workflow.py'
         workflow.write_text(workflow.read_text() + "\nwith open('imports', 'a') as stream: stream.write('loaded\\n')\n")
         process = self.start_wait('wait', 'a')
