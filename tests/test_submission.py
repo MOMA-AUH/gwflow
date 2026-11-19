@@ -1,10 +1,12 @@
 """Invocation submission outcomes through the installed CLI and backend seam."""
 
 import json
+import os
 import re
 import subprocess
 import sys
 
+from gwf.log_storage import get_log_paths
 from rich.console import Console
 from rich.text import Text
 
@@ -283,25 +285,72 @@ class SubmissionReportTests(LocalBackendTestCase):
         self.assertNotIn("b__compute: not attempted", details)
         self.settle()
 
-    def test_failure_preparing_a_submission_keeps_its_identity_and_existing_recovery_guard(self):
+    def test_unwritable_log_directory_allows_ordinary_retry_in_the_same_attempt(self):
         environment = self.inject(record_acceptances=True)
-        result = subprocess.run([sys.executable, str(FIXTURES / "frontend_fault.py"), str(self.work),
-                                 "submission_log_error", "a", "-b", "recovery_fixture", "run"],
-                                cwd=self.work, env=environment, capture_output=True, text=True, timeout=30)
-        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        alias = get_log_paths(self.work, "a__gwflow_prepare")[0]
+        logs = alias.parent
+        logs.mkdir(parents=True, exist_ok=True)
+        mode = logs.stat().st_mode
+        logs.chmod(0o555)
+        # Privileged test processes can bypass the directory's write permissions.
+        bypass = os.access(logs, os.W_OK)
+        try:
+            if bypass:
+                alias.mkdir()
+            result = self.cli_result("-b", "recovery_fixture", "run", "a", env=environment, success=False)
+        finally:
+            logs.chmod(mode)
+            if bypass:
+                alias.rmdir()
+        self.assertIn("Is a directory" if bypass else "Permission denied", result.stderr)
         self.assertIn("a__gwflow_prepare: not attempted; pre-admission failed", result.stdout)
-        self.assertRegex(result.stdout, r"Attempt: [0-9a-f]{32}")
+        attempt = re.search(r"Attempt: ([0-9a-f]{32})", result.stdout).group(1)
         self.assertRegex(result.stdout, r"Submission: a__gwflow_prepare__[0-9a-f]{32}__[0-9a-f]{32}")
         self.assertIn("0 submission acceptances unconfirmed", result.stdout)
-        self.assertIn("9 planned jobs not attempted", result.stdout)
+        self.assertIn("3 planned jobs not attempted", result.stdout)
         self.assertEqual(self.acceptances(), [])
-        self.assertIn("injected submission log alias failure", result.stderr)
-        self.assertIn("unresolved submission", self.cli("run", success=False))
+        preview = self.cli("-b", "recovery_fixture", "run", "a", "--dry-run", env=environment)
+        self.assertIn("Would submit 3 jobs across 1 Task.", preview)
         self.assertEqual(self.acceptances(), [])
-        self.cli("recover", "a")
-        self.cli("-b", "recovery_fixture", "run", env=environment)
-        self.assertEqual(len(self.acceptances()), 9)
+        self.cli("-b", "recovery_fixture", "run", "a", env=environment)
         self.finish()
+        self.assertEqual(self.task_attempts()["a"], attempt)
+        self.assertEqual((self.work / "results/a/result.txt").read_text(), "a")
+        self.assertCountEqual([job["name"].split("__")[1] for job in self.acceptances()],
+                              ["gwflow_prepare", "compute", "gwflow_complete"])
+
+    def test_interrupted_intent_publication_before_backend_call_can_retry(self):
+        environment = self.inject(record_acceptances=True)
+        for task, phase in (("a", "before_submission_selection"), ("b", "after_submission_selection")):
+            with self.subTest(phase=phase):
+                result = subprocess.run([sys.executable, str(FIXTURES / "frontend_fault.py"), str(self.work),
+                                         phase, task, "-b", "recovery_fixture", "run", task],
+                                        cwd=self.work, env=environment, capture_output=True, text=True, timeout=30)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(f"{task}__gwflow_prepare: not attempted; pre-admission failed", result.stdout)
+                self.assertEqual(self.acceptances(), [])
+                preview = self.cli("-b", "recovery_fixture", "run", task, "--dry-run", env=environment)
+                self.assertIn("Would submit 3 jobs across 1 Task.", preview)
+
+    def test_alias_failure_after_preparation_admission_preserves_its_receipt_on_retry(self):
+        environment = self.inject(record_acceptances=True)
+        alias = get_log_paths(self.work, "a__compute")[0]
+        alias.mkdir(parents=True)
+        result = self.cli_result("-b", "recovery_fixture", "run", "a", "--details", env=environment, success=False)
+        self.assertIn("a__compute: not attempted; pre-admission failed", result.stdout)
+        self.assertIn("a__gwflow_prepare: confirmed submitted", result.stdout)
+        preparation, = self.acceptances()
+        self.assertIn(preparation["name"], result.stdout)
+        alias.rmdir()
+        self.finish()
+        preview = self.cli("-b", "recovery_fixture", "run", "a", "--dry-run", env=environment)
+        self.assertIn("Would submit 2 jobs across 1 Task.", preview)
+        self.cli("-b", "recovery_fixture", "run", "a", env=environment)
+        self.finish()
+        self.assertEqual(self.acceptances()[0], preparation)
+        self.assertEqual([job["name"].split("__")[1] for job in self.acceptances()],
+                         ["gwflow_prepare", "compute", "gwflow_complete"])
+        self.assertEqual((self.work / "results/a/result.txt").read_text(), "a")
 
     def test_backend_exit_failure_keeps_confirmed_identities_without_duplicate_retry(self):
         result = self.cli_result("-b", "recovery_fixture", "run", success=False,

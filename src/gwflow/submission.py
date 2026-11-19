@@ -163,12 +163,12 @@ def submit_plan(plan, workflow, ctx, *, dry_run, outcomes, progress):
                                 if item.job_id is None:
                                     raise WorkflowError(f"Unresolved dependency submission: {item.submission}")
                                 dependencies.append(Target(item.submission, [], [], {}))
-                        intent = admission.new_intent(plan.store, attempt, local, references, backend, ctx.backend)
-                        outcome.submission = intent["submission"]
-                        target = _job(plan.store, attempt, local, workflow, intent)
-                        _log_aliases(ctx.working_dir, f"{attempt['task']}__{local}", target.name)
-                        observed[local] = admission.submit(plan.store, attempt, intent, target, dependencies, backend, hashes,
-                                                           outcome)
+                        with admission.submission_intent(plan.store, attempt, local, references, backend, ctx.backend,
+                                                         outcome) as intent:
+                            target = _job(plan.store, attempt, local, workflow, intent)
+                            _log_aliases(ctx.working_dir, f"{attempt['task']}__{local}", target.name)
+                            observed[local] = admission.submit(plan.store, attempt, intent, target, dependencies,
+                                                               backend, hashes, outcome)
                     except BaseException:
                         outcome.failed = True
                         raise

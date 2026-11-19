@@ -155,7 +155,7 @@ def read_intent(store, attempt, local):
         if store.exists(attempt, path):
             raise InspectionBlocker("submission_unresolved", f"Malformed submission intent for {attempt['task']}__{local}")
         for previous in recorded_intents(store, attempt):
-            if previous["job"] == attempt["jobs"][local]:
+            if previous["job"] == attempt["jobs"][local] and read_rejection(store, attempt, previous) is None:
                 raise InspectionBlocker("submission_unresolved", f"unresolved submission: {previous['submission']}; current intent is missing")
         return None
     admission = record.get("admission")
@@ -188,6 +188,11 @@ def _archived_intent(store, attempt, token):
 
 def identity(intent):
     return {key: intent[key] for key in ("job", "admission", "submission", "backend")}
+
+
+def read_rejection(store, attempt, intent):
+    return store.read(attempt, f"admissions/{intent['admission']}/rejected.json", "submission-rejected",
+                      **identity(intent))
 
 
 @_records.observing
@@ -407,7 +412,7 @@ def _observe(store, attempt, backend, name, intents, *, tolerate_state_errors=Fa
         token = intent["admission"]
         with store.records(attempt).access():
             ack = store.read(attempt, f"admissions/{token}/ack.json", "submission-ack", **identity(intent))
-            rejection = store.read(attempt, f"admissions/{token}/rejected.json", "submission-rejected", **identity(intent))
+            rejection = read_rejection(store, attempt, intent)
             outcome = store.read(attempt, f"admissions/{token}/outcome.json", "job-outcome", **identity(intent))
             if local != "gwflow_complete":
                 checked = outcome is not None and outcome.get("state") == "complete"
@@ -607,16 +612,28 @@ def require_retry_inactive(observations, replaced):
         raise InspectionBlocker("activity_conflict", "Active dependent work blocks retry: " + ", ".join(conflicting))
 
 
-def new_intent(store, attempt, local, dependencies, backend, name):
+@contextmanager
+def submission_intent(store, attempt, local, dependencies, backend, name, outcome):
     token = uuid4().hex
     fields = {**store.job_identity(attempt, local), "admission": token,
               "submission": submission_name(attempt["jobs"][local], token),
               "backend": backend_identity(backend, name), "dependencies": dependencies}
     fields["producers"] = attempt["producers"] if local == "gwflow_prepare" else {}
-    with store.records(attempt).access(write=True):
-        store.publish(attempt, f"admissions/{token}/intent.json", "submission-intent", **fields)
-        store.publish(attempt, intent_path(attempt, local), "submission-intent", **fields)
-        return read_intent(store, attempt, local)
+    archive = f"admissions/{token}/intent.json"
+    outcome.submission = fields["submission"]
+    try:
+        with store.records(attempt).access(write=True):
+            store.publish(attempt, archive, "submission-intent", **fields)
+            store.publish(attempt, intent_path(attempt, local), "submission-intent", **fields)
+            intent = read_intent(store, attempt, local)
+        yield intent
+    except BaseException:
+        if not outcome.entered:
+            with store.records(attempt).access(write=True):
+                if not store.exists(attempt, archive):
+                    store.publish(attempt, archive, "submission-intent", **fields)
+                store.publish(attempt, f"admissions/{token}/rejected.json", "submission-rejected", **identity(fields))
+        raise
 
 
 class _AdmissionCall:
@@ -651,11 +668,6 @@ class _AdmissionCall:
 
 def submit(store, attempt, intent, target, dependencies, backend, hashes, outcome):
     call = _AdmissionCall(backend, lambda job_id: acknowledge(store, attempt, intent, job_id), outcome)
-    try:
-        submit_backend(target, dependencies, call, hashes)
-    except BaseException:
-        if not outcome.entered:
-            store.publish(attempt, f"admissions/{intent['admission']}/rejected.json", "submission-rejected", **identity(intent))
-        raise
+    submit_backend(target, dependencies, call, hashes)
     job_id = backend.get_tracked_id(target) if hasattr(backend, "get_tracked_id") else None
     return JobObservation("", "active", intent, job_id)
