@@ -13,7 +13,7 @@ from gwflow.cli import main
 work, phase, task = Path(sys.argv[1]), sys.argv[2], sys.argv[3]
 sys.argv = ["gwflow", *sys.argv[4:]]
 original_replace, original_unlink, original_rename, original_rmdir = os.replace, os.unlink, os.rename, os.rmdir
-original_symlink, original_link = os.symlink, os.link
+original_link = os.link
 original_mkdir = os.mkdir
 original_open, original_fsync = os.open, os.fsync
 recovery_writes = 0
@@ -73,6 +73,8 @@ def replace(source, destination, **kwargs):
     if destination == "owner.json":
         bootstrap_fault("owner")
     selected = parent is not None and f"/tasks/{task}/" in str(parent) + "/"
+    if selected and destination == "gwflow_prepare-intent.json" and phase == "before_submission_selection":
+        raise OSError("injected submission selection failure")
     if selected and destination == "attempt.json" and phase == "before_attempt_record":
         os._exit(120)
     if selected and destination == "ready.json" and phase == "before_ready":
@@ -118,6 +120,8 @@ def replace(source, destination, **kwargs):
         if phase == "restoration_before_" + restoration_phase:
             os._exit(116)
     result = original_replace(source, destination, **kwargs)
+    if selected and destination == "gwflow_prepare-intent.json" and phase == "after_submission_selection":
+        raise KeyboardInterrupt
     if selected and destination == "attempt.json" and phase == "after_attempt_record":
         os._exit(122)
     if restoration_phase and phase == "restoration_after_" + restoration_phase:
@@ -206,12 +210,6 @@ def rmdir(path, **kwargs):
     return result
 
 
-def symlink(source, destination, **kwargs):
-    if phase == "submission_log_error" and destination == task + "__gwflow_prepare.stdout":
-        raise OSError("injected submission log alias failure")
-    return original_symlink(source, destination, **kwargs)
-
-
 def link(source, destination, **kwargs):
     parent = directory(kwargs, "dst_dir_fd")
     installed_owner = destination == "owner.json" and parent == work / ".gwf/gwflow"
@@ -257,5 +255,4 @@ os.replace, os.unlink, os.rename, os.rmdir = replace, unlink, rename, rmdir
 os.mkdir = mkdir
 os.open, os.fsync = open_file, fsync
 os.link = link
-os.symlink = symlink
 main()
