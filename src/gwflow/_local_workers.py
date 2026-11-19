@@ -5,6 +5,7 @@ dependency scheduling stay upstream; execution and terminal evidence stay here.
 """
 
 import asyncio
+from contextlib import ExitStack
 import logging
 import os
 import signal
@@ -71,51 +72,47 @@ class ManagedScheduler(Scheduler):
         self._schedule()
 
     async def _execute_task(self, target):
-        launch = process = None
-        stdout = stderr = None
-        outcome = LocalStatus.UNKNOWN
+        if target.cancel_requested:
+            return LocalStatus.CANCELLED
+        process = None
+        # Before launch, even a failure closing partially prepared files is final.
+        outcome = LocalStatus.FAILED
         try:
-            if target.cancel_requested:
-                raise asyncio.CancelledError
-            prepare_log_storage_for_target(self.working_dir, target.name)
-            stdout_path, stderr_path = get_log_paths(self.working_dir, target.name)
-            stdout = stdout_path.open("wb")
-            stderr = stderr_path.open("wb")
-            with tempfile.NamedTemporaryFile(mode="w", prefix="gwflow_") as script:
+            with ExitStack() as setup:
+                prepare_log_storage_for_target(self.working_dir, target.name)
+                stdout_path, stderr_path = get_log_paths(self.working_dir, target.name)
+                stdout = setup.enter_context(stdout_path.open("wb"))
+                stderr = setup.enter_context(stderr_path.open("wb"))
+                script = setup.enter_context(tempfile.NamedTemporaryFile(mode="w", prefix="gwflow_"))
                 script.write(target.script)
                 script.flush()
                 environment = {**os.environ, "GWF_EXEC_WORKFLOW_ROOT": str(self.working_dir)}
-                # The supervisor owns the upstream runner and all executor children.
                 # Shield spawn so cancellation cannot orphan a just-created process.
+                outcome = LocalStatus.UNKNOWN
                 launch = asyncio.create_task(asyncio.create_subprocess_exec(
                     sys.executable, "-m", "gwflow._worker_process", script.name,
                     cwd=target.working_dir, env=environment, stdin=asyncio.subprocess.PIPE,
                     stdout=stdout, stderr=stderr, start_new_session=True,
                 ))
-                process = await asyncio.shield(launch)
-                await asyncio.wait_for(process.wait(), timeout=target.time_limit)
-            if process.returncode in _worker_process.CONFIRMED_TERMINATION:
-                outcome = LocalStatus.COMPLETED if process.returncode == _worker_process.COMPLETED else LocalStatus.FAILED
-        except (asyncio.CancelledError, TimeoutError) as error:
-            # Timeout owns cleanup too. Later cancellation or shutdown must
-            # acknowledge that request without interrupting its attestation.
-            target.cancel_requested = True
-            if launch is not None:
-                process = await launch
-            if process is not None:
-                if process.stdin is not None:
-                    process.stdin.close()
-                await process.wait()
-            if process is None or process.returncode in _worker_process.CONFIRMED_TERMINATION:
-                outcome = LocalStatus.CANCELLED if isinstance(error, asyncio.CancelledError) else LocalStatus.KILLED
+                try:
+                    process = await asyncio.shield(launch)
+                    await asyncio.wait_for(process.wait(), timeout=target.time_limit)
+                    terminal = LocalStatus.COMPLETED if process.returncode == _worker_process.COMPLETED else LocalStatus.FAILED
+                except (asyncio.CancelledError, TimeoutError) as error:
+                    # Later cancellation or shutdown must not interrupt attestation.
+                    target.cancel_requested = True
+                    process = await launch
+                    if process.stdin is not None:
+                        process.stdin.close()
+                    await process.wait()
+                    terminal = LocalStatus.CANCELLED if isinstance(error, asyncio.CancelledError) else LocalStatus.KILLED
+                if process.returncode in _worker_process.CONFIRMED_TERMINATION:
+                    outcome = terminal
         except Exception:
-            logger.exception("Local job %s could not establish a terminal outcome", target.name)
+            logger.exception("Local job %s encountered an error (outcome %s)", target.name, outcome.name)
         finally:
             if process is not None and process.stdin is not None:
                 process.stdin.close()
-            for stream in (stdout, stderr):
-                if stream is not None:
-                    stream.close()
         return outcome
 
 

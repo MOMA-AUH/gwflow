@@ -4,6 +4,8 @@ import json
 import shlex
 import time
 
+from gwf.log_storage import get_log_paths
+
 from support import LocalBackendTestCase, TASK_FACTORY
 from process_probe import ProcessProbe
 from test_source_freshness import replace_with_cached_source
@@ -172,6 +174,58 @@ class LocalResourceTests(ProcessProbe, LocalBackendTestCase):
         (other / "first-release").touch()
         (self.work / "first-release").touch()
         self.finish()
+
+
+class PrelaunchFailureTests(LocalBackendTestCase):
+    workers = 1
+    worker_memory = "1g"
+
+    def configure_workflow(self):
+        release = self.work / "release"
+        self.addCleanup(release.touch)
+        commands = {
+            "hold": f"while [ ! -e {shlex.quote(str(release))} ]; do sleep 0.025; done",
+            "bad": f"touch {shlex.quote(str(self.work / 'bad-started'))}",
+            "good": "true",
+        }
+        (self.work / "workflow.py").write_text(
+            TASK_FACTORY + "from gwflow import Workflow\ngwf = Workflow()\n"
+            f"for name, command in {commands!r}.items():\n"
+            "    task = empty_task(inputs=[])\n"
+            "    target = task.target('compute', inputs=[], outputs=['out'])\n"
+            "    target << command + '; printf done > out'\n"
+            "    task.retain('result', source=target.output('out'), path='out')\n"
+            "    gwf.task(task, alias=name)\n")
+
+    def bad_job(self):
+        status = json.loads(self.cli_result("status", "bad", "--json", "--details").stdout)
+        return next(job for job in status["tasks"][0]["jobs"] if job["name"] == "bad__compute")
+
+    def test_log_open_failure_releases_capacity_for_queued_work(self):
+        self.cli("run", "hold")
+        self.wait_for(lambda: "running" in self.cli("status", "hold", "--plain"))
+        self.cli("run", "bad")
+        job = self.bad_job()
+        self.assertEqual(job["observed_state"], "queued")
+        _, stderr = get_log_paths(self.work, job["submission_name"])
+        stderr.mkdir(parents=True)
+        self.cli("run", "good")
+        self.assertIn("queued", self.cli("status", "good", "--plain"))
+
+        (self.work / "release").touch()
+        self.wait_for(lambda: self.bad_job()["observed_state"] not in ("queued", "running"))
+        self.assertEqual(self.bad_job()["observed_state"], "failed")
+        result = self.work / "results/good/out"
+        self.wait_for(result.exists)
+        self.assertEqual(result.read_text(), "done")
+        self.assertFalse((self.work / "bad-started").exists())
+
+        self.settle()
+        self.stop_worker(self.worker)
+        self.worker = self.start_worker()
+        recorded = self.bad_job()
+        self.assertEqual(recorded["submission_name"], job["submission_name"])
+        self.assertEqual(recorded["observed_state"], "failed")
 
 
 class WalltimeTests(LocalBackendTestCase):
