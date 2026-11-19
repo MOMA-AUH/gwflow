@@ -10,6 +10,7 @@ from gwf.backends.exceptions import BackendError
 from gwf.backends.local import Client, LocalOps, LocalStatus, STATUS_MAP, TARGET_DEFAULTS, get_socket_path
 from gwf.exceptions import WorkflowError
 
+from . import _files
 from .inspection_errors import InspectionBlocker
 from ._local_termination import TERMINAL_STATES, TerminationRecords
 
@@ -139,7 +140,18 @@ class ManagedLocalOps(LocalOps):
         return super().submit_target(target, dependency_ids)
 
 
-class ManagedLocalBackend(TrackingBackend):
+class ManagedTrackingBackend(TrackingBackend):
+    def close(self):
+        # Keep gwf's changed-only writes and terminal-state cache. The frontend
+        # guard covers both publications, including IDs restored from receipts.
+        self.ops.close()
+        if self._changed:
+            _files.publish(self._get_state_path(), self._tracked_jobs)
+            _files.publish(self._get_status_cache_path(),
+                           {job: state.value for job, state in self._job_states.items() if state.is_final()})
+
+
+class ManagedLocalBackend(ManagedTrackingBackend):
     @property
     def target_defaults(self):
         # Reject unsupported workers in gwf's preflight, before the admission
