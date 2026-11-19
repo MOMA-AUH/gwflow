@@ -1,5 +1,6 @@
 """Repair retained results through the installed CLI and scheduled workers."""
 
+import json
 import os
 import shutil
 import subprocess
@@ -49,6 +50,66 @@ class ResultsRepairTests(LocalBackendTestCase):
         self.assertRegex(self.cli("run", "--dry-run"), r"Task a\s+Reuse\s+")
         self.assertRegex(self.cli("run", "--dry-run"), r"Task c\s+Reuse\s+")
         self.assertNoSubmissions(self.cli("run"))
+
+    def test_deferred_producer_preserves_changed_and_new_downstream_tasks(self):
+        workflow = self.work / "workflow.py"
+        declaration = workflow.read_text().replace("gwf.task(task, alias='a'", "a = gwf.task(task, alias='a'")
+        declaration += """
+from gwflow import shell
+
+def copy(name, source, suffix):
+    consumer = empty_task(inputs=[source])
+    target = consumer.target('copy', inputs=consumer.inputs, outputs=['copy.txt'])
+    target << shell('cat {source} > {out}; echo ' + suffix + ' >> {out}',
+                    source=source, out=target.output('copy.txt'))
+    consumer.retain('value', source=target.output('copy.txt'), path='value.txt')
+    return gwf.task(consumer, alias=name)
+
+b = copy('b', a.outputs['one'], 'middle')
+"""
+        workflow.write_text(declaration + "copy('existing', b.outputs['value'], 'old')\n")
+        self.run_complete()
+
+        def status():
+            report = self.cli_result("status", "--json", "--details")
+            return {row["name"]: row for row in json.loads(report.stdout)["tasks"]}
+
+        before = status()
+        existing = self.work / "results/existing/value.txt"
+        self.assertEqual(existing.read_text(), "firstmiddle\nold\n")
+        workflow.write_text(declaration + "copy('existing', b.outputs['value'], 'changed')\n"
+                            "copy('new', b.outputs['value'], 'new')\n"
+                            "gwf.task(task, alias='independent')\n")
+        (self.work / "results/samples/a/report/renamed.txt").unlink()
+
+        preview = self.cli("run", "--dry-run")
+        self.assertRegex(preview, r"Task a\s+Repair\s+")
+        rows = status()
+        for name in ("b", "existing", "new"):
+            self.assertRegex(preview, rf"Task {name}\s+Defer\s+")
+            self.assertEqual((rows[name]["state"], rows[name]["next_action"]), ("deferred", "defer"))
+
+        receipt = self.run_complete("--details")
+        self.assertIn("a__gwflow_complete: confirmed submitted", receipt)
+        self.assertIn("independent__compute: confirmed submitted", receipt)
+        self.assertNotRegex(receipt, r"(?:b|existing|new)__\w+: confirmed submitted")
+        recovered = status()
+        self.assertEqual(existing.read_text(), "firstmiddle\nold\n")
+        self.assertEqual(recovered["existing"]["attempt_id"], before["existing"]["attempt_id"])
+        self.assertIsNone(recovered["new"]["attempt_id"])
+        self.assertTrue(all(job["submission_name"] is None for job in recovered["new"]["jobs"]))
+        for name in ("a", "b", "independent"):
+            self.assertEqual(recovered[name]["next_action"], "reuse")
+        for name in ("existing", "new"):
+            self.assertEqual(recovered[name]["next_action"], "run")
+
+        self.run_complete()
+        after = status()
+        for name in ("a", "b"):
+            self.assertEqual(after[name]["attempt_id"], before[name]["attempt_id"])
+        self.assertNotEqual(after["existing"]["attempt_id"], before["existing"]["attempt_id"])
+        self.assertEqual(existing.read_text(), "firstmiddle\nchanged\n")
+        self.assertEqual((self.work / "results/new/value.txt").read_text(), "firstmiddle\nnew\n")
 
     def test_missing_result_directory_is_repaired_without_computation(self):
         self.run_complete()
