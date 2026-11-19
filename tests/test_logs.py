@@ -27,9 +27,10 @@ class TaskLogTests(LocalBackendTestCase):
     def test_long_alias_refuses_the_entire_plan_before_replacing_results(self):
         self.run_complete()
         before = self.snapshot()
-        alias = "a" * 180
+        alias = "a" * max(180, os.pathconf(self.work, "PC_NAME_MAX") - 75)
         with (self.work / "workflow.py").open("a") as workflow:
             workflow.write(f"gwf.task(task, alias={alias!r})\n")
+        self.assertIn("sample", self.cli("status", "--static", "*"))
         for options in (("--dry-run",), ()):
             with self.subTest(options=options):
                 output = self.cli("run", "--force", *options, success=False)
@@ -69,6 +70,23 @@ class TaskLogTests(LocalBackendTestCase):
             stream = self.cli("logs", public, *options, "--no-pager")
             self.assertIn(marker, stream)
             self.assertEqual(stream, self.cli("logs", submission, *options, "--no-pager"))
+
+    def test_preview_checks_log_limits_in_existing_hash_directories(self):
+        shard = self.work / ".gwf/logs/a/b"
+        shard.mkdir(parents=True, exist_ok=True)
+        # Model a mounted log directory with a smaller filename limit.
+        (self.work / "sitecustomize.py").write_text(
+            "import os\n"
+            "pathconf = os.pathconf\n"
+            "def log_pathconf(path, name):\n"
+            f"    if os.fspath(path) == {str(shard)!r} and name == 'PC_NAME_MAX':\n"
+            "        return 90\n"
+            "    return pathconf(path, name)\n"
+            "os.pathconf = log_pathconf\n"
+        )
+        error = self.cli("run", "--dry-run", success=False, env={**os.environ, "PYTHONPATH": str(self.work)})
+        self.assertIn("log filename", error)
+        self.assertIn("90 bytes", error)
 
     def assert_frontend_available(self):
         result = subprocess.run([self.executable, "status", "--static"], cwd=self.work,

@@ -4,6 +4,7 @@ from contextlib import ExitStack
 from dataclasses import dataclass
 import os
 from pathlib import Path
+from uuid import UUID
 
 from gwf.backends import BackendStatus
 from gwf.exceptions import WorkflowError
@@ -12,7 +13,8 @@ from gwf.log_storage import get_log_paths, get_logs_dir
 from . import _files, _observations, _records, admission, images, inputs, transfer
 from .activity import activity as report_activity
 from .inspection_errors import InspectionBlocker, ResultOwnershipConflict
-from .lifecycle import Store, TaskObservation, declarations, ordered_tasks, ordered_targets, producer_names, target_dependencies
+from .lifecycle import (Store, TaskObservation, declarations, execution_job_name, ordered_tasks,
+                        ordered_targets, producer_names, target_dependencies)
 from .selection import task_selection
 from .workflow import lifecycle_jobs
 
@@ -224,6 +226,18 @@ def awaiting_producer_metadata(store, observation):
             and store.read(attempt, "completion.json", "completion", operation=attempt["operation"]) is None)
 
 
+def _possible_log_directories(directory, levels):
+    # gwf shards log files by two hex digits. An existing shard can be a
+    # separate mount. Future shards inherit their nearest parent's filesystem.
+    if levels:
+        children = [child for child in directory.glob("[0-9a-f]") if child.is_dir()]
+        for child in children:
+            yield from _possible_log_directories(child, levels - 1)
+        if len(children) == 16:
+            return
+    yield directory
+
+
 def _validate_log_filenames(working_dir, workflow, scope):
     # All job names are ASCII and every exact Submission adds two UUIDs in hex.
     # Checking the longest public name covers every job in the Execution scope.
@@ -234,16 +248,18 @@ def _validate_log_filenames(working_dir, workflow, scope):
         return
     name, local = longest
     public = f"{name}__{local}"
-    identifier = "0" * 32
-    submission = f"{public}__{identifier}__{identifier}"
+    identifier = UUID(int=0).hex
+    submission = admission.submission_name(execution_job_name(name, local, identifier), identifier)
     directory = get_logs_dir(Path(working_dir))
+    levels = 2 if directory.is_dir() else 0
     while not directory.exists():
         directory = directory.parent
-    limit = os.pathconf(directory, "PC_NAME_MAX")
+    limits = (os.pathconf(path, "PC_NAME_MAX") for path in _possible_log_directories(directory, levels))
+    limit = min((value for value in limits if value >= 0), default=None)
     for job in (public, submission):
         for path in get_log_paths(working_dir, job):
             size = len(os.fsencode(path.name))
-            if 0 <= limit < size:
+            if limit is not None and size > limit:
                 names = ["Task alias"]
                 if workflow._task_naming[name].key is not None:
                     names.append("Instance key")
@@ -255,7 +271,7 @@ def _validate_log_filenames(working_dir, workflow, scope):
 
 @_observations.planning_pass()
 @report_activity("Preparing Task inspection...")
-def plan_workflow(workflow, ctx, *, selectors=(), force=False):
+def plan_workflow(workflow, ctx, *, selectors=(), force=False, for_submission=False):
     selected_names = task_selection(workflow._task_declarations, selectors)
     expected = {f"{name}__{local}" for name, task in workflow._task_declarations.items()
                 for local in lifecycle_jobs(task.targets)}
@@ -270,7 +286,8 @@ def plan_workflow(workflow, ctx, *, selectors=(), force=False):
     for name in reversed(order):
         if name in scope:
             scope.update(producer_names(declared[name][0]))
-    _validate_log_filenames(ctx.working_dir, workflow, scope)
+    if for_submission:
+        _validate_log_filenames(ctx.working_dir, workflow, scope)
     tasks = []
     observations_by_name = {}
     with ExitStack() as resources:
