@@ -70,36 +70,20 @@ complete diff, classification fails instead of accepting a prose-only result.
 Explicit release qualification always runs the complete pipeline. It does not
 use the pull request classification.
 
-### Compare suite shard counts
+### Installed test suite
 
-A shard runs one deterministic part of the discovered test suite. CI uses two
-shards by default. The coverage gate requires every discovered test exactly once
-across the expected shards, with the same runtime identity and no skipped tests.
-Retries keep each shard's assignment unchanged.
+CI runs the complete discovered installed-package test suite in one job.
+The coverage gate requires every discovered test exactly once, the same runtime
+identity, and no skipped tests. Per-test timings remain in the `conda-suite`
+artifact. If the suite fails, rerun its job and the aggregate through GitHub
+Actions while the transfer artifacts remain available.
 
-To compare two and four shards, dispatch `ci.yml` twice from the same source ref:
+Manual dispatch of `ci.yml` selects the full pipeline and all release-process
+simulations. It does not authorize release publication.
 
-```sh
-gh workflow run ci.yml --repo MOMA-AUH/gwflow --ref SOURCE_REF -f shard-count=2
-gh workflow run ci.yml --repo MOMA-AUH/gwflow --ref SOURCE_REF -f shard-count=4
-```
-
-`SOURCE_REF` names the branch or tag that contains the source under test. Make
-sure that both runs report the same full source SHA before comparing results.
-Each manual run selects the full pipeline and all release-process simulations.
-The runs use separate artifacts and cannot cancel each other. These CI runs do
-not authorize release publication.
-
-Compare total runner time separately from elapsed feedback time. Include package
-building, setup, runtime restoration, artifact transfers, tests, and aggregation.
-Record sample count, failures, skips, cache state, and runner differences.
-Per-test timings remain in each `conda-suite-*` artifact. If a shard fails, rerun
-its failed job and the aggregate through GitHub Actions. The aggregate still
-requires one passing record from every expected shard.
-
-The [November 18, 2026 comparison](ci-shards/README.md) records the two/four-shard
-cost and feedback tradeoff that selected this default. It also records the
-sample limits and runner differences.
+The [November 18, 2026 comparison](ci-shards/README.md) preserves historical
+measurements of the former two/four-shard configuration. Sharding and its
+configuration options have been removed in favor of a single suite job.
 
 ### Release-process simulations
 
@@ -139,7 +123,7 @@ separate, with the exact input keys and branch access rules described below.
 Consumers still require the recorded source and run identities and checksums.
 
 Diagnostic artifacts retain their existing retention policy. These include
-`installed-source-evidence`, `conda-suite-*`, `container-acceptance-evidence`,
+`installed-source-evidence`, `conda-suite`, `container-acceptance-evidence`,
 `conda-runtime-evidence`, and `gwflow-publication-evidence`.
 The qualified `gwflow-conda-release` bundle keeps its 90-day retention for
 release qualification and publication. Published release attachments remain
