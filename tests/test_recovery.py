@@ -91,14 +91,14 @@ class OperatorRecoveryTests(LocalBackendTestCase):
         # Its scheduler has the exact receipt that the original one lost.
         workflow = data / "workflow.py"
         shutil.copyfile(self.work / "workflow.py", workflow)
-        receipt = self.work / ".gwf/local-termination/records.json"
-        decoy = data / ".gwf/local-termination/records.json"
-        decoy.parent.mkdir()
-        shutil.copyfile(receipt, decoy)
-        ledger = json.loads(receipt.read_text())
+        recorded_ledger_path = self.work / ".gwf/local-termination/records.json"
+        decoy_ledger_path = data / ".gwf/local-termination/records.json"
+        decoy_ledger_path.parent.mkdir()
+        shutil.copyfile(recorded_ledger_path, decoy_ledger_path)
+        ledger = json.loads(recorded_ledger_path.read_text())
         missing = next(name for name in ledger["submissions"] if name.startswith("sample__right__"))
         del ledger["submissions"][missing]
-        receipt.write_text(json.dumps(ledger))
+        recorded_ledger_path.write_text(json.dumps(ledger))
         output = self.cli("--file", str(workflow), "--backend", "local", "recover", "sample")
         self.assertIn("establish inactivity before using gwflow recover", output)
         self.assertIn("Resolved 1 submission.", output)
