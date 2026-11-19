@@ -72,6 +72,38 @@ class OperatorRecoveryTests(LocalBackendTestCase):
         self.run_complete()
         self.assertEqual((self.work / "results/sample/result.txt").read_text(), "leftright")
 
+    def test_offline_recovery_uses_exact_receipts_from_recorded_scheduler(self):
+        data = self.work / "data"
+        data.mkdir()
+        self.configure_workflow(working_dir=data)
+        self.run_complete()
+        self.stop_worker(self.worker)
+        self.assertEqual((data / "results/sample/result.txt").read_text(), "leftright")
+
+        records = next((data / ".gwf/gwflow").rglob("record-state.json"))
+        before = records.read_bytes()
+        output = self.cli("recover", "sample")
+        self.assertIn("Backend observations unavailable", output)
+        self.assertIn("No unresolved submissions.", output)
+        self.assertEqual(records.read_bytes(), before)
+
+        # Recover from another workflow file that shares the same Task data.
+        # Its scheduler has the exact receipt that the original one lost.
+        workflow = data / "workflow.py"
+        shutil.copyfile(self.work / "workflow.py", workflow)
+        receipt = self.work / ".gwf/local-termination/records.json"
+        decoy = data / ".gwf/local-termination/records.json"
+        decoy.parent.mkdir()
+        shutil.copyfile(receipt, decoy)
+        ledger = json.loads(receipt.read_text())
+        missing = next(name for name in ledger["submissions"] if name.startswith("sample__right__"))
+        del ledger["submissions"][missing]
+        receipt.write_text(json.dumps(ledger))
+        output = self.cli("--file", str(workflow), "--backend", "local", "recover", "sample")
+        self.assertIn("establish inactivity before using gwflow recover", output)
+        self.assertIn("Resolved 1 submission.", output)
+        self.assertIn(f"Resolved submission {missing}", output)
+
     def test_recovery_preserves_successful_siblings_and_records_every_unresolved_submission(self):
         self.interrupt_computation()
         before = self.task_attempts()["sample"]
