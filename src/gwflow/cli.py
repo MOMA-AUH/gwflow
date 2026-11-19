@@ -1,5 +1,6 @@
 """The dedicated managed-workflow executable, using gwf's backend services."""
 
+from contextlib import nullcontext
 from importlib.metadata import entry_points, version
 import logging
 import os
@@ -21,6 +22,7 @@ from .logs import logs
 from .recover import recover
 from .run import run
 from .status import status
+from .status_json import diagnostics_on_stderr
 from .workers import workers
 from .wait import wait
 
@@ -43,6 +45,11 @@ def main(ctx, file, backend, verbose):
         # so even blocked command startup remains interruptible by the parent.
         ctx.meta['wait_started'] = time.monotonic()
         return
+    with diagnostics_on_stderr() if ctx.meta.get("json_status") else nullcontext():
+        configure_context(ctx, file, backend, verbose)
+
+
+def configure_context(ctx, file, backend, verbose):
     # Importing gwf.cli executes backend and command plugins. Waiting owns that
     # work in its inspection child, including any descendants the imports start.
     from gwf.cli import LOGGING_FORMATS, get_level
