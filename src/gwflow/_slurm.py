@@ -8,11 +8,11 @@ import os
 import re
 
 from gwf.backends import BackendStatus
-from gwf.backends.base import TrackingBackend
 from gwf.backends.exceptions import BackendError
 from gwf.backends.slurm import SlurmOps, SLURM_LONG_STATES, SLURM_JOB_STATES, TARGET_DEFAULTS
 from gwf.backends.utils import call
 
+from .backends import ManagedTrackingBackend
 from .inspection_errors import InspectionBlocker
 
 
@@ -140,7 +140,7 @@ class ManagedSlurmOps(SlurmOps):
         call("scancel", "--verbose", "--ctld", f"--name={submission}", str(job_id), environ=environment)
 
 
-class ManagedSlurmBackend(TrackingBackend):
+class ManagedSlurmBackend(ManagedTrackingBackend):
     def _read_status_cache(self):
         return {}  # Upstream's numeric-ID terminal cache cannot establish identity.
 
