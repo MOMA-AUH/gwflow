@@ -22,7 +22,7 @@ from .selection import task_selection
 from .workflow import lifecycle_jobs
 
 
-def _display_jobs(store, name, jobs, *, historical=False, details=False):
+def _display_jobs(scheduler_dir, name, jobs, *, historical=False, details=False):
     indent = "    " if historical else "  "
     jobs = sorted(jobs, key=lambda item: item.state != "failed")
     for item in jobs:
@@ -35,7 +35,7 @@ def _display_jobs(store, name, jobs, *, historical=False, details=False):
         row = f"{indent}{name}__{item.local}: {state}{identity}{live}"
         streams = []
         for stream in ("stdout", "stderr"):
-            path = get_log_paths(store.working_dir, item.submission)[stream == "stderr"] if item.submission else None
+            path = get_log_paths(scheduler_dir, item.submission)[stream == "stderr"] if item.submission else None
             available = path is not None and path.is_file()
             streams.append((stream, path, available))
         if not details and not historical:
@@ -61,7 +61,7 @@ def _display_jobs(store, name, jobs, *, historical=False, details=False):
             click.echo("    " + shlex.join(inspection_command("logs", public, *options, "--no-pager")))
 
 
-def _display_index(store, name, attempt, jobs, declared, unavailable=None, history=(), *, details=False):
+def _display_index(scheduler_dir, name, attempt, jobs, declared, unavailable=None, history=(), *, details=False):
     context = "current attempt" if attempt else "no recorded work"
     if attempt and details:
         context += " " + attempt["attempt"]
@@ -70,7 +70,7 @@ def _display_index(store, name, attempt, jobs, declared, unavailable=None, histo
     click.echo(f"Task {name}: {context}")
     if unavailable:
         click.echo(f"  live state unavailable: {unavailable}")
-    _display_jobs(store, name, jobs.values(), details=details)
+    _display_jobs(scheduler_dir, name, jobs.values(), details=details)
     current = {item.submission for item in jobs.values()}
     for previous, submissions in history:
         same_attempt = previous["attempt"] == attempt["attempt"]
@@ -78,7 +78,7 @@ def _display_index(store, name, attempt, jobs, declared, unavailable=None, histo
         if historical or not same_attempt:
             context = "Historical submissions in current attempt" if same_attempt else "Historical attempt"
             click.echo(f"  {context} {previous['attempt']}:")
-            _display_jobs(store, name, historical, historical=True, details=details)
+            _display_jobs(scheduler_dir, name, historical, historical=True, details=details)
             if not historical:
                 click.echo("    No recorded submissions")
     click.echo("  Public job names follow the current submission; exact submission names keep the same log after a retry.")
@@ -134,7 +134,7 @@ def logs(ctx, selectors, stderr, no_pager, history, details):
                         # A removed public name may have belonged to several Tasks;
                         # its surviving stream alias identifies the recorded owner.
                         suffix = ".stderr" if stderr else ".stdout"
-                        path = get_log_paths(store.working_dir, target)[stderr]
+                        path = get_log_paths(ctx.working_dir, target)[stderr]
                         try:
                             submission = path.readlink().name.removesuffix(suffix)
                         except OSError:
@@ -155,7 +155,7 @@ def logs(ctx, selectors, stderr, no_pager, history, details):
                     raise click.UsageError("--history requires a Task index, not an individual job or submission stream.")
                 # Public aliases move on retry. Pin the submission while other
                 # frontends are excluded, before any slow log I/O or display.
-                log_path = os.path.realpath(get_log_paths(store.working_dir, target)[stderr], strict=True)
+                log_path = os.path.realpath(get_log_paths(ctx.working_dir, target)[stderr], strict=True)
             else:
                 selected = task_selection(names, selectors)
                 for name in sorted(selected & job_names.keys()):
@@ -188,7 +188,7 @@ def logs(ctx, selectors, stderr, no_pager, history, details):
                 for name in sorted(selected):
                     history_indexes = [(attempt, historical[attempt["attempt"]]) for attempt in archived if attempt["task"] == name]
                     history_indexes.sort(key=lambda item: item[0]["attempt"] != attempts[name]["attempt"])
-                    _display_index(store, name, attempts.get(name), observations.get(name, {}),
+                    _display_index(ctx.working_dir, name, attempts.get(name), observations.get(name, {}),
                                    name in workflow._task_declarations, unavailable, history_indexes, details=details)
                 if not selected:
                     click.echo("No Tasks selected")

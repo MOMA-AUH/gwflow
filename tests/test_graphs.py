@@ -16,16 +16,17 @@ class TaskGraphTests(LocalBackendTestCase):
     inject = test_managed_recovery.ManagedCoordinationTests.inject
     slurm_environment = test_managed_recovery.ManagedCoordinationTests.slurm_environment
 
-    def configure_workflow(self, *, right_command=None, left_command=None, right_outputs=("same.txt",)):
+    def configure_workflow(self, *, right_command=None, left_command=None, right_outputs=("same.txt",), working_dir=None):
         trace = shlex.quote(str(self.work / "trace"))
         if left_command is None:
             left_command = 'echo left >> ' + trace + '; printf left > same.txt'
         if right_command is None:
             right_command = 'echo right >> ' + trace + '; printf right > same.txt'
         join_command = 'echo join >> ' + trace + '; cat {left} {right} > {out}'
+        workflow_options = f"working_dir={str(working_dir)!r}" if working_dir is not None else ""
         (self.work / "workflow.py").write_text(
             TASK_FACTORY + "from gwflow import Task, Workflow, shell\n"
-            "gwf = Workflow()\n"
+            f"gwf = Workflow({workflow_options})\n"
             "task = empty_task(inputs=[])\n"
             "left = task.target('left', inputs=[], outputs=['same.txt'])\n"
             f"left << {left_command!r}\n"

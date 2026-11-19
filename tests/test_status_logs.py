@@ -42,10 +42,12 @@ class StatusLogInteractionTests(LocalBackendTestCase, unittest.IsolatedAsyncioTe
                 await pilot.pause()
                 return panel
             await pilot.pause(0.05)
-        self.fail('History did not finish loading')
+        self.fail(f"History did not finish loading: {panel.query_one('#history-status', Static).content}")
 
     async def test_selected_job_opens_both_exact_streams_without_reinspection(self):
-        self.configure_workflow(left_command="echo selected-stdout; echo selected-stderr >&2; printf left > same.txt")
+        data = self.work / 'data'
+        data.mkdir()
+        self.configure_workflow(working_dir=data, left_command="echo selected-stdout; echo selected-stderr >&2; printf left > same.txt")
         self.run_complete()
         workflow = self.work / 'workflow.py'
         workflow.write_text(workflow.read_text() +
@@ -69,8 +71,11 @@ class StatusLogInteractionTests(LocalBackendTestCase, unittest.IsolatedAsyncioTe
 
     async def test_task_history_distinguishes_retries_and_attempts_without_scheduler_observation(self):
         failed = self.work / 'fail-right'
-        self.configure_workflow(right_command=(f'if test -f "{failed}"; then echo earlier-failed-log; exit 8; fi; '
-                                               'echo successful-right; printf right > same.txt'))
+        data = self.work / 'data'
+        data.mkdir()
+        self.configure_workflow(working_dir=data, right_command=(
+            f'if test -f "{failed}"; then echo earlier-failed-log; exit 8; fi; '
+            'echo successful-right; printf right > same.txt'))
         self.run_complete()
         first = self.cli('logs', 'sample', '--details')
         old_attempt = re.search(r'current attempt (\w+)', first).group(1)

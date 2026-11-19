@@ -45,6 +45,11 @@ Each directory selects its own scheduler through a Unix socket. TCP host and por
 options are removed. Remove retired `backend.local` configuration before running
 local commands. See [backend configuration](reference.md#executable-discovery-and-backends).
 
+When you set `Workflow(working_dir=...)`, relative work and results paths use
+that directory. The scheduler keeps job stdout and stderr under `.gwf/logs`
+beside the selected workflow file. Use `gwflow logs TASK --details` to see
+the paths for each Submission.
+
 Set budgets explicitly when several workflows share a machine. For example,
 `gwflow workers -n 2 --max-memory 4g` budgets two requested cores and 4 GiB.
 A two-core job uses the full core budget. Separate workflow schedulers have

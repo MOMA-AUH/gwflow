@@ -24,6 +24,37 @@ class TaskLogTests(LocalBackendTestCase):
     inject = test_graphs.TaskGraphTests.inject
     snapshot = test_inspection.LifecycleInspectionTests.snapshot
 
+    def test_working_directory_keeps_results_and_scheduler_logs_readable_across_retry(self):
+        data = self.work / "data"
+        data.mkdir()
+        fail = self.work / "fail"
+        fail.touch()
+        self.configure_workflow(working_dir=data, right_command=(
+            f"if test -f {shlex.quote(str(fail))}; then echo first-out; echo first-err >&2; exit 1; fi; "
+            "echo retry-out; echo retry-err >&2; printf right > same.txt"))
+        self.cli("run")
+        self.settle()
+        first = re.search(r"sample__right: failed; submission (\S+)", self.cli("logs", "sample", "--details")).group(1)
+        self.assertIn("first-out", self.cli("logs", "sample__right", "--no-pager"))
+        fail.unlink()
+        self.cli("run")
+        self.settle()
+        self.assertEqual((data / "results/sample/result.txt").read_text(), "leftright")
+        index = self.cli("logs", "sample")
+        self.assertEqual(index.count("stdout: available; stderr: available"), 5, index)
+        history = self.cli("logs", "sample", "--history", "--details")
+        current = re.search(r"sample__right: complete; submission (\S+)", history).group(1)
+        self.assertNotEqual(first, current)
+        preview = self.cli("run", "--dry-run", "--details")
+        for stream, option, marker in (("stdout", (), "out"), ("stderr", ("--stderr",), "err")):
+            for name, prefix in ((first, "first"), (current, "retry"), ("sample__right", "retry")):
+                self.assertIn(f"{prefix}-{marker}", self.cli("logs", name, *option, "--no-pager"))
+            for submission in (first, current):
+                path = get_log_paths(self.work, submission)[stream == "stderr"]
+                self.assertIn(f"Path: {path}", history)
+                if submission == current:
+                    self.assertIn(f"Log {stream}: {path}", preview)
+
     def test_long_alias_refuses_the_entire_plan_before_replacing_results(self):
         self.run_complete()
         before = self.snapshot()

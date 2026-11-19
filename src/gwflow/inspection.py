@@ -1,8 +1,12 @@
-"""Shared human-readable details for managed lifecycle inspection."""
+"""Shared details for managed lifecycle inspection."""
 
 from gwf.log_storage import get_log_paths
 
 from .workflow import lifecycle_jobs
+
+
+def job_log_paths(scheduler_dir, submission):
+    return {stream: str(path) for stream, path in zip(("stdout", "stderr"), get_log_paths(scheduler_dir, submission))}
 
 
 def blockage_line(plan):
@@ -40,7 +44,7 @@ def dependency_details(task):
         yield f"Active consumer {name}: " + ", ".join(f"{item.submission} ({item.state})" for item in jobs)
 
 
-def task_details(store, task):
+def task_details(store, task, scheduler_dir):
     if task.attempt:
         yield f"Attempt: {task.attempt['attempt']}"
         yield f"Workspace: {store.workspace(task.attempt)}"
@@ -58,5 +62,5 @@ def task_details(store, task):
         if item and item.job_id is not None:
             yield f"  Backend job: {item.job_id}"
         if item and item.submission:
-            for stream, path in zip(("stdout", "stderr"), get_log_paths(store.working_dir, item.submission)):
+            for stream, path in job_log_paths(scheduler_dir, item.submission).items():
                 yield f"  Log {stream}: {path}"

@@ -9,10 +9,10 @@ import time
 
 import click
 from gwf.core import pass_context
-from gwf.log_storage import get_log_paths
 
 from ._frontend import _submission_guard, load_workflow
 from .activity import observe_activity
+from .inspection import job_log_paths
 from .planning import plan_workflow
 from .presentation import NEXT_ACTIONS, Report, observed_job_state, plan_reason, selected_rows, task_groups, task_order
 from .status import status_selection
@@ -50,8 +50,7 @@ def capture_snapshot(ctx, destination, selectors):
                              "observed_state": observed_job_state(task, local) if submission else state,
                              "requires_repetition": bool(submission and (task.restart_required or local in task.repeated_jobs)),
                              "submission": submission, "backend_id": item.job_id if item else None,
-                             "logs": {stream: str(path) for stream, path in
-                                      zip(("stdout", "stderr"), get_log_paths(plan.store.working_dir, submission))} if submission else {}})
+                             "logs": job_log_paths(ctx.working_dir, submission) if submission else {}})
             tasks.append({"name": task.name, "instance_key": workflow._task_naming[task.name].key,
                           "attempt": task.attempt['attempt'] if task.attempt else None,
                           "state": row.state, "completed": row.completed,
@@ -66,7 +65,8 @@ def capture_snapshot(ctx, destination, selectors):
             Report(plan.store, plain=True).workflow_notices(task_order(workflow, plan), rows, include_reasons=True)
         snapshot = {
             "finished": time.time(),
-            "storage": {"working_dir": str(plan.store.working_dir), "work_root": str(plan.store.locations['work']),
+            "storage": {"scheduler_dir": str(ctx.working_dir), "working_dir": str(plan.store.working_dir),
+                        "work_root": str(plan.store.locations['work']),
                         "results_root": str(plan.store.locations['results']),
                         "staging_root": str(plan.store.locations['staging'])},
             "total": len(workflow._task_declarations),
