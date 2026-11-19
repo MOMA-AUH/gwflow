@@ -116,12 +116,14 @@ jobs:
         with:
           overwrite: true
           name: gwflow-ci-runtime
+          retention-days: 3
           path: ${{ runner.temp }}/ci-runtime/*
           if-no-files-found: error
       - uses: actions/upload-artifact@v7
         with:
           overwrite: true
           name: gwflow-ci-channel
+          retention-days: 3
           path: ${{ runner.temp }}/conda-dist/**
           if-no-files-found: error
 
