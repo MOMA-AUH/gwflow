@@ -749,7 +749,7 @@ class Report:
             label = f" {_LIFECYCLE_NAMES[local]}" if local in _LIFECYCLE_NAMES else ""
             yield branch + f"{row.task.name}__{local}" + label, row.jobs[local]
 
-    def plan(self, plan, rows, *, expand=False, preview=True):
+    def plan(self, plan, rows, *, scheduler_dir, expand=False, preview=True):
         self.line("Run preview — no jobs will be submitted" if preview else "Execution plan", style="bold cyan")
         count = len(plan.tasks)
         self.line(f"Execution scope: {count} Task{'s' if count != 1 else ''} "
@@ -787,7 +787,7 @@ class Report:
             self.console.print(table)
         if expand:
             for row in rows:
-                self.details(row)
+                self.details(row, scheduler_dir)
                 if not plan.blocked:
                     for local in row.task.pending:
                         self.line(f"  Would submit {row.task.name}__{local}")
@@ -862,7 +862,7 @@ class Report:
                 if outcome.job_id is not None:
                     self.line(f"    Backend job: {outcome.job_id}")
 
-    def details(self, row):
+    def details(self, row, scheduler_dir):
         task = row.task
         self.line(f"Details for Task {task.name}:")
         self.line(f"  State: {row.state}; Jobs completed: {row.progress}")
@@ -888,7 +888,7 @@ class Report:
         if not self.plain and self.console.width >= 48:
             self.console.print(table)
         for line in (f"Condition: {condition(task)}", f"Next action: {NEXT_ACTIONS[task.action]}", f"Reason: {format_reason(task.reason)}",
-                     *task_details(self.store, task)):
+                     *task_details(self.store, task, scheduler_dir)):
             self.line("  " + line)
 
 

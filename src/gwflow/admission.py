@@ -446,7 +446,8 @@ def _observe(store, attempt, backend, name, intents, *, tolerate_state_errors=Fa
             try:
                 with observation_deadline() if _wait_scheduler_errors.get() is not None else nullcontext():
                     if local_without_backend:
-                        state = local_termination_state(store.working_dir, intent["submission"])
+                        scheduler_dir = intent["backend"].get("working_dir", store.working_dir)
+                        state = local_termination_state(scheduler_dir, intent["submission"])
                     else:
                         if isinstance(ops, ManagedSlurmOps):
                             state = ops.observe_submission(job_id, submission=intent["submission"])

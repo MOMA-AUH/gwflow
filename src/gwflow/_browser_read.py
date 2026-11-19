@@ -153,12 +153,12 @@ def read_log(path, *, direction='backward', offset=None, previous=None, followin
         os.close(fd)
 
 
-def read_history(storage, task):
+def read_history(task, *, scheduler_dir, **storage):
     from . import admission
     from ._frontend import _submission_guard
     from .lifecycle import Store
 
-    with _submission_guard(storage['working_dir'], waiting_message=None):
+    with _submission_guard(scheduler_dir, waiting_message=None):
         store = Store(**storage)
         selected = store.recorded_tasks(names={task})
         current = selected[0] if selected else None
@@ -179,7 +179,7 @@ def read_history(storage, task):
                                  state=state, observed_state=state, recorded_state=item.state,
                                  requires_repetition=False, backend_id=item.job_id,
                                  logs={stream: str(path) for stream, path in
-                                       zip(('stdout', 'stderr'), get_log_paths(store.working_dir, item.submission))}))
+                                       zip(('stdout', 'stderr'), get_log_paths(scheduler_dir, item.submission))}))
             if jobs or not is_current:
                 groups.append(dict(kind='retries' if is_current else 'previous', attempt=attempt['attempt'], jobs=jobs))
     return dict(groups=groups)
@@ -193,7 +193,7 @@ if __name__ == '__main__':
         if kind == 'log':
             result = read_log(**request)
         elif kind == 'history':
-            result = read_history(**request)
+            result = read_history(request['task'], **request['storage'])
         else:
             raise ValueError('Unknown evidence read.')
     except Exception as error:
