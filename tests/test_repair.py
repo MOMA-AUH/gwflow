@@ -66,8 +66,10 @@ def copy(name, source, suffix):
     return gwf.task(consumer, alias=name)
 
 b = copy('b', a.outputs['one'], 'middle')
+existing = copy('existing', b.outputs['value'], 'old')
+copy('last', existing.outputs['value'], 'last')
 """
-        workflow.write_text(declaration + "copy('existing', b.outputs['value'], 'old')\n")
+        workflow.write_text(declaration)
         self.run_complete()
 
         def status():
@@ -77,26 +79,25 @@ b = copy('b', a.outputs['one'], 'middle')
         before = status()
         existing = self.work / "results/existing/value.txt"
         self.assertEqual(existing.read_text(), "firstmiddle\nold\n")
-        workflow.write_text(declaration + "copy('existing', b.outputs['value'], 'changed')\n"
-                            "copy('new', b.outputs['value'], 'new')\n"
+        workflow.write_text(declaration.replace("'old'", "'changed'") + "copy('new', b.outputs['value'], 'new')\n"
                             "gwf.task(task, alias='independent')\n")
         (self.work / "results/samples/a/report/renamed.txt").unlink()
 
         preview = self.cli("run", "--dry-run")
         self.assertRegex(preview, r"Task a\s+Repair\s+")
         rows = status()
-        for name in ("b", "existing", "new"):
+        for name in ("b", "existing", "new", "last"):
             self.assertRegex(preview, rf"Task {name}\s+Defer\s+")
             self.assertEqual((rows[name]["state"], rows[name]["next_action"]), ("deferred", "defer"))
         self.assertEqual(rows["b"]["progress"], {"completed": 3, "total": 3})
-        for name in ("existing", "new"):
+        for name in ("existing", "new", "last"):
             self.assertEqual(rows[name]["progress"], {"completed": 0, "total": 3})
             self.assertEqual({job["state"] for job in rows[name]["jobs"]}, {"pending"})
 
         receipt = self.run_complete("--details")
         self.assertIn("a__gwflow_complete: confirmed submitted", receipt)
         self.assertIn("independent__compute: confirmed submitted", receipt)
-        self.assertNotRegex(receipt, r"(?:b|existing|new)__\w+: confirmed submitted")
+        self.assertNotRegex(receipt, r"(?:b|existing|new|last)__\w+: confirmed submitted")
         recovered = status()
         self.assertEqual(existing.read_text(), "firstmiddle\nold\n")
         self.assertEqual(recovered["existing"]["attempt_id"], before["existing"]["attempt_id"])
@@ -114,6 +115,7 @@ b = copy('b', a.outputs['one'], 'middle')
         self.assertNotEqual(after["existing"]["attempt_id"], before["existing"]["attempt_id"])
         self.assertEqual(existing.read_text(), "firstmiddle\nchanged\n")
         self.assertEqual((self.work / "results/new/value.txt").read_text(), "firstmiddle\nnew\n")
+        self.assertEqual((self.work / "results/last/value.txt").read_text(), "firstmiddle\nchanged\nlast\n")
 
     def test_missing_result_directory_is_repaired_without_computation(self):
         self.run_complete()

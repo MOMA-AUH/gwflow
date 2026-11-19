@@ -54,7 +54,8 @@ def definition_change(store, observation, observations_by_name, *, force_option,
     for producer in producer_names(observation.structure):
         upstream = observations_by_name[producer]
         expected = attempt["producers"].get(producer)
-        if upstream.action == "fresh" or upstream.attempt is None:
+        if (upstream.action == "fresh" or upstream.attempt is None
+                or upstream.action == "deferred" and upstream.restart_required):
             return "upstream_attempt_changed", f"producer {producer} will start a fresh attempt; expected producer attempt was {expected}"
         if upstream.attempt["attempt"] != expected:
             return "upstream_attempt_changed", f"producer {producer} attempt changed: expected {expected}, current {upstream.attempt['attempt']}"
@@ -358,7 +359,8 @@ def plan_workflow(workflow, ctx, *, selectors=(), force=False, for_submission=Fa
                                                    force_option="--force" if force and name in selected_names else None,
                                                    initializing=initializing)
                         if producer_deferred and not (change and active):
-                            observation.restart_required = bool(change or initializing)
+                            # Resuming unfinished initialization keeps its selected attempt.
+                            observation.restart_required = change is not None
                             defer_observation(observation)
                         elif change:
                             code, reason = change
