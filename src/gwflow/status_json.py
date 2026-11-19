@@ -1,6 +1,7 @@
 """The public JSON status report, separate from the browser transport."""
 
 from contextlib import contextmanager, redirect_stdout
+import ctypes
 import json
 import os
 import sys
@@ -25,6 +26,9 @@ def diagnostics_on_stderr():
         try:
             sys.stderr.flush()
             original.flush()
+            # Native plugins can buffer C stdio independently of Python.
+            # Flush it while descriptor 1 still points to stderr.
+            ctypes.CDLL(None).fflush(None)
         finally:
             os.dup2(saved, 1)
             os.close(saved)
