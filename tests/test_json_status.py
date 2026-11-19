@@ -61,6 +61,34 @@ class JsonStatusTests(LocalBackendTestCase):
         self.assertEqual(result.returncode, 2)
         self.assertEqual(json.loads(result.stdout)["error"]["code"], "usage_error")
 
+    def test_unselected_backend_startup_output_respects_status_format(self):
+        environment = self.state_backend({})
+        with (self.work / "state_backend.py").open("a") as plugin:
+            plugin.write("\nimport ctypes\nprint('state backend loaded')\n"
+                         "ctypes.CDLL(None).puts(b'native backend diagnostic')\n")
+        command = ("-b", "slurm", "status")
+        result = self.cli_result(*command, "--json", "a", env=environment)
+        report = json.loads(result.stdout)
+        self.assertEqual(report["schema_version"], 1)
+        self.assertEqual([task["name"] for task in report["tasks"]], ["a"])
+        self.assertIn("state backend loaded", result.stderr)
+        self.assertIn("native backend diagnostic", result.stderr)
+
+        result = self.cli_result(*command, "--unknown", "--json", env=environment, success=False)
+        self.assertEqual(result.returncode, 2)
+        error = json.loads(result.stdout)
+        self.assertEqual(set(error), {"schema_version", "error"})
+        self.assertEqual(error["schema_version"], 1)
+        self.assertEqual(error["error"]["code"], "usage_error")
+        self.assertIn("--unknown", error["error"]["message"])
+        self.assertIn("state backend loaded", result.stderr)
+        self.assertIn("native backend diagnostic", result.stderr)
+
+        result = self.cli_result(*command, "a", env=environment)
+        self.assertIn("state backend loaded", result.stdout)
+        self.assertNotIn("state backend loaded", result.stderr)
+        self.assertIn("native backend diagnostic", result.stdout)
+
     def test_workflow_and_child_output_use_stderr_and_loading_failure_has_no_rows(self):
         workflow = self.work / "workflow.py"
         workflow.write_text(workflow.read_text() +
