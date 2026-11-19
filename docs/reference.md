@@ -59,6 +59,16 @@ identifies the conflicting name and both Tasks and factories so the relevant ali
 key, or local target name can be changed. Local target and lifecycle job names
 remain unchanged.
 
+Each public job name and its exact Submission name must fit in one log filename,
+including the `.stdout` or `.stderr` suffix. The generated identifiers,
+separators, and stream suffix add 75 bytes to the public job name.
+On a filesystem with a 255-byte filename limit, `Task_name__local_target`
+can use up to 180 ASCII characters. The same limit applies to
+`Task_name__gwflow_prepare` and `Task_name__gwflow_complete`.
+If the log subdirectories span filesystems, the smallest filename limit applies.
+If a name is too long, preview and run identify the job before submitting work.
+Shorten the Task alias, Instance key, or local target name identified in the error.
+
 Each factory call produces an independent definition, and registration snapshots
 it. Later edits cannot change registered work. Nested decorated factories use the
 outer factory's identity. Current declarations retain the module-qualified factory

@@ -11,7 +11,7 @@ import sys
 
 from gwf.log_storage import get_log_paths
 
-from support import FIXTURES, LocalBackendTestCase
+from support import FIXTURES, TASK_FACTORY, LocalBackendTestCase
 from terminal_session import TerminalSession
 import test_graphs
 import test_inspection
@@ -23,6 +23,70 @@ class TaskLogTests(LocalBackendTestCase):
     settle = test_graphs.TaskGraphTests.settle
     inject = test_graphs.TaskGraphTests.inject
     snapshot = test_inspection.LifecycleInspectionTests.snapshot
+
+    def test_long_alias_refuses_the_entire_plan_before_replacing_results(self):
+        self.run_complete()
+        before = self.snapshot()
+        alias = "a" * max(180, os.pathconf(self.work, "PC_NAME_MAX") - 75)
+        with (self.work / "workflow.py").open("a") as workflow:
+            workflow.write(f"gwf.task(task, alias={alias!r})\n")
+        self.assertIn("sample", self.cli("status", "--static", "*"))
+        for options in (("--dry-run",), ()):
+            with self.subTest(options=options):
+                output = self.cli("run", "--force", *options, success=False)
+                self.assertIn(alias, output)
+                self.assertIn("log filename", output)
+                self.assertIn("alias", output)
+                self.assertNoSubmissions(output)
+                self.assertEqual(before, self.snapshot())
+
+    def test_long_local_target_at_log_filename_boundary(self):
+        limit = os.pathconf(self.work, "PC_NAME_MAX")
+        # sample__1__ and the two UUIDs with their separators and .stdout use 86 bytes.
+        local = "t" * (limit - 86)
+        workflow = self.work / "workflow.py"
+        declaration = (TASK_FACTORY + "from gwflow import Workflow\n"
+                       "gwf = Workflow()\n"
+                       "task = empty_task(inputs=[])\n"
+                       "target = task.target({name!r}, inputs=[], outputs=['out'])\n"
+                       "target << 'echo stdout-marker; echo stderr-marker >&2; echo done > out'\n"
+                       "task.retain('out', source=target.output('out'), path='out')\n"
+                       "gwf.task(task, alias='sample', key='1')\n")
+        workflow.write_text(declaration.format(name=local + "x"))
+        for options in (("--dry-run",), ()):
+            error = self.cli("run", *options, success=False)
+            self.assertIn(f"sample__1__{local}x", error)
+            self.assertIn("Instance key", error)
+            self.assertIn("local target name", error)
+
+        workflow.write_text(declaration.format(name=local))
+        self.run_complete()
+        self.assertEqual((self.work / "results/sample__1/out").read_text(), "done\n")
+        public = f"sample__1__{local}"
+        index = self.cli("logs", "sample__1", "--details")
+        submission = re.search(rf"  {public}: [^;]+; submission (\S+)", index).group(1)
+        self.assertEqual(len(submission + ".stdout"), limit)
+        for options, marker in (((), "stdout-marker"), (("--stderr",), "stderr-marker")):
+            stream = self.cli("logs", public, *options, "--no-pager")
+            self.assertIn(marker, stream)
+            self.assertEqual(stream, self.cli("logs", submission, *options, "--no-pager"))
+
+    def test_preview_checks_log_limits_in_existing_hash_directories(self):
+        shard = self.work / ".gwf/logs/a/b"
+        shard.mkdir(parents=True, exist_ok=True)
+        # Model a mounted log directory with a smaller filename limit.
+        (self.work / "sitecustomize.py").write_text(
+            "import os\n"
+            "pathconf = os.pathconf\n"
+            "def log_pathconf(path, name):\n"
+            f"    if os.fspath(path) == {str(shard)!r} and name == 'PC_NAME_MAX':\n"
+            "        return 90\n"
+            "    return pathconf(path, name)\n"
+            "os.pathconf = log_pathconf\n"
+        )
+        error = self.cli("run", "--dry-run", success=False, env={**os.environ, "PYTHONPATH": str(self.work)})
+        self.assertIn("log filename", error)
+        self.assertIn("90 bytes", error)
 
     def assert_frontend_available(self):
         result = subprocess.run([self.executable, "status", "--static"], cwd=self.work,

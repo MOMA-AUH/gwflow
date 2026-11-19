@@ -26,7 +26,7 @@ def run(ctx, selectors, dry_run, force, details, plain):
     """
     workflow = load_workflow(ctx)
     with _submission_guard(ctx.working_dir):
-        plan = plan_workflow(workflow, ctx, selectors=selectors, force=force)
+        plan = plan_workflow(workflow, ctx, selectors=selectors, force=force, for_submission=True)
         report = Report(plan.store, plain=plain)
         report.plan(plan, selected_rows(workflow, plan), expand=details, preview=dry_run)
         outcomes = {(task.name, local): SubmissionOutcome(task.name, local)

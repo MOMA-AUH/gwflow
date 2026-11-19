@@ -19,6 +19,10 @@ from .inspection_errors import InspectionBlocker, ResultOwnershipConflict
 from .workflow import RetainedOutput, TargetOutput, relative_path, validate_destinations
 
 
+def execution_job_name(task, local, generation):
+    return f"{task}__{local}__{generation}"
+
+
 def _overlap(left, right):
     return left == right or left in right.parents or right in left.parents
 
@@ -222,7 +226,7 @@ def _valid_attempt(attempt):
                            for reference in target["inputs"])
                     or not isinstance(target["outputs"], list) or not target["outputs"]
                     or any(relative_path(path) != path for path in target["outputs"])
-                    or attempt["jobs"][local] != f"{attempt['task']}__{local}__{attempt['executions'][local]}"):
+                    or attempt["jobs"][local] != execution_job_name(attempt["task"], local, attempt["executions"][local])):
                 return False
             validate_destinations(target["outputs"])
             if not staging.valid_layout(target.get("staged", {}),
@@ -237,9 +241,9 @@ def _valid_attempt(attempt):
                 return False
         ordered_targets(structure)
         validate_destinations([item["path"] for item in retained.values()])
-        if attempt["jobs"]["gwflow_prepare"] != f"{attempt['task']}__gwflow_prepare__{attempt['preparation']}":
+        if attempt["jobs"]["gwflow_prepare"] != execution_job_name(attempt["task"], "gwflow_prepare", attempt["preparation"]):
             return False
-        if attempt["jobs"]["gwflow_complete"] != f"{attempt['task']}__gwflow_complete__{attempt['operation']}":
+        if attempt["jobs"]["gwflow_complete"] != execution_job_name(attempt["task"], "gwflow_complete", attempt["operation"]):
             return False
         expected = _fingerprint(structure, commands, attempt["command_tracking"])
         return attempt["fingerprint"] == expected and relative_path(attempt["result_dir"]) == attempt["result_dir"]
@@ -492,7 +496,7 @@ class Store:
         attempt = deepcopy(attempt)
         attempt["repair_from"] = previous
         attempt["operation"] = uuid4().hex
-        attempt["jobs"]["gwflow_complete"] = f"{attempt['task']}__gwflow_complete__{attempt['operation']}"
+        attempt["jobs"]["gwflow_complete"] = execution_job_name(attempt["task"], "gwflow_complete", attempt["operation"])
         self.publish(attempt, "repair.json", "repair", operation=attempt["operation"], previous=previous,
                      result_identity=removal, destination=str(self.result_dir(attempt)), sources=sources)
         self.publish(attempt, "compaction.json", "compaction", operation=attempt["operation"])
@@ -768,7 +772,7 @@ class Store:
         for local in observation.retry:
             execution = uuid4().hex
             attempt["executions"][local] = execution
-            attempt["jobs"][local] = f"{attempt['task']}__{local}__{execution}"
+            attempt["jobs"][local] = execution_job_name(attempt["task"], local, execution)
         for local in observation.retry:
             self.write_execution(attempt, local, observation.commands[local], tracking=tracking)
         self.records(attempt).publish("attempt.json", attempt)
@@ -980,9 +984,9 @@ class Store:
             raise WorkflowError("Task selection changed before initialization")
         attempt_id, operation, preparation = uuid4().hex, uuid4().hex, uuid4().hex
         executions = {local: uuid4().hex for local in ordered_targets(observation.structure)}
-        jobs = {local: f"{observation.name}__{local}__{execution}" for local, execution in executions.items()}
-        jobs["gwflow_prepare"] = f"{observation.name}__gwflow_prepare__{preparation}"
-        jobs["gwflow_complete"] = f"{observation.name}__gwflow_complete__{operation}"
+        jobs = {local: execution_job_name(observation.name, local, execution) for local, execution in executions.items()}
+        jobs["gwflow_prepare"] = execution_job_name(observation.name, "gwflow_prepare", preparation)
+        jobs["gwflow_complete"] = execution_job_name(observation.name, "gwflow_complete", operation)
         fingerprint = _fingerprint(observation.structure, observation.commands, tracking)
         attempt = _record("attempt", owner=self.owner["owner"], task=observation.name, attempt=attempt_id,
                           operation=operation, preparation=preparation, executions=executions, jobs=jobs, result_dir=result_dir,

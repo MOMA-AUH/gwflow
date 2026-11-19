@@ -117,6 +117,10 @@ def predecessors(attempt, local):
     return ["gwflow_prepare", *target_dependencies(attempt["structure"], local)]
 
 
+def submission_name(job, admission):
+    return f"{job}__{admission}"
+
+
 def _valid_dependencies(attempt, local, dependencies):
     if not isinstance(dependencies, list) or len(dependencies) != len(predecessors(attempt, local)):
         return False
@@ -124,7 +128,7 @@ def _valid_dependencies(attempt, local, dependencies):
         if (not isinstance(dependency, dict) or set(dependency) != {"local", "job", "admission", "submission", "backend"}
                 or dependency["local"] != expected or not _uuid(dependency["admission"])
                 or not _known_job(attempt, dependency["job"], expected)
-                or dependency["submission"] != f"{dependency['job']}__{dependency['admission']}"
+                or dependency["submission"] != submission_name(dependency["job"], dependency["admission"])
                 or not isinstance(dependency["backend"], dict)):
             return False
     return True
@@ -155,7 +159,7 @@ def read_intent(store, attempt, local):
                 raise InspectionBlocker("submission_unresolved", f"unresolved submission: {previous['submission']}; current intent is missing")
         return None
     admission = record.get("admission")
-    if (not _uuid(admission) or record.get("submission") != f"{attempt['jobs'][local]}__{admission}"
+    if (not _uuid(admission) or record.get("submission") != submission_name(attempt["jobs"][local], admission)
             or record.get("producers") != (attempt["producers"] if local == "gwflow_prepare" else {})
             or not isinstance(record.get("backend"), dict) or not _valid_dependencies(attempt, local, record.get("dependencies"))
             or store.read(attempt, f"admissions/{admission}/intent.json", "submission-intent") != record):
@@ -176,7 +180,7 @@ def _archived_intent(store, attempt, token):
     record = store.read(attempt, f"admissions/{token}/intent.json", "submission-intent")
     if (record is None or record.get("admission") != token
             or not _known_job(attempt, record.get("job"))
-            or record.get("submission") != f"{record['job']}__{token}"
+            or record.get("submission") != submission_name(record["job"], token)
             or not isinstance(record.get("backend"), dict)):
         raise InspectionBlocker("submission_unresolved", f"unresolved submission: admission {token} has unreadable history")
     return record
@@ -606,7 +610,7 @@ def require_retry_inactive(observations, replaced):
 def new_intent(store, attempt, local, dependencies, backend, name):
     token = uuid4().hex
     fields = {**store.job_identity(attempt, local), "admission": token,
-              "submission": f"{attempt['jobs'][local]}__{token}",
+              "submission": submission_name(attempt["jobs"][local], token),
               "backend": backend_identity(backend, name), "dependencies": dependencies}
     fields["producers"] = attempt["producers"] if local == "gwflow_prepare" else {}
     with store.records(attempt).access(write=True):
