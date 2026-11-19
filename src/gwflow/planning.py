@@ -2,9 +2,12 @@
 
 from contextlib import ExitStack
 from dataclasses import dataclass
+import os
+from pathlib import Path
 
 from gwf.backends import BackendStatus
 from gwf.exceptions import WorkflowError
+from gwf.log_storage import get_log_paths, get_logs_dir
 
 from . import _files, _observations, _records, admission, images, inputs, transfer
 from .activity import activity as report_activity
@@ -221,6 +224,35 @@ def awaiting_producer_metadata(store, observation):
             and store.read(attempt, "completion.json", "completion", operation=attempt["operation"]) is None)
 
 
+def _validate_log_filenames(working_dir, workflow, scope):
+    # All job names are ASCII and every exact Submission adds two UUIDs in hex.
+    # Checking the longest public name covers every job in the Execution scope.
+    jobs = ((name, local) for name in workflow._task_declarations if name in scope
+            for local in lifecycle_jobs(workflow._task_declarations[name].targets))
+    longest = max(jobs, key=lambda job: len(job[0]) + len(job[1]), default=None)
+    if longest is None:
+        return
+    name, local = longest
+    public = f"{name}__{local}"
+    identifier = "0" * 32
+    submission = f"{public}__{identifier}__{identifier}"
+    directory = get_logs_dir(Path(working_dir))
+    while not directory.exists():
+        directory = directory.parent
+    limit = os.pathconf(directory, "PC_NAME_MAX")
+    for job in (public, submission):
+        for path in get_log_paths(working_dir, job):
+            size = len(os.fsencode(path.name))
+            if 0 <= limit < size:
+                names = ["Task alias"]
+                if workflow._task_naming[name].key is not None:
+                    names.append("Instance key")
+                if local in workflow._task_declarations[name].targets:
+                    names.append("local target name")
+                raise WorkflowError(f"Job {public!r} needs a {size}-byte log filename "
+                                    f"(filesystem limit {limit} bytes). Use a shorter " + " or ".join(names) + ".")
+
+
 @_observations.planning_pass()
 @report_activity("Preparing Task inspection...")
 def plan_workflow(workflow, ctx, *, selectors=(), force=False):
@@ -238,6 +270,7 @@ def plan_workflow(workflow, ctx, *, selectors=(), force=False):
     for name in reversed(order):
         if name in scope:
             scope.update(producer_names(declared[name][0]))
+    _validate_log_filenames(ctx.working_dir, workflow, scope)
     tasks = []
     observations_by_name = {}
     with ExitStack() as resources:
