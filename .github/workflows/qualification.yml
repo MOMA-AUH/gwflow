@@ -6,10 +6,6 @@ on:
       source:
         required: true
         type: string
-      shard-count:
-        description: Measured installed-suite partition count (two or four)
-        type: number
-        default: 2
       release-simulations:
         description: Run or skip extra release plumbing checks; only ordinary PRs may skip
         type: string
@@ -88,19 +84,10 @@ jobs:
 
   build:
     runs-on: ubuntu-24.04
-    outputs:
-      shard-matrix: ${{ steps.shards.outputs.matrix }}
     steps:
       - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.source }}
-      - name: Validate the complete suite shard plan
-        id: shards
-        env:
-          SHARD_COUNT: ${{ inputs.shard-count }}
-        run: |
-          matrix=$(python3 tests/ci_suite.py plan --count "$SHARD_COUNT")
-          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
       - uses: conda-incubator/setup-miniconda@v4
         with:
           miniforge-version: latest
@@ -133,13 +120,9 @@ jobs:
       source: ${{ inputs.source }}
 
   conda-suite:
-    name: Conda tests (${{ matrix.group }}/${{ inputs.shard-count }})
+    name: Conda tests
     needs: [build, prepare-fixtures]
     runs-on: ubuntu-24.04
-    strategy:
-      # Preserve all results and allow a failed shard to be retried independently.
-      fail-fast: false
-      matrix: ${{ fromJSON(needs.build.outputs.shard-matrix) }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -147,21 +130,18 @@ jobs:
       - uses: ./.github/actions/restore-ci-runtime
         with:
           containers: "true"
-      - name: Run one partition of the full installed Conda suite
+      - name: Run the full installed Conda suite
         shell: bash -l {0}
-        env:
-          CI_SHARD: ${{ matrix.shard }}
-          CI_SHARD_COUNT: ${{ inputs.shard-count }}
         run: |
           conda run -p "$RUNNER_TEMP/gwflow-smoke" python tests/ci_suite.py run \
             --bundle "$RUNNER_TEMP/ci-runtime" --prefix "$RUNNER_TEMP/gwflow-smoke" \
-            --index "$CI_SHARD" --count "$CI_SHARD_COUNT" --output "build/validation/ci-suite/shard-$CI_SHARD.json"
+            --output build/validation/ci-suite/suite.json
       - uses: actions/upload-artifact@v7
         if: always()
         with:
           overwrite: true
-          name: conda-suite-${{ matrix.shard }}
-          path: build/validation/ci-suite/shard-*.json
+          name: conda-suite
+          path: build/validation/ci-suite/suite.json
           if-no-files-found: warn
 
   containers:
@@ -216,17 +196,14 @@ jobs:
       - uses: ./.github/actions/restore-ci-runtime
       - uses: actions/download-artifact@v8
         with:
-          pattern: conda-suite-*
-          merge-multiple: true
+          name: conda-suite
           path: build/validation/ci-suite
       - name: Verify complete suite coverage in the exact runtime
         shell: bash -l {0}
-        env:
-          CI_SHARD_COUNT: ${{ inputs.shard-count }}
         run: |
           conda run -p "$RUNNER_TEMP/gwflow-smoke" python tests/ci_suite.py verify \
             --bundle "$RUNNER_TEMP/ci-runtime" --prefix "$RUNNER_TEMP/gwflow-smoke" \
-            --count "$CI_SHARD_COUNT" --records build/validation/ci-suite
+            --record build/validation/ci-suite/suite.json
           conda run -p "$RUNNER_TEMP/gwflow-smoke" python tests/release_smoke.py
       - name: Select checkout-pinned compatibility baselines
         id: compatibility
@@ -372,7 +349,7 @@ jobs:
           overwrite: true
           name: conda-runtime-evidence
           path: |
-            build/validation/ci-suite/shard-*.json
+            build/validation/ci-suite/suite.json
             build/validation/simulation-plan.json
             build/validation/compatibility-plan.json
             build/validation/pinned-compatibility/selection.json

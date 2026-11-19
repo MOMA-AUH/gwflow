@@ -1,6 +1,5 @@
-"""CI partitions cannot lose tests, change runtimes, or accept partial success."""
+"""CI suite records cannot lose tests, change runtimes, or accept partial success."""
 
-from collections import Counter
 import copy
 import json
 from pathlib import Path
@@ -10,31 +9,13 @@ import sys
 import tempfile
 import unittest
 
-from ci_suite import cases, check_runtime, partition, verify_records
+from ci_suite import cases, check_runtime, verify_record
 from conda_runtime import host_platform
 import test_conda_runtime
 
 
 class CiSuiteTests(unittest.TestCase):
-    def test_shard_plan_is_explicit_deterministic_and_rejects_unsupported_counts(self):
-        command = [sys.executable, str(Path(__file__).with_name("ci_suite.py")), "plan"]
-        default_plan = subprocess.check_output(command, text=True, timeout=10)
-        self.assertEqual(json.loads(default_plan), {"include": [{"shard": 0, "group": 1}, {"shard": 1, "group": 2}]})
-        for count in (2, 4):
-            with self.subTest(count=count):
-                result = subprocess.run([*command, "--count", str(count)], capture_output=True, text=True, timeout=10)
-                self.assertEqual(result.returncode, 0, result.stderr)
-                self.assertEqual(json.loads(result.stdout), {
-                    "include": [{"shard": index, "group": index + 1} for index in range(count)]})
-                repeated = subprocess.check_output([*command, "--count", str(count)], text=True, timeout=10)
-                self.assertEqual(repeated, result.stdout)
-        for count in (0, 1, 3, 5):
-            with self.subTest(count=count):
-                result = subprocess.run([*command, "--count", str(count)], capture_output=True, text=True, timeout=10)
-                self.assertNotEqual(result.returncode, 0)
-                self.assertIn("two or four", result.stderr)
-
-    def fixture(self, count=4):
+    def fixture(self):
         class Case(unittest.TestCase):
             def __init__(self, index):
                 super().__init__("runTest")
@@ -45,72 +26,47 @@ class CiSuiteTests(unittest.TestCase):
 
         tests = [Case(index) for index in range(80)]
         identity = {"source_commit": "a" * 40, "manifest": {"sha256": "b" * 64}}
-        records = []
-        for index in range(count):
-            identifiers = [test.id() for test in partition(tests, index, count)]
-            records.append({"status": "passed", "index": index, "count": count, "runtime": identity,
-                            "tests": identifiers, "run": len(identifiers), "skipped": 0})
-        return tests, identity, records
+        record = {"status": "passed", "runtime": identity,
+                  "tests": [test.id() for test in tests], "run": len(tests), "skipped": 0}
+        return tests, identity, record
 
-    def test_partition_preserves_nested_suite_and_each_discovered_case(self):
-        tests, identity, records = self.fixture()
+    def test_complete_nested_suite_preserves_each_discovered_case(self):
+        tests, identity, record = self.fixture()
         nested = unittest.TestSuite([unittest.TestSuite(tests[:30]), unittest.TestSuite(tests[30:])])
         self.assertEqual(list(cases(nested)), tests)
-        self.assertEqual(Counter(test.id() for test in tests), Counter(name for record in records for name in record["tests"]))
-        self.assertEqual(partition(tests, 2, 4), list(reversed(partition(list(reversed(tests)), 2, 4))))
-        verify_records(tests, records, identity, 4)
+        verify_record(tests, record, identity)
 
-    def test_two_shards_preserve_exact_coverage_and_independent_retries(self):
-        tests, identity, records = self.fixture(2)
-        verify_records(tests, records, identity, 2)
-        self.assertEqual(Counter(test.id() for test in tests),
-                         Counter(name for record in records for name in record["tests"]))
-        for index in range(2):
-            self.assertEqual([test.id() for test in partition(tests, index, 2)], records[index]["tests"])
-        for changed in (records[:1], [records[0], records[0]], [*records, records[0]]):
-            with self.subTest(indices=[record["index"] for record in changed]), self.assertRaises(ValueError):
-                verify_records(tests, changed, identity, 2)
-        with self.assertRaises(ValueError):
-            verify_records(tests, records, identity, 4)
-
-    def test_missing_duplicate_failed_skipped_or_changed_shards_are_rejected(self):
-        tests, identity, records = self.fixture()
-        for mutation in ("missing-shard", "duplicate-shard", "missing-test", "duplicate-test", "wrong-partition",
-                         "failure", "runtime", "count", "run", "skip"):
+    def test_incomplete_failed_skipped_or_changed_suite_is_rejected(self):
+        tests, identity, record = self.fixture()
+        for mutation in ("missing-test", "duplicate-test", "failure", "runtime", "run", "skip"):
             with self.subTest(mutation=mutation):
-                changed = copy.deepcopy(records)
-                if mutation == "missing-shard":
-                    changed.pop()
-                elif mutation == "duplicate-shard":
-                    changed[1] = changed[0]
-                elif mutation == "missing-test":
-                    changed[0]["tests"].pop()
+                changed = copy.deepcopy(record)
+                if mutation == "missing-test":
+                    changed["tests"].pop()
                 elif mutation == "duplicate-test":
-                    changed[0]["tests"].append(changed[0]["tests"][0])
-                elif mutation == "wrong-partition":
-                    changed[0]["tests"], changed[1]["tests"] = changed[1]["tests"], changed[0]["tests"]
+                    changed["tests"].append(changed["tests"][0])
                 elif mutation == "failure":
-                    changed[0]["status"] = "failed"
+                    changed["status"] = "failed"
                 elif mutation == "runtime":
-                    changed[0]["runtime"]["manifest"]["sha256"] = "c" * 64
-                elif mutation == "count":
-                    changed[0]["count"] = 3
+                    changed["runtime"]["manifest"]["sha256"] = "c" * 64
                 elif mutation == "run":
-                    changed[0]["run"] -= 1
+                    changed["run"] -= 1
                 else:
-                    changed[0]["skipped"] = 1
+                    changed["skipped"] = 1
                 with self.assertRaises(ValueError):
-                    verify_records(tests, changed, identity, 4)
-
-    def test_invalid_partition_is_rejected(self):
-        for index, count in ((-1, 4), (4, 4), (0, 0)):
-            with self.subTest(index=index, count=count), self.assertRaises(ValueError):
-                partition([], index, count)
+                    verify_record(tests, changed, identity)
+        with self.assertRaises(ValueError):
+            verify_record([], {**record, "tests": [], "run": 0}, identity)
 
     def test_runtime_transfer_checks_source_manifest_and_installed_bytes(self):
         fixture = test_conda_runtime.CondaRuntimeTests()
         fixture.setUp()
         self.addCleanup(fixture.doCleanups)
+        fixture.prefix = fixture.prefix.resolve()
+        for name, version, build, checksum in (("python", "3.12.14", "h123_0", "1" * 64),
+                                                ("libnative", "2.0", "h456_3", "2" * 64)):
+            fixture.package(name, version, build, host_platform(),
+                            f"https://packages.example/{host_platform()}/{name}-{version}-{build}.conda", checksum)
         fixture.capture()
         source = Path(__file__).resolve().parents[1]
         identity = check_runtime(str(fixture.conda), fixture.bundle, fixture.prefix, source)
@@ -176,7 +132,7 @@ class CiSuiteTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="gwflow-ci-runner-") as directory:
             root = Path(directory)
             (root / "tests").mkdir()
-            output = root / "records/shard-0.json"
+            output = root / "records/suite.json"
             for outcome, body in (("pass", "self.assertTrue(True)"), ("fail", "self.fail('controlled failure')"),
                                   ("skip", "self.skipTest('controlled skip')"), ("discovery", "invalid Python :")):
                 with self.subTest(outcome=outcome):
@@ -185,7 +141,7 @@ class CiSuiteTests(unittest.TestCase):
                         "import unittest\nclass Probe(unittest.TestCase):\n    def test_probe(self):\n        " + body + "\n")
                     arguments = [sys.executable, "-B", "-c", wrapper, str(Path(__file__).parent.resolve()),
                                  "run", "--source", str(root), "--bundle", str(root), "--prefix", sys.prefix,
-                                 "--count", "1", "--output", str(output)]
+                                 "--output", str(output)]
                     result = subprocess.run(arguments, capture_output=True, text=True, timeout=20)
                     self.assertEqual(result.returncode == 0, outcome == "pass", result.stdout + result.stderr)
                     if outcome == "discovery":
@@ -197,7 +153,7 @@ class CiSuiteTests(unittest.TestCase):
                     self.assertEqual(record["timings"][0]["test"], record["tests"][0])
                     if outcome == "pass":
                         arguments[arguments.index("run")] = "verify"
-                        arguments += ["--records", str(output.parent)]
+                        arguments += ["--record", str(output)]
                         subprocess.run(arguments, capture_output=True, text=True, check=True, timeout=20)
                     else:
                         self.assertEqual(record["status"], "failed")
