@@ -1512,8 +1512,11 @@ workflow.
 If the required work or its success evidence is missing or invalid, run starts a
 fresh attempt and recomputes. Changed commands also require fresh computation
 instead of Repair or continuation of interrupted finishing. Consumers with an
-existing input baseline defer comparison during
-same-attempt repair; run preview reports when a later ordinary invocation must replan.
+existing input baseline defer comparison during same-attempt repair. When a
+Task is deferred, its downstream Tasks also wait, including newly declared
+Tasks and Tasks with changed commands. Existing attempts keep their retained
+files, and new Tasks receive their first attempt after a later run reassesses
+the chain. Independent Tasks in the execution scope can still proceed.
 Restored metadata that still matches permits consumer reuse. Different destination
 timestamp precision can instead require new consumer computation, even though the
 producer attempt stays the same. Missing results or staging roots are recreated

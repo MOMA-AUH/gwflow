@@ -54,7 +54,8 @@ def definition_change(store, observation, observations_by_name, *, force_option,
     for producer in producer_names(observation.structure):
         upstream = observations_by_name[producer]
         expected = attempt["producers"].get(producer)
-        if upstream.action == "fresh":
+        if (upstream.action == "fresh" or upstream.attempt is None
+                or upstream.action == "deferred" and upstream.restart_required):
             return "upstream_attempt_changed", f"producer {producer} will start a fresh attempt; expected producer attempt was {expected}"
         if upstream.attempt["attempt"] != expected:
             return "upstream_attempt_changed", f"producer {producer} attempt changed: expected {expected}, current {upstream.attempt['attempt']}"
@@ -219,11 +220,17 @@ def completed_observation(store, observation):
 
 
 def awaiting_producer_metadata(store, observation):
-    if observation.action in ("blocked", "deferred", "repair", "transfer", "compact"):
+    if observation.action in ("blocked", "repair", "transfer", "compact"):
         return True
     attempt = observation.attempt
     return (observation.action == "active" and store.repair_intent(attempt) is not None
             and store.read(attempt, "completion.json", "completion", operation=attempt["operation"]) is None)
+
+
+def defer_observation(observation):
+    observation.action = "deferred"
+    observation.reason = "producer results need recovery; a later invocation must replan input validity after restored metadata is available"
+    observation.reason_code = "upstream_recovery_pending"
 
 
 def _possible_log_directories(directory, levels):
@@ -322,6 +329,8 @@ def plan_workflow(workflow, ctx, *, selectors=(), force=False, for_submission=Fa
                     inspected(len(tasks))
                     continue
                 try:
+                    producers = [observations_by_name[producer] for producer in producer_names(structure)]
+                    producer_deferred = any(producer.action == "deferred" for producer in producers)
                     if attempt is not None:
                         initializing = store.read(attempt, "ready.json", "ready") is None
                         if initializing:
@@ -340,15 +349,20 @@ def plan_workflow(workflow, ctx, *, selectors=(), force=False, for_submission=Fa
                         pending = pending_submissions(attempt, jobs)
                         failed = [local for local, item in jobs.items() if item.state in ("failed", "cancelled") and local not in pending]
                         if superseded:
-                            observation.action, observation.reason = "blocked", "Unresolved or active recovered submissions: " + ", ".join(item.submission for item in superseded)
-                            observation.reason_code = ("submission_unresolved" if any(item.state == "uncertain" for item in superseded)
-                                                       else "activity_conflict")
-                        elif uncertain:
-                            observation.action, observation.reason = "blocked", "unresolved submission: " + ", ".join(uncertain)
-                            observation.reason_code = "submission_unresolved"
-                        elif change := definition_change(store, observation, observations_by_name,
-                                                          force_option="--force" if force and name in selected_names else None,
-                                                          initializing=initializing):
+                            code = ("submission_unresolved" if any(item.state == "uncertain" for item in superseded)
+                                    else "activity_conflict")
+                            raise InspectionBlocker(code, "Unresolved or active recovered submissions: " +
+                                                    ", ".join(item.submission for item in superseded))
+                        if uncertain:
+                            raise InspectionBlocker("submission_unresolved", "unresolved submission: " + ", ".join(uncertain))
+                        change = definition_change(store, observation, observations_by_name,
+                                                   force_option="--force" if force and name in selected_names else None,
+                                                   initializing=initializing)
+                        if producer_deferred and not (change and active):
+                            # Resuming unfinished initialization keeps its selected attempt.
+                            observation.restart_required = change is not None
+                            defer_observation(observation)
+                        elif change:
                             code, reason = change
                             fresh_observation(store, observation, reason, code=code)
                         elif initializing:
@@ -357,10 +371,9 @@ def plan_workflow(workflow, ctx, *, selectors=(), force=False, for_submission=Fa
                             observation.action, observation.reason = "initialize", "resume selected initialization; remove previous results before submission"
                             observation.reason_code = "initialization_incomplete"
                             observation.pending = lifecycle_jobs(ordered_targets(structure))
-                        elif not active and any(awaiting_producer_metadata(store, observations_by_name[producer])
-                                                for producer in producer_names(structure)) and store.exists(attempt, "inputs.json"):
-                            observation.action, observation.reason = "deferred", "producer results need recovery; a later invocation must replan input validity after restored metadata is available"
-                            observation.reason_code = "upstream_recovery_pending"
+                        elif (not active and any(awaiting_producer_metadata(store, producer) for producer in producers)
+                              and store.exists(attempt, "inputs.json")):
+                            defer_observation(observation)
                         elif not active and store.cleanup_record(attempt) is not None:
                             completed_observation(store, observation)
                         elif changes := input_metadata_changes(store, observation):
@@ -403,6 +416,9 @@ def plan_workflow(workflow, ctx, *, selectors=(), force=False, for_submission=Fa
                         else:
                             observation.action, observation.reason = "blocked", "incomplete attempt or damaged results; retry/recovery is not yet supported"
                             observation.reason_code = "validation_failed"
+                    elif producer_deferred:
+                        observation.observations_available = True
+                        defer_observation(observation)
                     else:
                         fresh_observation(store, observation, "no completed managed attempt", code="no_attempt")
                 except (WorkflowError, OSError) as error:
