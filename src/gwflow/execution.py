@@ -7,7 +7,7 @@ import sys
 
 from gwf.exceptions import WorkflowError
 
-from . import _files, admission, images
+from . import _files, admission, images, logical_inputs
 from .commands import Command
 from .lifecycle import Store, target_dependencies
 from .staging import reference_key, stage
@@ -39,7 +39,18 @@ def execute(store, attempt, local):
         attempt["structure"]["targets"][local].get("staged", {}), staging, source_path,
     )
 
+    descriptors = {}
+    for reference in attempt["structure"]["targets"][local]["inputs"]:
+        if isinstance(reference, dict) and "logical_input" in reference:
+            name = reference["logical_input"]
+            selection = attempt["structure"]["logical_inputs"][name]
+            path = home / "descriptors" / f"{len(descriptors)}.json"
+            _files.publish(path, logical_inputs.descriptor(name, selection, baseline), replace=False)
+            descriptors[name] = path
+
     def command_path(reference):
+        if "logical_input" in reference:
+            return descriptors[reference["logical_input"]]
         logical = reference.get("external", reference)
         if path := staged_inputs.get(reference_key(logical)):
             return path
@@ -75,6 +86,8 @@ def execute(store, attempt, local):
     store.validate_roots()
     paths = attempt["structure"]["targets"][local]["outputs"]
     observed = _files.metadata(staging, paths, sync=True)
+    if descriptors:
+        store.check_inputs(attempt)
     store.require_current_execution(attempt, local)
     _files.commit_directory(staging, home / "committed")
     store.publish(attempt, f"executions/{attempt['executions'][local]}/success.json", "target-success", target=local,

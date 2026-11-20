@@ -67,6 +67,18 @@ The decision about how a Task will be handled within an Execution scope, togethe
 **External input**:
 A file supplied from outside a task, declared as data by its author or implied by a target's image selection. This includes another task's retained output.
 
+**Logical input**:
+A Task-scoped, named input for which the workflow supplies a logical identity and a selected physical representation.
+
+**Logical identity**:
+The author-supplied value identifying the data that a logical input represents after decoding.
+
+**Physical representation**:
+The named external files and metadata that tell a workflow how to obtain the data of a logical input.
+
+**Input descriptor**:
+An attempt-owned description of a selected logical input that gives a consuming target its identity, representation metadata, and usable paths for its named files.
+
 **Input baseline**:
 The external-input state accepted at task preparation, against which later input observations are compared.
 
