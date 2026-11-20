@@ -8,7 +8,7 @@ import subprocess
 import sys
 
 
-# Deliberately exact: new documentation paths require review before opting in.
+# New documentation paths require review, except Markdown release-note archives.
 PROSE_PATHS = frozenset({"README.md", "CHANGELOG.md", "docs/authoring.md", "docs/operating.md",
                          "docs/reference.md", "docs/history.md"})
 
@@ -26,6 +26,10 @@ APPLICATION_PATHS = frozenset({
 
 def git(source, *arguments):
     return subprocess.check_output(["git", "-C", str(source), *arguments], stderr=subprocess.PIPE)
+
+
+def is_prose(path):
+    return path in PROSE_PATHS or re.fullmatch(r"docs/releases/[^/\r\n]+\.md", path) is not None
 
 
 def classify(source, base, head):
@@ -48,8 +52,8 @@ def classify(source, base, head):
         paths.extend(changed)
         ordinary = status in {"A", "D", "M", "R", "C"} and old_mode in {"000000", "100644"} and new_mode in {"000000", "100644"}
         prose = prose and ordinary
-        application = application and ordinary and all(path in APPLICATION_PATHS | PROSE_PATHS for path in changed)
-        prose = prose and all(path in PROSE_PATHS for path in changed)
+        application = application and ordinary and all(path in APPLICATION_PATHS or is_prose(path) for path in changed)
+        prose = prose and all(is_prose(path) for path in changed)
     if fields != [b""]:
         raise ValueError("unexpected trailing git change fields")
     return {"mode": "docs" if prose else "full", "release_simulations": "skip" if application else "run",

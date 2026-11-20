@@ -43,7 +43,7 @@ absolute paths on frontend and compute nodes, still apply.
 ## Pull request checks
 
 CI compares the complete pull request with its base commit. It uses a lightweight
-path only when every changed pathname belongs to this exact prose allowlist:
+path only when every changed pathname belongs to this prose allowlist:
 
 - `README.md`
 - `CHANGELOG.md`
@@ -51,6 +51,9 @@ path only when every changed pathname belongs to this exact prose allowlist:
 - `docs/operating.md`
 - `docs/reference.md`
 - `docs/history.md`
+- Markdown files directly inside `docs/releases/` (`docs/releases/*.md`)
+
+The release-note rule does not include nested directories or other file types.
 
 The lightweight path runs the recommended README installation check and the CI
 classification and result checks. It also checks the complete diff for whitespace
