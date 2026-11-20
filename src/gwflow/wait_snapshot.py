@@ -62,7 +62,8 @@ def capture_snapshot(ctx, destination, selectors):
 
 def validate_attempt(store, task, observations):
     """Uncertainty must not hide a decisive invalidation of the awaited work."""
-    if task.attempt is None:
+    if task.attempt is None or not task.observations_available:
+        # Report the planner's inspection error when it could not observe the attempt.
         return
     conflicts = [local for local, item in task.submissions.items() if item.identity_conflict]
     if conflicts:

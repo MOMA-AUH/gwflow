@@ -2,7 +2,6 @@
 
 from contextlib import ExitStack
 from dataclasses import dataclass
-import json
 import os
 from pathlib import Path
 from uuid import UUID
@@ -11,7 +10,7 @@ from gwf.backends import BackendStatus
 from gwf.exceptions import WorkflowError
 from gwf.log_storage import get_log_paths, get_logs_dir
 
-from . import _files, _observations, _records, admission, images, inputs, transfer
+from . import _files, _observations, _records, admission, images, inputs, logical_inputs, transfer
 from .activity import activity as report_activity
 from .inspection_errors import InspectionBlocker, ResultOwnershipConflict
 from .lifecycle import (Store, TaskObservation, declarations, execution_job_name, ordered_tasks,
@@ -48,14 +47,18 @@ def definition_change(store, observation, observations_by_name, *, force_option,
     attempt = observation.attempt
     if force_option:
         return "definition_requires_refresh", f"requested {force_option}"
-    # JSON distinguishes true, 1, and 1.0; Python container equality does not.
+    recorded = attempt["structure"]
     selected = observation.structure.get("logical_inputs", {})
-    frozen = attempt["structure"].get("logical_inputs", {})
-    if (selected or frozen) and json.dumps(selected, sort_keys=True) != json.dumps(frozen, sort_keys=True):
-        return "definition_requires_refresh", "changed logical input identity or representation"
-    if observation.structure != attempt["structure"]:
+    frozen = recorded.get("logical_inputs", {})
+    if selected or frozen:
+        reason = logical_inputs.selection_change(selected, frozen,
+                                                 compare_by_identity=observation.compare_by_logical_identity)
+        if reason:
+            return "definition_requires_refresh", reason
+        recorded = {**recorded, "logical_inputs": selected}
+    if observation.structure != recorded:
         labels = {"inputs": "external inputs", "targets": "target membership or file declarations", "retained": "retained mappings"}
-        changed = [label for key, label in labels.items() if observation.structure[key] != attempt["structure"][key]]
+        changed = [label for key, label in labels.items() if observation.structure[key] != recorded[key]]
         return "definition_requires_refresh", "changed declared structure: " + ", ".join(changed)
     for producer in producer_names(observation.structure):
         upstream = observations_by_name[producer]
@@ -130,7 +133,7 @@ def fresh_observation(store, observation, reason, *, code="prior_work_unusable",
     if active:
         blocker = ("submission_unresolved" if any(item.state == "uncertain" for item in observation.submissions.values())
                    else "activity_conflict")
-        raise InspectionBlocker(blocker, "Unresolved or active work blocks replacement: " + ", ".join(active))
+        raise InspectionBlocker(blocker, "Unresolved or active work blocks replacement: " + ", ".join(active) + f" ({reason})")
     inputs.observe(inputs.external_paths(observation.structure), store.locations)
     observation.removal = store.result_removal(observation.attempt) if observation.attempt else None
     observation.action, observation.reason = "fresh", reason + "; fresh attempt required"
@@ -143,13 +146,15 @@ def fresh_observation(store, observation, reason, *, code="prior_work_unusable",
 
 def input_metadata_changes(store, observation):
     attempt = observation.attempt
-    if not store.exists(attempt, "inputs.json"):
+    if not observation.compare_by_logical_identity and not store.exists(attempt, "inputs.json"):
         return []
     baseline = store.input_baseline(attempt)
     try:
-        observed = store.observe_inputs(attempt)
+        observed = store.observe_inputs(attempt, include_logical=not observation.compare_by_logical_identity)
     except WorkflowError as error:
         raise InspectionBlocker("input_unavailable", f"Inputs unavailable; a fresh attempt requires valid inputs: {error}") from error
+    if observation.compare_by_logical_identity:
+        inputs.observe(inputs.representation_paths(observation.structure), store.locations)
     changes = []
     for path, metadata in observed.items():
         previous = baseline["inputs"][path]
@@ -223,6 +228,22 @@ def completed_observation(store, observation):
     if retained_changes:
         observation.reason += "; " + "; ".join(retained_changes)
     observation.pending = ["gwflow_complete"]
+
+
+def can_compare_by_logical_identity(store, observation, finishing, active):
+    if not observation.structure.get("logical_inputs") or active or finishing.state not in ("complete", "uncertain"):
+        return False
+    try:
+        # An unknown scheduler outcome still blocks Reuse. Durable compaction
+        # lets wait distinguish an equivalent selection from a changed input.
+        if finishing.state == "uncertain" and not store.compaction_succeeded(observation.attempt, finishing.intent):
+            return False
+        # Damaged preparation or Completion evidence still takes the normal
+        # recovery path, including fresh computation after cleanup.
+        store.input_baseline(observation.attempt)
+        return store.completed_results(observation.attempt)
+    except (WorkflowError, OSError):
+        return False
 
 
 def awaiting_producer_metadata(store, observation):
@@ -354,6 +375,9 @@ def plan_workflow(workflow, ctx, *, selectors=(), force=False, for_submission=Fa
                         active = [item.submission for item in jobs.values() if item.state == "active"]
                         pending = pending_submissions(attempt, jobs)
                         failed = [local for local, item in jobs.items() if item.state in ("failed", "cancelled") and local not in pending]
+                        # Wait also validates the observed attempt when unresolved jobs stop planning.
+                        observation.compare_by_logical_identity = can_compare_by_logical_identity(
+                            store, observation, finishing, active)
                         if superseded:
                             code = ("submission_unresolved" if any(item.state == "uncertain" for item in superseded)
                                     else "activity_conflict")
@@ -380,11 +404,14 @@ def plan_workflow(workflow, ctx, *, selectors=(), force=False, for_submission=Fa
                         elif (not active and any(awaiting_producer_metadata(store, producer) for producer in producers)
                               and store.exists(attempt, "inputs.json")):
                             defer_observation(observation)
-                        elif not active and store.cleanup_record(attempt) is not None:
+                        elif not active and store.cleanup_record(attempt) is not None and not observation.compare_by_logical_identity:
                             completed_observation(store, observation)
                         elif changes := input_metadata_changes(store, observation):
                             fresh_observation(store, observation, "input metadata changed: " + "; ".join(changes),
                                               code="inputs_changed", details=[])
+                        elif observation.compare_by_logical_identity:
+                            observation.action, observation.reason = "reuse", "logical input identities, checked completion and retained metadata match"
+                            observation.reason_code = "results_valid"
                         elif not active and store.read(attempt, "completion.json", "completion", operation=attempt["operation"]) is not None:
                             completed_observation(store, observation)
                         elif not active and store.repair_intent(attempt) is not None:

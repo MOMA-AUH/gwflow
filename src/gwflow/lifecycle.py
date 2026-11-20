@@ -282,6 +282,7 @@ class TaskObservation:
     retry: list = field(default_factory=list)
     consumers: dict = field(default_factory=dict)
     removal: dict | None = None
+    compare_by_logical_identity: bool = False
     # Presentation facts survive a later submission gate without changing the plan.
     observations_available: bool = False
     restart_required: bool = False
@@ -711,23 +712,25 @@ class Store:
             selected = _files.read_json(self._task_dir(producer["task"]) / "current.json")
             if (not _matches(selected, "current", **self.identity(producer))
                     or self.records(producer).version() != version
-                    or self._input_metadata(producer) != observed):
+                    or self._input_metadata(producer, include_logical=False) != observed):
                 return False
         return True
 
     def _require_producer_completion(self, attempt):
-        observed = self._check_inputs(attempt, check_producers=False)
-        if not self._completed(attempt) or not self.compaction_succeeded(attempt):
+        # Consumers depend on the producer attempt and its retained output. The
+        # producer's original representation need not still be selected.
+        observed = self._check_inputs(attempt, check_producers=False, include_logical=False)
+        if not self.completed_results(attempt) or not self.compaction_succeeded(attempt):
             raise WorkflowError(f"Expected producer {attempt['task']} attempt {attempt['attempt']} lacks checked Completion or required record compaction")
         return observed
 
-    def observe_inputs(self, attempt):
+    def observe_inputs(self, attempt, *, include_logical=True):
         self.require_producers(attempt)
-        return self._input_metadata(attempt)
+        return self._input_metadata(attempt, include_logical=include_logical)
 
-    def _input_metadata(self, attempt):
+    def _input_metadata(self, attempt, *, include_logical=True):
         references = attempt["structure"]["inputs"]
-        observed = inputs.observe(inputs.external_paths(attempt["structure"]), self.locations)
+        observed = inputs.observe(inputs.external_paths(attempt["structure"], include_logical=include_logical), self.locations)
         for reference in references:
             if isinstance(reference, dict):
                 path = self.retained_path(attempt, reference)
@@ -737,13 +740,15 @@ class Store:
     def check_inputs(self, attempt):
         self._check_inputs(attempt, check_producers=True)
 
-    def _check_inputs(self, attempt, *, check_producers):
+    def _check_inputs(self, attempt, *, check_producers, include_logical=True):
         baseline = self.input_baseline(attempt)
         try:
-            observed = self.observe_inputs(attempt) if check_producers else self._input_metadata(attempt)
+            if check_producers:
+                self.require_producers(attempt)
+            observed = self._input_metadata(attempt, include_logical=include_logical)
         except WorkflowError as error:
             raise InspectionBlocker("input_unavailable", f"External inputs unavailable after preparation; a fresh attempt is required: {error}") from error
-        if baseline["inputs"] != observed:
+        if any(baseline["inputs"][path] != value for path, value in observed.items()):
             raise WorkflowError("External inputs changed after preparation; a fresh attempt is required")
         return observed
 
@@ -840,9 +845,10 @@ class Store:
     @_observations.observation()
     def completed(self, attempt):
         self.check_inputs(attempt)
-        return self._completed(attempt)
+        return self.completed_results(attempt)
 
-    def _completed(self, attempt):
+    def completed_results(self, attempt):
+        """Check Completion evidence and retained results independently of input validity."""
         # A producer mutation must invalidate dependent Completion even when
         # this attempt's own evidence is unchanged. Never nest attempt locks.
         with self.records(attempt).access():
@@ -888,7 +894,8 @@ class Store:
 
     def execution_ready(self, attempt):
         """Checked results alone cannot satisfy unfinished completion work."""
-        return self.completed(attempt) and self.compaction_succeeded(attempt)
+        self._check_inputs(attempt, check_producers=True, include_logical=False)
+        return self.completed_results(attempt) and self.compaction_succeeded(attempt)
 
     def compact(self, attempt, intent):
         """Publish completion-job success only after required record conversion."""
