@@ -30,10 +30,10 @@ For development from source, use the [validation guide](docs/validation/README.m
 ## Run the example
 
 Clone the release that matches `gwflow --version`, then enter its example directory.
-For v0.11.2:
+For v0.11.3:
 
 ```sh
-git clone --branch v0.11.2 https://github.com/MOMA-AUH/gwflow.git
+git clone --branch v0.11.3 https://github.com/MOMA-AUH/gwflow.git
 cd gwflow/example
 ```
 
