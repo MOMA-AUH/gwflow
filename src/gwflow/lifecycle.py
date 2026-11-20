@@ -15,6 +15,7 @@ from gwf.utils import is_valid_name
 from . import _files, _observations, _records, images, inputs, staging
 from ._records import _uuid
 from .commands import Command, shell
+from .logical_inputs import LogicalInput, valid_selections
 from .inspection_errors import InspectionBlocker, ResultOwnershipConflict
 from .workflow import RetainedOutput, TargetOutput, relative_path, validate_destinations
 
@@ -102,6 +103,14 @@ def _target_reference(task, reference):
     return {"target": reference.target.name, "file": reference.filename}
 
 
+def _local_input_reference(task, value, store, workflow):
+    if isinstance(value, LogicalInput):
+        if task._logical_inputs.get(value.name) is not value:
+            raise WorkflowError(f"Logical input {value.name!r} must belong to the target's Task")
+        return {"logical_input": value.name}
+    return _boundary_reference(value, store, workflow)
+
+
 def declarations(task, store, workflow):
     """Canonical logical structure and commands; generated paths never enter."""
     images.validate_executors(task, workflow)
@@ -124,8 +133,8 @@ def declarations(task, store, workflow):
         incoming = []
         for value in target.inputs:
             reference = (_target_reference(task, value) if isinstance(value, TargetOutput)
-                         else _boundary_reference(value, store, workflow))
-            if not isinstance(value, TargetOutput) and reference not in boundary:
+                         else _local_input_reference(task, value, store, workflow))
+            if not isinstance(value, (TargetOutput, LogicalInput)) and reference not in boundary:
                 raise WorkflowError(f"Target {name!r} uses an undeclared Task boundary input")
             if reference not in incoming:
                 incoming.append(reference)
@@ -133,6 +142,8 @@ def declarations(task, store, workflow):
         targets[name] = {"inputs": incoming, "outputs": sorted(outputs)}
         targets[name]["image"] = None
         if target.image is not None:
+            if any(isinstance(value, LogicalInput) for value in target.inputs):
+                raise WorkflowError(f"Logical inputs require a target without image= on {name!r}")
             alias = images.binding(target.image, store.working_dir)
             targets[name]["image"] = alias
             overrides = {path: (_target_reference(task, value) if isinstance(value, TargetOutput)
@@ -148,8 +159,8 @@ def declarations(task, store, workflow):
         elif isinstance(target.spec, Command):
             bindings = {}
             for slot, reference in target.spec.bindings.items():
-                if isinstance(reference, (str, os.PathLike, RetainedOutput)):
-                    alias = _boundary_reference(reference, store, workflow)
+                if isinstance(reference, (str, os.PathLike, RetainedOutput, LogicalInput)):
+                    alias = _local_input_reference(task, reference, store, workflow)
                     if alias not in incoming:
                         raise WorkflowError(f"Command binding {slot!r} is not a declared target input")
                     bindings[slot] = {"external": alias} if isinstance(alias, str) else alias
@@ -172,6 +183,8 @@ def declarations(task, store, workflow):
             boundary.append(target["image"])
     boundary.sort(key=lambda item: json.dumps(item, sort_keys=True))
     structure = {"inputs": boundary, "targets": targets, "retained": retained}
+    if task._logical_inputs:
+        structure["logical_inputs"] = {name: value.selection(store.working_dir) for name, value in task._logical_inputs.items()}
     ordered_targets(structure)
     return structure, commands
 
@@ -186,7 +199,7 @@ def valid_command(command, target, local):
         for binding in command["bindings"].values():
             if set(binding) == {"external"} and binding["external"] in target["inputs"]:
                 continue
-            if set(binding) == {"task", "output"} and binding in target["inputs"]:
+            if set(binding) in ({"task", "output"}, {"logical_input"}) and binding in target["inputs"]:
                 continue
             if (set(binding) != {"target", "file"} or not
                     ((binding["target"] == local and binding["file"] in target["outputs"]) or binding in target["inputs"])):
@@ -201,7 +214,8 @@ def _valid_attempt(attempt):
     try:
         structure, commands = attempt["structure"], attempt["commands"]
         targets, retained = structure["targets"], structure["retained"]
-        if (not isinstance(structure["inputs"], list)
+        if (not valid_selections(structure.get("logical_inputs", {}))
+                or not isinstance(structure["inputs"], list)
                 or any(not (isinstance(path, str) and Path(path).is_absolute()
                             or isinstance(path, dict) and set(path) == {"task", "output"}
                             and isinstance(path["task"], str) and is_valid_name(path["task"])
@@ -221,6 +235,8 @@ def _valid_attempt(attempt):
                     or not (target["image"] is None or isinstance(target["image"], str) and target["image"] in structure["inputs"])
                     or not _uuid(attempt["executions"][local]) or not isinstance(target["inputs"], list)
                     or any(not (reference in structure["inputs"]
+                               or isinstance(reference, dict) and set(reference) == {"logical_input"}
+                               and target["image"] is None and reference["logical_input"] in structure.get("logical_inputs", {})
                                or isinstance(reference, dict) and set(reference) == {"target", "file"}
                                and reference["target"] in targets and reference["file"] in targets[reference["target"]]["outputs"])
                            for reference in target["inputs"])
@@ -649,8 +665,9 @@ class Store:
         return self.result_dir(producer) / producer["structure"]["retained"][reference["output"]]["path"]
 
     def input_paths(self, attempt):
-        return [reference if isinstance(reference, str) else str(self.retained_path(attempt, reference))
-                for reference in attempt["structure"]["inputs"]]
+        structure = attempt["structure"]
+        return [*inputs.external_paths(structure),
+                *(str(self.retained_path(attempt, ref)) for ref in structure["inputs"] if isinstance(ref, dict))]
 
     @_observations.observation()
     def require_producers(self, attempt):
@@ -710,7 +727,7 @@ class Store:
 
     def _input_metadata(self, attempt):
         references = attempt["structure"]["inputs"]
-        observed = inputs.observe([value for value in references if isinstance(value, str)], self.locations)
+        observed = inputs.observe(inputs.external_paths(attempt["structure"]), self.locations)
         for reference in references:
             if isinstance(reference, dict):
                 path = self.retained_path(attempt, reference)

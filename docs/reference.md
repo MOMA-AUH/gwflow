@@ -137,6 +137,77 @@ consumers, including queued preparation and finishing jobs. Persisted consumer
 bindings still protect result replacement if that consumer is omitted from the
 loaded workflow; removing a Python declaration does not end its admitted jobs.
 
+### Logical inputs for local computation
+
+Use a logical input when a workflow supplies both an identity for a dataset
+and a decoder for its physical files. Register the input on the Task, include
+the returned handle in each consuming target's inputs, and bind that handle
+to a `shell()` placeholder. The command receives a path to a JSON descriptor.
+
+```python
+@task_template
+def assemble():
+    task = Task(inputs=["decode.py"])
+    document = task.logical_input(
+        "document",
+        identity={"source": "manual", "revision": 7},
+        files={"heading": "heading.txt", "body": "body.txt"},
+        metadata={"encoding": "utf-8"},
+    )
+    write = task.target("write", inputs=[document, "decode.py"], outputs=["manual.txt"])
+    write << shell("python {decoder} {document} > manual.txt",
+                   decoder="decode.py", document=document)
+    task.retain("manual", source=write.output("manual.txt"), path="manual.txt")
+    return task
+
+gwf.task(assemble())
+```
+
+For this declaration, `decode.py` can read the two named files in order.
+
+```python
+import json
+from pathlib import Path
+import sys
+
+document = json.loads(Path(sys.argv[1]).read_text())
+for role in ("heading", "body"):
+    part = Path(document["files"][role])
+    sys.stdout.write(part.read_text(encoding=document["metadata"]["encoding"]))
+```
+
+Each logical input name must be unique within its Task and follow the local
+target name syntax. `identity` and `metadata` accept JSON values expressed as
+Python strings, booleans, integers, finite floats, `None`, lists, and dictionaries
+with string keys. Object member order is immaterial. The JSON types and list
+order are significant. `files` accepts a nonempty mapping from nonempty string
+names to external file paths. Relative paths start at the workflow directory.
+Each member must resolve to a regular file outside managed storage. Use ordinary
+retained-output handles for data produced by another Task. Targets consuming
+logical inputs must run directly on the host without `image=`.
+
+The descriptor contains `name`, `identity`, `metadata`, and `files`. Each entry
+in `files` is an absolute path resolved at preparation. Use the bound descriptor
+path every time a target runs. Its location belongs to that execution and can be
+removed by work cleanup.
+
+The workflow author defines which decoded data the identity represents.
+Include values that change the computation in the logical identity, command,
+or another tracked declaration. Representation metadata describes how to read
+the files, such as their encoding. gwflow tracks the declared files and checks
+their metadata. The author remains responsible for equivalence and decoding.
+
+Each attempt freezes its logical input names, identities, file selections,
+and representation metadata. Preparation accepts the resolved paths, sizes,
+and modification times into the Input baseline. Workers check this baseline
+before computation, before accepting a consuming target's outputs, and during
+Completion. Missing files or a changed observation prevent continued use of
+that baseline. Retry with unchanged inputs can keep checked computation.
+Changing a logical input's identity, file selection, or representation metadata
+requires a fresh attempt once activity and ownership checks permit replacement.
+An unchanged completed Task remains reusable after work cleanup when all of
+its usual input and retained-output checks pass.
+
 ## Commands and reports
 
 ### Executable, discovery, and backends
