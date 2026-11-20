@@ -182,7 +182,8 @@ Python strings, booleans, integers, finite floats, `None`, lists, and dictionari
 with string keys. Object member order is immaterial. The JSON types and list
 order are significant. `files` accepts a nonempty mapping from nonempty string
 names to external file paths. Relative paths start at the workflow directory.
-Each member must resolve to a regular file outside managed storage. Use ordinary
+When the physical data is required, each member must resolve to a regular file
+outside managed storage. Use ordinary
 retained-output handles for data produced by another Task. Targets consuming
 logical inputs must run directly on the host without `image=`.
 
@@ -199,23 +200,39 @@ metadata for information that the decoder needs, such as the file encoding.
 Each attempt freezes its logical input names, identities, file selections,
 and representation metadata. Preparation accepts the resolved paths, sizes,
 and modification times into the Input baseline. Workers check this baseline
-before computation, before accepting a consuming target's outputs, and during
-Completion. Missing files or a changed observation prevent continued use of
-that baseline. Retry with unchanged inputs can keep checked computation.
-If the representation changes before the attempt finishes, gwflow requires a
-fresh attempt. Activity and ownership checks protect the previous attempt
-during replacement.
+before computation, before accepting a consuming target's outputs, and before
+installing the initial retained results. During these steps, a missing file
+blocks progress and a changed observation invalidates the baseline. Retry with
+unchanged inputs can keep checked computation. Changing the representation
+before initial Completion requires a fresh attempt.
 
 After successful Completion, gwflow can reuse the same attempt even after
-work cleanup. For example, a workflow can switch from two text files to an
-archive with the same logical identity. The current files must be available.
-Their paths, names, file metadata, and decoding metadata can differ. Reuse
+work cleanup. For example, a workflow can remove two source files or select
+an archive with the same logical identity even while the archive is offline. Reuse
 checks the logical input names and identities, ordinary inputs, targets,
 commands, images, producer attempts, and retained outputs. Inspection leaves
-the attempt's descriptors and evidence intact.
+the attempt's descriptors and evidence intact. A file also declared as an
+ordinary input must still be available.
+
+If retained outputs are missing or damaged, Repair can restore them from
+checked work under the same completed attempt while the logical sources are
+offline. Consumers with an existing Input baseline defer until a later
+invocation can check the restored results. A new direct consumer can queue
+behind the producer's Repair. If cleanup or damage has made Repair impossible,
+fresh computation requires the current physical representation before gwflow
+removes previous results or submits replacement work.
+
+An interruption during the initial copy or after the staging manifest is
+written still requires the frozen physical inputs. Once the owned result
+directory has been installed and its complete file set matches the checked
+manifest, gwflow can finish recording Completion with the logical sources
+offline. A damaged installed set loses that proof. An interrupted Repair can
+resume from its recorded intent and matching checked work or result set.
+Record compaction can also resume from valid Completion evidence.
 
 If the identity changes, gwflow requires a fresh attempt. To recompute with
-an equivalent representation, run `gwflow run TASK --force`. Preparation
+an equivalent representation, run `gwflow run TASK --force`. Force and
+tracked computation changes also require available source files. Preparation
 records a new physical Input baseline. The decoder then receives a descriptor
 for the selected files.
 

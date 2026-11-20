@@ -96,6 +96,10 @@ def retry_targets(store, attempt, jobs):
 
 def retry_observation(store, observation, jobs):
     attempt = observation.attempt
+    # An active finisher can complete from checked results after unrelated
+    # computation intermediates have disappeared.
+    if jobs["gwflow_complete"].state == "active" and logical_sources_optional(store, observation):
+        return False
     replaced = retry_targets(store, attempt, jobs)
     if not replaced:
         return False
@@ -144,17 +148,22 @@ def fresh_observation(store, observation, reason, *, code="prior_work_unusable",
     observation.pending = lifecycle_jobs(ordered_targets(observation.structure))
 
 
+def logical_sources_optional(store, observation):
+    return (observation.compare_by_logical_identity
+            or bool(observation.attempt["structure"].get("logical_inputs"))
+            and transfer.has_checked_installation(store, observation.attempt))
+
+
 def input_metadata_changes(store, observation):
     attempt = observation.attempt
     if not observation.compare_by_logical_identity and not store.exists(attempt, "inputs.json"):
+        inputs.check_representation_files(observation.structure, store.locations)
         return []
     baseline = store.input_baseline(attempt)
     try:
-        observed = store.observe_inputs(attempt, include_logical=not observation.compare_by_logical_identity)
+        observed = store.observe_inputs(attempt, include_logical=not logical_sources_optional(store, observation))
     except WorkflowError as error:
         raise InspectionBlocker("input_unavailable", f"Inputs unavailable; a fresh attempt requires valid inputs: {error}") from error
-    if observation.compare_by_logical_identity:
-        inputs.observe(inputs.representation_paths(observation.structure), store.locations)
     changes = []
     for path, metadata in observed.items():
         previous = baseline["inputs"][path]
@@ -230,18 +239,13 @@ def completed_observation(store, observation):
     observation.pending = ["gwflow_complete"]
 
 
-def can_compare_by_logical_identity(store, observation, finishing, active):
-    if not observation.structure.get("logical_inputs") or active or finishing.state not in ("complete", "uncertain"):
+def can_compare_by_logical_identity(store, observation):
+    if not observation.structure.get("logical_inputs"):
         return False
     try:
-        # An unknown scheduler outcome still blocks Reuse. Durable compaction
-        # lets wait distinguish an equivalent selection from a changed input.
-        if finishing.state == "uncertain" and not store.compaction_succeeded(observation.attempt, finishing.intent):
-            return False
-        # Damaged preparation or Completion evidence still takes the normal
-        # recovery path, including fresh computation after cleanup.
         store.input_baseline(observation.attempt)
-        return store.completed_results(observation.attempt)
+        return (store.completion_manifest(observation.attempt) is not None
+                or store.repair_intent(observation.attempt) is not None)
     except (WorkflowError, OSError):
         return False
 
@@ -251,7 +255,7 @@ def awaiting_producer_metadata(store, observation):
         return True
     attempt = observation.attempt
     return (observation.action == "active" and store.repair_intent(attempt) is not None
-            and store.read(attempt, "completion.json", "completion", operation=attempt["operation"]) is None)
+            and not store.compaction_succeeded(attempt))
 
 
 def defer_observation(observation):
@@ -376,8 +380,7 @@ def plan_workflow(workflow, ctx, *, selectors=(), force=False, for_submission=Fa
                         pending = pending_submissions(attempt, jobs)
                         failed = [local for local, item in jobs.items() if item.state in ("failed", "cancelled") and local not in pending]
                         # Wait also validates the observed attempt when unresolved jobs stop planning.
-                        observation.compare_by_logical_identity = can_compare_by_logical_identity(
-                            store, observation, finishing, active)
+                        observation.compare_by_logical_identity = can_compare_by_logical_identity(store, observation)
                         if superseded:
                             code = ("submission_unresolved" if any(item.state == "uncertain" for item in superseded)
                                     else "activity_conflict")
@@ -396,6 +399,7 @@ def plan_workflow(workflow, ctx, *, selectors=(), force=False, for_submission=Fa
                             code, reason = change
                             fresh_observation(store, observation, reason, code=code)
                         elif initializing:
+                            inputs.check_representation_files(structure, store.locations)
                             observation.restart_required = True
                             observation.removal = store.result_removal(attempt)
                             observation.action, observation.reason = "initialize", "resume selected initialization; remove previous results before submission"
@@ -409,9 +413,6 @@ def plan_workflow(workflow, ctx, *, selectors=(), force=False, for_submission=Fa
                         elif changes := input_metadata_changes(store, observation):
                             fresh_observation(store, observation, "input metadata changed: " + "; ".join(changes),
                                               code="inputs_changed", details=[])
-                        elif observation.compare_by_logical_identity:
-                            observation.action, observation.reason = "reuse", "logical input identities, checked completion and retained metadata match"
-                            observation.reason_code = "results_valid"
                         elif not active and store.read(attempt, "completion.json", "completion", operation=attempt["operation"]) is not None:
                             completed_observation(store, observation)
                         elif not active and store.repair_intent(attempt) is not None:

@@ -73,9 +73,11 @@ def inspect_repair(store, attempt):
     store.validate_roots()
     if store.cleanup_record(attempt) is not None:
         raise InvalidSources("Work is marked for cleanup; repair requires fresh computation")
-    store.check_inputs(attempt)
+    sources = _sources(store, attempt, check_files=True)
+    requires_logical = bool(attempt["structure"].get("logical_inputs")) and store.completion_manifest(attempt) is None
+    store.check_inputs(attempt, include_logical=requires_logical)
     removal = store.result_removal(attempt)
-    return RepairObservation(_sources(store, attempt, check_files=True), removal)
+    return RepairObservation(sources, removal)
 
 
 def _installation(store, attempt, manifest):
@@ -86,17 +88,46 @@ def _installation(store, attempt, manifest):
     return record
 
 
+def _checked_manifest(store, attempt, sources, record, *, installed):
+    try:
+        manifest = _manifest(store, attempt, sources, record)
+        root = store.result_dir(attempt) if installed else Path(manifest["staging"])
+        if _checked_set(root, manifest):
+            if installed and store.repair_intent(attempt) is not None:
+                _installation(store, attempt, manifest)
+            return manifest
+    except (WorkflowError, OSError):
+        # A missing or damaged set may still be rebuilt from checked work.
+        pass
+    return None
+
+
+def has_checked_installation(store, attempt):
+    """The owned, installed set proves the pre-installation input check already passed."""
+    if not store.exists(attempt, "transfer.json"):
+        return False
+    try:
+        record = store.transfer_ownership(attempt)
+        sources = _sources(store, attempt, check_files=False)
+        return _checked_manifest(store, attempt, sources, record, installed=True) is not None
+    except (WorkflowError, OSError):
+        return False
+
+
+def _check_transfer_inputs(store, attempt, *, repair, checked_installation):
+    store.check_inputs(attempt, include_logical=repair is None and not checked_installation)
+
+
 def inspect(store, attempt):
     """Check recovery eligibility without changing files or allocating identities."""
     store.validate_roots()
-    store.check_inputs(attempt)
+    repair = store.repair_intent(attempt)
     sources = _sources(store, attempt, check_files=False)
     record = store.transfer_ownership(attempt)
     staging = store.staging_record(attempt)
     if (staging is not None and _files.exists(staging["destination"])
             and not _files.same_directory(_files.identity(staging["destination"]), staging["identity"])):
         raise WorkflowError("Transfer staging directory ownership changed")
-    repair = store.repair_intent(attempt)
     if repair is not None and repair["sources"] != sources:
         raise InvalidSources("Repair source execution evidence changed")
     destination = store.result_dir(attempt)
@@ -109,20 +140,13 @@ def inspect(store, attempt):
     if record is not None and _files.exists(Path(record["staging"])):
         if not _files.same_directory(_files.identity(Path(record["staging"])), record["staged_identity"]):
             raise WorkflowError("Transfer staging ownership changed")
-    try:
-        manifest = _manifest(store, attempt, sources, record)
-        root = destination if installed else Path(manifest["staging"])
-        if _checked_set(root, manifest):
-            if installed:
-                if repair is not None:
-                    _installation(store, attempt, manifest)
-                return Recovery("complete", "finish checked installed retained results under the same attempt", record, manifest)
-            return Recovery("install", "install prepared retained-result set under the same attempt", record, manifest,
-                            removal=identity)
-    except (WorkflowError, OSError):
-        # Transfer directory records were checked above. Incomplete association or copied
-        # data can only be rebuilt from separately verified source work.
-        pass
+    manifest = _checked_manifest(store, attempt, sources, record, installed=installed)
+    _check_transfer_inputs(store, attempt, repair=repair, checked_installation=installed and manifest is not None)
+    if manifest is not None:
+        if installed:
+            return Recovery("complete", "finish checked installed retained results under the same attempt", record, manifest)
+        return Recovery("install", "install prepared retained-result set under the same attempt", record, manifest,
+                        removal=identity)
     _sources(store, attempt, check_files=True)
     return Recovery("copy", "rebuild owned retained results from checked work under the same attempt" if installed else
                     "restart retained-result copying from checked work under the same attempt", record,
@@ -174,7 +198,8 @@ def finish(store, attempt):
     if store.current(attempt["task"], attempt["result_dir"]) != attempt:
         raise WorkflowError("Current Task attempt changed before results commit")
     store.validate_result_ownership({attempt["task"]: attempt["result_dir"]})
-    store.check_inputs(attempt)
+    repair = store.repair_intent(attempt)
+    _check_transfer_inputs(store, attempt, repair=repair, checked_installation=recovery.action == "complete")
     if recovery.action == "complete":
         if not _checked_set(store.result_dir(attempt), manifest):
             raise WorkflowError("Installed transfer changed before Completion")
@@ -182,7 +207,7 @@ def finish(store, attempt):
         staging = Path(manifest["staging"])
         if not _checked_set(staging, manifest):
             raise WorkflowError("Prepared transfer changed before installation")
-        if store.repair_intent(attempt) is not None:
+        if repair is not None:
             store.publish(attempt, "installation.json", "installation", operation=attempt["operation"],
                           copy=manifest["copy"], staged_identity=manifest["staged_identity"],
                           destination=manifest["destination"], removal=recovery.removal)

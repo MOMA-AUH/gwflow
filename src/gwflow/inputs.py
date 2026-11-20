@@ -21,6 +21,10 @@ def representation_paths(structure):
             for path in value["representation"]["files"].values()]
 
 
+def check_representation_files(structure, locations, *, refresh=False):
+    observe(representation_paths(structure), locations, refresh=refresh)
+
+
 def external_paths(structure, *, include_logical=True):
     """List ordinary external paths, optionally including representation files."""
     paths = [value for value in structure["inputs"] if isinstance(value, str)]

@@ -4,6 +4,8 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import subprocess
+import sys
 import textwrap
 import unittest
 import zipfile
@@ -12,7 +14,7 @@ from gwf.exceptions import WorkflowError
 from gwflow import Task
 
 from record_fixtures import read_record, record_path, remove_record, write_record
-from support import LocalBackendTestCase
+from support import FIXTURES, LocalBackendTestCase
 import test_inputs
 import test_inspection
 
@@ -127,7 +129,34 @@ class LogicalInputTests(LocalBackendTestCase):
         changed_identity = self.task_attempts()["sample"]
         self.assertNotEqual(original, changed_identity)
 
-    def test_wait_accepts_a_completed_attempt_with_an_equivalent_available_representation(self):
+    def test_selected_replacement_rechecks_sources_before_removing_results(self):
+        self.run_complete()
+        source = self.work / "extra.txt"
+        result = self.work / "results/sample/result"
+        command = [sys.executable, str(FIXTURES / "frontend_fault.py"), str(self.work),
+                   "gate_before_removal", "sample", "run", "sample", "--force"]
+        with subprocess.Popen(command, cwd=self.work, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True) as run:
+            try:
+                self.wait_for(lambda: (self.work / "frontend-held").exists())
+                source.unlink()
+            finally:
+                (self.work / "frontend-release").touch()
+            output, _ = run.communicate(timeout=30)
+        self.assertNotEqual(run.returncode, 0, output)
+        self.assertIn("extra.txt", output)
+        self.assertNoSubmissions(output)
+        self.assertEqual(result.read_text(), "sample-1\nhello:extra\n")
+        evidence = self.snapshot()
+        status = json.loads(self.cli_result("status", "--json").stdout)["tasks"][0]
+        self.assertEqual((status["next_action"], status["reason"]["code"]), ("blocked", "input_unavailable"))
+        self.assertIn("extra.txt", self.cli("run", "--dry-run", success=False))
+        self.assertIn("extra.txt", self.cli("run", success=False))
+        self.assertEqual(self.snapshot(), evidence)
+        source.write_text("restored\n")
+        self.run_complete()
+        self.assertEqual(result.read_text(), "sample-1\nhello:restored\n")
+
+    def test_cleaned_attempt_reuses_logical_identity_without_physical_sources(self):
         self.run_complete()
         self.cli("clean", "sample", "--delete")
         (self.work / "extra.txt").rename(self.work / "replacement.txt")
@@ -136,10 +165,19 @@ class LogicalInputTests(LocalBackendTestCase):
         evidence = self.snapshot()
         self.assertIn("sample: reusable", self.cli("wait", "sample"))
         (self.work / "replacement.txt").rename(self.work / "absent.txt")
-        self.assertIn("replacement.txt", self.cli("wait", "sample", success=False))
-        (self.work / "absent.txt").rename(self.work / "replacement.txt")
+        (self.work / "input.txt").unlink()
+        self.assertIn("sample: reusable", self.cli("wait", "sample"))
+        self.assertEqual(json.loads(self.cli_result("status", "--json").stdout)["tasks"][0]["next_action"], "reuse")
+        self.assertIn("Reuse", self.cli("run", "--dry-run"))
+        self.assertNoSubmissions(self.cli("run"))
+        self.assertIn("input.txt", self.cli("run", "--force", success=False))
+        workflow = self.work / "workflow.py"
+        workflow.write_text(workflow.read_text().replace("cat {decoded}", "cat -n {decoded}"))
+        self.assertIn("input.txt", self.cli("run", "--dry-run", success=False))
+        self.assertIn("input.txt", self.cli("run", success=False))
         self.configure_workflow(files=files, identity='"another sample"')
         self.assertIn("invalidated: changed logical input name or identity", self.cli("wait", "sample", success=False))
+        self.assertIn("input.txt", self.cli("run", success=False))
         self.assertEqual(self.snapshot(), evidence)
 
     def test_wait_keeps_polling_for_unconfirmed_completion_after_an_equivalent_switch(self):
@@ -158,13 +196,14 @@ class LogicalInputTests(LocalBackendTestCase):
     def test_wait_reports_an_unavailable_image_after_an_equivalent_switch(self):
         self.run_complete()
         self.configure_workflow(metadata='{"encoding": "ascii"}')
+        (self.work / "extra.txt").unlink()
         workflow = self.work / "workflow.py"
         workflow.write_text(workflow.read_text().replace('outputs=["result"])', 'outputs=["result"], image="missing.sif")'))
         result = self.cli_result("wait", "sample", success=False)
         self.assertIn("image unavailable", result.stderr)
         self.assertIn("missing.sif", result.stderr)
 
-    def test_only_current_representation_is_required_and_ordinary_inputs_stay_tracked(self):
+    def test_an_ordinary_input_also_used_as_a_logical_source_stays_tracked(self):
         workflow = self.work / "workflow.py"
         # The left file also has an independent role as an ordinary Task input.
         workflow.write_text(workflow.read_text().replace('Task(inputs=["decode.py"])',
@@ -175,22 +214,17 @@ class LogicalInputTests(LocalBackendTestCase):
         (self.work / "extra.txt").write_text("new physical contents\n")
         self.assertNoSubmissions(self.cli("run"))
         workflow.write_text(workflow.read_text().replace('"right": "extra.txt"', '"right": "alternate.txt"'))
-        status = json.loads(self.cli_result("status", "--json").stdout)["tasks"][0]
-        self.assertEqual(status["reason"]["code"], "input_unavailable")
-        self.assertIn("alternate.txt", status["reason"]["message"])
+        self.assertNoSubmissions(self.cli("run"))
         (self.work / "extra.txt").rename(self.work / "alternate.txt")
         self.assertNoSubmissions(self.cli("run"))
         (self.work / "input.txt").write_text("ordinary change\n")
         status = json.loads(self.cli_result("status", "--json").stdout)["tasks"][0]
         self.assertEqual((status["attempt_id"], status["next_action"], status["reason"]["code"]),
                          (original, "run", "inputs_changed"))
+        (self.work / "input.txt").unlink()
+        self.assertIn("input.txt", self.cli("run", success=False))
 
-    def test_consumer_uses_retained_output_after_producer_switches_representation(self):
-        self.run_complete()
-        producer = self.task_attempts()["sample"]
-        self.cli("clean", "sample", "--delete")
-        (self.work / "input.txt").rename(self.work / "selected.txt")
-        self.configure_workflow(files='{"left": "selected.txt", "right": "extra.txt"}')
+    def add_consumer(self):
         with (self.work / "workflow.py").open("a") as workflow:
             workflow.write(textwrap.dedent("""
                 @task_template
@@ -203,6 +237,14 @@ class LogicalInputTests(LocalBackendTestCase):
 
                 gwf.task(copy(registered.outputs["result"]))
             """))
+
+    def test_consumer_uses_retained_output_after_producer_switches_representation(self):
+        self.run_complete()
+        producer = self.task_attempts()["sample"]
+        self.cli("clean", "sample", "--delete")
+        (self.work / "input.txt").rename(self.work / "selected.txt")
+        self.configure_workflow(files='{"left": "selected.txt", "right": "extra.txt"}')
+        self.add_consumer()
         self.run_complete("copy")
         self.assertEqual((self.work / "results/copy/copied").read_text(), "sample-1\nhello:extra\n")
         attempts = self.task_attempts()
@@ -212,6 +254,80 @@ class LogicalInputTests(LocalBackendTestCase):
         self.assertIn("producer sample attempt changed", self.cli("run", "copy", "--dry-run"))
         self.run_complete("copy")
         self.assertNotEqual(self.task_attempts()["copy"], attempts["copy"])
+
+    def test_repair_without_logical_sources_defers_and_preserves_consumer(self):
+        self.add_consumer()
+        self.run_complete()
+        attempts = self.task_attempts()
+        retained = self.work / "results/sample/result"
+        retained.unlink()
+        (self.work / "extra.txt").unlink()
+        records = self.snapshot()
+        status = json.loads(self.cli_result("status", "--json").stdout)["tasks"]
+        self.assertEqual({task["name"]: task["next_action"] for task in status}, {"sample": "repair", "copy": "defer"})
+        self.assertIn("Repair", self.cli("run", "--dry-run"))
+        self.assertEqual(self.snapshot(), records)
+        self.cli("run")
+        self.settle()
+        self.assertEqual(retained.read_text(), "sample-1\nhello:extra\n")
+        self.assertIn("copy: reusable", self.cli("wait", "copy"))
+        self.assertNoSubmissions(self.cli("run", "copy"))
+        self.assertEqual(self.task_attempts(), attempts)
+
+    def test_active_repair_waits_with_only_its_retained_work_source(self):
+        self.add_consumer()
+        self.run_complete()
+        (self.work / "extra.txt").unlink()
+        intermediate, = (self.work / "work/sample").glob("*/decode/*/committed/decoded")
+        intermediate.unlink()
+        retained = self.work / "results/sample/result"
+        retained.unlink()
+        self.cli("-b", "recovery_fixture", "run", "sample",
+                 env=self.fault("gwflow_complete", gate_after_manifest=True, gate_before_compaction=True))
+        self.wait_for(lambda: (self.work / "manifest-held").exists())
+        try:
+            status = json.loads(self.cli_result("status", "sample", "--json").stdout)["tasks"][0]
+            self.assertEqual(status["next_action"], "wait", status)
+            self.assertEqual(self.cli_result("wait", "sample", "--timeout", "2", success=False).returncode, 124)
+        finally:
+            (self.work / "manifest-release").touch()
+        self.wait_for((self.work / "sample-compaction-held").exists)
+        try:
+            status = json.loads(self.cli_result("status", "--json").stdout)["tasks"]
+            self.assertEqual({t["name"]: t["next_action"] for t in status}, {"sample": "wait", "copy": "defer"})
+        finally:
+            (self.work / "sample-compaction-release").touch()
+        self.settle()
+        self.assertEqual(retained.read_text(), "sample-1\nhello:extra\n")
+
+    def test_failed_repair_requires_available_sources_for_fresh_producer_and_consumer(self):
+        self.add_consumer()
+        self.run_complete()
+        attempts = self.task_attempts()
+        retained = self.work / "results/sample/result"
+        retained.write_text("damaged output\n")
+        source = self.work / "extra.txt"
+        source.unlink()
+        self.cli("-b", "recovery_fixture", "run", "sample",
+                 env=self.fault("gwflow_complete", crash_before_manifest=True))
+        self.settle()
+        self.assertIn("restart retained-result copying", self.cli("run", "--dry-run"))
+        checked, = (self.work / "work/sample").glob("*/keep/*/committed/result")
+        checked.unlink()
+        records = self.snapshot()
+        blocked = self.cli("run", success=False)
+        self.assertIn("extra.txt", blocked)
+        self.assertNoSubmissions(blocked)
+        self.assertEqual(self.snapshot(), records)
+        source.write_text("replacement\n")
+        self.cli("run", "sample")
+        self.settle()
+        self.assertNotEqual(self.task_attempts()["sample"], attempts["sample"])
+        self.assertIn("producer sample attempt changed", self.cli("run", "copy", "--dry-run"))
+        self.cli("run", "copy")
+        self.settle()
+        self.assertNotEqual(self.task_attempts()["copy"], attempts["copy"])
+        self.assertEqual((self.work / "results/copy/copied").read_text(), "sample-1\nhello:replacement\n")
 
     def test_changed_file_during_decoding_cannot_be_accepted_on_retry(self):
         # Hold the workflow-owned decoder after it receives its descriptor.
@@ -300,6 +416,9 @@ class LogicalInputTests(LocalBackendTestCase):
         self.cli("-b", "recovery_fixture", "run", env=self.fault("keep", crash_before_commit=True))
         self.settle()
         original = self.task_attempts()["sample"]
+        (self.work / "extra.txt").rename(self.work / "away")
+        self.assertIn("extra.txt", self.cli("run", success=False))
+        (self.work / "away").rename(self.work / "extra.txt")
         self.configure_workflow(files='{"left": "extra.txt", "right": "input.txt"}')
         preview = self.cli("run", "--dry-run", "--details")
         self.assertIn("previous physical baseline", preview)
@@ -356,6 +475,38 @@ class LogicalInputTests(LocalBackendTestCase):
         self.assertFalse((self.work / "results/sample").exists())
         self.assertIn("extra.txt", self.cli("logs", "sample__gwflow_complete", "--stderr", "--no-pager"))
         self.assertIn("extra.txt", self.cli("run", success=False))
+
+    def test_checked_installed_set_can_finish_without_logical_sources(self):
+        self.cli("-b", "recovery_fixture", "run", env=self.fault("gwflow_complete", crash_after_results_install=True))
+        self.settle()
+        attempt = self.task_attempts()["sample"]
+        result = self.work / "results/sample/result"
+        inode = result.stat().st_ino
+        (self.work / "extra.txt").unlink()
+        damaged = result.with_suffix(".missing")
+        result.rename(damaged)
+        self.assertIn("extra.txt", self.cli("run", success=False))
+        damaged.rename(result)
+        evidence = self.snapshot()
+        self.assertIn("finish checked installed", self.cli("run", "--dry-run"))
+        self.assertEqual(self.snapshot(), evidence)
+        self.cli("run")
+        self.settle()
+        self.assertIn("sample: reusable", self.cli("wait", "sample"))
+        self.assertEqual(self.task_attempts()["sample"], attempt)
+        self.assertEqual(result.stat().st_ino, inode)
+
+    def test_compaction_retry_uses_checked_completion_without_logical_sources(self):
+        self.cli("-b", "recovery_fixture", "run",
+                 env=self.fault("gwflow_complete", compaction_fault="after-consolidating"))
+        self.settle()
+        attempt = self.task_attempts()["sample"]
+        (self.work / "extra.txt").unlink()
+        self.assertIn("record compaction unfinished", self.cli("run", "--dry-run"))
+        self.cli("run")
+        self.settle()
+        self.assertIn("sample: reusable", self.cli("wait", "sample"))
+        self.assertEqual(self.task_attempts()["sample"], attempt)
 
     def test_descriptor_binding_requires_a_target_input_from_its_own_task(self):
         workflow = self.work / "workflow.py"
