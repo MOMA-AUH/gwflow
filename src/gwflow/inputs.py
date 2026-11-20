@@ -16,11 +16,16 @@ def declared_path(value, working_dir):
     return str((Path(working_dir) / value).absolute())
 
 
-def external_paths(structure):
-    """Ordinary external paths and every member of the selected representations."""
+def representation_paths(structure):
+    return [path for value in structure.get("logical_inputs", {}).values()
+            for path in value["representation"]["files"].values()]
+
+
+def external_paths(structure, *, include_logical=True):
+    """List ordinary external paths, optionally including representation files."""
     paths = [value for value in structure["inputs"] if isinstance(value, str)]
-    for value in structure.get("logical_inputs", {}).values():
-        paths.extend(value["representation"]["files"].values())
+    if include_logical:
+        paths.extend(representation_paths(structure))
     return paths
 
 

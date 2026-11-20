@@ -191,11 +191,10 @@ in `files` is an absolute path resolved at preparation. Use the bound descriptor
 path every time a target runs. Its location belongs to that execution and can be
 removed by work cleanup.
 
-The workflow author defines which decoded data the identity represents.
-Include values that change the computation in the logical identity, command,
-or another tracked declaration. Representation metadata describes how to read
-the files, such as their encoding. gwflow tracks the declared files and checks
-their metadata. The author remains responsible for equivalence and decoding.
+gwflow trusts the author's declaration that equal logical identities represent
+equivalent decoded data. Include values that change the computation in the
+logical identity, command, or another tracked declaration. Use representation
+metadata for information that the decoder needs, such as the file encoding.
 
 Each attempt freezes its logical input names, identities, file selections,
 and representation metadata. Preparation accepts the resolved paths, sizes,
@@ -203,10 +202,22 @@ and modification times into the Input baseline. Workers check this baseline
 before computation, before accepting a consuming target's outputs, and during
 Completion. Missing files or a changed observation prevent continued use of
 that baseline. Retry with unchanged inputs can keep checked computation.
-Changing a logical input's identity, file selection, or representation metadata
-requires a fresh attempt once activity and ownership checks permit replacement.
-An unchanged completed Task remains reusable after work cleanup when all of
-its usual input and retained-output checks pass.
+If the representation changes before the attempt finishes, gwflow requires a
+fresh attempt. Activity and ownership checks protect the previous attempt
+during replacement.
+
+After successful Completion, gwflow can reuse the same attempt even after
+work cleanup. For example, a workflow can switch from two text files to an
+archive with the same logical identity. The current files must be available.
+Their paths, names, file metadata, and decoding metadata can differ. Reuse
+checks the logical input names and identities, ordinary inputs, targets,
+commands, images, producer attempts, and retained outputs. Inspection leaves
+the attempt's descriptors and evidence intact.
+
+If the identity changes, gwflow requires a fresh attempt. To recompute with
+an equivalent representation, run `gwflow run TASK --force`. Preparation
+records a new physical Input baseline. The decoder then receives a descriptor
+for the selected files.
 
 ## Commands and reports
 

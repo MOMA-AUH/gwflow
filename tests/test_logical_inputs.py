@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import textwrap
 import unittest
+import zipfile
 
 from gwf.exceptions import WorkflowError
 from gwflow import Task
@@ -13,11 +14,13 @@ from gwflow import Task
 from record_fixtures import read_record, record_path, write_record
 from support import LocalBackendTestCase
 import test_inputs
+import test_inspection
 
 
 class LogicalInputTests(LocalBackendTestCase):
     inject = test_inputs.ExternalInputTests.inject
     fault = test_inputs.ExternalInputTests.fault
+    snapshot = test_inspection.LifecycleInspectionTests.snapshot
 
     def configure_workflow(self, *, identity='"sample-1"', metadata='{"encoding": "utf-8"}',
                            files='{"left": "input.txt", "right": "extra.txt"}'):
@@ -37,7 +40,7 @@ class LogicalInputTests(LocalBackendTestCase):
                 return task
 
             gwf = Workflow()
-            gwf.task(sample())
+            registered = gwf.task(sample())
         """))
         script = self.work / "decode.py"
         if not script.exists():
@@ -45,12 +48,18 @@ class LogicalInputTests(LocalBackendTestCase):
                 from pathlib import Path
                 import json
                 import sys
+                import zipfile
 
                 descriptor = json.loads(Path(sys.argv[1]).read_text())
                 files = descriptor["files"]
                 print(descriptor["identity"])
-                print(":".join(
-                    Path(files[key]).read_text(encoding=descriptor["metadata"]["encoding"]).strip() for key in ("left", "right")))
+                encoding = descriptor["metadata"]["encoding"]
+                if "archive" in files:
+                    with zipfile.ZipFile(files["archive"]) as archive:
+                        parts = [archive.read(key).decode(encoding) for key in ("left", "right")]
+                else:
+                    parts = [Path(files[key]).read_text(encoding=encoding) for key in ("left", "right")]
+                print(":".join(part.strip() for part in parts))
                 print(sys.argv[1], file=sys.stderr)
             """))
 
@@ -69,7 +78,41 @@ class LogicalInputTests(LocalBackendTestCase):
         self.assertEqual(self.task_attempts()["sample"], attempt)
         self.assertEqual(result.read_text(), "sample-1\nhello:extra\n")
 
-    def test_identity_and_representation_changes_start_fresh_attempts(self):
+    def test_switch_to_archive_reuses_cleaned_attempt_and_force_consumes_archive(self):
+        self.run_complete()
+        original = self.task_attempts()["sample"]
+        log = ("logs", "sample__decode", "--stderr", "--no-pager")
+        descriptor = Path(next(line for line in self.cli(*log).splitlines() if line.endswith(".json")))
+        frozen_descriptor = descriptor.read_bytes(), descriptor.stat().st_mtime_ns
+        archive = self.work / "pair.zip"
+        with zipfile.ZipFile(archive, "w") as packed:
+            for role, filename in (("left", "input.txt"), ("right", "extra.txt")):
+                packed.write(self.work / filename, role)
+        self.configure_workflow(files='{"archive": "pair.zip"}', metadata='{"encoding": "ascii"}')
+        self.assertIn("reuse", self.cli("run", "--dry-run").lower())
+        self.assertEqual((descriptor.read_bytes(), descriptor.stat().st_mtime_ns), frozen_descriptor)
+        self.cli("clean", "sample", "--delete")
+        self.assertFalse(descriptor.exists())
+        (self.work / "input.txt").unlink()
+        (self.work / "extra.txt").unlink()
+
+        frozen_records = self.snapshot()
+        status = json.loads(self.cli_result("status", "--json").stdout)
+        self.assertEqual(status["tasks"][0]["next_action"], "reuse")
+        self.assertNoSubmissions(self.cli("run"))
+        self.assertEqual(self.task_attempts()["sample"], original)
+        self.assertEqual(self.snapshot(), frozen_records)
+        self.assertFalse(descriptor.exists())
+        result = self.work / "results/sample/result"
+        self.assertEqual(result.read_text(), "sample-1\nhello:extra\n")
+
+        self.run_complete("sample", "--force")
+        self.assertNotEqual(self.task_attempts()["sample"], original)
+        replacement = Path(next(line for line in self.cli(*log).splitlines() if line.endswith(".json")))
+        self.assertEqual(json.loads(replacement.read_text())["files"], {"archive": str(archive)})
+        self.assertEqual(result.read_text(), "sample-1\nhello:extra\n")
+
+    def test_changed_logical_identity_starts_a_fresh_attempt(self):
         self.configure_workflow(identity='{"sample": 1, "verified": True}')
         self.run_complete()
         original = self.task_attempts()["sample"]
@@ -78,15 +121,59 @@ class LogicalInputTests(LocalBackendTestCase):
         self.assertNoSubmissions(self.cli("run"))
 
         self.configure_workflow(identity='{"sample": 1, "verified": 1}')
-        self.assertIn("logical input", self.cli("run", "--dry-run"))
+        self.assertIn("changed logical input name or identity", self.cli("run", "--dry-run"))
         self.run_complete()
         changed_identity = self.task_attempts()["sample"]
         self.assertNotEqual(original, changed_identity)
 
-        self.configure_workflow(identity='{"sample": 1, "verified": 1}', metadata='{"encoding": "ascii"}')
-        self.assertIn("logical input", self.cli("run", "--dry-run"))
+    def test_only_current_representation_is_required_and_ordinary_inputs_stay_tracked(self):
+        workflow = self.work / "workflow.py"
+        # The left file also has an independent role as an ordinary Task input.
+        workflow.write_text(workflow.read_text().replace('Task(inputs=["decode.py"])',
+                                                          'Task(inputs=["decode.py", "input.txt"])'))
         self.run_complete()
-        self.assertNotEqual(changed_identity, self.task_attempts()["sample"])
+        self.cli("clean", "sample", "--delete")
+        original = self.task_attempts()["sample"]
+        (self.work / "extra.txt").write_text("new physical contents\n")
+        self.assertNoSubmissions(self.cli("run"))
+        workflow.write_text(workflow.read_text().replace('"right": "extra.txt"', '"right": "alternate.txt"'))
+        status = json.loads(self.cli_result("status", "--json").stdout)["tasks"][0]
+        self.assertEqual(status["reason"]["code"], "input_unavailable")
+        self.assertIn("alternate.txt", status["reason"]["message"])
+        (self.work / "extra.txt").rename(self.work / "alternate.txt")
+        self.assertNoSubmissions(self.cli("run"))
+        (self.work / "input.txt").write_text("ordinary change\n")
+        status = json.loads(self.cli_result("status", "--json").stdout)["tasks"][0]
+        self.assertEqual((status["attempt_id"], status["next_action"], status["reason"]["code"]),
+                         (original, "run", "inputs_changed"))
+
+    def test_consumer_uses_retained_output_after_producer_switches_representation(self):
+        self.run_complete()
+        producer = self.task_attempts()["sample"]
+        self.cli("clean", "sample", "--delete")
+        (self.work / "input.txt").rename(self.work / "selected.txt")
+        self.configure_workflow(files='{"left": "selected.txt", "right": "extra.txt"}')
+        with (self.work / "workflow.py").open("a") as workflow:
+            workflow.write(textwrap.dedent("""
+                @task_template
+                def copy(source):
+                    task = Task(inputs=[source])
+                    write = task.target("write", inputs=[source], outputs=["copied"])
+                    write << shell("cat {source} > copied", source=source)
+                    task.retain("copy", source=write.output("copied"), path="copied")
+                    return task
+
+                gwf.task(copy(registered.outputs["result"]))
+            """))
+        self.run_complete("copy")
+        self.assertEqual((self.work / "results/copy/copied").read_text(), "sample-1\nhello:extra\n")
+        attempts = self.task_attempts()
+        self.assertEqual(attempts["sample"], producer)
+        self.assertNoSubmissions(self.cli("run", "copy"))
+        self.run_complete("sample", "--force")
+        self.assertIn("producer sample attempt changed", self.cli("run", "copy", "--dry-run"))
+        self.run_complete("copy")
+        self.assertNotEqual(self.task_attempts()["copy"], attempts["copy"])
 
     def test_changed_file_during_decoding_cannot_be_accepted_on_retry(self):
         # Hold the workflow-owned decoder after it receives its descriptor.
@@ -136,16 +223,31 @@ class LogicalInputTests(LocalBackendTestCase):
         self.wait_for(lambda: (self.work / "baseline-held").exists())
         try:
             self.configure_workflow(files='{"left": "extra.txt", "right": "input.txt"}')
-            self.assertIn("blocks replacement", self.cli("run", success=False))
+            for args in (("status", "--json"), ("run", "--dry-run", "--details"), ("run",)):
+                output = self.cli(*args, success=args[0] == "status")
+                self.assertIn("blocks replacement", output)
+                self.assertIn("previous physical baseline", output)
         finally:
             (self.work / "baseline-release").touch()
         self.finish()
         result = self.work / "results/sample/result"
         self.assertEqual(result.read_text(), "sample-1\nhello:extra\n")
         original = self.task_attempts()["sample"]
-        self.run_complete()
-        self.assertNotEqual(original, self.task_attempts()["sample"])
-        self.assertEqual(result.read_text(), "sample-1\nextra:hello\n")
+        self.assertNoSubmissions(self.cli("run"))
+        self.assertEqual(original, self.task_attempts()["sample"])
+
+    def test_failed_attempt_cannot_retry_with_a_different_representation(self):
+        self.cli("-b", "recovery_fixture", "run", env=self.fault("keep", crash_before_commit=True))
+        self.settle()
+        original = self.task_attempts()["sample"]
+        self.configure_workflow(files='{"left": "extra.txt", "right": "input.txt"}')
+        preview = self.cli("run", "--dry-run", "--details")
+        self.assertIn("previous physical baseline", preview)
+        self.assertIn("fresh attempt", preview)
+        self.cli("run")
+        self.settle()
+        self.assertNotEqual(self.task_attempts()["sample"], original)
+        self.assertEqual((self.work / "results/sample/result").read_text(), "sample-1\nextra:hello\n")
 
     def test_unchanged_retry_preserves_checked_decoder_execution(self):
         self.cli("-b", "recovery_fixture", "run", env=self.fault("keep", crash_before_commit=True))

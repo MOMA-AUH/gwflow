@@ -77,6 +77,18 @@ def valid_selections(selections):
     return True
 
 
+def selection_change(selected, frozen, *, completed):
+    # JSON distinguishes true, 1, and 1.0. Object member order is immaterial.
+    def identities(selections):
+        return json.dumps({name: value["identity"] for name, value in selections.items()}, sort_keys=True)
+
+    if identities(selected) != identities(frozen):
+        return "changed logical input name or identity"
+    if not completed and json.dumps(selected, sort_keys=True) != json.dumps(frozen, sort_keys=True):
+        return "changed logical input representation; previous physical baseline cannot be used"
+    return None
+
+
 def descriptor(name, selection, baseline):
     representation = selection["representation"]
     return {"name": name, "identity": selection["identity"], "metadata": representation["metadata"],

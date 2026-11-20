@@ -13,6 +13,14 @@ declaration. Representation metadata describes how to decode that input.
 Each attempt freezes its selection, accepts the physical Input baseline at
 preparation, and supplies resolved file paths through an attempt-owned descriptor.
 Retries use that frozen evidence so a later declaration cannot substitute files
-beneath previously checked work. In this first local execution contract, changing
-either identity or representation requires a fresh attempt. The generated
-descriptor path is execution storage and contributes nothing to Reuse identity.
+beneath previously checked work. A change of identity always requires a fresh
+attempt. A change of representation requires a fresh attempt while computation
+or Completion is unfinished. The generated descriptor path belongs to execution
+storage.
+
+After successful Completion, Reuse accepts a different available representation
+with the same declared logical input name and identity. The workflow owns the
+decoding and keeps its target declarations and command templates stable across
+representations. Reuse preserves the completed attempt's selection, descriptor,
+and physical Input baseline. Explicit force starts a new attempt that accepts
+the replacement files at preparation.
