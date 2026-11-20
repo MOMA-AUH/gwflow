@@ -142,6 +142,28 @@ class LogicalInputTests(LocalBackendTestCase):
         self.assertIn("invalidated: changed logical input name or identity", self.cli("wait", "sample", success=False))
         self.assertEqual(self.snapshot(), evidence)
 
+    def test_wait_keeps_polling_for_unconfirmed_completion_after_an_equivalent_switch(self):
+        self.run_complete()
+        self.configure_workflow(metadata='{"encoding": "ascii"}')
+        self.stop_worker(self.worker)
+        (self.work / ".gwf/local-termination/records.json").unlink()
+        result = self.cli_result("wait", "sample", "--timeout", "5", success=False)
+        self.assertEqual(result.returncode, 124, result.stderr)
+        self.assertIn("Scheduler unavailable", result.stderr)
+        self.configure_workflow(identity='"another sample"', metadata='{"encoding": "ascii"}')
+        result = self.cli_result("wait", "sample", "--timeout", "5", success=False)
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn("invalidated: changed logical input name or identity", result.stderr)
+
+    def test_wait_reports_an_unavailable_image_after_an_equivalent_switch(self):
+        self.run_complete()
+        self.configure_workflow(metadata='{"encoding": "ascii"}')
+        workflow = self.work / "workflow.py"
+        workflow.write_text(workflow.read_text().replace('outputs=["result"])', 'outputs=["result"], image="missing.sif")'))
+        result = self.cli_result("wait", "sample", success=False)
+        self.assertIn("image unavailable", result.stderr)
+        self.assertIn("missing.sif", result.stderr)
+
     def test_only_current_representation_is_required_and_ordinary_inputs_stay_tracked(self):
         workflow = self.work / "workflow.py"
         # The left file also has an independent role as an ordinary Task input.

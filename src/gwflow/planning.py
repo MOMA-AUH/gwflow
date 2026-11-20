@@ -231,9 +231,13 @@ def completed_observation(store, observation):
 
 
 def can_compare_by_logical_identity(store, observation, finishing, active):
-    if not observation.structure.get("logical_inputs") or active or finishing.state != "complete":
+    if not observation.structure.get("logical_inputs") or active or finishing.state not in ("complete", "uncertain"):
         return False
     try:
+        # An unknown scheduler outcome still blocks Reuse. Durable compaction
+        # lets wait distinguish an equivalent selection from a changed input.
+        if finishing.state == "uncertain" and not store.compaction_succeeded(observation.attempt, finishing.intent):
+            return False
         # Damaged preparation or Completion evidence still takes the normal
         # recovery path, including fresh computation after cleanup.
         store.input_baseline(observation.attempt)
