@@ -158,7 +158,7 @@ def mount(path, *, readonly=False):
 
 def invocation(image, work, temporary, environment, command, source_directories=()):
     arguments = ["apptainer", "exec", "--cleanenv", "--no-eval", "--pwd", str(work)]
-    for source in source_directories:
+    for source in sorted(source_directories, key=lambda path: (len(path.parts), str(path))):
         arguments.extend(["--mount", mount(source, readonly=True)])
     arguments.extend(["--mount", mount(work)])
     if temporary is None:

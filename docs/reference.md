@@ -137,7 +137,7 @@ consumers, including queued preparation and finishing jobs. Persisted consumer
 bindings still protect result replacement if that consumer is omitted from the
 loaded workflow; removing a Python declaration does not end its admitted jobs.
 
-### Logical inputs for local computation
+### Logical inputs
 
 Use a logical input when a workflow supplies both an identity for a dataset
 and a decoder for its physical files. Register the input on the Task, include
@@ -183,19 +183,32 @@ with string keys. Object member order is immaterial. The JSON types and list
 order are significant. `files` accepts a nonempty mapping from nonempty string
 names to external file paths. Relative paths start at the workflow directory.
 When the physical data is required, each member must resolve to a regular file
-outside managed storage. Use ordinary
-retained-output handles for data produced by another Task. Targets consuming
-logical inputs must run directly on the host without `image=`.
+outside managed storage. Use ordinary retained-output handles for data
+produced by another Task.
 
-The descriptor contains `name`, `identity`, `metadata`, and `files`. Each entry
-in `files` is an absolute path resolved at preparation. Use the bound descriptor
-path every time a target runs. Its location belongs to that execution and can be
-removed by work cleanup.
+The descriptor contains `name`, `identity`, `metadata`, and `files`. A host
+target receives the absolute paths that preparation resolved. A container
+target receives absolute paths to staged files inside the container. Read each
+path by its key in `files`. Use the bound descriptor path every time a target
+runs. Work cleanup can remove the descriptor and its staged files.
+
+For a container target, the descriptor appears as `<logical input name>.json`
+in its private work directory. To change that path, set
+`stage_as={"inputs/document.json": document}` on the target. Its other staged
+inputs and outputs must have distinct paths, including their parent directories
+when a parent would also be a file. Each descriptor has private member paths
+assigned in file-key order. Two members can therefore share a source basename.
+Use the descriptor to find them even if their keys contain spaces or slashes.
 
 gwflow trusts the author's declaration that equal logical identities represent
 equivalent decoded data. Include values that change the computation in the
 logical identity, command, or another tracked declaration. Use representation
 metadata for information that the decoder needs, such as the file encoding.
+Keep the consuming targets, their outputs, and their command templates stable
+across representations. Put decoding in one target that produces the same
+internal intermediates for every representation. Generated member paths do
+not enter the Task declaration. The [document example](../example/logical_inputs/README.md)
+uses this pattern to switch from two text files to a ZIP archive.
 
 Each attempt freezes its logical input names, identities, file selections,
 and representation metadata. Preparation accepts the resolved paths, sizes,
@@ -1294,7 +1307,7 @@ cannot establish successful execution or Completion; zero exit still requires
 the complete declared regular-file output set. Existing work cleanup and Reuse
 apply to container Tasks as well.
 
-Declared inputs of a container target are staged as symlinks in its
+Ordinary inputs of a container target are staged as symlinks in its
 private work directory, using the declared input basenames. Target-output
 references use their output filename; retained-output references use the
 producer's retained pathname, rather than the public output name. `shell()` bindings
@@ -1303,6 +1316,7 @@ same quoting contract. Literal commands may use their basenames directly. The
 effective layout is tracked as Task structure even when command hashes are off.
 Duplicate effective paths, invalid managed relative paths, and input/output
 collisions (including file/directory ancestry) are rejected before submission.
+For a logical input, the staged path names its [descriptor](#logical-inputs).
 
 For a tool expecting `genome.fa` beside `genome.fa.fai`, declare both source files
 in the Task boundary and target inputs. Both are then staged under those names;
@@ -1332,7 +1346,7 @@ gwf.task(companions_task(), alias="companions")
 
 Bindings still name the original input; the command receives its staged path,
 quoted as a shell argument. Relative nested names and spaces are supported.
-Each logical input has exactly one effective staged path: overrides replace
+Each target input has exactly one effective staged path: overrides replace
 defaults and add neither dependencies nor extra aliases. Undeclared references,
 multiple assignments to one input, and collisions between defaults, overrides,
 or outputs are errors. Paths follow the existing managed relative-path rules;

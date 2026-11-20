@@ -21,6 +21,7 @@ from support import TASK_FACTORY, FIXTURES, GWFLOW, LocalBackendTestCase
 from test_containers import ContainerRuntimeTests
 from test_staging import ContainerStagingTests
 from test_container_graphs import ContainerGraphTests
+from test_logical_input_example import LogicalInputExampleTests
 from test_container_environment import ContainerScratchTests, write_workflow
 from test_container_recovery import ContainerRecoveryTests
 from test_packaged_tasks import PackagedContainerExampleTests
@@ -177,6 +178,7 @@ CASES = {
     "overlap": (ContainerStagingTests, "test_source_parent_with_private_work_is_readonly_but_work_and_scratch_are_writable"),
     "aliases": (ContainerStagingTests, "test_alias_through_linked_parent_stages_basename_with_shell_punctuation"),
     "companions": (ContainerStagingTests, "test_custom_paths_disambiguate_basenames_and_place_declared_companions_together"),
+    "logical-inputs": (LogicalInputExampleTests, "test_clean_switch_reuse_and_forced_archive_computation"),
     "mixed": (ContainerGraphTests, "test_host_and_different_container_targets_exchange_checked_outputs"),
     "refresh": (ContainerGraphTests, "test_image_change_refreshes_whole_task_and_consumers_with_equal_retained_metadata"),
     "environment": (ContainerScratchTests, "test_image_settings_and_explicit_overrides_survive_clean_environment"),

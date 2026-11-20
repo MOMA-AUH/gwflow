@@ -516,12 +516,98 @@ class LogicalInputTests(LocalBackendTestCase):
             ('inputs=[pair, "decode.py"]', 'inputs=["input.txt", "decode.py"]', "undeclared Task boundary"),
             ('inputs=[pair, "decode.py"]', 'inputs=[Task([]).logical_input("pair", identity="sample-1", '
              'files={"left": "input.txt"}, metadata={}), "decode.py"]', "must belong to"),
-            ('outputs=["decoded"]', 'outputs=["decoded"], image="local.sif"', "without image="),
         ]:
             with self.subTest(error=error):
                 workflow.write_text(declaration.replace(source, replacement))
                 self.assertIn(error, self.cli("run", success=False))
                 self.assertFalse((self.work / ".gwf/gwflow").exists())
+
+    def test_container_plans_descriptor_and_ordinary_input_overrides(self):
+        workflow = self.work / "workflow.py"
+        workflow.write_text(textwrap.dedent("""\
+            from gwflow import Task, Workflow, shell, task_template
+
+            @task_template
+            def sample():
+                task = Task(inputs=["decode.py"])
+                seed = task.target("seed", inputs=[], outputs=["label"])
+                seed << "echo a-label > label"
+                label = seed.output("label")
+                pair = task.logical_input("pair", identity=1, metadata={},
+                                          files={"../left": "input.txt", "right/part": "extra.txt"})
+                decode = task.target("decode", inputs=[pair, "decode.py", label], outputs=["decoded"],
+                                     image="local.sif", stage_as={"docs/pair.json": pair,
+                                     "scripts/decoder": "decode.py", "seed/label": label})
+                decode << shell("python {decoder} {descriptor} {label} > decoded",
+                                decoder="decode.py", descriptor=pair, label=label)
+                task.retain("result", source=decode.output("decoded"), path="result")
+                return task
+
+            gwf = Workflow()
+            gwf.task(sample())
+        """))
+        (self.work / "local.sif").touch()
+        self.assertIn("Would submit 4 jobs", self.cli("run", "--dry-run"))
+        self.cli("run")
+        self.settle()
+        # The empty image (or an absent Apptainer) must fail at launch. A
+        # declaration or staging error would prevent reaching this diagnostic.
+        self.assertIn(f"Task sample target decode image {self.work / 'local.sif'}",
+                      self.cli("logs", "sample__decode", "--stderr", "--no-pager"))
+        descriptor, = (self.work / "work/sample").rglob("staging/docs/pair.json")
+        files = json.loads(descriptor.read_text())["files"]
+        for key, source in (("../left", "input.txt"), ("right/part", "extra.txt")):
+            self.assertTrue(Path(files[key]).is_symlink())
+            self.assertEqual(Path(files[key]).resolve(), self.work / source)
+        self.assertEqual((descriptor.parents[1] / "scripts/decoder").resolve(), self.work / "decode.py")
+        self.assertEqual((descriptor.parents[1] / "seed/label").read_text(), "a-label\n")
+        self.assertFalse((self.work / "results/sample").exists())
+
+    def test_container_descriptor_collisions_identify_the_path_before_submission(self):
+        workflow = self.work / "workflow.py"
+        declaration = workflow.read_text()
+        for layout, path in (
+                ('{"pair.json": "decode.py"}', "pair.json"),
+                ('{"decoded/descriptor.json": pair}', "decoded"),
+                ('{"scripts": pair, "scripts/decode": "decode.py"}', "scripts"),
+        ):
+            with self.subTest(layout=layout):
+                workflow.write_text(declaration.replace(
+                    'outputs=["decoded"]', f'outputs=["decoded"], image="local.sif", stage_as={layout}'))
+                output = self.cli("run", success=False)
+                self.assertIn(path, output)
+                self.assertIn("stage_as", output)
+                self.assertNoSubmissions(output)
+                self.assertFalse((self.work / ".gwf/gwflow").exists())
+
+    @unittest.skipUnless(os.environ.get("GWFLOW_TEST_SIF"), "set GWFLOW_TEST_SIF for real Apptainer execution")
+    def test_container_retry_uses_the_frozen_members_after_restoration(self):
+        workflow = self.work / "workflow.py"
+        image = str(Path(os.environ["GWFLOW_TEST_SIF"]).resolve())
+        workflow.write_text(workflow.read_text().replace(
+            'outputs=["decoded"]', f'outputs=["decoded"], image={image!r}'))
+        self.cli("-b", "recovery_fixture", "run", env=self.fault(gate_after_baseline=True))
+        self.wait_for(lambda: (self.work / "baseline-held").exists())
+        source, away = self.work / "extra.txt", self.work / "away"
+        try:
+            attempt = self.task_attempts()["sample"]
+            source.rename(away)
+        finally:
+            (self.work / "baseline-release").touch()
+        self.settle()
+        self.assertIn("extra.txt", self.cli("logs", "sample__decode", "--stderr", "--no-pager"))
+        self.assertFalse((self.work / "results/sample").exists())
+        blocked = self.cli("run", success=False)
+        self.assertIn("extra.txt", blocked)
+        self.assertNoSubmissions(blocked)
+        away.rename(source)
+        retried = self.cli("run", "sample", "--details")
+        for local in ("decode", "keep", "gwflow_complete"):
+            self.assertIn(f"sample__{local}: confirmed submitted", retried)
+        self.assertIn("All awaited Task attempts are complete.",
+                      self.cli("wait", "sample", "--interval", "0.2", "--timeout", "20"))
+        self.assertEqual(self.task_attempts()["sample"], attempt)
+        self.assertEqual((self.work / "results/sample/result").read_text(), "sample-1\nhello:extra\n")
 
     def test_logical_input_member_must_be_outside_managed_storage(self):
         destination = self.work / "results/nested/file"
