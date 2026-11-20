@@ -737,8 +737,8 @@ class Store:
                 observed[str(path)] = {"resolved": str(path), **_files.metadata(path.parent, [path.name])[path.name]}
         return observed
 
-    def check_inputs(self, attempt):
-        self._check_inputs(attempt, check_producers=True)
+    def check_inputs(self, attempt, *, include_logical=True):
+        self._check_inputs(attempt, check_producers=True, include_logical=include_logical)
 
     def _check_inputs(self, attempt, *, check_producers, include_logical=True):
         baseline = self.input_baseline(attempt)
@@ -844,7 +844,7 @@ class Store:
 
     @_observations.observation()
     def completed(self, attempt):
-        self.check_inputs(attempt)
+        self.check_inputs(attempt, include_logical=False)
         return self.completed_results(attempt)
 
     def completed_results(self, attempt):
@@ -856,6 +856,14 @@ class Store:
             return _observations.reuse("completion", key, lambda: self._completion_records(attempt))
 
     def _completion_records(self, attempt):
+        manifest = self.completion_manifest(attempt)
+        return (manifest is not None
+                and _files.same_directory(manifest["staged_identity"], _files.identity(self.result_dir(attempt)))
+                and _files.metadata(self.result_dir(attempt), manifest["outputs"]) == manifest["outputs"])
+
+    @_records.observing
+    def completion_manifest(self, attempt):
+        """Return checked Completion evidence independently of damage to the installed files."""
         operation = attempt["operation"]
         completion = self.read(attempt, "completion.json", "completion", operation=operation)
         installed = self.read(attempt, "installed.json", "installed", operation=operation)
@@ -866,14 +874,14 @@ class Store:
                 or completion.get("outputs") != installed.get("outputs")
                 or installed.get("outputs") != manifest.get("outputs")
                 or not _valid_metadata(completion.get("outputs"), destinations)):
-            return False
+            return None
         sources = self.source_evidence(attempt)
         if (manifest.get("sources") != sources
                 or manifest.get("retained") != attempt["structure"]["retained"]
                 or manifest.get("destination") != str(self.result_dir(attempt))
-                or not _files.same_directory(manifest.get("staged_identity"), _files.identity(self.result_dir(attempt)))):
-            return False
-        return _files.metadata(self.result_dir(attempt), destinations) == completion["outputs"]
+                or not _files.valid_identity(manifest.get("staged_identity"))):
+            return None
+        return manifest
 
     def check_compaction_obligation(self, attempt):
         if self.read(attempt, "compaction.json", "compaction", operation=attempt["operation"]) is None:
@@ -894,8 +902,7 @@ class Store:
 
     def execution_ready(self, attempt):
         """Checked results alone cannot satisfy unfinished completion work."""
-        self._check_inputs(attempt, check_producers=True, include_logical=False)
-        return self.completed_results(attempt) and self.compaction_succeeded(attempt)
+        return self.completed(attempt) and self.compaction_succeeded(attempt)
 
     def compact(self, attempt, intent):
         """Publish completion-job success only after required record conversion."""
@@ -986,6 +993,7 @@ class Store:
             return attempt
         if self.exists(attempt, "admissions"):
             raise WorkflowError("Unready Task has submission evidence; initialization cannot remove results")
+        inputs.observe(inputs.representation_paths(attempt["structure"]), self.locations, refresh=True)
         destination = self.result_dir(attempt)
         if _files.exists(destination):
             if record["result_identity"] is None:
@@ -1020,6 +1028,7 @@ class Store:
         self.publish(attempt, "initialization.json", "initialization", destination=str(self.result_dir(attempt)),
                      previous=observation.attempt["attempt"] if observation.attempt else None,
                      result_identity=observation.removal)
+        inputs.observe(inputs.representation_paths(observation.structure), self.locations, refresh=True)
         _files.publish(self._task_dir(observation.name) / "current.json",
                        _record("current", **self.identity(attempt)))
         return self.finish_initialization(attempt)
