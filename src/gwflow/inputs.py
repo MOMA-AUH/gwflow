@@ -16,6 +16,14 @@ def declared_path(value, working_dir):
     return str((Path(working_dir) / value).absolute())
 
 
+def external_paths(structure):
+    """Ordinary external paths and every member of the selected representations."""
+    paths = [value for value in structure["inputs"] if isinstance(value, str)]
+    for value in structure.get("logical_inputs", {}).values():
+        paths.extend(value["representation"]["files"].values())
+    return paths
+
+
 def validate_location(path, resolved, locations):
     for candidate in (path, resolved):
         if any(candidate == root or root in candidate.parents for root in locations.values()):

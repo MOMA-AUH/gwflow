@@ -2,6 +2,7 @@
 
 from contextlib import ExitStack
 from dataclasses import dataclass
+import json
 import os
 from pathlib import Path
 from uuid import UUID
@@ -47,6 +48,11 @@ def definition_change(store, observation, observations_by_name, *, force_option,
     attempt = observation.attempt
     if force_option:
         return "definition_requires_refresh", f"requested {force_option}"
+    # JSON distinguishes true, 1, and 1.0; Python container equality does not.
+    selected = observation.structure.get("logical_inputs", {})
+    frozen = attempt["structure"].get("logical_inputs", {})
+    if (selected or frozen) and json.dumps(selected, sort_keys=True) != json.dumps(frozen, sort_keys=True):
+        return "definition_requires_refresh", "changed logical input identity or representation"
     if observation.structure != attempt["structure"]:
         labels = {"inputs": "external inputs", "targets": "target membership or file declarations", "retained": "retained mappings"}
         changed = [label for key, label in labels.items() if observation.structure[key] != attempt["structure"][key]]
@@ -125,7 +131,7 @@ def fresh_observation(store, observation, reason, *, code="prior_work_unusable",
         blocker = ("submission_unresolved" if any(item.state == "uncertain" for item in observation.submissions.values())
                    else "activity_conflict")
         raise InspectionBlocker(blocker, "Unresolved or active work blocks replacement: " + ", ".join(active))
-    inputs.observe([value for value in observation.structure["inputs"] if isinstance(value, str)], store.locations)
+    inputs.observe(inputs.external_paths(observation.structure), store.locations)
     observation.removal = store.result_removal(observation.attempt) if observation.attempt else None
     observation.action, observation.reason = "fresh", reason + "; fresh attempt required"
     observation.reason_code = code
