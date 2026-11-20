@@ -96,6 +96,10 @@ def retry_targets(store, attempt, jobs):
 
 def retry_observation(store, observation, jobs):
     attempt = observation.attempt
+    # An active finisher can complete from checked results after unrelated
+    # computation intermediates have disappeared.
+    if jobs["gwflow_complete"].state == "active" and logical_sources_optional(store, observation):
+        return False
     replaced = retry_targets(store, attempt, jobs)
     if not replaced:
         return False
@@ -144,16 +148,20 @@ def fresh_observation(store, observation, reason, *, code="prior_work_unusable",
     observation.pending = lifecycle_jobs(ordered_targets(observation.structure))
 
 
+def logical_sources_optional(store, observation):
+    return (observation.compare_by_logical_identity
+            or bool(observation.attempt["structure"].get("logical_inputs"))
+            and transfer.has_checked_installation(store, observation.attempt))
+
+
 def input_metadata_changes(store, observation):
     attempt = observation.attempt
     if not observation.compare_by_logical_identity and not store.exists(attempt, "inputs.json"):
-        inputs.observe(inputs.representation_paths(observation.structure), store.locations)
+        inputs.check_representation_files(observation.structure, store.locations)
         return []
     baseline = store.input_baseline(attempt)
-    include_logical = (not observation.compare_by_logical_identity
-                       and not (attempt["structure"].get("logical_inputs") and transfer.has_checked_installation(store, attempt)))
     try:
-        observed = store.observe_inputs(attempt, include_logical=include_logical)
+        observed = store.observe_inputs(attempt, include_logical=not logical_sources_optional(store, observation))
     except WorkflowError as error:
         raise InspectionBlocker("input_unavailable", f"Inputs unavailable; a fresh attempt requires valid inputs: {error}") from error
     changes = []
@@ -247,7 +255,7 @@ def awaiting_producer_metadata(store, observation):
         return True
     attempt = observation.attempt
     return (observation.action == "active" and store.repair_intent(attempt) is not None
-            and store.read(attempt, "completion.json", "completion", operation=attempt["operation"]) is None)
+            and not store.compaction_succeeded(attempt))
 
 
 def defer_observation(observation):
@@ -391,7 +399,7 @@ def plan_workflow(workflow, ctx, *, selectors=(), force=False, for_submission=Fa
                             code, reason = change
                             fresh_observation(store, observation, reason, code=code)
                         elif initializing:
-                            inputs.observe(inputs.representation_paths(structure), store.locations)
+                            inputs.check_representation_files(structure, store.locations)
                             observation.restart_required = True
                             observation.removal = store.result_removal(attempt)
                             observation.action, observation.reason = "initialize", "resume selected initialization; remove previous results before submission"

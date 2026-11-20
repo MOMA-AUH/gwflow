@@ -274,6 +274,32 @@ class LogicalInputTests(LocalBackendTestCase):
         self.assertNoSubmissions(self.cli("run", "copy"))
         self.assertEqual(self.task_attempts(), attempts)
 
+    def test_active_repair_waits_with_only_its_retained_work_source(self):
+        self.add_consumer()
+        self.run_complete()
+        (self.work / "extra.txt").unlink()
+        intermediate, = (self.work / "work/sample").glob("*/decode/*/committed/decoded")
+        intermediate.unlink()
+        retained = self.work / "results/sample/result"
+        retained.unlink()
+        self.cli("-b", "recovery_fixture", "run", "sample",
+                 env=self.fault("gwflow_complete", gate_after_manifest=True, gate_before_compaction=True))
+        self.wait_for(lambda: (self.work / "manifest-held").exists())
+        try:
+            status = json.loads(self.cli_result("status", "sample", "--json").stdout)["tasks"][0]
+            self.assertEqual(status["next_action"], "wait", status)
+            self.assertEqual(self.cli_result("wait", "sample", "--timeout", "2", success=False).returncode, 124)
+        finally:
+            (self.work / "manifest-release").touch()
+        self.wait_for((self.work / "sample-compaction-held").exists)
+        try:
+            status = json.loads(self.cli_result("status", "--json").stdout)["tasks"]
+            self.assertEqual({t["name"]: t["next_action"] for t in status}, {"sample": "wait", "copy": "defer"})
+        finally:
+            (self.work / "sample-compaction-release").touch()
+        self.settle()
+        self.assertEqual(retained.read_text(), "sample-1\nhello:extra\n")
+
     def test_failed_repair_requires_available_sources_for_fresh_producer_and_consumer(self):
         self.add_consumer()
         self.run_complete()

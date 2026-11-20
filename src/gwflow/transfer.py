@@ -114,6 +114,10 @@ def has_checked_installation(store, attempt):
         return False
 
 
+def _check_transfer_inputs(store, attempt, *, repair, checked_installation):
+    store.check_inputs(attempt, include_logical=repair is None and not checked_installation)
+
+
 def inspect(store, attempt):
     """Check recovery eligibility without changing files or allocating identities."""
     store.validate_roots()
@@ -137,7 +141,7 @@ def inspect(store, attempt):
         if not _files.same_directory(_files.identity(Path(record["staging"])), record["staged_identity"]):
             raise WorkflowError("Transfer staging ownership changed")
     manifest = _checked_manifest(store, attempt, sources, record, installed=installed)
-    store.check_inputs(attempt, include_logical=repair is None and not (installed and manifest is not None))
+    _check_transfer_inputs(store, attempt, repair=repair, checked_installation=installed and manifest is not None)
     if manifest is not None:
         if installed:
             return Recovery("complete", "finish checked installed retained results under the same attempt", record, manifest)
@@ -195,7 +199,7 @@ def finish(store, attempt):
         raise WorkflowError("Current Task attempt changed before results commit")
     store.validate_result_ownership({attempt["task"]: attempt["result_dir"]})
     repair = store.repair_intent(attempt)
-    store.check_inputs(attempt, include_logical=repair is None and recovery.action != "complete")
+    _check_transfer_inputs(store, attempt, repair=repair, checked_installation=recovery.action == "complete")
     if recovery.action == "complete":
         if not _checked_set(store.result_dir(attempt), manifest):
             raise WorkflowError("Installed transfer changed before Completion")

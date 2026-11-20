@@ -993,7 +993,7 @@ class Store:
             return attempt
         if self.exists(attempt, "admissions"):
             raise WorkflowError("Unready Task has submission evidence; initialization cannot remove results")
-        inputs.observe(inputs.representation_paths(attempt["structure"]), self.locations, refresh=True)
+        inputs.check_representation_files(attempt["structure"], self.locations, refresh=True)
         destination = self.result_dir(attempt)
         if _files.exists(destination):
             if record["result_identity"] is None:
@@ -1028,7 +1028,7 @@ class Store:
         self.publish(attempt, "initialization.json", "initialization", destination=str(self.result_dir(attempt)),
                      previous=observation.attempt["attempt"] if observation.attempt else None,
                      result_identity=observation.removal)
-        inputs.observe(inputs.representation_paths(observation.structure), self.locations, refresh=True)
+        inputs.check_representation_files(observation.structure, self.locations, refresh=True)
         _files.publish(self._task_dir(observation.name) / "current.json",
                        _record("current", **self.identity(attempt)))
         return self.finish_initialization(attempt)
