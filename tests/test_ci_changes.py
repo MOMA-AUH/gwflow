@@ -65,6 +65,65 @@ class CiChangesTests(unittest.TestCase):
                      "--github-output", str(output))
         self.assertEqual(output.read_text(), "mode=full\nrelease_simulations=skip\n")
 
+    def test_release_notes_use_lightweight_checks_through_their_lifecycle(self):
+        name = "docs/releases/v0.11.3.md"
+        self.write(name, "# Release notes\n")
+        self.commit()
+        self.assertEqual(self.plan()["mode"], "docs")
+        self.assertEqual(self.plan()["release_simulations"], "skip")
+        self.base = self.git("rev-parse", "HEAD").strip()
+        self.write(name, "# Verified release notes\n")
+        self.commit()
+        self.assertEqual(self.plan()["mode"], "docs")
+        self.base = self.git("rev-parse", "HEAD").strip()
+        self.git("mv", name, "docs/releases/v0.11.4.md")
+        self.commit()
+        self.assertEqual(self.plan()["mode"], "docs")
+        self.base = self.git("rev-parse", "HEAD").strip()
+        self.git("rm", "docs/releases/v0.11.4.md")
+        self.commit()
+        self.assertEqual(self.plan()["mode"], "docs")
+
+    def test_release_notes_with_application_changes_omit_only_release_simulations(self):
+        self.write("docs/releases/v0.11.3.md", "# Release notes\n")
+        self.write("src/gwflow/presentation.py", "# Presentation\n")
+        self.commit()
+        self.assertEqual(self.plan()["mode"], "full")
+        self.assertEqual(self.plan()["release_simulations"], "skip")
+
+    def test_release_note_renames_check_both_paths(self):
+        self.write("docs/releases/v0.11.3.md", "# Release notes\n")
+        self.commit()
+        self.base = self.git("rev-parse", "HEAD").strip()
+        self.git("mv", "docs/releases/v0.11.3.md", "docs/unknown.md")
+        self.commit()
+        self.assertEqual(self.plan()["mode"], "full")
+        self.assertEqual(self.plan()["release_simulations"], "run")
+        self.base = self.git("rev-parse", "HEAD").strip()
+        self.git("mv", "docs/unknown.md", "docs/releases/v0.11.3.md")
+        self.commit()
+        self.assertEqual(self.plan()["mode"], "full")
+        self.assertEqual(self.plan()["release_simulations"], "run")
+
+    def test_release_notes_with_sensitive_changes_run_full_validation(self):
+        self.write("docs/releases/v0.11.3.md", "# Release notes\n")
+        self.write("src/gwflow/lifecycle.py", "# Lifecycle\n")
+        self.commit()
+        self.assertEqual(self.plan()["mode"], "full")
+        self.assertEqual(self.plan()["release_simulations"], "run")
+
+    def test_executable_and_symlink_release_notes_run_full_validation(self):
+        path = self.write("docs/releases/v0.11.3.md", "# Release notes\n")
+        path.chmod(0o755)
+        self.commit()
+        self.assertEqual(self.plan()["mode"], "full")
+        self.assertEqual(self.plan()["release_simulations"], "run")
+        path.unlink()
+        path.symlink_to("../../README.md")
+        self.commit()
+        self.assertEqual(self.plan()["mode"], "full")
+        self.assertEqual(self.plan()["release_simulations"], "run")
+
     def test_release_simulation_plan_is_conservative_and_release_events_cannot_skip(self):
         for event, selection, expected in (("pull_request", "skip", False), ("pull_request", "run", True),
                                            ("workflow_dispatch", "skip", True), ("push", "skip", True),
@@ -113,7 +172,9 @@ class CiChangesTests(unittest.TestCase):
                      "docs/new.md", "docs/releasing.md", "docs/adr/0024-example.md", "AGENTS.md",
                      "docs/operating.md\nextra", "docs/é.md", "tests/conda_runtime.py",
                      "tests/compare_runtime.py", "tests/qualification_event.py", "src/gwflow/lifecycle.py",
-                     "tests/test_new_release_feature.py"):
+                     "tests/test_new_release_feature.py", "docs/releases/helper.py", "docs/releases/notes.json",
+                     "docs/releases/nested/notes.md", "docs/releases-extra/notes.md",
+                     "docs/releases/notes.md\nextra"):
             with self.subTest(path=name):
                 self.git("reset", "--hard", self.base)
                 self.write("README.md", "# Updated\n")
