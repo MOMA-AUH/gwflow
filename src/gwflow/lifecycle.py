@@ -282,6 +282,7 @@ class TaskObservation:
     retry: list = field(default_factory=list)
     consumers: dict = field(default_factory=dict)
     removal: dict | None = None
+    compare_by_logical_identity: bool = False
     # Presentation facts survive a later submission gate without changing the plan.
     observations_available: bool = False
     restart_required: bool = False

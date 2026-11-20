@@ -127,6 +127,21 @@ class LogicalInputTests(LocalBackendTestCase):
         changed_identity = self.task_attempts()["sample"]
         self.assertNotEqual(original, changed_identity)
 
+    def test_wait_accepts_a_completed_attempt_with_an_equivalent_available_representation(self):
+        self.run_complete()
+        self.cli("clean", "sample", "--delete")
+        (self.work / "extra.txt").rename(self.work / "replacement.txt")
+        files = '{"left": "input.txt", "right": "replacement.txt"}'
+        self.configure_workflow(files=files)
+        evidence = self.snapshot()
+        self.assertIn("sample: reusable", self.cli("wait", "sample"))
+        (self.work / "replacement.txt").rename(self.work / "absent.txt")
+        self.assertIn("replacement.txt", self.cli("wait", "sample", success=False))
+        (self.work / "absent.txt").rename(self.work / "replacement.txt")
+        self.configure_workflow(files=files, identity='"another sample"')
+        self.assertIn("invalidated: changed logical input name or identity", self.cli("wait", "sample", success=False))
+        self.assertEqual(self.snapshot(), evidence)
+
     def test_only_current_representation_is_required_and_ordinary_inputs_stay_tracked(self):
         workflow = self.work / "workflow.py"
         # The left file also has an independent role as an ordinary Task input.
@@ -248,6 +263,8 @@ class LogicalInputTests(LocalBackendTestCase):
                 output = self.cli(*args, success=args[0] == "status")
                 self.assertIn("blocks replacement", output)
                 self.assertIn("previous physical baseline", output)
+            wait = self.cli("wait", "sample", "--timeout", "5", success=False)
+            self.assertIn("invalidated: changed logical input representation", wait)
         finally:
             (self.work / "baseline-release").touch()
         self.finish()
