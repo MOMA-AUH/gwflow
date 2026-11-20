@@ -11,7 +11,7 @@ import zipfile
 from gwf.exceptions import WorkflowError
 from gwflow import Task
 
-from record_fixtures import read_record, record_path, write_record
+from record_fixtures import read_record, record_path, remove_record, write_record
 from support import LocalBackendTestCase
 import test_inputs
 import test_inspection
@@ -71,7 +71,10 @@ class LogicalInputTests(LocalBackendTestCase):
         log = self.cli("logs", "sample__decode", "--stderr", "--no-pager")
         descriptor = Path(next(line for line in log.splitlines() if line.endswith(".json")))
         self.assertTrue(descriptor.is_relative_to(self.work / "work"))
-        self.assertTrue(descriptor.is_file())
+        frozen_descriptor = descriptor.read_bytes(), descriptor.stat().st_mtime_ns
+        self.configure_workflow(metadata='{"encoding": "ascii"}')
+        self.assertNoSubmissions(self.cli("run"))
+        self.assertEqual((descriptor.read_bytes(), descriptor.stat().st_mtime_ns), frozen_descriptor)
         self.cli("clean", "sample", "--delete")
         self.assertFalse(descriptor.exists())
         self.assertNoSubmissions(self.cli("run"))
@@ -83,22 +86,20 @@ class LogicalInputTests(LocalBackendTestCase):
         original = self.task_attempts()["sample"]
         log = ("logs", "sample__decode", "--stderr", "--no-pager")
         descriptor = Path(next(line for line in self.cli(*log).splitlines() if line.endswith(".json")))
-        frozen_descriptor = descriptor.read_bytes(), descriptor.stat().st_mtime_ns
+        self.cli("clean", "sample", "--delete")
+        self.assertFalse(descriptor.exists())
         archive = self.work / "pair.zip"
         with zipfile.ZipFile(archive, "w") as packed:
             for role, filename in (("left", "input.txt"), ("right", "extra.txt")):
                 packed.write(self.work / filename, role)
         self.configure_workflow(files='{"archive": "pair.zip"}', metadata='{"encoding": "ascii"}')
-        self.assertIn("reuse", self.cli("run", "--dry-run").lower())
-        self.assertEqual((descriptor.read_bytes(), descriptor.stat().st_mtime_ns), frozen_descriptor)
-        self.cli("clean", "sample", "--delete")
-        self.assertFalse(descriptor.exists())
         (self.work / "input.txt").unlink()
         (self.work / "extra.txt").unlink()
 
         frozen_records = self.snapshot()
         status = json.loads(self.cli_result("status", "--json").stdout)
         self.assertEqual(status["tasks"][0]["next_action"], "reuse")
+        self.assertIn("Reuse", self.cli("run", "--dry-run"))
         self.assertNoSubmissions(self.cli("run"))
         self.assertEqual(self.task_attempts()["sample"], original)
         self.assertEqual(self.snapshot(), frozen_records)
@@ -217,6 +218,26 @@ class LogicalInputTests(LocalBackendTestCase):
         self.assertNotIn("failed unexpectedly", output)
         self.assertNoSubmissions(output)
         self.assertEqual((self.work / "results/sample/result").read_text(), "sample-1\nhello:extra\n")
+
+    def test_equivalent_representation_still_requires_valid_cleanup_evidence(self):
+        self.run_complete()
+        self.cli("clean", "sample", "--delete")
+        path = record_path(self.work, "sample", "cleanup.json")
+        record = read_record(path)
+        write_record(path, {**record, "removed_paths": ["outside the recorded directories"]})
+        self.configure_workflow(metadata='{"encoding": "ascii"}')
+        status = json.loads(self.cli_result("status", "--json").stdout)["tasks"][0]
+        self.assertEqual(status["next_action"], "blocked")
+        self.assertIn("cleanup progress", status["reason"]["message"])
+
+    def test_cleaned_attempt_without_input_baseline_can_start_fresh(self):
+        self.run_complete()
+        original = self.task_attempts()["sample"]
+        self.cli("clean", "sample", "--delete")
+        remove_record(record_path(self.work, "sample", "inputs.json"))
+        self.assertIn("fresh attempt", self.cli("run", "--dry-run"))
+        self.run_complete()
+        self.assertNotEqual(self.task_attempts()["sample"], original)
 
     def test_active_attempt_freezes_selection_and_blocks_replacement(self):
         self.cli("-b", "recovery_fixture", "run", env=self.fault(gate_after_baseline=True))

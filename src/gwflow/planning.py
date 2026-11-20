@@ -43,7 +43,7 @@ def tracked_commands_match(store, attempt, commands):
     return True
 
 
-def definition_change(store, observation, observations_by_name, *, force_option, initializing, logical_reuse):
+def definition_change(store, observation, observations_by_name, *, force_option, initializing, compare_by_identity):
     attempt = observation.attempt
     if force_option:
         return "definition_requires_refresh", f"requested {force_option}"
@@ -51,7 +51,7 @@ def definition_change(store, observation, observations_by_name, *, force_option,
     selected = observation.structure.get("logical_inputs", {})
     frozen = recorded.get("logical_inputs", {})
     if selected or frozen:
-        reason = logical_inputs.selection_change(selected, frozen, completed=logical_reuse)
+        reason = logical_inputs.selection_change(selected, frozen, compare_by_identity=compare_by_identity)
         if reason:
             return "definition_requires_refresh", reason
         recorded = {**recorded, "logical_inputs": selected}
@@ -143,13 +143,13 @@ def fresh_observation(store, observation, reason, *, code="prior_work_unusable",
     observation.pending = lifecycle_jobs(ordered_targets(observation.structure))
 
 
-def input_metadata_changes(store, observation, *, logical_reuse=False):
+def input_metadata_changes(store, observation, *, compare_by_identity=False):
     attempt = observation.attempt
-    if not logical_reuse and not store.exists(attempt, "inputs.json"):
+    if not compare_by_identity and not store.exists(attempt, "inputs.json"):
         return []
     baseline = store.input_baseline(attempt)
     try:
-        observed = store.observe_inputs(attempt, include_logical=not logical_reuse)
+        observed = store.observe_inputs(attempt, include_logical=not compare_by_identity)
     except WorkflowError as error:
         raise InspectionBlocker("input_unavailable", f"Inputs unavailable; a fresh attempt requires valid inputs: {error}") from error
     changes = []
@@ -227,10 +227,13 @@ def completed_observation(store, observation):
     observation.pending = ["gwflow_complete"]
 
 
-def reusable_logical_inputs(store, observation, finishing, active):
+def can_compare_by_logical_identity(store, observation, finishing, active):
     if not observation.structure.get("logical_inputs") or active or finishing.state != "complete":
         return False
     try:
+        # Damaged preparation or Completion evidence still takes the normal
+        # recovery path, including fresh computation after cleanup.
+        store.input_baseline(observation.attempt)
         return store.completed_results(observation.attempt)
     except (WorkflowError, OSError):
         return False
@@ -372,10 +375,10 @@ def plan_workflow(workflow, ctx, *, selectors=(), force=False, for_submission=Fa
                                                     ", ".join(item.submission for item in superseded))
                         if uncertain:
                             raise InspectionBlocker("submission_unresolved", "unresolved submission: " + ", ".join(uncertain))
-                        logical_reuse = reusable_logical_inputs(store, observation, finishing, active)
+                        compare_by_identity = can_compare_by_logical_identity(store, observation, finishing, active)
                         change = definition_change(store, observation, observations_by_name,
                                                    force_option="--force" if force and name in selected_names else None,
-                                                   initializing=initializing, logical_reuse=logical_reuse)
+                                                   initializing=initializing, compare_by_identity=compare_by_identity)
                         if producer_deferred and not (change and active):
                             # Resuming unfinished initialization keeps its selected attempt.
                             observation.restart_required = change is not None
@@ -392,12 +395,12 @@ def plan_workflow(workflow, ctx, *, selectors=(), force=False, for_submission=Fa
                         elif (not active and any(awaiting_producer_metadata(store, producer) for producer in producers)
                               and store.exists(attempt, "inputs.json")):
                             defer_observation(observation)
-                        elif not logical_reuse and not active and store.cleanup_record(attempt) is not None:
+                        elif not active and store.cleanup_record(attempt) is not None and not compare_by_identity:
                             completed_observation(store, observation)
-                        elif changes := input_metadata_changes(store, observation, logical_reuse=logical_reuse):
+                        elif changes := input_metadata_changes(store, observation, compare_by_identity=compare_by_identity):
                             fresh_observation(store, observation, "input metadata changed: " + "; ".join(changes),
                                               code="inputs_changed", details=[])
-                        elif logical_reuse:
+                        elif compare_by_identity:
                             inputs.observe(inputs.representation_paths(structure), store.locations)
                             observation.action, observation.reason = "reuse", "logical input identities, checked completion and retained metadata match"
                             observation.reason_code = "results_valid"
