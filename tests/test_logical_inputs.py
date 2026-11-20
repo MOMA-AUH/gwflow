@@ -597,9 +597,15 @@ class LogicalInputTests(LocalBackendTestCase):
         self.settle()
         self.assertIn("extra.txt", self.cli("logs", "sample__decode", "--stderr", "--no-pager"))
         self.assertFalse((self.work / "results/sample").exists())
-        self.assertIn("extra.txt", self.cli("run", success=False))
+        blocked = self.cli("run", success=False)
+        self.assertIn("extra.txt", blocked)
+        self.assertNoSubmissions(blocked)
         away.rename(source)
-        self.run_complete()
+        retried = self.cli("run", "sample", "--details")
+        for local in ("decode", "keep", "gwflow_complete"):
+            self.assertIn(f"sample__{local}: confirmed submitted", retried)
+        self.assertIn("All awaited Task attempts are complete.",
+                      self.cli("wait", "sample", "--interval", "0.2", "--timeout", "20"))
         self.assertEqual(self.task_attempts()["sample"], attempt)
         self.assertEqual((self.work / "results/sample/result").read_text(), "sample-1\nhello:extra\n")
 
