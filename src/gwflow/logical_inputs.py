@@ -68,7 +68,10 @@ def valid_selections(selections):
             return False
         # Reuse the declaration contract when accepting persisted data. Recorded
         # aliases are already absolute, including aliases that contain symlinks.
-        LogicalInput(name, identity=selection["identity"], **representation)
+        try:
+            LogicalInput(name, identity=selection["identity"], **representation)
+        except WorkflowError:
+            return False
         if not all(Path(path).is_absolute() for path in representation["files"].values()):
             return False
     return True
