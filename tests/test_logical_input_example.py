@@ -38,35 +38,52 @@ class LogicalInputExampleTests(LocalBackendTestCase):
                     self.switch_to_archive()
                 self.assertIn("Would submit 4 jobs", self.cli("run", "--dry-run"))
 
+    def assert_materialization(self, workspace, sources):
+        materialized, = workspace.glob("materialize/*/committed")
+        joined, = workspace.glob("join/*/committed")
+        for name in ("heading.txt", "body.txt"):
+            intermediate = materialized / name
+            self.assertTrue(intermediate.is_file())
+            self.assertFalse(intermediate.is_symlink())
+            self.assertTrue((joined / name).is_symlink())
+            self.assertEqual((joined / name).resolve(), intermediate)
+
+        descriptor = json.loads((materialized / "inputs/source.json").read_text())
+        members = descriptor["files"]
+        self.assertEqual(set(members), set(sources))
+        for key, source in sources.items():
+            self.assertTrue(Path(members[key]).is_symlink())
+            self.assertEqual(Path(members[key]).resolve(), source)
+
     @unittest.skipUnless(os.environ.get("GWFLOW_TEST_SIF"), "set GWFLOW_TEST_SIF for real Apptainer execution")
     def test_clean_switch_reuse_and_forced_archive_computation(self):
         self.run_complete()
         result = self.work / "results/document/report.txt"
         expected = "Meeting notes\nThe meeting starts at noon.\n"
         self.assertEqual(result.read_text(), expected)
+        retained = result.stat()
         attempt = self.task_attempts()["document"]
+        workspace = self.work / "work/document" / attempt
         logs = ("logs", "document__materialize", "--no-pager")
         self.assertRegex(self.cli(*logs), r"Materialized files from .*/inputs/source\.json")
-        intermediates = list((self.work / "work/document").rglob("committed/heading.txt"))
-        self.assertEqual(len(intermediates), 1)
-        descriptor = intermediates[0].parent / "inputs/source.json"
-        members = json.loads(descriptor.read_text())["files"]
-        self.assertEqual(set(members), {"heading", "body"})
-        for key, member in members.items():
-            self.assertTrue(Path(member).is_symlink())
-            self.assertEqual(Path(member).resolve(), self.work / "parts" / key / "text.txt")
+        sources = {key: self.work / "parts" / key / "text.txt" for key in ("heading", "body")}
+        self.assert_materialization(workspace, sources)
         self.cli("clean", "document", "--delete")
-        self.assertFalse(intermediates[0].exists())
+        self.assertFalse(workspace.exists())
         self.switch_to_archive()
         status = json.loads(self.cli_result("status", "--json").stdout)["tasks"][0]
         self.assertEqual((status["attempt_id"], status["next_action"]), (attempt, "reuse"))
         self.assertIn("Reuse", self.cli("run", "--dry-run"))
         self.assertNoSubmissions(self.cli("run"))
         self.assertEqual(self.task_attempts()["document"], attempt)
-        self.assertFalse(intermediates[0].exists())
+        self.assertFalse(workspace.exists())
+        reused = result.stat()
+        self.assertEqual((reused.st_ino, reused.st_mtime_ns), (retained.st_ino, retained.st_mtime_ns))
         self.assertEqual(result.read_text(), expected)
 
         self.run_complete("document", "--force")
-        self.assertNotEqual(self.task_attempts()["document"], attempt)
+        fresh = self.task_attempts()["document"]
+        self.assertNotEqual(fresh, attempt)
+        self.assert_materialization(self.work / "work/document" / fresh, {"archive": self.work / "document.zip"})
         self.assertIn("Materialized zip", self.cli(*logs))
         self.assertEqual(result.read_text(), expected)
