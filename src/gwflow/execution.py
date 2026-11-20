@@ -7,10 +7,10 @@ import sys
 
 from gwf.exceptions import WorkflowError
 
-from . import _files, admission, images, logical_inputs
+from . import _files, admission, images
 from .commands import Command
 from .lifecycle import Store, target_dependencies
-from .staging import reference_key, stage
+from .staging import prepare_descriptors, reference_key, stage
 from .transfer import finish
 
 
@@ -27,30 +27,24 @@ def execute(store, attempt, local):
     _files.mkdir(staging)
     _files.mkdir(temporary)
     baseline = store.input_baseline(attempt)["inputs"]
+    target = attempt["structure"]["targets"][local]
+    descriptors, member_directories = prepare_descriptors(
+        target, attempt["structure"].get("logical_inputs", {}), baseline, home / "descriptors")
 
     def source_path(reference):
         if isinstance(reference, str):
             return baseline[reference]["resolved"]
+        if "logical_input" in reference:
+            return descriptors[reference["logical_input"]]
         if "task" in reference:
             return store.retained_path(attempt, reference)
         return store.execution_dir(attempt, reference["target"]) / "committed" / reference["file"]
 
     staged_inputs, source_directories = stage(
-        attempt["structure"]["targets"][local].get("staged", {}), staging, source_path,
+        target.get("staged", {}), staging, source_path,
     )
 
-    descriptors = {}
-    for reference in attempt["structure"]["targets"][local]["inputs"]:
-        if isinstance(reference, dict) and "logical_input" in reference:
-            name = reference["logical_input"]
-            selection = attempt["structure"]["logical_inputs"][name]
-            path = home / "descriptors" / f"{len(descriptors)}.json"
-            _files.publish(path, logical_inputs.descriptor(name, selection, baseline), replace=False)
-            descriptors[name] = path
-
     def command_path(reference):
-        if "logical_input" in reference:
-            return descriptors[reference["logical_input"]]
         logical = reference.get("external", reference)
         if path := staged_inputs.get(reference_key(logical)):
             return path
@@ -68,7 +62,7 @@ def execute(store, attempt, local):
     environment = os.environ.copy()
     if attempt["managed_tmpdir"]:
         environment["TMPDIR"] = str(temporary)
-    image = attempt["structure"]["targets"][local]["image"]
+    image = target["image"]
     context = f"Task {attempt['task']} target {local}"
     arguments = ["/bin/bash", "-e", "-c", command]
     if image is not None:
@@ -76,7 +70,7 @@ def execute(store, attempt, local):
         context += f" image {image}"
         print(context, file=sys.stderr, flush=True)
         arguments = images.invocation(image, staging, temporary if attempt["managed_tmpdir"] else None,
-                                      environment, command, source_directories)
+                                      environment, command, source_directories | member_directories)
     try:
         result = subprocess.run(arguments, cwd=staging, env=environment)
     except OSError as error:
@@ -84,7 +78,7 @@ def execute(store, attempt, local):
     if result.returncode:
         raise WorkflowError(f"{context} command failed with exit {result.returncode}")
     store.validate_roots()
-    paths = attempt["structure"]["targets"][local]["outputs"]
+    paths = target["outputs"]
     observed = _files.metadata(staging, paths, sync=True)
     if descriptors:
         store.check_inputs(attempt)

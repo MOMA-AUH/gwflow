@@ -142,12 +142,10 @@ def declarations(task, store, workflow):
         targets[name] = {"inputs": incoming, "outputs": sorted(outputs)}
         targets[name]["image"] = None
         if target.image is not None:
-            if any(isinstance(value, LogicalInput) for value in target.inputs):
-                raise WorkflowError(f"Logical inputs require a target without image= on {name!r}")
             alias = images.binding(target.image, store.working_dir)
             targets[name]["image"] = alias
             overrides = {path: (_target_reference(task, value) if isinstance(value, TargetOutput)
-                                else _boundary_reference(value, store, workflow))
+                                else _local_input_reference(task, value, store, workflow))
                          for path, value in target.stage_as.items()}
             layout = staging.input_layout(incoming, outputs, lambda reference:
                                           workflow._task_declarations[reference["task"]].retained[reference["output"]][1],
@@ -236,7 +234,7 @@ def _valid_attempt(attempt):
                     or not _uuid(attempt["executions"][local]) or not isinstance(target["inputs"], list)
                     or any(not (reference in structure["inputs"]
                                or isinstance(reference, dict) and set(reference) == {"logical_input"}
-                               and target["image"] is None and reference["logical_input"] in structure.get("logical_inputs", {})
+                               and reference["logical_input"] in structure.get("logical_inputs", {})
                                or isinstance(reference, dict) and set(reference) == {"target", "file"}
                                and reference["target"] in targets and reference["file"] in targets[reference["target"]]["outputs"])
                            for reference in target["inputs"])

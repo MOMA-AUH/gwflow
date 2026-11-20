@@ -6,7 +6,7 @@ from pathlib import Path
 
 from gwf.exceptions import WorkflowError
 
-from . import _files
+from . import _files, logical_inputs
 from .workflow import relative_path, validate_destinations
 
 
@@ -15,6 +15,14 @@ def reference_key(reference):
 
 
 def input_layout(references, outputs, retained_path, overrides):
+    def default_name(value):
+        if isinstance(value, str):
+            return Path(value).name
+        if "logical_input" in value:
+            return value["logical_input"] + ".json"
+        path = value["file"] if "target" in value else retained_path(value)
+        return Path(path).name
+
     assigned = {}
     for name, reference in overrides.items():
         if reference not in references:
@@ -23,11 +31,12 @@ def input_layout(references, outputs, retained_path, overrides):
         if key in assigned:
             raise WorkflowError("stage_as assigns multiple paths to one logical input")
         assigned[key] = relative_path(name)
-    names = [assigned.get(reference_key(value)) or
-             relative_path(Path(value if isinstance(value, str) else
-                                value["file"] if "target" in value else retained_path(value)).name)
+    names = [assigned.get(reference_key(value)) or relative_path(default_name(value))
              for value in references]
-    validate_destinations([*names, *outputs])
+    try:
+        validate_destinations([*names, *outputs])
+    except WorkflowError as error:
+        raise WorkflowError(f"{error}. Use stage_as to choose distinct input paths.") from error
     return dict(zip(names, references))
 
 
@@ -39,14 +48,40 @@ def valid_layout(layout, references, outputs):
     return True
 
 
+def _link(source, destination):
+    with _files.directory(destination.parent, create=True) as parent:
+        os.symlink(source, destination.name, dir_fd=parent)
+        _files.sync_directory(parent)
+
+
+def prepare_descriptors(target, selections, baseline, directory):
+    paths, sources = {}, set()
+    for reference in target["inputs"]:
+        if not isinstance(reference, dict) or "logical_input" not in reference:
+            continue
+        name = reference["logical_input"]
+        path = directory / f"{len(paths)}.json"
+        document = logical_inputs.descriptor(name, selections[name], baseline)
+        if target["image"] is not None:
+            # File keys are arbitrary JSON strings. Keep them in the descriptor
+            # and allocate private filenames independently of keys and basenames.
+            for index, key in enumerate(sorted(document["files"])):
+                source = Path(document["files"][key])
+                destination = path.with_suffix("") / str(index)
+                _link(source, destination)
+                document["files"][key] = str(destination)
+                sources.add(source.parent)
+        _files.publish(path, document, replace=False)
+        paths[name] = path
+    return paths, sources
+
+
 def stage(layout, work, resolve_source):
     paths, sources = {}, set()
     for name, reference in layout.items():
         source = Path(resolve_source(reference))
         destination = work / name
-        with _files.directory(destination.parent, create=True) as parent:
-            os.symlink(source, destination.name, dir_fd=parent)
-            _files.sync_directory(parent)
+        _link(source, destination)
         paths[reference_key(reference)] = destination
         sources.add(source.parent)
-    return paths, sorted(sources, key=lambda path: (len(path.parts), str(path)))
+    return paths, sources
