@@ -216,10 +216,11 @@ ordinary input must still be available.
 
 If retained outputs are missing or damaged, Repair can restore them from
 checked work under the same completed attempt while the logical sources are
-offline. Consumers defer until a later invocation can check the restored
-results. If cleanup or damage has made Repair impossible, fresh computation
-requires the current physical representation before gwflow removes previous
-results or submits replacement work.
+offline. Consumers with an existing Input baseline defer until a later
+invocation can check the restored results. A new direct consumer can queue
+behind the producer's Repair. If cleanup or damage has made Repair impossible,
+fresh computation requires the current physical representation before gwflow
+removes previous results or submits replacement work.
 
 An interruption during the initial copy or after the staging manifest is
 written still requires the frozen physical inputs. Once the owned result
