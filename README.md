@@ -42,8 +42,8 @@ All input data is synthetic and included. Apptainer downloads the public Biocond
 container images on first use.
 
 The [workflow](example/workflow.py) aligns reads from two samples and produces a
-combined report. A read is a short DNA sequence. Each sample uses one Task
-with four computation targets: align, sort, index, and statistics.
+combined report. A read is a short DNA sequence. Each sample Task prepares
+the paired reads, aligns them, then sorts, indexes, and counts the alignments.
 The report Task consumes the retained statistics from both samples.
 
 In the first terminal, select the local backend:
@@ -106,6 +106,7 @@ The report preview shows Reuse for both sample Tasks. Only the report computes,
 and the final unchanged run submits no new jobs. Open
 `results/report/report.html` in a browser to compare the samples.
 The [example guide](example/README.md) explains the data, targets, outputs, and container images.
+Its [SPRING walkthrough](example/README.md#archive-one-sample-with-spring) shows how to archive one sample's FASTQs and reuse the completed workflow.
 
 ## Everyday commands
 

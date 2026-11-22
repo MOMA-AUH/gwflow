@@ -236,6 +236,7 @@ The [public example](../../example/README.md) uses committed synthetic reads and
 three public Bioconda images. Its ordinary test checks that the committed dataset
 regenerates exactly. Real execution uses Apptainer and must be enabled explicitly.
 
+Make SPRING 1.1.1 available on `PATH` for the archive case.
 From the repository root, run the tests with real container execution enabled:
 
 ```sh
@@ -246,7 +247,8 @@ The tests start local workers in a temporary directory and acquire missing image
 They compare the actual alignment statistics with the committed expectations and
 inspect both samples in the combined report. They also clean the producer Tasks,
 run the report from retained statistics, and establish that unchanged reruns
-submit no new jobs.
+submit no new jobs. The archive case replaces one sample's FASTQs with a verified
+SPRING archive, checks Reuse for all three Tasks, and forces a fresh alignment from the archive.
 
 Use `GWFLOW_IMAGE_CACHE` to select a different image cache if needed.
 Keep `GWFLOW_TEST_BIOINFORMATICS=1` set when running the full suite to include this

@@ -13,18 +13,26 @@ the container images on first use.
 
 A Task groups computation targets and names the outputs to retain.
 Each sample uses the same Task implementation with a different instance key.
-Inside each sample Task, four targets form this graph:
+Inside each sample Task, five targets form this graph:
 
 ```mermaid
 flowchart LR
     subgraph sample[One sample Task]
+        M[materialize: paired FASTQs] --> A
         A[align: Minimap2] --> B[sort: Samtools]
         B --> C[index: Samtools]
         B --> D[statistics: Samtools]
     end
 ```
 
-The `align` target produces a SAM file, a text alignment format.
+Each sample has one logical input named `reads`. Its identity contains
+the SHA-256 checksum for each FASTQ mate. The [sample manifest](data/reads.json)
+records these checksums and selects the input format for each sample.
+The [materialize target's script](materialize_reads.py) reads the selected paths
+from the input descriptor and checks both mates before alignment.
+The reference and the script are ordinary tracked inputs.
+
+The `align` target reads the private `R1.fastq` and `R2.fastq` files and produces a SAM file, a text alignment format.
 The `sort` target produces a BAM file, a compressed alignment format.
 The index supports access to parts of the BAM file.
 The statistics count mapped reads and paired reads.
@@ -44,8 +52,8 @@ flowchart LR
 
 | Task | Retained files under `results/` | Disposable work |
 | --- | --- | --- |
-| `align__sample_a` | `sample_a/alignment.bam`, `sample_a/alignment.bam.bai`, `sample_a/flagstat.txt` | SAM file and temporary files |
-| `align__sample_b` | `sample_b/alignment.bam`, `sample_b/alignment.bam.bai`, `sample_b/flagstat.txt` | SAM file and temporary files |
+| `align__sample_a` | `sample_a/alignment.bam`, `sample_a/alignment.bam.bai`, `sample_a/flagstat.txt` | Materialized FASTQs, SAM file, and temporary files |
+| `align__sample_b` | `sample_b/alignment.bam`, `sample_b/alignment.bam.bai`, `sample_b/flagstat.txt` | Materialized FASTQs, SAM file, and temporary files |
 | `report` | `report/report.html`, `report/summary.tsv` | Other report-building files |
 
 [workflow.py](workflow.py) declares the samples and connects their retained outputs.
@@ -59,18 +67,33 @@ inside their owning Task.
 
 Use Linux x86_64, Bash, Python 3.12, exactly gwf 3.0.0, and Apptainer 1.5.4 on `PATH`.
 Install gwflow with the [root installation instructions](../README.md#install).
-Enter this checkout's `example/` directory in the first terminal:
+From the checkout root, copy the example to a fresh working directory.
+The optional archive walkthrough moves files in this copy.
 
 ```sh
-cd example
+demo=$(mktemp -d)
+cp -r example/*.py example/*.yaml example/data "$demo/"
+cd "$demo"
 gwflow config set backend local
+pwd
 ```
 
-In a second terminal, activate the same environment and enter the same
-`example/` directory. Start the local scheduler with a two-core budget:
+For the optional archive walkthrough, install SPRING 1.1.1 before starting the workers.
+Run these commands in the first terminal. You can skip this installation for a FASTQ-only run.
+
+```sh
+conda create -y -p "$demo/spring-tools" --override-channels -c conda-forge -c bioconda spring=1.1.1
+export PATH="$demo/spring-tools/bin:$PATH"
+```
+
+In a second terminal, enter the directory printed by `pwd`.
+Activate the same gwflow environment. If you installed SPRING, add it to the worker's path.
+Start the local scheduler with a two-core budget.
 
 ```sh
 conda activate gwflow
+# For the SPRING walkthrough:
+export PATH="$PWD/spring-tools/bin:$PATH"
 gwflow workers -n 2 --max-memory 4g
 ```
 
@@ -137,6 +160,56 @@ gwflow run
 From a fresh checkout, `gwflow run` also runs all three Tasks with their dependencies.
 Use `gwflow wait --interval 1` to wait for that complete workflow.
 Stop the local workers with Ctrl-C when finished.
+
+## Archive one sample with SPRING
+
+Complete both alignments and the report in the working copy above. Keep the workers running.
+Record the attempt ID for `align__sample_a`. Clean its private work so only its retained results and lifecycle records remain.
+
+```sh
+gwflow status align__sample_a --details --static
+gwflow clean align__sample_a --delete
+```
+
+Use SPRING's default lossless paired-end mode. It preserves read order, identifiers, sequences, and quality scores.
+Restore both mates and compare them byte for byte with the FASTQs that the first run verified.
+Move the originals outside the workflow only after both comparisons succeed.
+
+```sh
+saved=$(mktemp -d)
+spring -c -t 1 -i data/sample_a_R1.fastq data/sample_a_R2.fastq -o data/sample_a.spring &&
+  spring -d -t 1 -i data/sample_a.spring -o "$saved/restored_R1.fastq" "$saved/restored_R2.fastq" &&
+  cmp data/sample_a_R1.fastq "$saved/restored_R1.fastq" &&
+  cmp data/sample_a_R2.fastq "$saved/restored_R2.fastq" &&
+  mv data/sample_a_R1.fastq data/sample_a_R2.fastq "$saved/"
+```
+
+In `data/reads.json`, change the `format` for `sample_a` from `fastq` to `spring`.
+Keep the two checksums and the `sample_b` entry as they are.
+gwflow trusts the declared identity when it reuses a completed Task. The round trip above establishes that the archive contains the same reads.
+
+```sh
+gwflow run --dry-run
+gwflow run
+gwflow status align__sample_a --details --static
+```
+
+The preview shows `Reuse` for both sample Tasks and `report`.
+The run submits zero jobs. The attempt ID for `align__sample_a` matches the one you recorded.
+
+To exercise the archive decoder, force a fresh attempt for the archived sample.
+
+```sh
+gwflow run align__sample_a --force
+gwflow wait align__sample_a --interval 1
+gwflow logs align__sample_a__materialize --no-pager
+gwflow status align__sample_a --details --static
+cat results/sample_a/flagstat.txt
+```
+
+The log shows `Verified both FASTQ mates from spring`. The attempt ID changes,
+and the statistics still show 200 mapped reads. A later `gwflow run report`
+updates the report for the new producer attempt.
 
 ## Inspect and rerun
 

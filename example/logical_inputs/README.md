@@ -9,6 +9,7 @@ The decoder writes `heading.txt` and `body.txt` for either format.
 The `join` target consumes those outputs and writes the retained report.
 The workflow owns the ZIP member names and reads only those two members.
 See the [workflow](workflow.py) and [decoder](materialize.py).
+The [alignment example](../README.md#archive-one-sample-with-spring) applies the same pattern to paired FASTQs and a SPRING archive.
 
 ## Run the two-file representation
 

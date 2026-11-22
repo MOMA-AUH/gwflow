@@ -13,9 +13,22 @@ MULTIQC = "docker://quay.io/biocontainers/multiqc@sha256:d939a5fc6c5b505f7bb148c
 
 
 @task_template
-def align_reads(reference, read1, read2):
-    """Keep a sorted alignment, its index, and statistics from four targets."""
-    task = Task(inputs=[reference, read1, read2])
+def align_reads(reference, sample, reads):
+    """Materialize the paired reads and keep their alignment, index, and statistics."""
+    decoder = "materialize_reads.py"
+    task = Task(inputs=[reference, decoder])
+    if reads["format"] == "fastq":
+        files = {mate: f"data/{sample}_{mate}.fastq" for mate in ("R1", "R2")}
+    elif reads["format"] == "spring":
+        files = {"archive": f"data/{sample}.spring"}
+    else:
+        raise ValueError(f"Unknown read format for {sample}: {reads['format']!r}")
+    source = task.logical_input("reads", identity=reads["sha256"], files=files,
+                                metadata={"format": reads["format"]})
+    materialize = task.target("materialize", inputs=[decoder, source], outputs=["R1.fastq", "R2.fastq"],
+                              cores=1, memory="1g", walltime="00:05:00")
+    materialize << shell("python {decoder} {descriptor}", decoder=decoder, descriptor=source)
+    read1, read2 = materialize.output("R1.fastq"), materialize.output("R2.fastq")
 
     align = task.target(
         "align", inputs=[reference, read1, read2], outputs=["alignment.sam"],
