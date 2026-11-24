@@ -294,9 +294,9 @@ acquires its image on the frontend. It checks cold acquisition, warm execution,
 cache preservation, and recovery after an expected worker Input-baseline refusal.
 Other container cases use the prepared fixtures.
 
-The `logical-inputs` case runs the [document example](../../example/logical_inputs/README.md)
-with the basic SIF. It cleans the intermediates, reuses the completed Task
-after the representation switches, and forces fresh computation from the archive.
+The [bioinformatics example tests](#bioinformatics-example) cover logical inputs.
+They clean the intermediates, reuse the completed Task after switching to a
+SPRING archive, and force fresh computation from that archive.
 
 ## Planning performance checks
 
