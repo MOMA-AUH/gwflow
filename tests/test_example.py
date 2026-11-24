@@ -35,7 +35,9 @@ class SyntheticExampleDataTests(unittest.TestCase):
                 "identity": identity, "metadata": {"format": "fastq"},
                 "files": {"R1": str(data / "sample_a_R1.fastq"), "R2": str(data / "sample_b_R2.fastq")},
             }))
-            result = subprocess.run([sys.executable, str(EXAMPLE / "materialize_reads.py"), str(descriptor)],
+            result = subprocess.run([sys.executable, str(EXAMPLE / "materialize_reads.py"), "verify",
+                                     str(descriptor), str(data / "sample_a_R1.fastq"),
+                                     str(data / "sample_b_R2.fastq")],
                                     cwd=directory, capture_output=True, text=True)
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("R2 differs from its recorded FASTQ checksum", result.stderr)
@@ -121,7 +123,7 @@ class BioinformaticsExampleTests(LocalBackendTestCase):
         first = self.cli("run", "align__*", "--details")
         self.wait_for_completion("align__*")
         for sample in self.expected:
-            for target in ("materialize", "align", "sort", "index", "statistics"):
+            for target in ("prepare_reads", "materialize", "verify_reads", "align", "sort", "index", "statistics"):
                 self.assertIn(f"align__{sample}__{target}: confirmed submitted", first)
             self.assertTrue(list((self.work / "work" / f"align__{sample}").rglob("alignment.sam")))
         self.assertNotIn("report__report: confirmed submitted", first)
@@ -158,11 +160,18 @@ class BioinformaticsExampleTests(LocalBackendTestCase):
         self.cli("clean", sample, "--delete")
 
         data = self.work / "data"
+        from gwflow.images import binding
+
+        image = binding(runpy.run_path(str(EXAMPLE / "task_library.py"))["SPRING"], self.work)
         mates = ["sample_a_R1.fastq", "sample_a_R2.fastq"]
-        subprocess.run(["spring", "-c", "-t", "1", "-i", *mates, "-o", "sample_a.spring"],
+        subprocess.run(["apptainer", "exec", "--cleanenv", "--bind", str(data), "--pwd", str(data),
+                        image, "spring", "-c", "-t", "1",
+                        "-i", *mates, "-o", "sample_a.spring"],
                        cwd=data, check=True, capture_output=True)
         restored = ["restored_R1.fastq", "restored_R2.fastq"]
-        subprocess.run(["spring", "-d", "-t", "1", "-i", "sample_a.spring", "-o", *restored],
+        subprocess.run(["apptainer", "exec", "--cleanenv", "--bind", str(data), "--pwd", str(data),
+                        image, "spring", "-d", "-t", "1",
+                        "-i", "sample_a.spring", "-o", *restored],
                        cwd=data, check=True, capture_output=True)
         for original, decoded in zip(mates, restored):
             self.assertEqual((data / decoded).read_bytes(), (data / original).read_bytes())
@@ -183,5 +192,5 @@ class BioinformaticsExampleTests(LocalBackendTestCase):
         self.wait_for_completion(sample)
         self.assertNotEqual(self.task_attempts()[sample], attempts[sample])
         self.assertIn("Verified both FASTQ mates from spring",
-                      self.cli("logs", f"{sample}__materialize", "--no-pager"))
+                      self.cli("logs", f"{sample}__verify_reads", "--no-pager"))
         self.assert_alignments()

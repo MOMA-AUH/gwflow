@@ -3,7 +3,11 @@
 from gwflow import Task, shell, task_template
 
 
+# Public Python image, pinned to the same digest as the container test fixture.
+PYTHON = "docker://python@sha256:935c3c5b12357a7e10caa9c1e6ca5692344d97cf229832ef584be2cec9fc03df"
 # Bioconda builds on Quay.io, pinned to their Linux x86_64 manifests.
+# spring:1.1.1--h4ac6f70_3
+SPRING = "docker://quay.io/biocontainers/spring@sha256:70d8c77b81b2015a0912570470531e4f92aeaedf764f63686e06949108b9d028"
 # minimap2:2.28--h577a1d6_4
 MINIMAP2 = "docker://quay.io/biocontainers/minimap2@sha256:8310d4996f929c1dbde6d2b17b755d211d6e4493ce6cc3d514842cf8df27af80"
 # samtools:1.21--h96c455f_1
@@ -25,13 +29,29 @@ def align_reads(reference, sample, reads):
         raise ValueError(f"Unknown read format for {sample}: {reads['format']!r}")
     source = task.logical_input("reads", identity=reads["sha256"], files=files,
                                 metadata={"format": reads["format"]})
-    materialize = task.target("materialize", inputs=[decoder, source], outputs=["R1.fastq", "R2.fastq"],
-                              cores=1, memory="1g", walltime="00:05:00")
-    materialize << shell("python {decoder} {descriptor}", decoder=decoder, descriptor=source)
+    prepare = task.target("prepare_reads", inputs=[decoder, source], outputs=["reads.tar"],
+                          image=PYTHON, cores=1, memory="1g", walltime="00:05:00")
+    prepare << shell("python {decoder} prepare {descriptor}", decoder=decoder, descriptor=source)
+
+    materialize = task.target("materialize", inputs=[prepare.output("reads.tar")],
+                              outputs=["R1.fastq", "R2.fastq"],
+                              image=SPRING, cores=1, memory="1g", walltime="00:05:00")
+    materialize << shell(
+        """tar -xf {bundle}
+if [ -f input.spring ]; then
+    spring -d -t 1 -i input.spring -o R1.fastq R2.fastq
+fi""",
+        bundle=prepare.output("reads.tar"),
+    )
     read1, read2 = materialize.output("R1.fastq"), materialize.output("R2.fastq")
 
+    verify = task.target("verify_reads", inputs=[decoder, source, read1, read2], outputs=["verified.txt"],
+                         image=PYTHON, cores=1, memory="1g", walltime="00:05:00")
+    verify << shell("python {decoder} verify {descriptor} {read1} {read2}",
+                    decoder=decoder, descriptor=source, read1=read1, read2=read2)
+
     align = task.target(
-        "align", inputs=[reference, read1, read2], outputs=["alignment.sam"],
+        "align", inputs=[reference, read1, read2, verify.output("verified.txt")], outputs=["alignment.sam"],
         image=MINIMAP2, cores=2, memory="1g", walltime="00:05:00",
     )
     align << shell(

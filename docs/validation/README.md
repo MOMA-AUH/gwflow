@@ -233,11 +233,11 @@ images. Unavailable cache storage does not remove the full build path.
 ## Bioinformatics example
 
 The [public example](../../example/README.md) uses committed synthetic reads and
-three public Bioconda images. Its ordinary test checks that the committed dataset
-regenerates exactly. Real execution uses Apptainer and must be enabled explicitly.
+a public Python image and four public Bioconda images.
+Its ordinary test checks that the committed dataset regenerates exactly.
+Real execution uses Apptainer and must be enabled explicitly.
 
-Make SPRING 1.1.1 available on `PATH` for the archive case.
-From the repository root, run the tests with real container execution enabled:
+From the repository root, enable real container execution:
 
 ```sh
 GWFLOW_TEST_BIOINFORMATICS=1 python -m unittest discover -s tests -p test_example.py -v

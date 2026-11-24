@@ -133,8 +133,6 @@ jobs:
       - name: Run the full installed Conda suite
         shell: bash -l {0}
         run: |
-          conda create -y -p "$RUNNER_TEMP/spring" --override-channels -c conda-forge -c bioconda spring=1.1.1
-          export PATH="$RUNNER_TEMP/spring/bin:$PATH"
           conda run -p "$RUNNER_TEMP/gwflow-smoke" python tests/ci_suite.py run \
             --bundle "$RUNNER_TEMP/ci-runtime" --prefix "$RUNNER_TEMP/gwflow-smoke" \
             --output build/validation/ci-suite/suite.json

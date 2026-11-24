@@ -5,20 +5,22 @@ A read is a short DNA sequence. Paired reads represent opposite ends of one
 DNA fragment. The workflow retains each sample's alignment and statistics, then
 combines the statistics into a MultiQC report.
 
-All input data is included in [data/](data/). The workflow uses public container
-images built from Bioconda packages. The only downloads required for a run are
-the container images on first use.
+All input data is included in [data/](data/). The workflow uses containers for every computation target.
+Every target uses a public Python or Bioconda image.
+Container images are downloaded on first use.
 
 ## Tasks and computation targets
 
 A Task groups computation targets and names the outputs to retain.
 Each sample uses the same Task implementation with a different instance key.
-Inside each sample Task, five targets form this graph:
+Inside each sample Task, seven targets form this graph:
 
 ```mermaid
 flowchart LR
     subgraph sample[One sample Task]
-        M[materialize: paired FASTQs] --> A
+        P[prepare_reads: Python] --> M[materialize: SPRING]
+        M --> V[verify_reads: Python]
+        V --> A
         A[align: Minimap2] --> B[sort: Samtools]
         B --> C[index: Samtools]
         B --> D[statistics: Samtools]
@@ -28,8 +30,16 @@ flowchart LR
 Each sample has one logical input named `reads`. Its identity contains
 the SHA-256 checksum for each FASTQ mate. The [sample manifest](data/reads.json)
 records these checksums and selects the input format for each sample.
-The [materialize target's script](materialize_reads.py) reads the selected paths
-from the input descriptor and checks both mates before alignment.
+The [read helper](materialize_reads.py) runs in the public Python image.
+The `prepare_reads` target bundles the selected files into `reads.tar` with fixed names.
+The `materialize` target runs in the public SPRING image. It extracts FASTQs directly
+or decodes `input.spring` into paired FASTQs.
+The `verify_reads` target checks both mates against their declared checksums.
+Alignment waits for this check to succeed.
+
+All three targets run for both formats. Their declarations stay stable so an
+equivalent archive can replace the original FASTQs without invalidating completed work.
+The extra bundle favors a simple example over efficient copying.
 The reference and the script are ordinary tracked inputs.
 
 The `align` target reads the private `R1.fastq` and `R2.fastq` files and produces a SAM file, a text alignment format.
@@ -78,22 +88,14 @@ gwflow config set backend local
 pwd
 ```
 
-For the optional archive walkthrough, install SPRING 1.1.1 before starting the workers.
-Run these commands in the first terminal. You can skip this installation for a FASTQ-only run.
-
-```sh
-conda create -y -p "$demo/spring-tools" --override-channels -c conda-forge -c bioconda spring=1.1.1
-export PATH="$demo/spring-tools/bin:$PATH"
-```
+The host and workers do not need a separate SPRING installation or local image builds.
 
 In a second terminal, enter the directory printed by `pwd`.
-Activate the same gwflow environment. If you installed SPRING, add it to the worker's path.
+Activate the same gwflow environment.
 Start the local scheduler with a two-core budget.
 
 ```sh
 conda activate gwflow
-# For the SPRING walkthrough:
-export PATH="$PWD/spring-tools/bin:$PATH"
 gwflow workers -n 2 --max-memory 4g
 ```
 
@@ -113,7 +115,7 @@ gwflow wait 'align__*' --interval 1
 gwflow status 'align__*' --static
 ```
 
-The first preview acquires the missing Minimap2 and Samtools images.
+The first preview acquires the missing Python, SPRING, Minimap2, and Samtools images.
 Submission returns before computation finishes. The `wait` command observes
 the submitted Tasks until they complete or need another action.
 Continue when both sample Tasks are `reusable`.
@@ -177,8 +179,11 @@ Move the originals outside the workflow only after both comparisons succeed.
 
 ```sh
 saved=$(mktemp -d)
-spring -c -t 1 -i data/sample_a_R1.fastq data/sample_a_R2.fastq -o data/sample_a.spring &&
-  spring -d -t 1 -i data/sample_a.spring -o "$saved/restored_R1.fastq" "$saved/restored_R2.fastq" &&
+spring_image=$(python -c 'from task_library import SPRING; print(SPRING)')
+apptainer exec --cleanenv --bind "$PWD" --pwd "$PWD" "$spring_image" \
+  spring -c -t 1 -i data/sample_a_R1.fastq data/sample_a_R2.fastq -o data/sample_a.spring &&
+  apptainer exec --cleanenv --bind "$PWD" --bind "$saved" --pwd "$PWD" "$spring_image" \
+    spring -d -t 1 -i data/sample_a.spring -o "$saved/restored_R1.fastq" "$saved/restored_R2.fastq" &&
   cmp data/sample_a_R1.fastq "$saved/restored_R1.fastq" &&
   cmp data/sample_a_R2.fastq "$saved/restored_R2.fastq" &&
   mv data/sample_a_R1.fastq data/sample_a_R2.fastq "$saved/"
@@ -202,7 +207,7 @@ To exercise the archive decoder, force a fresh attempt for the archived sample.
 ```sh
 gwflow run align__sample_a --force
 gwflow wait align__sample_a --interval 1
-gwflow logs align__sample_a__materialize --no-pager
+gwflow logs align__sample_a__verify_reads --no-pager
 gwflow status align__sample_a --details --static
 cat results/sample_a/flagstat.txt
 ```
@@ -269,19 +274,23 @@ diff -r example/data build/synthetic-example-data
 
 ## Container images
 
-Bioconda publishes these images through the BioContainers namespace on Quay.
+All targets use public images. The Python image comes from Docker Hub.
+Bioconda publishes the other images through the BioContainers namespace on Quay.
+No local image build is required. The same images serve both input formats.
+
 The executable `docker://` references in [task_library.py](task_library.py)
 pin image digests. These tags identify the corresponding package builds:
 
 | Tool | Published image and build | Purpose |
 | --- | --- | --- |
+| Python | `docker.io/library/python` (digest pinned in `task_library.py`) | Prepare files and verify checksums |
+| [SPRING](https://bioconda.github.io/recipes/spring/README.html#container) | `quay.io/biocontainers/spring:1.1.1--h4ac6f70_3` | Materialize paired reads |
 | [Minimap2](https://bioconda.github.io/recipes/minimap2/README.html#container) | `quay.io/biocontainers/minimap2:2.28--h577a1d6_4` | Align paired reads |
 | [Samtools](https://bioconda.github.io/recipes/samtools/README.html#container) | `quay.io/biocontainers/samtools:1.21--h96c455f_1` | Sort, index, and count alignments |
 | [MultiQC](https://bioconda.github.io/recipes/multiqc/README.html#container) | `quay.io/biocontainers/multiqc:1.25.2--pyhdfd78af_0` | Combine both samples' statistics |
 
-Apptainer acquires and executes these Docker-format images. A Docker daemon and
-local image builds are not required. Host Python needs gwflow, but the images
-only need their own commands and Bash.
+Apptainer acquires and executes these Docker-format images without a Docker daemon.
+Host Python needs gwflow. Each image supplies its own commands and Bash.
 
 Run previews, runs, and status can acquire missing images.
 gwflow stores acquired images in `~/.cache/gwflow/images` by default.
