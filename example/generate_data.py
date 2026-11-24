@@ -1,6 +1,7 @@
 """Regenerate the committed artificial reference and paired reads using only Python."""
 
 import argparse
+import hashlib
 import json
 from pathlib import Path
 import random
@@ -55,6 +56,7 @@ def generate(output_dir):
         "samples": {},
     }
     truth = ["sample\tread_pair\treference\tfragment_start\tfragment_end\n"]
+    read_inputs = {}
     for sample, unmapped_pairs in UNMAPPED_PAIRS.items():
         reads = [[], []]
         # Fragments stay well away from either reference edge.
@@ -78,9 +80,12 @@ def generate(output_dir):
             for mate, sequence in enumerate(sequences):
                 reads[mate].append(f"@{pair}/{mate + 1}\n{sequence}\n+\n"
                                    f"{'I' * READ_LENGTH}\n")
+        checksums = {}
         for mate, records in enumerate(reads, 1):
-            (output_dir / f"{sample}_R{mate}.fastq").write_text(
-                "".join(records), encoding="ascii")
+            fastq = "".join(records).encode("ascii")
+            (output_dir / f"{sample}_R{mate}.fastq").write_bytes(fastq)
+            checksums[f"R{mate}"] = hashlib.sha256(fastq).hexdigest()
+        read_inputs[sample] = {"format": "fastq", "sha256": checksums}
         mapped_reads = 2 * (PAIRS_PER_SAMPLE - unmapped_pairs)
         expected["samples"][sample] = {
             "read_pairs": PAIRS_PER_SAMPLE,
@@ -92,6 +97,7 @@ def generate(output_dir):
         }
 
     (output_dir / "truth.tsv").write_text("".join(truth), encoding="ascii")
+    (output_dir / "reads.json").write_text(json.dumps(read_inputs, indent=2) + "\n", encoding="ascii")
     (output_dir / "expected.json").write_text(
         json.dumps(expected, indent=2) + "\n", encoding="ascii")
 

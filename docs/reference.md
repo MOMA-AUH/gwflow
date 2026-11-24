@@ -205,10 +205,10 @@ equivalent decoded data. Include values that change the computation in the
 logical identity, command, or another tracked declaration. Use representation
 metadata for information that the decoder needs, such as the file encoding.
 Keep the consuming targets, their outputs, and their command templates stable
-across representations. Put decoding in one target that produces the same
-internal intermediates for every representation. Generated member paths do
-not enter the Task declaration. The [document example](../example/logical_inputs/README.md)
-uses this pattern to switch from two text files to a ZIP archive.
+across representations. Decode each representation into the same internal
+intermediates. Generated member paths do not enter the Task declaration.
+The [bioinformatics example](../example/README.md#archive-one-sample-with-spring)
+uses this pattern to switch from paired FASTQs to a SPRING archive.
 
 Each attempt freezes its logical input names, identities, file selections,
 and representation metadata. Preparation accepts the resolved paths, sizes,

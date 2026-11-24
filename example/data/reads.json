@@ -1,0 +1,16 @@
+{
+  "sample_a": {
+    "format": "fastq",
+    "sha256": {
+      "R1": "c07a69f6146de601e51e78c2b0de1cbc4dc1560208ba276bd1f6d721e922b8cd",
+      "R2": "65a5768ad0514841f6481aa86c3db1e035da3168a6a068f09cb5dd024c809059"
+    }
+  },
+  "sample_b": {
+    "format": "fastq",
+    "sha256": {
+      "R1": "ffba193ce65c845bdaebc57e98143aa0e768b22ec4d725e9203f8ca1021fae61",
+      "R2": "91f544d1e07a138186fa731bd00acc27e870d6b22c9893e52ceadb9438c7716e"
+    }
+  }
+}

@@ -233,10 +233,11 @@ images. Unavailable cache storage does not remove the full build path.
 ## Bioinformatics example
 
 The [public example](../../example/README.md) uses committed synthetic reads and
-three public Bioconda images. Its ordinary test checks that the committed dataset
-regenerates exactly. Real execution uses Apptainer and must be enabled explicitly.
+a public Python image and four public Bioconda images.
+Its ordinary test checks that the committed dataset regenerates exactly.
+Real execution uses Apptainer and must be enabled explicitly.
 
-From the repository root, run the tests with real container execution enabled:
+From the repository root, enable real container execution:
 
 ```sh
 GWFLOW_TEST_BIOINFORMATICS=1 python -m unittest discover -s tests -p test_example.py -v
@@ -246,7 +247,8 @@ The tests start local workers in a temporary directory and acquire missing image
 They compare the actual alignment statistics with the committed expectations and
 inspect both samples in the combined report. They also clean the producer Tasks,
 run the report from retained statistics, and establish that unchanged reruns
-submit no new jobs.
+submit no new jobs. The archive case replaces one sample's FASTQs with a verified
+SPRING archive, checks Reuse for all three Tasks, and forces a fresh alignment from the archive.
 
 Use `GWFLOW_IMAGE_CACHE` to select a different image cache if needed.
 Keep `GWFLOW_TEST_BIOINFORMATICS=1` set when running the full suite to include this
@@ -292,9 +294,9 @@ acquires its image on the frontend. It checks cold acquisition, warm execution,
 cache preservation, and recovery after an expected worker Input-baseline refusal.
 Other container cases use the prepared fixtures.
 
-The `logical-inputs` case runs the [document example](../../example/logical_inputs/README.md)
-with the basic SIF. It cleans the intermediates, reuses the completed Task
-after the representation switches, and forces fresh computation from the archive.
+The [bioinformatics example tests](#bioinformatics-example) cover logical inputs.
+They clean the intermediates, reuse the completed Task after switching to a
+SPRING archive, and force fresh computation from that archive.
 
 ## Planning performance checks
 
