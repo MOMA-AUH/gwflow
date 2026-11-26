@@ -15,6 +15,9 @@ from .inspection_errors import InspectionBlocker
 from ._local_termination import TERMINAL_STATES, TerminationRecords
 
 
+ACTIVE_LOCAL_STATES = (LocalStatus.SUBMITTED, LocalStatus.RUNNING)
+
+
 class LocalWorkerUnavailable(BackendError):
     """Connection establishment failed; this says nothing about job activity."""
 
@@ -88,6 +91,10 @@ class ManagedLocalOps(LocalOps):
                         and isinstance(names, dict) and response.get("gwflow_termination_records") == 1)
         self.submission_names = dict(names) if self.managed else {}
         states = {key: LocalStatus[value] for key, value in response["tasks"].items()}
+        self.active_submissions = {
+            name: STATUS_MAP[states[key]] for key, name in self.submission_names.items()
+            if isinstance(name, str) and states.get(key) in ACTIVE_LOCAL_STATES
+        }
         self._last_states = states
         self.known_jobs = set(states)
         self.unresolved = {key for key, state in states.items()
@@ -110,7 +117,7 @@ class ManagedLocalOps(LocalOps):
                 raise LocalTerminationUnresolved()
             return STATUS_MAP[self._last_states[job_id]]
         if not self.managed and job_id in self.known_jobs:
-            if self._last_states[job_id] in (LocalStatus.SUBMITTED, LocalStatus.RUNNING):
+            if self._last_states[job_id] in ACTIVE_LOCAL_STATES:
                 return STATUS_MAP[self._last_states[job_id]]
         # Output success precedes descendant cleanup. Only a durable receipt
         # for this exact submission can replace an expired live identity.
@@ -120,6 +127,13 @@ class ManagedLocalOps(LocalOps):
             if self.managed and job_id in self.known_jobs:
                 raise LocalTerminationUnresolved("Local job ID belongs to a different submission") from None
             raise
+
+    def active_without_verified_id(self, job_id, submission):
+        """An exact active name blocks recovery even when tracking or the reply was lost."""
+        self._ensure_observed()
+        if self.submission_names.get(job_id) == submission and self._last_states.get(job_id) in ACTIVE_LOCAL_STATES:
+            return None
+        return self.active_submissions.get(submission)
 
     def require_cancellation_identity(self, job_id, submission):
         self._ensure_observed()

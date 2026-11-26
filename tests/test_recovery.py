@@ -6,11 +6,89 @@ import shutil
 import subprocess
 import sys
 
+from gwf.backends.local import Client, get_socket_path
+
 from support import FIXTURES, LocalBackendTestCase
 import test_graphs
 import test_fresh
+import test_local_resources
 import test_managed_recovery
 import test_transfer
+
+
+class ActiveLocalRecoveryTests(LocalBackendTestCase):
+    workers = 1
+    inject = test_graphs.TaskGraphTests.inject
+    gated = test_local_resources.LocalResourceTests.gated
+
+    def configure_workflow(self):
+        test_local_resources.LocalResourceTests.configure_workflow(self, cores=1)
+
+    def worker_submissions(self):
+        with Client.connect(get_socket_path(self.work)) as client:
+            client.send("get_task_states")
+            kind, response = client.recv()
+        self.assertEqual(kind, "task_states")
+        return {name: response["tasks"][job_id] for job_id, name in response["gwflow_submissions"].items()}
+
+    def test_untracked_queued_submission_prevents_recovery_and_duplicate_admission(self):
+        self.cli("run", "first")
+        self.wait_for((self.work / "first-held").exists)
+        result = self.cli_result("-b", "recovery_fixture", "run", "second", success=False,
+                                 env=self.inject(lose_tracking="second__gwflow_prepare", record_acceptances=True))
+        self.assertEqual(result.returncode, 93)
+        accepted = json.loads((self.work / "backend-acceptances.jsonl").read_text())
+        name = accepted["name"]
+        before = self.worker_submissions()
+        self.assertEqual(before[name], "SUBMITTED")
+        records = self.work / ".gwf/gwflow"
+        intents = set(records.rglob("admissions/*/intent.json"))
+        self.assertNotIn(name, json.loads((self.work / ".gwf/local-backend-tracked.json").read_text()))
+        intent = next(path for path in intents if json.loads(path.read_text())["submission"] == name)
+        self.assertFalse(intent.with_name("ack.json").exists())
+
+        output = self.cli("recover", "second", success=False)
+        self.assertIn("queued or running submissions: " + name, output)
+        self.assertEqual(list(records.rglob("recovery.json")), [])
+
+        # Model a receipt written when the scheduler observation was unavailable.
+        output = self.cli("-b", "recovery_fixture", "recover", "second",
+                          env=self.inject(fail_status_prefix="second"))
+        self.assertIn("Resolved submission " + name, output)
+        for flags in (("--dry-run",), ()):
+            output = self.cli("run", "second", *flags, success=False)
+            self.assertNoSubmissions(output)
+            self.assertNotRegex(output, r"Would submit [1-9]")
+            self.assertIn(name, output)
+        self.assertEqual(set(records.rglob("admissions/*/intent.json")), intents)
+        self.assertEqual(self.worker_submissions(), before)
+
+        (self.work / "first-release").touch()
+        self.settle()
+        (self.work / "second-release").touch()
+        self.run_complete("second")
+        self.assertEqual((self.work / "results/second/out").read_text(), "done")
+        self.assertIn("Reuse", self.cli("run", "second", "--dry-run"))
+
+    def test_running_sibling_prevents_recovery_of_unconfirmed_completion(self):
+        self.cli("-b", "recovery_fixture", "run", "second", success=False,
+                 env=self.inject(reject_prefix="second__gwflow_complete"))
+        self.wait_for((self.work / "second-held").exists)
+        active = next(name for name, state in self.worker_submissions().items()
+                      if name.startswith("second__compute__") and state == "RUNNING")
+        tracking_path = self.work / ".gwf/local-backend-tracked.json"
+        tracking = json.loads(tracking_path.read_text())
+        del tracking[active]
+        tracking_path.write_text(json.dumps(tracking))
+
+        output = self.cli("recover", "second", success=False)
+        self.assertIn("queued or running submissions: " + active, output)
+        self.assertEqual(list((self.work / ".gwf/gwflow").rglob("recovery.json")), [])
+        (self.work / "second-release").touch()
+        self.settle()
+        self.assertIn("Resolved submission second__gwflow_complete__", self.cli("recover", "second"))
+        self.run_complete("second")
+        self.assertEqual((self.work / "results/second/out").read_text(), "done")
 
 
 class OperatorRecoveryTests(LocalBackendTestCase):

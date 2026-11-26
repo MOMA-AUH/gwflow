@@ -448,17 +448,24 @@ def _observe(store, attempt, backend, name, intents, *, tolerate_state_errors=Fa
                     if local_without_backend:
                         scheduler_dir = intent["backend"].get("working_dir", store.working_dir)
                         state = local_termination_state(scheduler_dir, intent["submission"])
-                    else:
-                        if isinstance(ops, ManagedSlurmOps):
+                    elif isinstance(ops, ManagedLocalOps):
+                        active = ops.active_without_verified_id(None if mismatch or rejection else job_id,
+                                                                intent["submission"])
+                        if active is not None:
+                            # The worker can establish activity by name alone. Without
+                            # a verified ID we cannot attach dependencies or retry.
+                            observations[local] = JobObservation(local, "uncertain", intent, job_id,
+                                                                 backend_state=active, identity_conflict=mismatch)
+                            continue
+                        if rejection is None:
                             state = ops.observe_submission(job_id, submission=intent["submission"])
-                        else:
-                            state = backend.status(target)
-                        if (tracked_id is None and job_id is not None and isinstance(backend, TrackingBackend)
-                                and not isinstance(backend.ops, ManagedSlurmOps)):
+                    elif isinstance(ops, ManagedSlurmOps):
+                        state = ops.observe_submission(job_id, submission=intent["submission"])
+                    else:
+                        state = backend.status(target)
+                        if tracked_id is None and job_id is not None and isinstance(backend, TrackingBackend):
                             with report_activity("Waiting for scheduler..."):
                                 state = backend.ops.get_job_states([job_id]).get(job_id, BackendStatus.UNKNOWN)
-                        if isinstance(getattr(backend, "ops", None), ManagedLocalOps) and rejection is None:
-                            state = backend.ops.observe_submission(job_id, submission=intent["submission"])
             except Exception as error:
                 termination_unresolved = isinstance(error, LocalTerminationUnresolved)
                 errors = _wait_scheduler_errors.get()
