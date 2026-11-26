@@ -18,6 +18,18 @@ from release_artifacts import verify as verify_release
 SOURCE = Path(__file__).resolve().parents[1]
 
 
+def require_logical_input_journeys(comparison: dict) -> None:
+    """Qualify a capable controlled artifact or pinned stable release."""
+    logical_inputs = ["test_logical_input_changed_representation_restarts_partial_attempt",
+                      "test_logical_input_cleaned_reuse_across_upgrade",
+                      "test_logical_input_partial_retry_across_upgrade"]
+    coverage = comparison["coverage"]
+    expected = {"run": 15 + len(logical_inputs), "failures": 0, "errors": 0, "skips": 0}
+    if (comparison["journeys"] != expected or coverage["independent"] is not True
+            or coverage["logical_inputs_applicable"] is not True or coverage["logical_inputs"] != logical_inputs):
+        raise ValueError("Qualification requires all original and logical-input upgrade journeys in independent runtimes")
+
+
 def retain_capture(bundle: Path, record: dict, destination: Path) -> None:
     destination.mkdir()
     for field in ("artifact", "manifest"):
@@ -105,6 +117,7 @@ def compare(args: argparse.Namespace) -> None:
                 "baseline_capture": record, "environments": {"baseline": baseline, "candidate": candidate},
                 "native_packages": {"baseline": identities(baseline_packages), "candidate": identities(candidate_packages)},
                 "journeys": json.loads((root / "journeys/summary.json").read_text()), "observations": observations,
+                "coverage": json.loads((root / "journeys/coverage.json").read_text()),
                 "status_consumer": json.loads((root / "journeys/status-consumer.json").read_text()),
                 "replacement": {"reason": args.replacement_reason, "capture": proposed} if replacement else None,
                 "restoration": json.loads((restored / "gwflow-runtime.json").read_text())}
