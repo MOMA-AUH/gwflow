@@ -177,6 +177,10 @@ def lifecycle_jobs(targets):
     return ["gwflow_prepare", *targets, "gwflow_complete"]
 
 
+def _task_job_names(name, targets):
+    return {f"{name}__{local}" for local in lifecycle_jobs(targets)}
+
+
 class Workflow(GwfWorkflow):
     """Register Task factories and select their managed storage locations."""
 
@@ -204,6 +208,9 @@ class Workflow(GwfWorkflow):
         self._task_declarations = {}
         self._task_naming = {}
         self._result_dirs = {}
+        self._claimed_result_dirs = set()
+        self._result_dir_parents = set()
+        self._public_job_names = set()
         self.targets = {}
 
     def _add_target(self, target):
@@ -229,11 +236,42 @@ class Workflow(GwfWorkflow):
                                 f"(prefix={previous.prefix!r}, key={previous.key!r}) and "
                                 f"{factory} (prefix={prefix!r}, key={key!r})")
         result_dir = relative_path(name if result_dir is None else result_dir)
-        validate_destinations([*self._result_dirs.values(), result_dir])
+        result_path = PurePosixPath(result_dir)
+        parents = tuple(result_path.parents)
+        if (result_path in self._claimed_result_dirs or result_path in self._result_dir_parents
+                or not self._claimed_result_dirs.isdisjoint(parents)):
+            raise WorkflowError(f"Managed output destination collision: {result_dir}")
         snapshot = deepcopy(task)
-        names = {f"{name}__{local}" for local in lifecycle_jobs(snapshot.targets)}
+        names = _task_job_names(name, snapshot.targets)
+        if (name in self._public_job_names or not names.isdisjoint(self._public_job_names)
+                or any(job in self._task_declarations for job in names)):
+            self._raise_job_name_collision(name, factory, names)
+        targets = {}
+        for local, target in snapshot.targets.items():
+            target.options = {**self.defaults, **target.options}
+            targets[f"{name}__{local}"] = GwfTarget(
+                name=f"{name}__{local}", inputs=[], outputs=[], options=target.options,
+                working_dir=self.working_dir, group=target.group,
+            )
+        for local in lifecycle_jobs([]):
+            targets[f"{name}__{local}"] = GwfTarget(
+                name=f"{name}__{local}", inputs=[], outputs=[], options={},
+                working_dir=self.working_dir,
+            )
+        self.targets.update(targets)
+        self._task_declarations[name] = snapshot
+        self._task_naming[name] = TaskNaming(factory, prefix, key)
+        self._result_dirs[name] = result_dir
+        self._claimed_result_dirs.add(result_path)
+        self._result_dir_parents.update(parents)
+        self._public_job_names.update(names)
+        return TaskHandle(MappingProxyType({key: RetainedOutput(self, name, key)
+                                            for key in snapshot.retained}))
+
+    def _raise_job_name_collision(self, name, factory, names):
+        # On failure, report the first conflicting declaration in authoring order.
         for previous_name, previous in self._task_declarations.items():
-            previous_names = {f"{previous_name}__{local}" for local in lifecycle_jobs(previous.targets)}
+            previous_names = _task_job_names(previous_name, previous.targets)
             if name in previous_names or previous_name in names:
                 collision = name if name in previous_names else previous_name
                 raise WorkflowError(f"Task/public job name {collision!r} collides between "
@@ -244,19 +282,3 @@ class Workflow(GwfWorkflow):
                 raise WorkflowError(f"Public job name {sorted(collisions)[0]!r} collides between "
                                     f"Task {previous_name!r} ({self._task_naming[previous_name].factory}) "
                                     f"and Task {name!r} ({factory})")
-        for local, target in snapshot.targets.items():
-            target.options = {**self.defaults, **target.options}
-            self.targets[f"{name}__{local}"] = GwfTarget(
-                name=f"{name}__{local}", inputs=[], outputs=[], options=target.options,
-                working_dir=self.working_dir, group=target.group,
-            )
-        for local in lifecycle_jobs([]):
-            self.targets[f"{name}__{local}"] = GwfTarget(
-                name=f"{name}__{local}", inputs=[], outputs=[], options={},
-                working_dir=self.working_dir,
-            )
-        self._task_declarations[name] = snapshot
-        self._task_naming[name] = TaskNaming(factory, prefix, key)
-        self._result_dirs[name] = result_dir
-        return TaskHandle(MappingProxyType({key: RetainedOutput(self, name, key)
-                                            for key in snapshot.retained}))

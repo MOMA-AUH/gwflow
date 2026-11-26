@@ -314,6 +314,10 @@ Running the current tests checks the installed implementation; it does not
 reproduce old measurements automatically. Instrumented operation counts and
 uninstrumented command times measure different things.
 
+The [Task registration measurements](task-registration/measurements.json)
+cover authoring 200, 400, and 800 independent Tasks before planning starts.
+Run `python tests/benchmark_task_registration.py` to measure an installed version.
+
 ## Historical evidence index
 
 The [installed compatibility baseline](compatibility/README.md) describes the

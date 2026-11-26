@@ -1,0 +1,107 @@
+{
+  "issue": "https://github.com/MOMA-AUH/gwflow/issues/441",
+  "date": "2026-11-26",
+  "scope": "Wall time for constructing one Workflow and declaring and registering all its Tasks. Module import, planning, status reporting and worker execution fall outside the timed interval.",
+  "workload": "Independent instances of one decorated Task factory. Each instance declares one computation target with no inputs and one retained out.txt. The instance keys are 0 through N-1 and the results directories are samples/<index>/report. Each size has three measurements, each starting with a fresh Workflow. A full garbage collection precedes each measurement.",
+  "source": {
+    "before": "fdafd76d58750762e606196b45c9be808fb12aaa",
+    "after": "Same base with src/gwflow/workflow.py replaced. The workflow_sha256 in each result identifies the measured module.",
+    "gwflow_version_in_pyproject": "0.12.0",
+    "image": "gwflow-issue-tests:20261119-cc",
+    "image_id": "sha256:4fdd05f0f6fa7d443345d229116dd96bdbc6ee7bbb686799b2f499f915699870"
+  },
+  "reproduce": {
+    "environment": "Run from the candidate checkout, using the same Python environment with the repository dependencies for both measurements. The recorded runs used the same Linux container image and mounted each source directory at /source and the benchmark at /benchmark.py, both read-only. The working directory was /tmp.",
+    "commands": [
+      "mkdir -p build/validation/registration-441/baseline",
+      "git archive fdafd76d58750762e606196b45c9be808fb12aaa src | tar -x -C build/validation/registration-441/baseline",
+      "PYTHONHASHSEED=0 PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=build/validation/registration-441/baseline/src python tests/benchmark_task_registration.py > build/validation/registration-441/before.json",
+      "PYTHONHASHSEED=0 PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python tests/benchmark_task_registration.py > build/validation/registration-441/after.json"
+    ],
+    "recorded_command": "docker run --rm --network none --read-only --tmpfs /tmp --mount type=bind,src=\"$PWD/$source_dir\",dst=/source,readonly --mount type=bind,src=\"$PWD/tests/benchmark_task_registration.py\",dst=/benchmark.py,readonly -e PYTHONPATH=/source -e PYTHONHASHSEED=0 -e PYTHONDONTWRITEBYTECODE=1 gwflow-issue-tests:20261119-cc python /benchmark.py > \"$output_file\"",
+    "recorded_arguments": {
+      "before": {
+        "source_dir": "build/validation/fix-issues/20261126T103711Z/441-baseline/src",
+        "output_file": "build/validation/fix-issues/20261126T103711Z/441-before.json"
+      },
+      "after": {
+        "source_dir": "src",
+        "output_file": "build/validation/fix-issues/20261126T103711Z/441-after-final.json"
+      }
+    }
+  },
+  "before": {
+    "python": "3.12.16",
+    "system": "Linux",
+    "architecture": "aarch64",
+    "gwf": "3.0.0",
+    "workflow_sha256": "263bf79b55300cbeb62496607c12bf72ea1a640c9212368d743be9686f1ee542",
+    "benchmark_sha256": "f0af4fba6ed904cd487465ecafb5fe250eb3db1cdeb9d8db1c916a10815fcf12",
+    "timings": [
+      {
+        "tasks": 200,
+        "seconds": [
+          0.18488416699999988,
+          0.18270116700000472,
+          0.18240258299999823
+        ],
+        "median_seconds": 0.18270116700000472
+      },
+      {
+        "tasks": 400,
+        "seconds": [
+          1.337247834000003,
+          1.3530374999999992,
+          1.3461531250000007
+        ],
+        "median_seconds": 1.3461531250000007
+      },
+      {
+        "tasks": 800,
+        "seconds": [
+          10.700739962,
+          10.707550171999998,
+          10.847442630999993
+        ],
+        "median_seconds": 10.707550171999998
+      }
+    ]
+  },
+  "after": {
+    "python": "3.12.16",
+    "system": "Linux",
+    "architecture": "aarch64",
+    "gwf": "3.0.0",
+    "workflow_sha256": "600cac7a2b43c52e4652b9e1b87fec305ceeb51260e53d05e02a7f5c1098f183",
+    "benchmark_sha256": "f0af4fba6ed904cd487465ecafb5fe250eb3db1cdeb9d8db1c916a10815fcf12",
+    "timings": [
+      {
+        "tasks": 200,
+        "seconds": [
+          0.015734916999974757,
+          0.016210708000016893,
+          0.015298167000025842
+        ],
+        "median_seconds": 0.015734916999974757
+      },
+      {
+        "tasks": 400,
+        "seconds": [
+          0.03109862499997007,
+          0.03015712500001655,
+          0.030494916999998622
+        ],
+        "median_seconds": 0.030494916999998622
+      },
+      {
+        "tasks": 800,
+        "seconds": [
+          0.06154562500000793,
+          0.06273720900003354,
+          0.061036124999986896
+        ],
+        "median_seconds": 0.06154562500000793
+      }
+    ]
+  }
+}
