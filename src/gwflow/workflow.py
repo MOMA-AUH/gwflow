@@ -177,6 +177,10 @@ def lifecycle_jobs(targets):
     return ["gwflow_prepare", *targets, "gwflow_complete"]
 
 
+def _task_job_names(name, targets):
+    return {f"{name}__{local}" for local in lifecycle_jobs(targets)}
+
+
 class Workflow(GwfWorkflow):
     """Register Task factories and select their managed storage locations."""
 
@@ -238,7 +242,7 @@ class Workflow(GwfWorkflow):
                 or not self._claimed_result_dirs.isdisjoint(parents)):
             raise WorkflowError(f"Managed output destination collision: {result_dir}")
         snapshot = deepcopy(task)
-        names = {f"{name}__{local}" for local in lifecycle_jobs(snapshot.targets)}
+        names = _task_job_names(name, snapshot.targets)
         if (name in self._public_job_names or not names.isdisjoint(self._public_job_names)
                 or any(job in self._task_declarations for job in names)):
             self._raise_job_name_collision(name, factory, names)
@@ -267,7 +271,7 @@ class Workflow(GwfWorkflow):
     def _raise_job_name_collision(self, name, factory, names):
         # On failure, report the first conflicting declaration in authoring order.
         for previous_name, previous in self._task_declarations.items():
-            previous_names = {f"{previous_name}__{local}" for local in lifecycle_jobs(previous.targets)}
+            previous_names = _task_job_names(previous_name, previous.targets)
             if name in previous_names or previous_name in names:
                 collision = name if name in previous_names else previous_name
                 raise WorkflowError(f"Task/public job name {collision!r} collides between "
