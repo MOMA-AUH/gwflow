@@ -1,12 +1,14 @@
 """Requested resource budgets and termination through installed commands."""
 
 import json
+import os
 import shlex
+import shutil
 import time
 
 from gwf.log_storage import get_log_paths
 
-from support import LocalBackendTestCase, TASK_FACTORY
+from support import FIXTURES, LocalBackendTestCase, TASK_FACTORY
 from process_probe import ProcessProbe
 from test_source_freshness import replace_with_cached_source
 
@@ -200,6 +202,72 @@ class PrelaunchFailureTests(LocalBackendTestCase):
     def bad_job(self):
         status = json.loads(self.cli_result("status", "bad", "--json", "--details").stdout)
         return next(job for job in status["tasks"][0]["jobs"] if job["name"] == "bad__compute")
+
+    def queue_during_spawn(self, mode):
+        self.stop_worker(self.worker)
+        shutil.copy(FIXTURES / "supervisor_spawn_failure.py", self.work / "sitecustomize.py")
+        request = self.work / "spawn-failure"
+        request.write_text(mode)
+        self.addCleanup(request.unlink, missing_ok=True)
+        self.worker = self.start_worker(env={**os.environ, "PYTHONPATH": str(self.work),
+                                             "GWFLOW_SPAWN_FAILURE": str(request)})
+        self.cli("run", "bad")
+        self.wait_for(request.with_suffix(".held").exists)
+        self.cli("run", "good")
+        self.assertIn("queued", self.cli("status", "good", "--plain"))
+        return request
+
+    def test_rejected_supervisor_spawn_releases_capacity_and_allows_retry(self):
+        self.worker_debug = True
+        request = self.queue_during_spawn("before")
+        submission = self.bad_job()["submission_name"]
+        request.unlink()
+        self.wait_for(lambda: self.bad_job()["observed_state"] != "running")
+        self.assertEqual(self.bad_job()["observed_state"], "failed")
+        self.assertFalse((self.work / "bad-started").exists())
+        result = self.work / "results/good/out"
+        self.wait_for(result.exists)
+        self.assertEqual(result.read_text(), "done")
+        self.settle()
+
+        self.worker.terminate()
+        _, diagnostic = self.worker.communicate(timeout=10)
+        self.assertRegex(diagnostic, r"good__compute__.*starting with .*0 of 1 core\(s\) "
+                                     r"and 0\.0B of 1\.0GiB memory remain available")
+        self.worker = self.start_worker()
+        recorded = self.bad_job()
+        self.assertEqual(recorded["submission_name"], submission)
+        self.assertEqual(recorded["observed_state"], "failed")
+        self.assertIn("Retry", self.cli("run", "bad", "--dry-run"))
+        self.run_complete("bad")
+        self.assertTrue((self.work / "bad-started").exists())
+        self.assertEqual((self.work / "results/bad/out").read_text(), "done")
+
+    def assert_spawn_unresolved(self):
+        self.wait_for(lambda: self.bad_job()["observed_state"] != "running")
+        self.assertIn("cannot confirm computation descendants have stopped",
+                      self.cli("run", "bad", "--dry-run", success=False))
+        self.assertIn("queued", self.cli("status", "good", "--plain"))
+        self.assertFalse((self.work / "results/good/out").exists())
+
+    def test_lost_launch_response_after_execution_keeps_reservation(self):
+        self.queue_during_spawn("after").unlink()
+        self.assert_spawn_unresolved()
+        self.assertTrue((self.work / "bad-started").exists())
+
+    def test_lost_launch_response_while_supervisor_starts_keeps_reservation(self):
+        self.queue_during_spawn("starting").unlink()
+        self.assert_spawn_unresolved()
+        self.assertFalse((self.work / "bad-started").exists())
+
+    def test_unpublished_spawn_failure_keeps_reservation(self):
+        request = self.queue_during_spawn("before")
+        ledger = self.work / ".gwf/local-termination/records.json"
+        ledger.unlink()
+        ledger.mkdir()
+        request.unlink()
+        self.assert_spawn_unresolved()
+        self.assertFalse((self.work / "bad-started").exists())
 
     def test_log_open_failure_releases_capacity_for_queued_work(self):
         self.cli("run", "hold")

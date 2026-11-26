@@ -359,6 +359,11 @@ An effective `walltime=None` uses the one-hour local default, not an unlimited
 runtime. The separate `gwflow wait --timeout` limits observation and leaves jobs
 running when it expires.
 
+If the operating system rejects a supervisor launch before the job starts, the
+local worker records the failed Submission and releases its cores and memory.
+Inspect the failure with `gwflow status TASK --details`. After the cause clears,
+retry with `gwflow run TASK`.
+
 On local walltime expiry, managed workers stop the job and its descendants before
 recording confirmed termination and releasing its reservations. Unexpected
 supervisor loss or missing termination evidence remains unresolved. It cannot
