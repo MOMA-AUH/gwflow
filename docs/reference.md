@@ -1824,8 +1824,9 @@ Repair, and interrupted result installation. An upgrade alone requires neither
 recomputation nor manual record conversion. See [ADR 0010](adr/0010-preserve-public-interfaces-and-completed-work-through-1-x.md).
 
 Before switching versions, finish or cancel every affected queued or running
-computation and lifecycle job. Use scheduler or worker observations to confirm
-each job has stopped, including after a cancellation request. Follow the
+computation and lifecycle job. Use scheduler or worker observations to make sure
+that every affected job is inactive. This check also applies after a cancellation
+request. Follow the
 [upgrade procedure](operating.md#upgrade-with-all-jobs-inactive) for commands
 and unresolved submissions. Live upgrades, mixed-version frontends and workers,
 downgrades, and storage relocation fall outside the contract.

@@ -23,8 +23,8 @@ installation. The upgrade itself requires neither recomputation nor manual
 record conversion. See [ADR 0010](adr/0010-preserve-public-interfaces-and-completed-work-through-1-x.md).
 
 Before changing the environment, finish or cancel all affected computation and
-lifecycle jobs, including queued jobs. Confirm each job has stopped using
-scheduler or worker records. Follow the [upgrade procedure](#upgrade-with-all-jobs-inactive)
+lifecycle jobs, including queued jobs. Use scheduler or worker records to make
+sure that every affected job is inactive. Follow the [upgrade procedure](#upgrade-with-all-jobs-inactive)
 for commands and unresolved submissions. The contract excludes live upgrades,
 mixed-version frontends and workers, downgrades, storage relocation, and adoption
 of unowned data.

@@ -302,10 +302,6 @@ once. Do not select a draft or prerelease,
 invent historical artifacts, or treat the provisional source comparison as an
 independent preserved environment. See [ADR 0018](adr/0018-preserve-independent-compatibility-environments.md).
 
-After v1.0.0 publication, compare the preserved status JSON consumer with the
-published schema. Follow the [consumer snapshot procedure](validation/compatibility/README.md#preserved-json-status-consumer)
-to record the release in the consumer descriptor and preserve the original assertions.
-
 Before preparing another candidate, merge this descriptor PR with passing CI.
 Reviewers must compare its latest pin with the last successful stable publication.
 Do not update the pin merely because a tag or draft exists. CI intentionally reads
@@ -314,6 +310,10 @@ An old-commit rerun keeps its historical selection and cannot prove coverage of
 later releases. Dependency deletion upstream can still prevent exact restoration.
 Follow the [recovery procedure](validation/compatibility/README.md#recover-missing-dependencies)
 without silently replacing dependencies or marking an unperformed comparison passed.
+
+After v1.0.0 publication, compare the preserved status JSON consumer with the
+published schema. Follow the [consumer snapshot procedure](validation/compatibility/README.md#preserved-json-status-consumer)
+to record the release in the consumer descriptor and preserve the original assertions.
 
 Stable compatibility covers forward upgrades of valid completed and incomplete
 work with all affected jobs inactive. Keep workflow and storage paths unchanged.
