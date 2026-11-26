@@ -16,6 +16,28 @@ ROOT = Path(__file__).resolve().parents[1]
 TOOL = ROOT / "tests/compare_runtime.py"
 
 
+class LogicalInputQualificationTests(unittest.TestCase):
+    def test_qualification_requires_every_logical_input_journey_in_the_independent_comparison(self):
+        from compare_runtime import require_logical_input_journeys
+
+        names = ["test_logical_input_changed_representation_restarts_partial_attempt",
+                 "test_logical_input_cleaned_reuse_across_upgrade",
+                 "test_logical_input_partial_retry_across_upgrade"]
+        summary = {"run": 18, "failures": 0, "errors": 0, "skips": 0}
+        coverage = {"baseline_version": "1.0.0", "independent": True,
+                    "logical_inputs_applicable": True, "logical_inputs": names}
+        require_logical_input_journeys({"journeys": summary, "coverage": coverage})
+        for journeys, observed in [
+            ({**summary, "run": 15}, coverage),
+            ({**summary, "skips": 1}, coverage),
+            (summary, {**coverage, "logical_inputs": [names[0], names[0], names[2]]}),
+            (summary, {**coverage, "logical_inputs_applicable": False}),
+            (summary, {**coverage, "independent": False}),
+        ]:
+            with self.subTest(journeys=journeys, coverage=observed), self.assertRaises(ValueError):
+                require_logical_input_journeys({"journeys": journeys, "coverage": observed})
+
+
 class RuntimeComparisonTests(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory(prefix="gwflow-compare-")

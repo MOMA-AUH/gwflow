@@ -79,6 +79,7 @@ jobs:
             build/validation/compatibility-plan.json
             build/validation/compatibility/environment.json
             build/validation/compatibility/summary.json
+            build/validation/compatibility/coverage.json
             build/validation/compatibility/status-consumer.json
           if-no-files-found: error
 
@@ -268,7 +269,10 @@ jobs:
           python - <<'PYTHON'
           import json
           from pathlib import Path
+          import sys
           import tomllib
+          sys.path.insert(0, "tests")
+          from compare_runtime import require_logical_input_journeys
           fixtures = {}
           for path in Path("tests/fixtures/packaged_tasks/packages").glob("*/pyproject.toml"):
               project = tomllib.loads(path.read_text())["project"]
@@ -298,7 +302,7 @@ jobs:
                           assert candidate["versions"][name] == version, candidate
                       else:
                           assert name not in candidate["versions"], candidate
-                  assert evidence["journeys"] == {"run": 15, "failures": 0, "errors": 0, "skips": 0}, evidence
+                  require_logical_input_journeys(evidence)
                   assert evidence["status_consumer"]["status"] == "passed", evidence
           PYTHON
       - name: Prepare completely qualified release bundle

@@ -17,6 +17,7 @@ print(json.dumps({
     "prefix_identity": {"device": prefix.stat().st_dev, "inode": prefix.stat().st_ino},
     "package": str(site / "gwflow"), "stdlib": str(site), "sys_path": [str(site)],
     "python_version": "3.12.14", "imports": {}, "markers": {},
+    "versions": {item["name"]: item["version"] for item in packages},
     "distributions": [{"name": item["name"], "version": item["version"], "location": str(site),
                        "requires_python": ">=3.12,<3.13", "requires": []} for item in packages],
     "runtime_directories": [{"path": str(site), **identity}],

@@ -14,7 +14,7 @@ The [baseline descriptor](baseline.json) uses schema version 2. Its `stable`
 field selects the comparison mode. Before the first stable publication,
 `stable: null` selects the existing source comparison at `source.commit`.
 The source pin must identify a complete Git commit. This provisional comparison
-keeps every journey active without claiming an independent stable baseline.
+exercises the 15 lifecycle journeys supported by that bootstrap.
 
 After stable publication, `stable` contains `original`, `latest`, and an
 `intermediate` array. Each release reference contains `version`, `source_commit`,
@@ -46,7 +46,7 @@ python tests/select_compatibility.py plan \
 CI reads only the descriptor in its checkout. It never asks GitHub for a moving
 latest release. After stable publication, the Conda job downloads each selected
 bundle and checks every pinned checksum before restoration. It then invokes the
-independent runner for all 15 journeys per selected baseline. The source job
+independent runner for all 18 cases per selected stable baseline. The source job
 runs the provisional comparison only while `stable` remains null.
 The existing controlled runtime checks continue to test restoration before the
 first stable publication. They do not create or publish releases.
@@ -136,12 +136,13 @@ shared installed dependencies.
 The comparison rejects shared directory identities, including bind mounts.
 It permits hardlinks to individual files in a shared package cache.
 
-The tool runs all 15 existing upgrade journeys against the restored baseline and
-independent candidate. It writes normalized evidence to `comparison.json` under
+The tool runs the 15 original lifecycle journeys. With an independent baseline
+at gwflow 0.12.0 or later, it also runs three logical-input cases. It writes
+normalized evidence to `comparison.json` under
 the evidence root. The record includes runtime identities, dependency policies,
 native package inventory, and journey results. Its placeholder definitions explain
 normalized paths. The `journeys/` directory retains raw `environment.json`,
-`transcript.jsonl`, `summary.json`, and workflow storage for inspection.
+`transcript.jsonl`, `summary.json`, `coverage.json`, and workflow storage for inspection.
 Keep raw evidence under the ignored `build/validation/` tree.
 The selected record before path normalization remains in `comparison.raw.json`.
 An explicit `--test` selection produces `focused-tests-passed` evidence. It does
@@ -172,7 +173,7 @@ The tool retains the original manifest, records the replacement and reason, and
 runs the same journeys. Successful replacement evidence sets
 `exact_baseline_runtime` to `false`. It does not claim to reproduce the original
 dependency installation. The release-process simulations test this route with a
-controlled replacement capture and require all 15 journeys to pass. That fixture does not claim an
+controlled replacement capture and require all 18 cases to pass. That fixture does not claim an
 actual dependency loss or establish a stable baseline.
 
 For a selected stable release, first use `select_compatibility.py fetch` with
@@ -203,7 +204,7 @@ Earlier validation records remain unchanged, including the failed old-baseline
 check during the migration.
 
 Installing the bootstrap twice qualifies its journey behavior and storage handoff.
-A later candidate must then pass every journey against that pinned bootstrap.
+A later candidate must pass those same 15 journeys against the pinned bootstrap.
 Shared dependencies do not establish an independent preserved release environment
 or a compatibility promise for `v0.10.2`. Record tested and published artifacts
 through the release procedure. Pre-1.0 artifacts remain controlled fixtures.
@@ -285,12 +286,24 @@ declaration switch and proves that only that consumer computes. The candidate al
 refuses unowned results. The ordinary suite's legacy/truncated-record tests continue
 to reject unsupported ownership evidence; no migration path is introduced.
 
-Each invocation requires a new evidence root and writes `environment.json`,
-`transcript.jsonl`, and `summary.json`, retaining its workflow and storage for
-inspection. Failed runs return nonzero and are not compatibility evidence.
-Before stable publication, the CI `tests` job runs all compatibility journeys
-before its full suite. Afterward, the Conda job runs them for each pinned stable
-baseline. Both CI package suites cover ownership and unsupported-state rejection.
+Each invocation requires a new evidence root. The runner retains the workflow,
+storage, command transcript, runtime identities, and result counts. Its
+`coverage.json` identifies the baseline version, runtime independence,
+applicability of the logical-input cases, and which of them passed.
+While `stable` is null, CI tests the pinned bootstrap and exercises logical
+inputs in the independent controlled runtime simulations. Once stable releases
+are pinned, CI requires the full independent comparison for each selected release.
+
+The logical-input workflow decodes a greeting from plain text or gzip under the
+same declared identity. The baseline finishes the Task and cleans its work. The
+candidate reuses its attempt and retained output with both source files offline
+after the workflow selects gzip. Two more cases start with a successful decode
+and a failed join. With the original selection, the candidate retries the join
+and Completion on the original attempt. Selecting gzip requires a fresh attempt
+and repeats both computations. For each case the transcript records the attempt,
+job states, accepted Submissions, descriptors observed by each computation,
+worker Python prefixes, and retained text. The [controlled v0.12.0 comparison](logical-inputs.json)
+records these handoffs and the complete 18-case and 15-case matrix results.
 
 The incomplete-attempt journeys use the existing graph, external-input,
 transfer, Repair, and recovery fixtures. They cover successful siblings alongside

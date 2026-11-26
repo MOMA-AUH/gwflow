@@ -1,0 +1,867 @@
+{
+  "issue": "https://github.com/MOMA-AUH/gwflow/issues/442",
+  "date": "2026-11-26",
+  "scope": "Controlled comparison of source-built gwflow installations. The capable baseline uses the v0.12.0 source tag. The bootstrap uses the checkout-pinned pre-feature source. Each comparison uses separate full Python installations inside the same Linux container. Run each command with its own fresh evidence root.",
+  "container_image_id": "sha256:4fdd05f0f6fa7d443345d229116dd96bdbc6ee7bbb686799b2f499f915699870",
+  "driver_and_fixture_sha256": {
+    "tests/validate_compatibility.py": "de6a506906a3261af7852b46815685d1fb34e884361b64006b723824f1246c1a",
+    "tests/fixtures/logical_input_compatibility/workflow.py": "759eeb155a60730a0d8c8afbdd7ec4badb9a39140e6cee32f6d3f6e7ae00c99c",
+    "tests/fixtures/logical_input_compatibility/read_text.py": "1e84783637f0c68ff74233dd6d1ce76bc5c70373daa8f05d1ecd831111d65fc2"
+  },
+  "matrices": {
+    "capable": {
+      "command": [
+        "<CANDIDATE>/bin/python",
+        "<REPO>/tests/validate_compatibility.py",
+        "--independent",
+        "--baseline-python",
+        "<BASELINE>/bin/python",
+        "--candidate-python",
+        "<CANDIDATE>/bin/python",
+        "--baseline-source",
+        "f958542f97bde01b5e5759591a7c5bfc5cb47d4d",
+        "--candidate-source",
+        "d1044cb28616ef248c096eb9c48ec956d52eda19",
+        "--root",
+        "<CAPABLE_RUN>"
+      ],
+      "installations": {
+        "baseline": {
+          "source": "f958542f97bde01b5e5759591a7c5bfc5cb47d4d",
+          "package_sha256": "55214f8ffd23fbf52306bc95842ecacb5960bc497a2d8be3abebe67cc94a1415",
+          "executable": "<BASELINE>/bin/python",
+          "prefix_identity": {
+            "device": 63,
+            "inode": 168783
+          },
+          "python_version": "3.12.16",
+          "platform": "Linux-7.0.14-linuxkit-aarch64-with-glibc2.36",
+          "dependency_policy": "independent",
+          "supported_runtime": true,
+          "versions": {
+            "packaging": "26.3",
+            "wheel": "0.48.0",
+            "textual": "8.2.8",
+            "Pygments": "2.21.0",
+            "mdurl": "0.1.2",
+            "rich": "15.0.0",
+            "click-plugins": "1.1.1.2",
+            "gwflow": "0.12.0",
+            "gwf": "3.0.0",
+            "click": "8.5.1",
+            "attrs": "26.1.0",
+            "mdit-py-plugins": "0.7.0",
+            "linkify-it-py": "2.2.0",
+            "platformdirs": "4.14.7",
+            "typing_extensions": "4.16.0",
+            "markdown-it-py": "4.3.0",
+            "uc-micro-py": "2.0.0",
+            "pip": "26.2.2",
+            "setuptools": "84.2.1"
+          }
+        },
+        "candidate": {
+          "source": "d1044cb28616ef248c096eb9c48ec956d52eda19",
+          "package_sha256": "bce893826d0a801630c3a1b5dc6a5c44c41543efd18a385497fbab01ae4d49b4",
+          "executable": "<CANDIDATE>/bin/python",
+          "prefix_identity": {
+            "device": 63,
+            "inode": 168814
+          },
+          "python_version": "3.12.16",
+          "platform": "Linux-7.0.14-linuxkit-aarch64-with-glibc2.36",
+          "dependency_policy": "independent",
+          "supported_runtime": true,
+          "versions": {
+            "packaging": "26.3",
+            "wheel": "0.48.0",
+            "textual": "8.2.8",
+            "Pygments": "2.21.0",
+            "mdurl": "0.1.2",
+            "rich": "15.0.0",
+            "click-plugins": "1.1.1.2",
+            "gwflow": "0.12.0",
+            "gwf": "3.0.0",
+            "click": "8.5.1",
+            "attrs": "26.1.0",
+            "mdit-py-plugins": "0.7.0",
+            "linkify-it-py": "2.2.0",
+            "platformdirs": "4.14.7",
+            "typing_extensions": "4.16.0",
+            "markdown-it-py": "4.3.0",
+            "uc-micro-py": "2.0.0",
+            "pip": "26.2.2",
+            "setuptools": "84.2.1"
+          }
+        }
+      },
+      "summary": {
+        "run": 18,
+        "failures": 0,
+        "errors": 0,
+        "skips": 0
+      },
+      "coverage": {
+        "baseline_version": "0.12.0",
+        "independent": true,
+        "logical_inputs_applicable": true,
+        "logical_inputs": [
+          "test_logical_input_changed_representation_restarts_partial_attempt",
+          "test_logical_input_cleaned_reuse_across_upgrade",
+          "test_logical_input_partial_retry_across_upgrade"
+        ]
+      },
+      "status_consumer": "passed"
+    },
+    "bootstrap": {
+      "command": [
+        "<CANDIDATE>/bin/python",
+        "<REPO>/tests/validate_compatibility.py",
+        "--independent",
+        "--baseline-python",
+        "<BOOTSTRAP>/bin/python",
+        "--candidate-python",
+        "<CANDIDATE>/bin/python",
+        "--baseline-source",
+        "862f53c8ccf9328aaf39a69a366a052fcdf6c85c",
+        "--candidate-source",
+        "d1044cb28616ef248c096eb9c48ec956d52eda19",
+        "--root",
+        "<BOOTSTRAP_RUN>"
+      ],
+      "installations": {
+        "baseline": {
+          "source": "862f53c8ccf9328aaf39a69a366a052fcdf6c85c",
+          "package_sha256": "0f168061e591e92147644d1f26d5c014b9acb61bc2df98329dc7d0a0653b46eb",
+          "executable": "<BOOTSTRAP>/bin/python",
+          "prefix_identity": {
+            "device": 63,
+            "inode": 182494
+          },
+          "python_version": "3.12.16",
+          "platform": "Linux-7.0.14-linuxkit-aarch64-with-glibc2.36",
+          "dependency_policy": "independent",
+          "supported_runtime": true,
+          "versions": {
+            "packaging": "26.3",
+            "wheel": "0.48.0",
+            "textual": "8.2.8",
+            "Pygments": "2.21.0",
+            "mdurl": "0.1.2",
+            "rich": "15.0.0",
+            "click-plugins": "1.1.1.2",
+            "gwf": "3.0.0",
+            "click": "8.5.1",
+            "attrs": "26.1.0",
+            "mdit-py-plugins": "0.7.0",
+            "linkify-it-py": "2.2.0",
+            "platformdirs": "4.14.7",
+            "typing_extensions": "4.16.0",
+            "gwflow": "0.10.2",
+            "markdown-it-py": "4.3.0",
+            "uc-micro-py": "2.0.0",
+            "pip": "26.2.2",
+            "setuptools": "84.2.1"
+          }
+        },
+        "candidate": {
+          "source": "d1044cb28616ef248c096eb9c48ec956d52eda19",
+          "package_sha256": "bce893826d0a801630c3a1b5dc6a5c44c41543efd18a385497fbab01ae4d49b4",
+          "executable": "<CANDIDATE>/bin/python",
+          "prefix_identity": {
+            "device": 63,
+            "inode": 168814
+          },
+          "python_version": "3.12.16",
+          "platform": "Linux-7.0.14-linuxkit-aarch64-with-glibc2.36",
+          "dependency_policy": "independent",
+          "supported_runtime": true,
+          "versions": {
+            "packaging": "26.3",
+            "wheel": "0.48.0",
+            "textual": "8.2.8",
+            "Pygments": "2.21.0",
+            "mdurl": "0.1.2",
+            "rich": "15.0.0",
+            "click-plugins": "1.1.1.2",
+            "gwflow": "0.12.0",
+            "gwf": "3.0.0",
+            "click": "8.5.1",
+            "attrs": "26.1.0",
+            "mdit-py-plugins": "0.7.0",
+            "linkify-it-py": "2.2.0",
+            "platformdirs": "4.14.7",
+            "typing_extensions": "4.16.0",
+            "markdown-it-py": "4.3.0",
+            "uc-micro-py": "2.0.0",
+            "pip": "26.2.2",
+            "setuptools": "84.2.1"
+          }
+        }
+      },
+      "summary": {
+        "run": 15,
+        "failures": 0,
+        "errors": 0,
+        "skips": 0
+      },
+      "coverage": {
+        "baseline_version": "0.10.2",
+        "independent": true,
+        "logical_inputs_applicable": false,
+        "logical_inputs": []
+      },
+      "status_consumer": "passed"
+    }
+  },
+  "logical_input_observations": {
+    "test_logical_input_changed_representation_restarts_partial_attempt": {
+      "baseline": {
+        "attempt": "b517839fa02e4a5bbbcbe22e1605f7b3",
+        "state": "failed",
+        "action": "retry",
+        "jobs": {
+          "sample__gwflow_prepare": {
+            "state": "completed",
+            "submission_name": "sample__gwflow_prepare__2dc7989f143543fdb8fe9b1fc0b2fe85__3d8a0f14d0eb43658197b5606ef17d20",
+            "backend_id": "003cd165.0"
+          },
+          "sample__decode": {
+            "state": "completed",
+            "submission_name": "sample__decode__43340b3e051442aea0a23228cf992503__56a38c39a99c4fdf812913fcd6def3ea",
+            "backend_id": "003cd165.1"
+          },
+          "sample__join": {
+            "state": "failed",
+            "submission_name": "sample__join__ab3dfc102dc742ab91a9f7407a9fb81b__7b037f16ea2844ce9007568fb32d04b0",
+            "backend_id": "003cd165.2"
+          },
+          "sample__gwflow_complete": {
+            "state": "failed",
+            "submission_name": "sample__gwflow_complete__193eeceaff484f17903742bf2e3c482a__cb7f6ea136b049808b45fa6eb2d0af08",
+            "backend_id": "003cd165.3"
+          }
+        },
+        "executions": [
+          {
+            "step": "decode",
+            "prefix": "<BASELINE>",
+            "descriptor": {
+              "files": {
+                "source": "<CAPABLE_RUN>/test_logical_input_changed_representation_restarts_partial_attempt/input.txt"
+              },
+              "identity": "greeting-v1",
+              "metadata": {
+                "encoding": "plain"
+              },
+              "name": "text"
+            }
+          },
+          {
+            "step": "join",
+            "prefix": "<BASELINE>",
+            "descriptor": {
+              "files": {
+                "source": "<CAPABLE_RUN>/test_logical_input_changed_representation_restarts_partial_attempt/input.txt"
+              },
+              "identity": "greeting-v1",
+              "metadata": {
+                "encoding": "plain"
+              },
+              "name": "text"
+            }
+          }
+        ],
+        "submissions": [
+          {
+            "name": "sample__gwflow_prepare__2dc7989f143543fdb8fe9b1fc0b2fe85__3d8a0f14d0eb43658197b5606ef17d20",
+            "id": "003cd165.0"
+          },
+          {
+            "name": "sample__decode__43340b3e051442aea0a23228cf992503__56a38c39a99c4fdf812913fcd6def3ea",
+            "id": "003cd165.1"
+          },
+          {
+            "name": "sample__join__ab3dfc102dc742ab91a9f7407a9fb81b__7b037f16ea2844ce9007568fb32d04b0",
+            "id": "003cd165.2"
+          },
+          {
+            "name": "sample__gwflow_complete__193eeceaff484f17903742bf2e3c482a__cb7f6ea136b049808b45fa6eb2d0af08",
+            "id": "003cd165.3"
+          }
+        ],
+        "retained_text": null,
+        "selected_encoding": "plain",
+        "available_sources": [
+          "input.txt",
+          "input.txt.gz"
+        ]
+      },
+      "handoff": {
+        "all_jobs_inactive": true,
+        "job_states": {
+          "003cd165.0": "COMPLETED",
+          "003cd165.1": "COMPLETED",
+          "003cd165.2": "FAILED",
+          "003cd165.3": "FAILED"
+        },
+        "worker_exit": 0,
+        "storage": {
+          "<CAPABLE_RUN>/test_logical_input_changed_representation_restarts_partial_attempt": {
+            "device": 63,
+            "inode": 233483
+          },
+          "<CAPABLE_RUN>/test_logical_input_changed_representation_restarts_partial_attempt/work": {
+            "device": 63,
+            "inode": 233632
+          },
+          "<CAPABLE_RUN>/test_logical_input_changed_representation_restarts_partial_attempt/results": {
+            "device": 63,
+            "inode": 233635
+          },
+          "<CAPABLE_RUN>/test_logical_input_changed_representation_restarts_partial_attempt/.gwf/gwflow": {
+            "device": 63,
+            "inode": 233634
+          }
+        }
+      },
+      "candidate": {
+        "attempt": "51c34bd857174f59b8cedf0fc1b394a7",
+        "state": "reusable",
+        "action": "reuse",
+        "jobs": {
+          "sample__gwflow_prepare": {
+            "state": "completed",
+            "submission_name": "sample__gwflow_prepare__d384c641b87b410586424347ef02ce0d__baced88f7c7d4df0bc515c33325982bb",
+            "backend_id": "b153902a.0"
+          },
+          "sample__decode": {
+            "state": "completed",
+            "submission_name": "sample__decode__7de7d1a84db845dab2c6c27c59d2b99d__fbe2603f3de14734967e60666c68a27a",
+            "backend_id": "b153902a.1"
+          },
+          "sample__join": {
+            "state": "completed",
+            "submission_name": "sample__join__506199219665445e91dc566acd4fd3a5__92209fae2cf5445e97a8f442362a6695",
+            "backend_id": "b153902a.2"
+          },
+          "sample__gwflow_complete": {
+            "state": "completed",
+            "submission_name": "sample__gwflow_complete__6de3d857a92e4cd8a10b002137e74d4d__aca09de25b7e41d59c8c76e94340af0f",
+            "backend_id": "b153902a.3"
+          }
+        },
+        "executions": [
+          {
+            "step": "decode",
+            "prefix": "<BASELINE>",
+            "descriptor": {
+              "files": {
+                "source": "<CAPABLE_RUN>/test_logical_input_changed_representation_restarts_partial_attempt/input.txt"
+              },
+              "identity": "greeting-v1",
+              "metadata": {
+                "encoding": "plain"
+              },
+              "name": "text"
+            }
+          },
+          {
+            "step": "join",
+            "prefix": "<BASELINE>",
+            "descriptor": {
+              "files": {
+                "source": "<CAPABLE_RUN>/test_logical_input_changed_representation_restarts_partial_attempt/input.txt"
+              },
+              "identity": "greeting-v1",
+              "metadata": {
+                "encoding": "plain"
+              },
+              "name": "text"
+            }
+          },
+          {
+            "step": "decode",
+            "prefix": "<CANDIDATE>",
+            "descriptor": {
+              "files": {
+                "source": "<CAPABLE_RUN>/test_logical_input_changed_representation_restarts_partial_attempt/input.txt.gz"
+              },
+              "identity": "greeting-v1",
+              "metadata": {
+                "encoding": "gzip"
+              },
+              "name": "text"
+            }
+          },
+          {
+            "step": "join",
+            "prefix": "<CANDIDATE>",
+            "descriptor": {
+              "files": {
+                "source": "<CAPABLE_RUN>/test_logical_input_changed_representation_restarts_partial_attempt/input.txt.gz"
+              },
+              "identity": "greeting-v1",
+              "metadata": {
+                "encoding": "gzip"
+              },
+              "name": "text"
+            }
+          }
+        ],
+        "submissions": [
+          {
+            "name": "sample__gwflow_prepare__2dc7989f143543fdb8fe9b1fc0b2fe85__3d8a0f14d0eb43658197b5606ef17d20",
+            "id": "003cd165.0"
+          },
+          {
+            "name": "sample__decode__43340b3e051442aea0a23228cf992503__56a38c39a99c4fdf812913fcd6def3ea",
+            "id": "003cd165.1"
+          },
+          {
+            "name": "sample__join__ab3dfc102dc742ab91a9f7407a9fb81b__7b037f16ea2844ce9007568fb32d04b0",
+            "id": "003cd165.2"
+          },
+          {
+            "name": "sample__gwflow_complete__193eeceaff484f17903742bf2e3c482a__cb7f6ea136b049808b45fa6eb2d0af08",
+            "id": "003cd165.3"
+          },
+          {
+            "name": "sample__gwflow_prepare__d384c641b87b410586424347ef02ce0d__baced88f7c7d4df0bc515c33325982bb",
+            "id": "b153902a.0"
+          },
+          {
+            "name": "sample__decode__7de7d1a84db845dab2c6c27c59d2b99d__fbe2603f3de14734967e60666c68a27a",
+            "id": "b153902a.1"
+          },
+          {
+            "name": "sample__join__506199219665445e91dc566acd4fd3a5__92209fae2cf5445e97a8f442362a6695",
+            "id": "b153902a.2"
+          },
+          {
+            "name": "sample__gwflow_complete__6de3d857a92e4cd8a10b002137e74d4d__aca09de25b7e41d59c8c76e94340af0f",
+            "id": "b153902a.3"
+          }
+        ],
+        "retained_text": "hello\nhello\n",
+        "selected_encoding": "gzip",
+        "available_sources": [
+          "input.txt",
+          "input.txt.gz"
+        ]
+      }
+    },
+    "test_logical_input_cleaned_reuse_across_upgrade": {
+      "baseline": {
+        "attempt": "e4c6f520a3144ec8963b2b7bc78a9a9e",
+        "state": "reusable",
+        "action": "reuse",
+        "jobs": {
+          "sample__gwflow_prepare": {
+            "state": "completed",
+            "submission_name": "sample__gwflow_prepare__b137d3ef453e4a06bdafc8dfe00e6f30__bac7bd82ca7f4a97829fb3bc818e315f",
+            "backend_id": "35dfb0ef.0"
+          },
+          "sample__decode": {
+            "state": "completed",
+            "submission_name": "sample__decode__38c4ef981c404220b66cb4828e745fb3__b21c952fe35047d1a50b61b14b8db17f",
+            "backend_id": "35dfb0ef.1"
+          },
+          "sample__join": {
+            "state": "completed",
+            "submission_name": "sample__join__fd0adf0c63af400ebb74ddfa5af87189__05c87259e6334129a251c41ec7240f77",
+            "backend_id": "35dfb0ef.2"
+          },
+          "sample__gwflow_complete": {
+            "state": "completed",
+            "submission_name": "sample__gwflow_complete__54ac6702610e4ea2b1f0c5c17e3b7e66__0142096a194d45c7b840bd002edbc2f6",
+            "backend_id": "35dfb0ef.3"
+          }
+        },
+        "executions": [
+          {
+            "step": "decode",
+            "prefix": "<BASELINE>",
+            "descriptor": {
+              "files": {
+                "source": "<CAPABLE_RUN>/test_logical_input_cleaned_reuse_across_upgrade/input.txt"
+              },
+              "identity": "greeting-v1",
+              "metadata": {
+                "encoding": "plain"
+              },
+              "name": "text"
+            }
+          },
+          {
+            "step": "join",
+            "prefix": "<BASELINE>",
+            "descriptor": {
+              "files": {
+                "source": "<CAPABLE_RUN>/test_logical_input_cleaned_reuse_across_upgrade/input.txt"
+              },
+              "identity": "greeting-v1",
+              "metadata": {
+                "encoding": "plain"
+              },
+              "name": "text"
+            }
+          }
+        ],
+        "submissions": [
+          {
+            "name": "sample__gwflow_prepare__b137d3ef453e4a06bdafc8dfe00e6f30__bac7bd82ca7f4a97829fb3bc818e315f",
+            "id": "35dfb0ef.0"
+          },
+          {
+            "name": "sample__decode__38c4ef981c404220b66cb4828e745fb3__b21c952fe35047d1a50b61b14b8db17f",
+            "id": "35dfb0ef.1"
+          },
+          {
+            "name": "sample__join__fd0adf0c63af400ebb74ddfa5af87189__05c87259e6334129a251c41ec7240f77",
+            "id": "35dfb0ef.2"
+          },
+          {
+            "name": "sample__gwflow_complete__54ac6702610e4ea2b1f0c5c17e3b7e66__0142096a194d45c7b840bd002edbc2f6",
+            "id": "35dfb0ef.3"
+          }
+        ],
+        "retained_text": "hello\nhello\n",
+        "selected_encoding": "plain",
+        "available_sources": [
+          "input.txt",
+          "input.txt.gz"
+        ]
+      },
+      "handoff": {
+        "all_jobs_inactive": true,
+        "job_states": {
+          "35dfb0ef.0": "COMPLETED",
+          "35dfb0ef.1": "COMPLETED",
+          "35dfb0ef.2": "COMPLETED",
+          "35dfb0ef.3": "COMPLETED"
+        },
+        "worker_exit": 0,
+        "storage": {
+          "<CAPABLE_RUN>/test_logical_input_cleaned_reuse_across_upgrade": {
+            "device": 63,
+            "inode": 233622
+          },
+          "<CAPABLE_RUN>/test_logical_input_cleaned_reuse_across_upgrade/work": {
+            "device": 63,
+            "inode": 233783
+          },
+          "<CAPABLE_RUN>/test_logical_input_cleaned_reuse_across_upgrade/results": {
+            "device": 63,
+            "inode": 233786
+          },
+          "<CAPABLE_RUN>/test_logical_input_cleaned_reuse_across_upgrade/.gwf/gwflow": {
+            "device": 63,
+            "inode": 233785
+          }
+        }
+      },
+      "candidate": {
+        "attempt": "e4c6f520a3144ec8963b2b7bc78a9a9e",
+        "state": "reusable",
+        "action": "reuse",
+        "jobs": {
+          "sample__gwflow_prepare": {
+            "state": "completed",
+            "submission_name": "sample__gwflow_prepare__b137d3ef453e4a06bdafc8dfe00e6f30__bac7bd82ca7f4a97829fb3bc818e315f",
+            "backend_id": "35dfb0ef.0"
+          },
+          "sample__decode": {
+            "state": "completed",
+            "submission_name": "sample__decode__38c4ef981c404220b66cb4828e745fb3__b21c952fe35047d1a50b61b14b8db17f",
+            "backend_id": "35dfb0ef.1"
+          },
+          "sample__join": {
+            "state": "completed",
+            "submission_name": "sample__join__fd0adf0c63af400ebb74ddfa5af87189__05c87259e6334129a251c41ec7240f77",
+            "backend_id": "35dfb0ef.2"
+          },
+          "sample__gwflow_complete": {
+            "state": "completed",
+            "submission_name": "sample__gwflow_complete__54ac6702610e4ea2b1f0c5c17e3b7e66__0142096a194d45c7b840bd002edbc2f6",
+            "backend_id": "35dfb0ef.3"
+          }
+        },
+        "executions": [
+          {
+            "step": "decode",
+            "prefix": "<BASELINE>",
+            "descriptor": {
+              "files": {
+                "source": "<CAPABLE_RUN>/test_logical_input_cleaned_reuse_across_upgrade/input.txt"
+              },
+              "identity": "greeting-v1",
+              "metadata": {
+                "encoding": "plain"
+              },
+              "name": "text"
+            }
+          },
+          {
+            "step": "join",
+            "prefix": "<BASELINE>",
+            "descriptor": {
+              "files": {
+                "source": "<CAPABLE_RUN>/test_logical_input_cleaned_reuse_across_upgrade/input.txt"
+              },
+              "identity": "greeting-v1",
+              "metadata": {
+                "encoding": "plain"
+              },
+              "name": "text"
+            }
+          }
+        ],
+        "submissions": [
+          {
+            "name": "sample__gwflow_prepare__b137d3ef453e4a06bdafc8dfe00e6f30__bac7bd82ca7f4a97829fb3bc818e315f",
+            "id": "35dfb0ef.0"
+          },
+          {
+            "name": "sample__decode__38c4ef981c404220b66cb4828e745fb3__b21c952fe35047d1a50b61b14b8db17f",
+            "id": "35dfb0ef.1"
+          },
+          {
+            "name": "sample__join__fd0adf0c63af400ebb74ddfa5af87189__05c87259e6334129a251c41ec7240f77",
+            "id": "35dfb0ef.2"
+          },
+          {
+            "name": "sample__gwflow_complete__54ac6702610e4ea2b1f0c5c17e3b7e66__0142096a194d45c7b840bd002edbc2f6",
+            "id": "35dfb0ef.3"
+          }
+        ],
+        "retained_text": "hello\nhello\n",
+        "selected_encoding": "gzip",
+        "available_sources": []
+      }
+    },
+    "test_logical_input_partial_retry_across_upgrade": {
+      "baseline": {
+        "attempt": "8c7df33a73e34b14b16843587dd2d0ff",
+        "state": "failed",
+        "action": "retry",
+        "jobs": {
+          "sample__gwflow_prepare": {
+            "state": "completed",
+            "submission_name": "sample__gwflow_prepare__96bdd86185fc4e78a62b5662b6ab8a8f__432845d6e644473ab31e2ca0785df4ec",
+            "backend_id": "0abd8304.0"
+          },
+          "sample__decode": {
+            "state": "completed",
+            "submission_name": "sample__decode__6d722d26b5984023b080af6042d2f954__2d5bd8253c8c484e963763464b967af9",
+            "backend_id": "0abd8304.1"
+          },
+          "sample__join": {
+            "state": "failed",
+            "submission_name": "sample__join__1cd07cf2ba8c40f08df6a084af92d07f__37a56263960d456ca4e05cd752e5e470",
+            "backend_id": "0abd8304.2"
+          },
+          "sample__gwflow_complete": {
+            "state": "failed",
+            "submission_name": "sample__gwflow_complete__6dcde456ab0a4deba5f65c81e87d2b91__6e8116e44f7f4b7fbdd482d913311d3f",
+            "backend_id": "0abd8304.3"
+          }
+        },
+        "executions": [
+          {
+            "step": "decode",
+            "prefix": "<BASELINE>",
+            "descriptor": {
+              "files": {
+                "source": "<CAPABLE_RUN>/test_logical_input_partial_retry_across_upgrade/input.txt"
+              },
+              "identity": "greeting-v1",
+              "metadata": {
+                "encoding": "plain"
+              },
+              "name": "text"
+            }
+          },
+          {
+            "step": "join",
+            "prefix": "<BASELINE>",
+            "descriptor": {
+              "files": {
+                "source": "<CAPABLE_RUN>/test_logical_input_partial_retry_across_upgrade/input.txt"
+              },
+              "identity": "greeting-v1",
+              "metadata": {
+                "encoding": "plain"
+              },
+              "name": "text"
+            }
+          }
+        ],
+        "submissions": [
+          {
+            "name": "sample__gwflow_prepare__96bdd86185fc4e78a62b5662b6ab8a8f__432845d6e644473ab31e2ca0785df4ec",
+            "id": "0abd8304.0"
+          },
+          {
+            "name": "sample__decode__6d722d26b5984023b080af6042d2f954__2d5bd8253c8c484e963763464b967af9",
+            "id": "0abd8304.1"
+          },
+          {
+            "name": "sample__join__1cd07cf2ba8c40f08df6a084af92d07f__37a56263960d456ca4e05cd752e5e470",
+            "id": "0abd8304.2"
+          },
+          {
+            "name": "sample__gwflow_complete__6dcde456ab0a4deba5f65c81e87d2b91__6e8116e44f7f4b7fbdd482d913311d3f",
+            "id": "0abd8304.3"
+          }
+        ],
+        "retained_text": null,
+        "selected_encoding": "plain",
+        "available_sources": [
+          "input.txt",
+          "input.txt.gz"
+        ]
+      },
+      "handoff": {
+        "all_jobs_inactive": true,
+        "job_states": {
+          "0abd8304.0": "COMPLETED",
+          "0abd8304.1": "COMPLETED",
+          "0abd8304.2": "FAILED",
+          "0abd8304.3": "FAILED"
+        },
+        "worker_exit": 0,
+        "storage": {
+          "<CAPABLE_RUN>/test_logical_input_partial_retry_across_upgrade": {
+            "device": 63,
+            "inode": 233765
+          },
+          "<CAPABLE_RUN>/test_logical_input_partial_retry_across_upgrade/work": {
+            "device": 63,
+            "inode": 233855
+          },
+          "<CAPABLE_RUN>/test_logical_input_partial_retry_across_upgrade/results": {
+            "device": 63,
+            "inode": 233858
+          },
+          "<CAPABLE_RUN>/test_logical_input_partial_retry_across_upgrade/.gwf/gwflow": {
+            "device": 63,
+            "inode": 233857
+          }
+        }
+      },
+      "candidate": {
+        "attempt": "8c7df33a73e34b14b16843587dd2d0ff",
+        "state": "reusable",
+        "action": "reuse",
+        "jobs": {
+          "sample__gwflow_prepare": {
+            "state": "completed",
+            "submission_name": "sample__gwflow_prepare__96bdd86185fc4e78a62b5662b6ab8a8f__432845d6e644473ab31e2ca0785df4ec",
+            "backend_id": "0abd8304.0"
+          },
+          "sample__decode": {
+            "state": "completed",
+            "submission_name": "sample__decode__6d722d26b5984023b080af6042d2f954__2d5bd8253c8c484e963763464b967af9",
+            "backend_id": "0abd8304.1"
+          },
+          "sample__join": {
+            "state": "completed",
+            "submission_name": "sample__join__a4d5916794e5417c9b78d06c59760c67__02e2cf66ce8c497994254b61a24644cc",
+            "backend_id": "b969743c.0"
+          },
+          "sample__gwflow_complete": {
+            "state": "completed",
+            "submission_name": "sample__gwflow_complete__6dcde456ab0a4deba5f65c81e87d2b91__54963fce9c7d404bad25019a76f5eaac",
+            "backend_id": "b969743c.1"
+          }
+        },
+        "executions": [
+          {
+            "step": "decode",
+            "prefix": "<BASELINE>",
+            "descriptor": {
+              "files": {
+                "source": "<CAPABLE_RUN>/test_logical_input_partial_retry_across_upgrade/input.txt"
+              },
+              "identity": "greeting-v1",
+              "metadata": {
+                "encoding": "plain"
+              },
+              "name": "text"
+            }
+          },
+          {
+            "step": "join",
+            "prefix": "<BASELINE>",
+            "descriptor": {
+              "files": {
+                "source": "<CAPABLE_RUN>/test_logical_input_partial_retry_across_upgrade/input.txt"
+              },
+              "identity": "greeting-v1",
+              "metadata": {
+                "encoding": "plain"
+              },
+              "name": "text"
+            }
+          },
+          {
+            "step": "join",
+            "prefix": "<CANDIDATE>",
+            "descriptor": {
+              "files": {
+                "source": "<CAPABLE_RUN>/test_logical_input_partial_retry_across_upgrade/input.txt"
+              },
+              "identity": "greeting-v1",
+              "metadata": {
+                "encoding": "plain"
+              },
+              "name": "text"
+            }
+          }
+        ],
+        "submissions": [
+          {
+            "name": "sample__gwflow_prepare__96bdd86185fc4e78a62b5662b6ab8a8f__432845d6e644473ab31e2ca0785df4ec",
+            "id": "0abd8304.0"
+          },
+          {
+            "name": "sample__decode__6d722d26b5984023b080af6042d2f954__2d5bd8253c8c484e963763464b967af9",
+            "id": "0abd8304.1"
+          },
+          {
+            "name": "sample__join__1cd07cf2ba8c40f08df6a084af92d07f__37a56263960d456ca4e05cd752e5e470",
+            "id": "0abd8304.2"
+          },
+          {
+            "name": "sample__gwflow_complete__6dcde456ab0a4deba5f65c81e87d2b91__6e8116e44f7f4b7fbdd482d913311d3f",
+            "id": "0abd8304.3"
+          },
+          {
+            "name": "sample__join__a4d5916794e5417c9b78d06c59760c67__02e2cf66ce8c497994254b61a24644cc",
+            "id": "b969743c.0"
+          },
+          {
+            "name": "sample__gwflow_complete__6dcde456ab0a4deba5f65c81e87d2b91__54963fce9c7d404bad25019a76f5eaac",
+            "id": "b969743c.1"
+          }
+        ],
+        "retained_text": "hello\nhello\n",
+        "selected_encoding": "plain",
+        "available_sources": [
+          "input.txt",
+          "input.txt.gz"
+        ]
+      }
+    }
+  },
+  "path_placeholders": {
+    "<REPO>": "Checkout containing the common runner and workflow fixtures",
+    "<BASELINE>": "Independent installation built from the v0.12.0 tag",
+    "<BOOTSTRAP>": "Independent installation built from the pinned provisional bootstrap",
+    "<CANDIDATE>": "Candidate installation, also used to invoke the runner",
+    "<CAPABLE_RUN>": "Fresh evidence and workflow root for the v0.12.0 comparison",
+    "<BOOTSTRAP_RUN>": "Fresh evidence and workflow root for the pre-feature comparison"
+  },
+  "evidence_selection": "Environment identities and versions, summary and coverage from each full matrix. The logical-input records retain both complete workflow observations and the handoff's terminal job states, worker exit, and storage directory identities. Each execution records the descriptor and Python prefix observed by the job. Each submissions list contains all acceptances up to that observation. Raw command output and managed storage stay under the ignored build/validation directory. Normalization replaces directory prefixes and adds the two explanatory fields."
+}

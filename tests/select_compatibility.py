@@ -12,7 +12,7 @@ import tarfile
 from urllib.request import urlopen
 from urllib.parse import unquote, urlsplit
 
-from compare_runtime import normalized
+from compare_runtime import normalized, require_logical_input_journeys
 from release_artifacts import stable_tag, compact_names, unpack
 
 from conda_runtime import digest
@@ -150,9 +150,9 @@ def run(args: argparse.Namespace, selection: dict) -> None:
                 raise ValueError((directory / "comparison.log").read_text()[-4000:].strip())
             comparison = json.loads((directory / "comparison/comparison.json").read_text())
             if (comparison["status"] != "passed" or comparison["baseline_kind"] != "preserved-release"
-                    or comparison["exact_baseline_runtime"] is not True
-                    or comparison["journeys"] != {"run": 15, "failures": 0, "errors": 0, "skips": 0}):
-                raise ValueError("Comparison did not pass all completed/incomplete upgrade journeys in the exact runtime")
+                    or comparison["exact_baseline_runtime"] is not True):
+                raise ValueError("Comparison did not pass in the exact preserved-release runtime")
+            require_logical_input_journeys(comparison)
             entry.update(status="passed", comparison=f"{entry['version']}/comparison/comparison.json")
         except (ValueError, OSError, KeyError, TypeError, tarfile.TarError, EOFError) as error:
             message = normalized(str(error), {

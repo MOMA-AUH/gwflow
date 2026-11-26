@@ -2,6 +2,7 @@
 
 import argparse
 from collections import Counter
+import gzip
 import hashlib
 import json
 import os
@@ -14,6 +15,7 @@ import time
 import unittest
 
 from gwf.backends.local import Client, LocalStatus, get_socket_path
+from packaging.version import Version
 
 from support import FIXTURES, LocalBackendTestCase
 from compatibility_environment import disjoint_environments, installed_environment
@@ -281,6 +283,9 @@ class IncompleteCompatibilityTests(InstalledCompatibilityTests):
     def inject(self, **options):
         return super().inject(**{"record_acceptances": True, "submission_states": self.history, **options})
 
+    def accepted_submissions(self):
+        return [json.loads(line) for line in (self.work / "backend-acceptances.jsonl").read_text().splitlines()]
+
     def handoff(self, *external_roots):
         self.settle()
         with Client.connect(get_socket_path(self.work)) as client:
@@ -288,7 +293,7 @@ class IncompleteCompatibilityTests(InstalledCompatibilityTests):
         self.assertTrue(states and all(state in (LocalStatus.COMPLETED, LocalStatus.FAILED,
                                                 LocalStatus.CANCELLED, LocalStatus.KILLED)
                                        for state in states.values()), states)
-        accepted = [json.loads(line) for line in (self.work / "backend-acceptances.jsonl").read_text().splitlines()]
+        accepted = self.accepted_submissions()
         self.history = {job["name"]: ("FAILED" if states[str(job["id"])] == LocalStatus.KILLED
                                      else states[str(job["id"])].name) for job in accepted}
         self.assertEqual({str(job["id"]) for job in accepted}, set(states))
@@ -410,6 +415,111 @@ class PartialCompatibilityTests(IncompleteCompatibilityTests):
         self.assert_same_storage()
         self.record({"changed_commands_require_fresh": True, "changed_inputs_require_fresh": True,
                      "old_attempts": attempts, "new_attempts": self.task_attempts(), "computation_counts": dict(counts)})
+
+
+class LogicalInputCompatibilityTests(IncompleteCompatibilityTests):
+    def configure_workflow(self):
+        fixture = FIXTURES / "logical_input_compatibility"
+        for name in ("workflow.py", "read_text.py"):
+            shutil.copy(fixture / name, self.work / name)
+        source = (self.work / "input.txt").read_bytes()
+        (self.work / "input.txt.gz").write_bytes(gzip.compress(source, mtime=0))
+
+    def observation(self):
+        task, = json.loads(self.cli_result("status", "sample", "--json", "--details").stdout)["tasks"]
+        retained = self.work / "results/sample/text.txt"
+        observation = {
+            "attempt": task["attempt_id"], "state": task["state"], "action": task["next_action"],
+            "jobs": {job["name"]: {key: job[key] for key in ("state", "submission_name", "backend_id")}
+                     for job in task["jobs"]},
+            "executions": [json.loads(line) for line in (self.work / "executions.jsonl").read_text().splitlines()],
+            "submissions": self.accepted_submissions(),
+            "retained_text": retained.read_text() if retained.exists() else None,
+            "selected_encoding": "gzip" if (self.work / "select-gzip").exists() else "plain",
+            "available_sources": [name for name in ("input.txt", "input.txt.gz") if (self.work / name).exists()],
+        }
+        self.record({"logical_input_observation": observation})
+        return observation
+
+    def assert_executions(self, observation, expected):
+        executions = observation["executions"]
+        self.assertEqual(len(executions), len(expected))
+        for observed, (step, side, encoding) in zip(executions, expected):
+            source = "input.txt.gz" if encoding == "gzip" else "input.txt"
+            self.assertEqual(observed, {"step": step, "prefix": self.installations[side]["prefix"],
+                "descriptor": {"name": "text", "identity": "greeting-v1", "metadata": {"encoding": encoding},
+                               "files": {"source": str(self.work / source)}}})
+
+    def assert_new_submissions(self, before, after, jobs):
+        old = before["submissions"]
+        self.assertEqual(after["submissions"][:len(old)], old)
+        expected = [after["jobs"]["sample__" + name] for name in jobs]
+        self.assertCountEqual(after["submissions"][len(old):],
+                              [{"name": job["submission_name"], "id": job["backend_id"]} for job in expected])
+
+    def test_logical_input_cleaned_reuse_across_upgrade(self):
+        self.run_complete()
+        self.cli("clean", "sample", "--delete")
+        work = self.work / "work/sample"
+        self.assertFalse(any(work.iterdir()))
+        before = self.observation()
+        self.assertIsInstance(before["attempt"], str)
+        self.assertEqual(before["retained_text"], "hello\nhello\n")
+        self.assert_executions(before, [("decode", "baseline", "plain"), ("join", "baseline", "plain")])
+        frozen = self.snapshot()
+        (self.work / "select-gzip").touch()
+        for name in ("input.txt", "input.txt.gz"):
+            (self.work / name).unlink()
+        self.handoff()
+        self.assertRegex(self.cli("run", "--dry-run"), r"Task sample\s+Reuse\s+")
+        self.assertNoSubmissions(self.cli("run"))
+        after = self.observation()
+        self.assertEqual(after, {**before, "state": "reusable", "action": "reuse",
+                                 "selected_encoding": "gzip", "available_sources": []})
+        self.assertEqual(self.snapshot(), frozen)
+        self.assertFalse(any(work.iterdir()))
+
+    def partial_handoff(self):
+        fail = self.work / "fail-join"
+        fail.touch()
+        self.cli("run")
+        self.settle()
+        before = self.observation()
+        self.assertIsInstance(before["attempt"], str)
+        self.assertEqual(before["action"], "retry")
+        self.assertIsNone(before["retained_text"])
+        self.assertEqual(before["jobs"]["sample__decode"]["state"], "completed")
+        self.assertEqual(before["jobs"]["sample__join"]["state"], "failed")
+        self.assert_executions(before, [("decode", "baseline", "plain"), ("join", "baseline", "plain")])
+        self.handoff()
+        fail.unlink()
+        return before
+
+    def test_logical_input_partial_retry_across_upgrade(self):
+        before = self.partial_handoff()
+        self.assertRegex(self.cli("run", "--dry-run"), r"Task sample\s+Retry\s+")
+        self.run_complete()
+        after = self.observation()
+        self.assertEqual(after["attempt"], before["attempt"])
+        self.assertEqual(after["jobs"]["sample__decode"], before["jobs"]["sample__decode"])
+        self.assert_new_submissions(before, after, ["join", "gwflow_complete"])
+        self.assert_executions(after, [("decode", "baseline", "plain"), ("join", "baseline", "plain"),
+                                       ("join", "candidate", "plain")])
+        self.assertEqual((after["action"], after["retained_text"]), ("reuse", "hello\nhello\n"))
+
+    def test_logical_input_changed_representation_restarts_partial_attempt(self):
+        before = self.partial_handoff()
+        (self.work / "select-gzip").touch()
+        preview = self.cli("run", "--dry-run", "--details")
+        self.assertIn("changed logical input representation", preview)
+        self.assertIn("fresh attempt", preview)
+        self.run_complete()
+        after = self.observation()
+        self.assertNotEqual(after["attempt"], before["attempt"])
+        self.assert_new_submissions(before, after, ["gwflow_prepare", "decode", "join", "gwflow_complete"])
+        self.assert_executions(after, [("decode", "baseline", "plain"), ("join", "baseline", "plain"),
+                                       ("decode", "candidate", "gzip"), ("join", "candidate", "gzip")])
+        self.assertEqual((after["action"], after["retained_text"]), ("reuse", "hello\nhello\n"))
 
 
 class PreparationCompatibilityTests(IncompleteCompatibilityTests):
@@ -590,6 +700,17 @@ class FinishingCompatibilityTests(IncompleteCompatibilityTests):
                      "new_submissions": 0})
 
 
+class CompatibilityResult(unittest.TextTestResult):
+    def startTestRun(self):
+        super().startTestRun()
+        self.logical_inputs = []
+
+    def addSuccess(self, test):
+        super().addSuccess(test)
+        if isinstance(test, LogicalInputCompatibilityTests):
+            self.logical_inputs.append(test._testMethodName)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--baseline-python", type=Path, required=True)
@@ -615,16 +736,26 @@ def main():
     loader.testNamePatterns = args.test
     suite = unittest.TestSuite()
     consumer_reports = []
-    for base in (CompletedCompatibilityTests, PartialCompatibilityTests, PreparationCompatibilityTests,
-                 FinishingCompatibilityTests):
+    cases = [CompletedCompatibilityTests, PartialCompatibilityTests, PreparationCompatibilityTests,
+             FinishingCompatibilityTests]
+    baseline_version = installations["baseline"]["versions"]["gwflow"]
+    logical_inputs_applicable = args.independent and Version(baseline_version) >= Version("0.12.0")
+    if logical_inputs_applicable:
+        cases.append(LogicalInputCompatibilityTests)
+    for base in cases:
         case = type(base.__name__, (base,), {"root": root, "installations": installations,
                                             "consumer_reports": consumer_reports})
         suite.addTests(loader.loadTestsFromTestCase(case))
     if not suite.countTestCases():
         parser.error("No compatibility tests matched")
-    result = unittest.TextTestRunner(verbosity=2).run(suite)
+    result = unittest.TextTestRunner(verbosity=2, resultclass=CompatibilityResult).run(suite)
     (root / "summary.json").write_text(json.dumps({"run": result.testsRun, "failures": len(result.failures),
         "errors": len(result.errors), "skips": len(result.skipped)}, indent=2) + "\n")
+    (root / "coverage.json").write_text(json.dumps({
+        "baseline_version": baseline_version, "independent": args.independent,
+        "logical_inputs_applicable": logical_inputs_applicable,
+        "logical_inputs": sorted(result.logical_inputs),
+    }, indent=2) + "\n")
     complete = (set(consumer_reports) == CONSUMER_REPORTS and len(consumer_reports) == len(CONSUMER_REPORTS)
                 and result.wasSuccessful() and not result.skipped)
     snapshot = json.loads((FIXTURES / "status_consumer_v1.json").read_text())
