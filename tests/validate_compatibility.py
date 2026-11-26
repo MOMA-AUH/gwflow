@@ -283,6 +283,9 @@ class IncompleteCompatibilityTests(InstalledCompatibilityTests):
     def inject(self, **options):
         return super().inject(**{"record_acceptances": True, "submission_states": self.history, **options})
 
+    def accepted_submissions(self):
+        return [json.loads(line) for line in (self.work / "backend-acceptances.jsonl").read_text().splitlines()]
+
     def handoff(self, *external_roots):
         self.settle()
         with Client.connect(get_socket_path(self.work)) as client:
@@ -290,7 +293,7 @@ class IncompleteCompatibilityTests(InstalledCompatibilityTests):
         self.assertTrue(states and all(state in (LocalStatus.COMPLETED, LocalStatus.FAILED,
                                                 LocalStatus.CANCELLED, LocalStatus.KILLED)
                                        for state in states.values()), states)
-        accepted = [json.loads(line) for line in (self.work / "backend-acceptances.jsonl").read_text().splitlines()]
+        accepted = self.accepted_submissions()
         self.history = {job["name"]: ("FAILED" if states[str(job["id"])] == LocalStatus.KILLED
                                      else states[str(job["id"])].name) for job in accepted}
         self.assertEqual({str(job["id"]) for job in accepted}, set(states))
@@ -430,7 +433,7 @@ class LogicalInputCompatibilityTests(IncompleteCompatibilityTests):
             "jobs": {job["name"]: {key: job[key] for key in ("state", "submission_name", "backend_id")}
                      for job in task["jobs"]},
             "executions": [json.loads(line) for line in (self.work / "executions.jsonl").read_text().splitlines()],
-            "submissions": [json.loads(line) for line in (self.work / "backend-acceptances.jsonl").read_text().splitlines()],
+            "submissions": self.accepted_submissions(),
             "retained_text": retained.read_text() if retained.exists() else None,
             "selected_encoding": "gzip" if (self.work / "select-gzip").exists() else "plain",
             "available_sources": [name for name in ("input.txt", "input.txt.gz") if (self.work / name).exists()],

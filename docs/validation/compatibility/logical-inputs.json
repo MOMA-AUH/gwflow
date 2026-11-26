@@ -4,7 +4,7 @@
   "scope": "Controlled comparison of source-built gwflow installations. The capable baseline uses the v0.12.0 source tag. The bootstrap uses the checkout-pinned pre-feature source. Each comparison uses separate full Python installations inside the same Linux container. Run each command with its own fresh evidence root.",
   "container_image_id": "sha256:4fdd05f0f6fa7d443345d229116dd96bdbc6ee7bbb686799b2f499f915699870",
   "driver_and_fixture_sha256": {
-    "tests/validate_compatibility.py": "f5da9ef4a113b342c635ba87753c1675f9101fe724c09261424a1ad5cb7d3e56",
+    "tests/validate_compatibility.py": "de6a506906a3261af7852b46815685d1fb34e884361b64006b723824f1246c1a",
     "tests/fixtures/logical_input_compatibility/workflow.py": "759eeb155a60730a0d8c8afbdd7ec4badb9a39140e6cee32f6d3f6e7ae00c99c",
     "tests/fixtures/logical_input_compatibility/read_text.py": "1e84783637f0c68ff74233dd6d1ce76bc5c70373daa8f05d1ecd831111d65fc2"
   },
@@ -217,29 +217,29 @@
   "logical_input_observations": {
     "test_logical_input_changed_representation_restarts_partial_attempt": {
       "baseline": {
-        "attempt": "9424c6ac13ae47be924e26137fe5e9b7",
+        "attempt": "b517839fa02e4a5bbbcbe22e1605f7b3",
         "state": "failed",
         "action": "retry",
         "jobs": {
           "sample__gwflow_prepare": {
             "state": "completed",
-            "submission_name": "sample__gwflow_prepare__64176625809a48d9bb57aa37b72a2af2__9e8307cd39c8409d88ef3c6483f3e478",
-            "backend_id": "bd6438b1.0"
+            "submission_name": "sample__gwflow_prepare__2dc7989f143543fdb8fe9b1fc0b2fe85__3d8a0f14d0eb43658197b5606ef17d20",
+            "backend_id": "003cd165.0"
           },
           "sample__decode": {
             "state": "completed",
-            "submission_name": "sample__decode__0189645e7e2d4d2e822dd3f3a11f6823__e23e1c95a86344898a722517730ae18b",
-            "backend_id": "bd6438b1.1"
+            "submission_name": "sample__decode__43340b3e051442aea0a23228cf992503__56a38c39a99c4fdf812913fcd6def3ea",
+            "backend_id": "003cd165.1"
           },
           "sample__join": {
             "state": "failed",
-            "submission_name": "sample__join__8d2ee188429c4769a04226eb39191e1a__5dc71aae7acf476792a6e6198099e9fa",
-            "backend_id": "bd6438b1.2"
+            "submission_name": "sample__join__ab3dfc102dc742ab91a9f7407a9fb81b__7b037f16ea2844ce9007568fb32d04b0",
+            "backend_id": "003cd165.2"
           },
           "sample__gwflow_complete": {
             "state": "failed",
-            "submission_name": "sample__gwflow_complete__dbbbfa1eacd84c2e9b12a8ad078f4d68__717f2d43d8dd406faf193d9efd6081f9",
-            "backend_id": "bd6438b1.3"
+            "submission_name": "sample__gwflow_complete__193eeceaff484f17903742bf2e3c482a__cb7f6ea136b049808b45fa6eb2d0af08",
+            "backend_id": "003cd165.3"
           }
         },
         "executions": [
@@ -274,20 +274,20 @@
         ],
         "submissions": [
           {
-            "name": "sample__gwflow_prepare__64176625809a48d9bb57aa37b72a2af2__9e8307cd39c8409d88ef3c6483f3e478",
-            "id": "bd6438b1.0"
+            "name": "sample__gwflow_prepare__2dc7989f143543fdb8fe9b1fc0b2fe85__3d8a0f14d0eb43658197b5606ef17d20",
+            "id": "003cd165.0"
           },
           {
-            "name": "sample__decode__0189645e7e2d4d2e822dd3f3a11f6823__e23e1c95a86344898a722517730ae18b",
-            "id": "bd6438b1.1"
+            "name": "sample__decode__43340b3e051442aea0a23228cf992503__56a38c39a99c4fdf812913fcd6def3ea",
+            "id": "003cd165.1"
           },
           {
-            "name": "sample__join__8d2ee188429c4769a04226eb39191e1a__5dc71aae7acf476792a6e6198099e9fa",
-            "id": "bd6438b1.2"
+            "name": "sample__join__ab3dfc102dc742ab91a9f7407a9fb81b__7b037f16ea2844ce9007568fb32d04b0",
+            "id": "003cd165.2"
           },
           {
-            "name": "sample__gwflow_complete__dbbbfa1eacd84c2e9b12a8ad078f4d68__717f2d43d8dd406faf193d9efd6081f9",
-            "id": "bd6438b1.3"
+            "name": "sample__gwflow_complete__193eeceaff484f17903742bf2e3c482a__cb7f6ea136b049808b45fa6eb2d0af08",
+            "id": "003cd165.3"
           }
         ],
         "retained_text": null,
@@ -300,55 +300,55 @@
       "handoff": {
         "all_jobs_inactive": true,
         "job_states": {
-          "bd6438b1.0": "COMPLETED",
-          "bd6438b1.1": "COMPLETED",
-          "bd6438b1.2": "FAILED",
-          "bd6438b1.3": "FAILED"
+          "003cd165.0": "COMPLETED",
+          "003cd165.1": "COMPLETED",
+          "003cd165.2": "FAILED",
+          "003cd165.3": "FAILED"
         },
         "worker_exit": 0,
         "storage": {
           "<CAPABLE_RUN>/test_logical_input_changed_representation_restarts_partial_attempt": {
             "device": 63,
-            "inode": 215736
+            "inode": 233483
           },
           "<CAPABLE_RUN>/test_logical_input_changed_representation_restarts_partial_attempt/work": {
             "device": 63,
-            "inode": 215902
+            "inode": 233632
           },
           "<CAPABLE_RUN>/test_logical_input_changed_representation_restarts_partial_attempt/results": {
             "device": 63,
-            "inode": 215905
+            "inode": 233635
           },
           "<CAPABLE_RUN>/test_logical_input_changed_representation_restarts_partial_attempt/.gwf/gwflow": {
             "device": 63,
-            "inode": 215904
+            "inode": 233634
           }
         }
       },
       "candidate": {
-        "attempt": "65fc2fb4730b47779de285651df04be8",
+        "attempt": "51c34bd857174f59b8cedf0fc1b394a7",
         "state": "reusable",
         "action": "reuse",
         "jobs": {
           "sample__gwflow_prepare": {
             "state": "completed",
-            "submission_name": "sample__gwflow_prepare__9c88696b32234630bdea8e80c35d9738__1d77c08593ac44498f3f3fe8dfc858ba",
-            "backend_id": "beeee2ef.0"
+            "submission_name": "sample__gwflow_prepare__d384c641b87b410586424347ef02ce0d__baced88f7c7d4df0bc515c33325982bb",
+            "backend_id": "b153902a.0"
           },
           "sample__decode": {
             "state": "completed",
-            "submission_name": "sample__decode__af8588ee75514a448e1385df7464154d__a557c569251a4b96b1ff5fb9587e9709",
-            "backend_id": "beeee2ef.1"
+            "submission_name": "sample__decode__7de7d1a84db845dab2c6c27c59d2b99d__fbe2603f3de14734967e60666c68a27a",
+            "backend_id": "b153902a.1"
           },
           "sample__join": {
             "state": "completed",
-            "submission_name": "sample__join__a8be82b77eff44cdaaf372cb6a48a602__6d330f27adfa484dbe14c6ccf5c73fbf",
-            "backend_id": "beeee2ef.2"
+            "submission_name": "sample__join__506199219665445e91dc566acd4fd3a5__92209fae2cf5445e97a8f442362a6695",
+            "backend_id": "b153902a.2"
           },
           "sample__gwflow_complete": {
             "state": "completed",
-            "submission_name": "sample__gwflow_complete__ec56949afd58493ca2b0ac8610cce997__05b130555c57475e85b32ddff7ba97b7",
-            "backend_id": "beeee2ef.3"
+            "submission_name": "sample__gwflow_complete__6de3d857a92e4cd8a10b002137e74d4d__aca09de25b7e41d59c8c76e94340af0f",
+            "backend_id": "b153902a.3"
           }
         },
         "executions": [
@@ -411,36 +411,36 @@
         ],
         "submissions": [
           {
-            "name": "sample__gwflow_prepare__64176625809a48d9bb57aa37b72a2af2__9e8307cd39c8409d88ef3c6483f3e478",
-            "id": "bd6438b1.0"
+            "name": "sample__gwflow_prepare__2dc7989f143543fdb8fe9b1fc0b2fe85__3d8a0f14d0eb43658197b5606ef17d20",
+            "id": "003cd165.0"
           },
           {
-            "name": "sample__decode__0189645e7e2d4d2e822dd3f3a11f6823__e23e1c95a86344898a722517730ae18b",
-            "id": "bd6438b1.1"
+            "name": "sample__decode__43340b3e051442aea0a23228cf992503__56a38c39a99c4fdf812913fcd6def3ea",
+            "id": "003cd165.1"
           },
           {
-            "name": "sample__join__8d2ee188429c4769a04226eb39191e1a__5dc71aae7acf476792a6e6198099e9fa",
-            "id": "bd6438b1.2"
+            "name": "sample__join__ab3dfc102dc742ab91a9f7407a9fb81b__7b037f16ea2844ce9007568fb32d04b0",
+            "id": "003cd165.2"
           },
           {
-            "name": "sample__gwflow_complete__dbbbfa1eacd84c2e9b12a8ad078f4d68__717f2d43d8dd406faf193d9efd6081f9",
-            "id": "bd6438b1.3"
+            "name": "sample__gwflow_complete__193eeceaff484f17903742bf2e3c482a__cb7f6ea136b049808b45fa6eb2d0af08",
+            "id": "003cd165.3"
           },
           {
-            "name": "sample__gwflow_prepare__9c88696b32234630bdea8e80c35d9738__1d77c08593ac44498f3f3fe8dfc858ba",
-            "id": "beeee2ef.0"
+            "name": "sample__gwflow_prepare__d384c641b87b410586424347ef02ce0d__baced88f7c7d4df0bc515c33325982bb",
+            "id": "b153902a.0"
           },
           {
-            "name": "sample__decode__af8588ee75514a448e1385df7464154d__a557c569251a4b96b1ff5fb9587e9709",
-            "id": "beeee2ef.1"
+            "name": "sample__decode__7de7d1a84db845dab2c6c27c59d2b99d__fbe2603f3de14734967e60666c68a27a",
+            "id": "b153902a.1"
           },
           {
-            "name": "sample__join__a8be82b77eff44cdaaf372cb6a48a602__6d330f27adfa484dbe14c6ccf5c73fbf",
-            "id": "beeee2ef.2"
+            "name": "sample__join__506199219665445e91dc566acd4fd3a5__92209fae2cf5445e97a8f442362a6695",
+            "id": "b153902a.2"
           },
           {
-            "name": "sample__gwflow_complete__ec56949afd58493ca2b0ac8610cce997__05b130555c57475e85b32ddff7ba97b7",
-            "id": "beeee2ef.3"
+            "name": "sample__gwflow_complete__6de3d857a92e4cd8a10b002137e74d4d__aca09de25b7e41d59c8c76e94340af0f",
+            "id": "b153902a.3"
           }
         ],
         "retained_text": "hello\nhello\n",
@@ -453,29 +453,29 @@
     },
     "test_logical_input_cleaned_reuse_across_upgrade": {
       "baseline": {
-        "attempt": "82032ad2857346c68277f717a16de510",
+        "attempt": "e4c6f520a3144ec8963b2b7bc78a9a9e",
         "state": "reusable",
         "action": "reuse",
         "jobs": {
           "sample__gwflow_prepare": {
             "state": "completed",
-            "submission_name": "sample__gwflow_prepare__921778cbedf54fffbdbe564815365331__4379747cc5a146a79a1cb462edb0eac5",
-            "backend_id": "76116aa1.0"
+            "submission_name": "sample__gwflow_prepare__b137d3ef453e4a06bdafc8dfe00e6f30__bac7bd82ca7f4a97829fb3bc818e315f",
+            "backend_id": "35dfb0ef.0"
           },
           "sample__decode": {
             "state": "completed",
-            "submission_name": "sample__decode__7b0d6d8b5cf045e59f5ece146a570d7c__9828a7834ff04047a43c5ddfbfc7dd70",
-            "backend_id": "76116aa1.1"
+            "submission_name": "sample__decode__38c4ef981c404220b66cb4828e745fb3__b21c952fe35047d1a50b61b14b8db17f",
+            "backend_id": "35dfb0ef.1"
           },
           "sample__join": {
             "state": "completed",
-            "submission_name": "sample__join__2cb2ce4cbbc84e8b85c45187d53e488c__69ae28993502454fab2e865c6b77914b",
-            "backend_id": "76116aa1.2"
+            "submission_name": "sample__join__fd0adf0c63af400ebb74ddfa5af87189__05c87259e6334129a251c41ec7240f77",
+            "backend_id": "35dfb0ef.2"
           },
           "sample__gwflow_complete": {
             "state": "completed",
-            "submission_name": "sample__gwflow_complete__f468f859cd894144a42aa4c2146e39aa__8861d8d3185747528bce47cac377a1c1",
-            "backend_id": "76116aa1.3"
+            "submission_name": "sample__gwflow_complete__54ac6702610e4ea2b1f0c5c17e3b7e66__0142096a194d45c7b840bd002edbc2f6",
+            "backend_id": "35dfb0ef.3"
           }
         },
         "executions": [
@@ -510,20 +510,20 @@
         ],
         "submissions": [
           {
-            "name": "sample__gwflow_prepare__921778cbedf54fffbdbe564815365331__4379747cc5a146a79a1cb462edb0eac5",
-            "id": "76116aa1.0"
+            "name": "sample__gwflow_prepare__b137d3ef453e4a06bdafc8dfe00e6f30__bac7bd82ca7f4a97829fb3bc818e315f",
+            "id": "35dfb0ef.0"
           },
           {
-            "name": "sample__decode__7b0d6d8b5cf045e59f5ece146a570d7c__9828a7834ff04047a43c5ddfbfc7dd70",
-            "id": "76116aa1.1"
+            "name": "sample__decode__38c4ef981c404220b66cb4828e745fb3__b21c952fe35047d1a50b61b14b8db17f",
+            "id": "35dfb0ef.1"
           },
           {
-            "name": "sample__join__2cb2ce4cbbc84e8b85c45187d53e488c__69ae28993502454fab2e865c6b77914b",
-            "id": "76116aa1.2"
+            "name": "sample__join__fd0adf0c63af400ebb74ddfa5af87189__05c87259e6334129a251c41ec7240f77",
+            "id": "35dfb0ef.2"
           },
           {
-            "name": "sample__gwflow_complete__f468f859cd894144a42aa4c2146e39aa__8861d8d3185747528bce47cac377a1c1",
-            "id": "76116aa1.3"
+            "name": "sample__gwflow_complete__54ac6702610e4ea2b1f0c5c17e3b7e66__0142096a194d45c7b840bd002edbc2f6",
+            "id": "35dfb0ef.3"
           }
         ],
         "retained_text": "hello\nhello\n",
@@ -536,55 +536,55 @@
       "handoff": {
         "all_jobs_inactive": true,
         "job_states": {
-          "76116aa1.0": "COMPLETED",
-          "76116aa1.1": "COMPLETED",
-          "76116aa1.2": "COMPLETED",
-          "76116aa1.3": "COMPLETED"
+          "35dfb0ef.0": "COMPLETED",
+          "35dfb0ef.1": "COMPLETED",
+          "35dfb0ef.2": "COMPLETED",
+          "35dfb0ef.3": "COMPLETED"
         },
         "worker_exit": 0,
         "storage": {
           "<CAPABLE_RUN>/test_logical_input_cleaned_reuse_across_upgrade": {
             "device": 63,
-            "inode": 215900
+            "inode": 233622
           },
           "<CAPABLE_RUN>/test_logical_input_cleaned_reuse_across_upgrade/work": {
             "device": 63,
-            "inode": 216032
+            "inode": 233783
           },
           "<CAPABLE_RUN>/test_logical_input_cleaned_reuse_across_upgrade/results": {
             "device": 63,
-            "inode": 216035
+            "inode": 233786
           },
           "<CAPABLE_RUN>/test_logical_input_cleaned_reuse_across_upgrade/.gwf/gwflow": {
             "device": 63,
-            "inode": 216034
+            "inode": 233785
           }
         }
       },
       "candidate": {
-        "attempt": "82032ad2857346c68277f717a16de510",
+        "attempt": "e4c6f520a3144ec8963b2b7bc78a9a9e",
         "state": "reusable",
         "action": "reuse",
         "jobs": {
           "sample__gwflow_prepare": {
             "state": "completed",
-            "submission_name": "sample__gwflow_prepare__921778cbedf54fffbdbe564815365331__4379747cc5a146a79a1cb462edb0eac5",
-            "backend_id": "76116aa1.0"
+            "submission_name": "sample__gwflow_prepare__b137d3ef453e4a06bdafc8dfe00e6f30__bac7bd82ca7f4a97829fb3bc818e315f",
+            "backend_id": "35dfb0ef.0"
           },
           "sample__decode": {
             "state": "completed",
-            "submission_name": "sample__decode__7b0d6d8b5cf045e59f5ece146a570d7c__9828a7834ff04047a43c5ddfbfc7dd70",
-            "backend_id": "76116aa1.1"
+            "submission_name": "sample__decode__38c4ef981c404220b66cb4828e745fb3__b21c952fe35047d1a50b61b14b8db17f",
+            "backend_id": "35dfb0ef.1"
           },
           "sample__join": {
             "state": "completed",
-            "submission_name": "sample__join__2cb2ce4cbbc84e8b85c45187d53e488c__69ae28993502454fab2e865c6b77914b",
-            "backend_id": "76116aa1.2"
+            "submission_name": "sample__join__fd0adf0c63af400ebb74ddfa5af87189__05c87259e6334129a251c41ec7240f77",
+            "backend_id": "35dfb0ef.2"
           },
           "sample__gwflow_complete": {
             "state": "completed",
-            "submission_name": "sample__gwflow_complete__f468f859cd894144a42aa4c2146e39aa__8861d8d3185747528bce47cac377a1c1",
-            "backend_id": "76116aa1.3"
+            "submission_name": "sample__gwflow_complete__54ac6702610e4ea2b1f0c5c17e3b7e66__0142096a194d45c7b840bd002edbc2f6",
+            "backend_id": "35dfb0ef.3"
           }
         },
         "executions": [
@@ -619,20 +619,20 @@
         ],
         "submissions": [
           {
-            "name": "sample__gwflow_prepare__921778cbedf54fffbdbe564815365331__4379747cc5a146a79a1cb462edb0eac5",
-            "id": "76116aa1.0"
+            "name": "sample__gwflow_prepare__b137d3ef453e4a06bdafc8dfe00e6f30__bac7bd82ca7f4a97829fb3bc818e315f",
+            "id": "35dfb0ef.0"
           },
           {
-            "name": "sample__decode__7b0d6d8b5cf045e59f5ece146a570d7c__9828a7834ff04047a43c5ddfbfc7dd70",
-            "id": "76116aa1.1"
+            "name": "sample__decode__38c4ef981c404220b66cb4828e745fb3__b21c952fe35047d1a50b61b14b8db17f",
+            "id": "35dfb0ef.1"
           },
           {
-            "name": "sample__join__2cb2ce4cbbc84e8b85c45187d53e488c__69ae28993502454fab2e865c6b77914b",
-            "id": "76116aa1.2"
+            "name": "sample__join__fd0adf0c63af400ebb74ddfa5af87189__05c87259e6334129a251c41ec7240f77",
+            "id": "35dfb0ef.2"
           },
           {
-            "name": "sample__gwflow_complete__f468f859cd894144a42aa4c2146e39aa__8861d8d3185747528bce47cac377a1c1",
-            "id": "76116aa1.3"
+            "name": "sample__gwflow_complete__54ac6702610e4ea2b1f0c5c17e3b7e66__0142096a194d45c7b840bd002edbc2f6",
+            "id": "35dfb0ef.3"
           }
         ],
         "retained_text": "hello\nhello\n",
@@ -642,29 +642,29 @@
     },
     "test_logical_input_partial_retry_across_upgrade": {
       "baseline": {
-        "attempt": "c1225e0049264209a8f04e27a27a851d",
+        "attempt": "8c7df33a73e34b14b16843587dd2d0ff",
         "state": "failed",
         "action": "retry",
         "jobs": {
           "sample__gwflow_prepare": {
             "state": "completed",
-            "submission_name": "sample__gwflow_prepare__566fe036a5d84203be429d82f4356095__c4201b79d9b14840b0d2ebb6530a0e65",
-            "backend_id": "044b39c8.0"
+            "submission_name": "sample__gwflow_prepare__96bdd86185fc4e78a62b5662b6ab8a8f__432845d6e644473ab31e2ca0785df4ec",
+            "backend_id": "0abd8304.0"
           },
           "sample__decode": {
             "state": "completed",
-            "submission_name": "sample__decode__800a24de2be241d3a75769d562ae9494__0f46753e27804674bf2f65395a6de8db",
-            "backend_id": "044b39c8.1"
+            "submission_name": "sample__decode__6d722d26b5984023b080af6042d2f954__2d5bd8253c8c484e963763464b967af9",
+            "backend_id": "0abd8304.1"
           },
           "sample__join": {
             "state": "failed",
-            "submission_name": "sample__join__7b3ecc11e3624a56b8ba7d78ea85ec03__cdde6a68609d4111a95e6121503e5346",
-            "backend_id": "044b39c8.2"
+            "submission_name": "sample__join__1cd07cf2ba8c40f08df6a084af92d07f__37a56263960d456ca4e05cd752e5e470",
+            "backend_id": "0abd8304.2"
           },
           "sample__gwflow_complete": {
             "state": "failed",
-            "submission_name": "sample__gwflow_complete__a32ccedac008422fb896b64c47a3046a__b1207aaba72c4fde8ff1bcb2cc33f76d",
-            "backend_id": "044b39c8.3"
+            "submission_name": "sample__gwflow_complete__6dcde456ab0a4deba5f65c81e87d2b91__6e8116e44f7f4b7fbdd482d913311d3f",
+            "backend_id": "0abd8304.3"
           }
         },
         "executions": [
@@ -699,20 +699,20 @@
         ],
         "submissions": [
           {
-            "name": "sample__gwflow_prepare__566fe036a5d84203be429d82f4356095__c4201b79d9b14840b0d2ebb6530a0e65",
-            "id": "044b39c8.0"
+            "name": "sample__gwflow_prepare__96bdd86185fc4e78a62b5662b6ab8a8f__432845d6e644473ab31e2ca0785df4ec",
+            "id": "0abd8304.0"
           },
           {
-            "name": "sample__decode__800a24de2be241d3a75769d562ae9494__0f46753e27804674bf2f65395a6de8db",
-            "id": "044b39c8.1"
+            "name": "sample__decode__6d722d26b5984023b080af6042d2f954__2d5bd8253c8c484e963763464b967af9",
+            "id": "0abd8304.1"
           },
           {
-            "name": "sample__join__7b3ecc11e3624a56b8ba7d78ea85ec03__cdde6a68609d4111a95e6121503e5346",
-            "id": "044b39c8.2"
+            "name": "sample__join__1cd07cf2ba8c40f08df6a084af92d07f__37a56263960d456ca4e05cd752e5e470",
+            "id": "0abd8304.2"
           },
           {
-            "name": "sample__gwflow_complete__a32ccedac008422fb896b64c47a3046a__b1207aaba72c4fde8ff1bcb2cc33f76d",
-            "id": "044b39c8.3"
+            "name": "sample__gwflow_complete__6dcde456ab0a4deba5f65c81e87d2b91__6e8116e44f7f4b7fbdd482d913311d3f",
+            "id": "0abd8304.3"
           }
         ],
         "retained_text": null,
@@ -725,55 +725,55 @@
       "handoff": {
         "all_jobs_inactive": true,
         "job_states": {
-          "044b39c8.0": "COMPLETED",
-          "044b39c8.1": "COMPLETED",
-          "044b39c8.2": "FAILED",
-          "044b39c8.3": "FAILED"
+          "0abd8304.0": "COMPLETED",
+          "0abd8304.1": "COMPLETED",
+          "0abd8304.2": "FAILED",
+          "0abd8304.3": "FAILED"
         },
         "worker_exit": 0,
         "storage": {
           "<CAPABLE_RUN>/test_logical_input_partial_retry_across_upgrade": {
             "device": 63,
-            "inode": 216015
+            "inode": 233765
           },
           "<CAPABLE_RUN>/test_logical_input_partial_retry_across_upgrade/work": {
             "device": 63,
-            "inode": 216105
+            "inode": 233855
           },
           "<CAPABLE_RUN>/test_logical_input_partial_retry_across_upgrade/results": {
             "device": 63,
-            "inode": 216108
+            "inode": 233858
           },
           "<CAPABLE_RUN>/test_logical_input_partial_retry_across_upgrade/.gwf/gwflow": {
             "device": 63,
-            "inode": 216107
+            "inode": 233857
           }
         }
       },
       "candidate": {
-        "attempt": "c1225e0049264209a8f04e27a27a851d",
+        "attempt": "8c7df33a73e34b14b16843587dd2d0ff",
         "state": "reusable",
         "action": "reuse",
         "jobs": {
           "sample__gwflow_prepare": {
             "state": "completed",
-            "submission_name": "sample__gwflow_prepare__566fe036a5d84203be429d82f4356095__c4201b79d9b14840b0d2ebb6530a0e65",
-            "backend_id": "044b39c8.0"
+            "submission_name": "sample__gwflow_prepare__96bdd86185fc4e78a62b5662b6ab8a8f__432845d6e644473ab31e2ca0785df4ec",
+            "backend_id": "0abd8304.0"
           },
           "sample__decode": {
             "state": "completed",
-            "submission_name": "sample__decode__800a24de2be241d3a75769d562ae9494__0f46753e27804674bf2f65395a6de8db",
-            "backend_id": "044b39c8.1"
+            "submission_name": "sample__decode__6d722d26b5984023b080af6042d2f954__2d5bd8253c8c484e963763464b967af9",
+            "backend_id": "0abd8304.1"
           },
           "sample__join": {
             "state": "completed",
-            "submission_name": "sample__join__cb2a17ccb6084b789d8d4c14bb704de3__deb2bf663ba54064ba29ee746fff1b2e",
-            "backend_id": "b5cc2cb8.0"
+            "submission_name": "sample__join__a4d5916794e5417c9b78d06c59760c67__02e2cf66ce8c497994254b61a24644cc",
+            "backend_id": "b969743c.0"
           },
           "sample__gwflow_complete": {
             "state": "completed",
-            "submission_name": "sample__gwflow_complete__a32ccedac008422fb896b64c47a3046a__2dfa1ca083db47108cd138bf7c7696c1",
-            "backend_id": "b5cc2cb8.1"
+            "submission_name": "sample__gwflow_complete__6dcde456ab0a4deba5f65c81e87d2b91__54963fce9c7d404bad25019a76f5eaac",
+            "backend_id": "b969743c.1"
           }
         },
         "executions": [
@@ -822,28 +822,28 @@
         ],
         "submissions": [
           {
-            "name": "sample__gwflow_prepare__566fe036a5d84203be429d82f4356095__c4201b79d9b14840b0d2ebb6530a0e65",
-            "id": "044b39c8.0"
+            "name": "sample__gwflow_prepare__96bdd86185fc4e78a62b5662b6ab8a8f__432845d6e644473ab31e2ca0785df4ec",
+            "id": "0abd8304.0"
           },
           {
-            "name": "sample__decode__800a24de2be241d3a75769d562ae9494__0f46753e27804674bf2f65395a6de8db",
-            "id": "044b39c8.1"
+            "name": "sample__decode__6d722d26b5984023b080af6042d2f954__2d5bd8253c8c484e963763464b967af9",
+            "id": "0abd8304.1"
           },
           {
-            "name": "sample__join__7b3ecc11e3624a56b8ba7d78ea85ec03__cdde6a68609d4111a95e6121503e5346",
-            "id": "044b39c8.2"
+            "name": "sample__join__1cd07cf2ba8c40f08df6a084af92d07f__37a56263960d456ca4e05cd752e5e470",
+            "id": "0abd8304.2"
           },
           {
-            "name": "sample__gwflow_complete__a32ccedac008422fb896b64c47a3046a__b1207aaba72c4fde8ff1bcb2cc33f76d",
-            "id": "044b39c8.3"
+            "name": "sample__gwflow_complete__6dcde456ab0a4deba5f65c81e87d2b91__6e8116e44f7f4b7fbdd482d913311d3f",
+            "id": "0abd8304.3"
           },
           {
-            "name": "sample__join__cb2a17ccb6084b789d8d4c14bb704de3__deb2bf663ba54064ba29ee746fff1b2e",
-            "id": "b5cc2cb8.0"
+            "name": "sample__join__a4d5916794e5417c9b78d06c59760c67__02e2cf66ce8c497994254b61a24644cc",
+            "id": "b969743c.0"
           },
           {
-            "name": "sample__gwflow_complete__a32ccedac008422fb896b64c47a3046a__2dfa1ca083db47108cd138bf7c7696c1",
-            "id": "b5cc2cb8.1"
+            "name": "sample__gwflow_complete__6dcde456ab0a4deba5f65c81e87d2b91__54963fce9c7d404bad25019a76f5eaac",
+            "id": "b969743c.1"
           }
         ],
         "retained_text": "hello\nhello\n",
