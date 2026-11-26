@@ -95,6 +95,13 @@ class OwnershipCommandScalingTests(LocalBackendTestCase):
         )
         self.evidence_label = f"ownership-{count}-"
 
+    def test_selected_static_status_on_800_independent_tasks(self):
+        self.configure_workflow(800)
+        output = self.cli("status", "--static", "task799")
+        self.assertIn("1 of 800 Tasks selected", output)
+        self.assertRegex(output, r"(?m)^task799\s+pending\s+0/3\b")
+        self.assertNotRegex(output, r"(?m)^task(?!799\b)\d+\s")
+
     def test_initialization_and_planning_comparison_bounds_as_inventory_grows(self):
         for count in (8, 16, 32):
             with self.subTest(tasks=count):

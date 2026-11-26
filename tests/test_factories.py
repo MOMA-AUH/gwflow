@@ -1,15 +1,43 @@
 """Decorated Task factories through the public API and installed CLI."""
 
-import unittest
+import cProfile
+import pstats
 import shutil
+import unittest
 
 from gwflow import Task, Workflow
 from gwf.exceptions import WorkflowError
 
+from benchmark_task_registration import sample
 from support import LocalBackendTestCase
 
 
 class TaskFactoryTests(unittest.TestCase):
+    def test_registration_work_scales_with_the_number_of_independent_tasks(self):
+        definition = sample()
+        calls = []
+        for size in (64, 128):
+            workflow = Workflow(working_dir=".")
+            # Count Python and built-in calls at the registration boundary.
+            # Keep Task shape and path depth fixed while doubling the workload.
+            with cProfile.Profile() as profile:
+                for index in reversed(range(size)):
+                    workflow.task(definition, key=str(index), result_dir=f"samples/{index}/report")
+            calls.append(pstats.Stats(profile).total_calls)
+        self.assertLess(calls[1], 2.5 * calls[0], calls)
+
+    def test_result_directory_conflicts_leave_the_task_name_available(self):
+        definition = sample()
+        for existing, rejected in (("a/b", "a/./b"), ("a/b", "a/b/c/d"), ("a/b/c/d", "a/b")):
+            with self.subTest(existing=existing, rejected=rejected):
+                workflow = Workflow(working_dir=".")
+                workflow.task(definition, alias="owner", result_dir=existing)
+                workflow.task(definition, alias="sibling", result_dir="a/b-")
+                with self.assertRaisesRegex(WorkflowError, "Managed output destination collision"):
+                    workflow.task(definition, alias="retry", result_dir=rejected)
+                handle = workflow.task(definition, alias="retry", result_dir="a/b2/report")
+                self.assertEqual(handle.outputs["out"].task_name, "retry")
+
     def test_default_alias_and_key_names_are_stable(self):
         from gwflow import task_template
 
@@ -83,6 +111,8 @@ class TaskFactoryTests(unittest.TestCase):
             workflow.task(second(), alias="a")
         with self.assertRaisesRegex(WorkflowError, "a__b__write.*first.*second"):
             workflow.task(second(), alias="a__b__write")
+        # The rejected Public job collision did not claim its Task name or directory.
+        workflow.task(second("other"), alias="a__b")
 
     def test_factory_calls_and_registrations_are_independent(self):
         from gwflow import task_template
