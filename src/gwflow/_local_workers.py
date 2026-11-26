@@ -9,6 +9,7 @@ from contextlib import ExitStack
 import logging
 import os
 import signal
+import socket
 import sys
 import tempfile
 
@@ -20,6 +21,29 @@ from . import _worker_process
 from ._local_termination import TerminationRecords
 
 logger = logging.getLogger(__name__)
+
+
+class _JobNotStarted(Exception):
+    """The launch failed and no supervisor can have started computation."""
+
+
+async def _launch_supervisor(control, stdin, script, **options):
+    try:
+        with stdin:
+            return await asyncio.create_subprocess_exec(
+                sys.executable, "-m", "gwflow._worker_process", script,
+                stdin=stdin, start_new_session=True, **options,
+            )
+    except OSError as error:
+        # asyncio can fail after exec. A live peer can still start the job,
+        # and a peer that already started it leaves its byte even after exit.
+        try:
+            marker = control.recv(1, socket.MSG_DONTWAIT)
+        except BlockingIOError:
+            marker = None
+        if marker == b"":
+            raise _JobNotStarted from error
+        raise
 
 
 class ManagedScheduler(Scheduler):
@@ -74,7 +98,6 @@ class ManagedScheduler(Scheduler):
     async def _execute_task(self, target):
         if target.cancel_requested:
             return LocalStatus.CANCELLED
-        process = None
         # Before launch, even a failure closing partially prepared files is final.
         outcome = LocalStatus.FAILED
         try:
@@ -87,12 +110,14 @@ class ManagedScheduler(Scheduler):
                 script.write(target.script)
                 script.flush()
                 environment = {**os.environ, "GWF_EXEC_WORKFLOW_ROOT": str(self.working_dir)}
+                control, stdin = socket.socketpair()
+                setup.enter_context(control)
+                setup.enter_context(stdin)
                 # Shield spawn so cancellation cannot orphan a just-created process.
                 outcome = LocalStatus.UNKNOWN
-                launch = asyncio.create_task(asyncio.create_subprocess_exec(
-                    sys.executable, "-m", "gwflow._worker_process", script.name,
-                    cwd=target.working_dir, env=environment, stdin=asyncio.subprocess.PIPE,
-                    stdout=stdout, stderr=stderr, start_new_session=True,
+                launch = asyncio.create_task(_launch_supervisor(
+                    control, stdin, script.name, cwd=target.working_dir,
+                    env=environment, stdout=stdout, stderr=stderr,
                 ))
                 try:
                     process = await asyncio.shield(launch)
@@ -102,17 +127,16 @@ class ManagedScheduler(Scheduler):
                     # Later cancellation or shutdown must not interrupt attestation.
                     target.cancel_requested = True
                     process = await launch
-                    if process.stdin is not None:
-                        process.stdin.close()
+                    control.close()
                     await process.wait()
                     terminal = LocalStatus.CANCELLED if isinstance(error, asyncio.CancelledError) else LocalStatus.KILLED
                 if process.returncode in _worker_process.CONFIRMED_TERMINATION:
                     outcome = terminal
+        except _JobNotStarted:
+            outcome = LocalStatus.FAILED
+            logger.exception("Local job %s failed to launch before computation started", target.name)
         except Exception:
             logger.exception("Local job %s encountered an error (outcome %s)", target.name, outcome.name)
-        finally:
-            if process is not None and process.stdin is not None:
-                process.stdin.close()
         return outcome
 
 

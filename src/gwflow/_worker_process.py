@@ -1,5 +1,6 @@
 """Own one local job's descendants until none can continue computing."""
 
+import os
 import select
 import signal
 import subprocess
@@ -28,10 +29,13 @@ def main():
     signal.signal(signal.SIGTERM, stop)
     signal.signal(signal.SIGINT, stop)
     try:
-        # The worker keeps this pipe open. EOF requests termination, including
+        # The worker keeps this socket open. EOF requests termination, including
         # if the worker dies, without a signal racing supervisor initialization.
         if select.select([sys.stdin], [], [], 0)[0]:
             return CANCELLED
+        # Announce startup before any job can run, even if the worker loses the
+        # launch response and this supervisor subsequently exits.
+        os.write(sys.stdin.fileno(), b"1")
         process = subprocess.Popen([sys.executable, "-m", "gwf.exec", sys.argv[1]], stdin=subprocess.DEVNULL)
         while process.poll() is None:
             if stopping or select.select([sys.stdin], [], [], 0.025)[0]:
