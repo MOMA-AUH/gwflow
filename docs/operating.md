@@ -8,25 +8,26 @@ command options, storage requirements, and detailed lifecycle behavior.
 
 ## Compatibility boundary
 
-gwflow remains under the pre-1.0 compatibility policy. There is no general
-cross-version compatibility guarantee. The installed compatibility tests cover
-specific baseline and candidate versions.
+Each pre-1.0 release supports its own documented authoring interface and record
+format. Cross-version Reuse, retry, and Repair carry no general guarantee.
+Before stable releases are pinned, CI compares two installed versions that share
+dependencies. This provisional comparison covers only the tested versions.
+See the [compatibility evidence](validation/compatibility/README.md).
 
-The future stable compatibility baseline starts with **v1.0.0**. Across forward
-upgrades within 1.x, the public authoring API and CLI remain supported. An unchanged
-workflow with valid records and retained results can reuse completed Tasks,
-including after internal work cleanup, without upgrade-induced recomputation or
-manual record conversion. With all affected jobs inactive before upgrading,
-valid partial attempts also preserve successful computation, retry, Repair, and
-interrupted result installation. An upgrade alone does not require a fresh
-attempt. See [ADR 0010](adr/0010-preserve-public-interfaces-and-completed-work-through-1-x.md).
+The stable upgrade contract starts at v1.0.0. Forward upgrades within 1.x
+preserve the public authoring API and CLI. An unchanged workflow can reuse
+completed Tasks with valid records and retained outputs after cleanup of
+internal intermediates. A valid inactive partial attempt keeps successful
+computation across retries, Repair, and recovery of interrupted result
+installation. The upgrade itself requires neither recomputation nor manual
+record conversion. See [ADR 0010](adr/0010-preserve-public-interfaces-and-completed-work-through-1-x.md).
 
-This contract does not promise compatibility with every pre-1.0 record format,
-downgrades, live upgrades, mixed-version frontends and workers, storage
-relocation, or adoption of unowned data. The current
-[compatibility evidence](validation/compatibility/README.md) is a pre-1.0
-bootstrap of the validation procedure; it does not establish a released v1.0.0
-artifact or prove compatibility with a future 1.x release.
+Before changing the environment, finish or cancel all affected computation and
+lifecycle jobs, including queued jobs. Use scheduler or worker records to make
+sure that every affected job is inactive. Follow the [upgrade procedure](#upgrade-with-all-jobs-inactive)
+for commands and unresolved submissions. The contract excludes live upgrades,
+mixed-version frontends and workers, downgrades, storage relocation, and adoption
+of unowned data.
 
 The supported validation profile is Linux and Bash, Python 3.12, gwf 3.0.0,
 local workers or Slurm, and deployment-provided Apptainer 1.5.4 for containers.
