@@ -43,8 +43,8 @@ on both backends, the BeeGFS storage correction, and
 deployment limits. Broader runtime and backend support has not been verified.
 The [runtime capture and restoration procedure](validation/conda-runtime.md)
 checks exact dependency reconstruction before stable release preservation.
-Its qualification runs in the existing Conda CI job and the tag workflow.
-Pull-request validation does not publish a release.
+Full qualification runs this procedure when CI selects release-process
+simulations. Release tags always select it.
 Keep the README's recommended installation on the published `gwflow` Conda
 package from `MOMA-AUH`, with `gwforg` and `conda-forge` for dependencies.
 Keep checkout environments and pip installation in the developer validation guide.
@@ -56,37 +56,37 @@ and its evidence index to find the relevant historical records.
 Operators should use the [operating and upgrade guide](operating.md) for force,
 cleanup, unresolved submissions, and upgrades with all affected jobs inactive.
 
-Pull requests run the reusable `qualification.yml` pipeline and build one Conda
-package. Ordinary pushes to `master` do not repeat that pipeline. Two parallel jobs
-run separate parts of the full suite against that package, including the real
-Apptainer tests. Each job restores the same exact dependencies from a transfer
-capture. A separate job runs consolidated container acceptance. The `tests` job
-checks pip installation, CLI startup, interactive status, and the release smoke
-scenarios. It also retains the provisional source comparison until stable
-baselines exist. The `conda` job requires all Conda test jobs to pass and verifies
-that their records cover the complete discovered suite without skips. It then
-captures and qualifies the tested runtime and runs the release-process simulations
-when the complete PR diff selects them. Unrelated application PRs retain the full
-application suite, real containers, and routine checkout-pinned compatibility.
-They omit the extra release round trip and controlled replacement/profile
-simulations, and produce no qualified release bundle. See the
-[execution matrix](validation/README.md#release-process-simulations) for selection
-rules. The transfer capture is not a qualified release or a passing test result.
+On pull requests, `ci.yml` uses the complete diff to select documentation checks
+or the full `qualification.yml` workflow. The required aggregate checks are
+`tests` and `conda`. Both require successful classification and every selected
+job to pass. A failed, cancelled, or unexpectedly skipped job fails both checks.
+Ordinary pushes to `master` do not repeat PR qualification. See the
+[PR selection rules](validation/README.md#pull-request-checks).
 
-Every explicit release qualification runs all simulations and prepares the exact
-qualified bundle. Ordinary PR selection cannot authorize publication. Publication
-still requires complete successful qualification for the final source and package.
+Full qualification builds the candidate Conda package once. One job,
+`Conda tests` (`conda-suite`), runs the complete installed test suite, including real
+Apptainer tests. A separate job, `containers`, runs container acceptance against
+the same package and runtime. The reusable workflow's `conda` job requires the
+build, fixtures, suite, and container jobs to pass. It checks that every
+discovered test ran exactly once in the expected runtime with zero skips.
+The [two- and four-shard comparison](validation/ci-shards/README.md) records
+historical timing measurements. For failed jobs, see the
+[artifact retention and rerun instructions](validation/README.md#artifact-retention-and-reruns).
 
-The `tests` and `conda` checks remain required before merging into protected
-`master`. A failed or skipped Conda prerequisite fails `conda`. New commits cancel
-superseded PR runs. Release qualification uses a separate concurrency group that
-new PRs and merges cannot cancel. Individual failed test groups and container checks can be retried without rerunning successful
-siblings. Test records include per-test durations for future balancing. Hash-based
-partitioning spreads cases across two runners but does not guarantee equal time.
-The [shard comparison](validation/ci-shards/README.md) records the measured cost
-and feedback tradeoff. Manual CI dispatches can compare two and four shards on
-the same source. They run the complete qualification workload but cannot
-authorize publication.
+The reusable workflow's `tests` job checks pip installation, CLI startup,
+interactive status, and release smoke scenarios. While the checkout has no
+stable pins, this job compares the candidate with a pinned pre-1.0 source
+installation using shared dependencies. With stable pins, the `conda` job
+compares the candidate with the preserved releases in independent environments.
+The [execution matrix](validation/README.md#release-process-simulations)
+identifies which PRs also run release-process simulations and prepare a
+qualified release bundle.
+
+Manual dispatch of `ci.yml` runs full qualification and all simulations.
+Publication requires successful tag-triggered qualification of the exact release
+commit and package. New commits cancel superseded PR runs. A separate
+concurrency group protects release qualification from those cancellations.
+
 Live Slurm evidence remains separate. Branch protection applies to administrators
 with no bypass actors, requires a pull request and linear history, and the
 repository permits squash merges only. Reviewer approval is optional; the branch
@@ -161,7 +161,8 @@ Keep each prose paragraph and list item on one source line in the notes file.
 GitHub release descriptions display source newlines as line breaks, including
 newlines after links. Use blank lines between paragraphs. Preserve separate
 lines for headings, list items, and commands inside fenced code blocks.
-Publish the reviewed draft only after its artifact checks pass.
+Publish the reviewed draft only after its artifact checks pass. After stable
+publication, follow the [baseline and status JSON consumer instructions](#stable-release-attachments).
 
 For every published release, store the final notes in `docs/releases/<tag>.md`,
 including patch releases and prereleases. Replace preparation text with the
@@ -300,6 +301,10 @@ empty `intermediate` array. The selector runs identical original/latest referenc
 once. Do not select a draft or prerelease,
 invent historical artifacts, or treat the provisional source comparison as an
 independent preserved environment. See [ADR 0018](adr/0018-preserve-independent-compatibility-environments.md).
+
+After v1.0.0 publication, compare the preserved status JSON consumer with the
+published schema. Follow the [consumer snapshot procedure](validation/compatibility/README.md#preserved-json-status-consumer)
+to record the release in the consumer descriptor and preserve the original assertions.
 
 Before preparing another candidate, merge this descriptor PR with passing CI.
 Reviewers must compare its latest pin with the last successful stable publication.

@@ -565,9 +565,9 @@ unfamiliar error codes as inspection failures.
 
 Existing fields and code meanings remain stable within a schema version.
 Removing or renaming fields or values, or changing their types or meanings,
-requires a new schema version. Once stable 1.x includes this interface, a
-breaking change also requires a future major gwflow release. The pre-1.0 policy
-still applies before stability.
+requires a new schema version. During stable 1.x, a breaking change to the
+public status JSON interface also requires a new major gwflow release.
+Pre-1.0 releases follow the [pre-1.0 compatibility policy](#compatibility).
 
 ### Status views and progress
 
@@ -1816,33 +1816,37 @@ supported; these guarantees are not universal power-loss certification.
 
 ## Compatibility
 
-gwflow remains under the pre-1.0 compatibility policy. There is no general
-cross-version compatibility guarantee. The installed compatibility tests cover
-specific baseline and candidate versions. They do not establish a stable release
-baseline. The gwf 3 cutover does not migrate earlier workflow state. Start new
-runs in separate workflow and storage locations when moving from gwf 2.
-The supported local integration adapts existing managed behavior. It does not
-add upstream's optional target-isolation or selective-output controls.
+The baseline for forward upgrades within 1.x is v1.0.0. The public authoring
+API and CLI remain supported. An unchanged workflow can reuse completed Tasks
+with valid records and retained outputs after cleanup of internal intermediates.
+Valid inactive partial attempts retain successful computation through retries,
+Repair, and interrupted result installation. An upgrade alone requires neither
+recomputation nor manual record conversion. See [ADR 0010](adr/0010-preserve-public-interfaces-and-completed-work-through-1-x.md).
 
-Starting with the future v1.0.0 baseline, forward upgrades within 1.x preserve
-the public authoring API and CLI, completed work after cleanup, and valid partial attempts without
-upgrade-induced recomputation or manual record conversion. All affected queued
-and running computation and lifecycle jobs must be confirmed inactive before
-changing environments; a cancellation request alone does not establish this.
-Live upgrades, mixed-version frontend/worker operation, downgrades, and storage
-relocation are outside that contract. Follow the
-[operating and upgrade guide](operating.md) for the procedure, supported profile,
-recovery responsibilities, and current baseline-evidence limits.
+Before switching versions, finish or cancel every affected queued or running
+computation and lifecycle job. Use scheduler or worker observations to confirm
+each job has stopped, including after a cancellation request. Follow the
+[upgrade procedure](operating.md#upgrade-with-all-jobs-inactive) for commands
+and unresolved submissions. Live upgrades, mixed-version frontends and workers,
+downgrades, and storage relocation fall outside the contract.
 
-Before v1.0, each release supports one authoring interface and one durable record
-format: the ones documented by that release. Factories must use the managed API.
-There is no cross-version Reuse, retry, or repair guarantee and no automatic
-conversion, migration, or adoption of unsupported factories or records.
+Each pre-1.0 release supports its own documented authoring interface and durable
+record format. There is no general pre-1.0 guarantee for cross-version Reuse,
+retry, or Repair. Before stable releases are pinned, the provisional comparison
+tests only the selected source baseline and candidate with shared dependencies.
+See the [compatibility evidence](validation/compatibility/README.md).
+
+Factories must use the managed API. Unsupported factories and records have
+no automatic conversion, migration, or adoption path.
 Initialized storage cannot be relocated. Ordinary authored top-level targets are
 not supported in a managed Workflow. Genuinely incompatible future record changes
 use the existing record kind/schema checks; the CLI redesign does not change them.
 
-Finish or cancel existing jobs and confirm inactivity before switching versions.
+The gwf 3 cutover does not migrate earlier workflow state. When moving from
+gwf 2, start new runs in separate workflow and storage locations.
+The supported local integration adapts existing managed behavior. It does not
+add upstream's optional target-isolation or selective-output controls.
+
 Use the matching old release for supported inspection or cleanup of old runs. When
 records are incompatible, start fresh runs in separate workflow and storage
 locations. Keep bookkeeping with its work and retained results; deleting
