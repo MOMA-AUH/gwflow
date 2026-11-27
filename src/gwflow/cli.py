@@ -1,6 +1,6 @@
 """The dedicated managed-workflow executable, using gwf's backend services."""
 
-from contextlib import nullcontext
+from contextlib import ExitStack, nullcontext
 from importlib.metadata import entry_points, version
 import logging
 import os
@@ -45,7 +45,12 @@ def main(ctx, file, backend, verbose):
         # so even blocked command startup remains interruptible by the parent.
         ctx.meta['wait_started'] = time.monotonic()
         return
-    with diagnostics_on_stderr() if ctx.meta.get("json_status") else nullcontext():
+    json_status = ctx.meta.get("json_status")
+    if json_status and isinstance(ctx.obj, ExitStack):
+        # After Click emits the report, workflow and plugin exit handlers
+        # (and any children they start) must still write diagnostics to stderr.
+        ctx.obj.callback(os.dup2, 2, 1)
+    with diagnostics_on_stderr() if json_status else nullcontext():
         configure_context(ctx, file, backend, verbose)
 
 
@@ -73,3 +78,8 @@ def configure_context(ctx, file, backend, verbose):
 
 for command in (run, status, logs, cancel, recover, clean_work, config, workers, wait):
     main.add_command(command)
+
+
+def console_main():
+    with ExitStack() as shutdown:
+        main(obj=shutdown)

@@ -3,6 +3,7 @@
 import json
 import os
 
+from fixtures.status_consumer_v1 import consume
 from support import LocalBackendTestCase
 import test_fresh
 import test_inspection
@@ -109,6 +110,24 @@ class JsonStatusTests(LocalBackendTestCase):
         self.assertIn("loading failed", document["error"]["message"])
         self.assertIn("child print", result.stderr)
         self.assertIn("original stdout print", result.stderr)
+
+    def test_workflow_shutdown_output_respects_status_format(self):
+        self.append_workflow("\nimport atexit\natexit.register(print, 'workflow shutdown')\n")
+        for selector, exit_code in (("a", 0), ("missing", 2)):
+            with self.subTest(selector=selector):
+                result = self.cli_result("status", "--json", selector, success=exit_code == 0)
+                self.assertEqual(result.returncode, exit_code)
+                document = consume(result.stdout, details=False, exit_code=result.returncode)
+                if exit_code == 0:
+                    self.assertEqual([task["name"] for task in document["tasks"]], ["a"])
+                else:
+                    self.assertEqual(document["error"]["code"], "usage_error")
+                    self.assertIn("missing", document["error"]["message"])
+                self.assertIn("workflow shutdown", result.stderr)
+
+        result = self.cli_result("status", "--plain", "a")
+        self.assertIn("workflow shutdown", result.stdout)
+        self.assertNotIn("workflow shutdown", result.stderr)
 
     def test_terminal_json_is_one_shot(self):
         result = self.terminal_cli("status", "--json", width=100)
