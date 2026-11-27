@@ -157,7 +157,7 @@ def read_history(task, *, scheduler_dir, **storage):
     from .inspection import job_log_paths
     from .lifecycle import Store
 
-    with _submission_guard(scheduler_dir, waiting_message=None):
+    with _submission_guard(scheduler_dir, storage["working_dir"], waiting_message=None):
         store = Store(**storage)
         selected = store.recorded_tasks(names={task})
         current = selected[0] if selected else None

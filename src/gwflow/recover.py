@@ -30,7 +30,7 @@ def recover(ctx, task):
     submission receipts from this invocation.
     """
     workflow = load_workflow(ctx)
-    with _submission_guard(ctx.working_dir):
+    with _submission_guard(ctx.working_dir, workflow.working_dir):
         store = Store.for_workflow(workflow)
         attempts = {attempt["task"]: attempt for attempt in store.recorded_tasks()}
         if task not in set(workflow._task_declarations) | set(attempts):

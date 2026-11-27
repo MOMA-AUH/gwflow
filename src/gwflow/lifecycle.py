@@ -1008,8 +1008,6 @@ class Store:
     def initialize(self, observation, result_dir, *, tracking, managed_tmpdir, producers):
         self.validate_roots()
         self.validate_result_ownership({observation.name: result_dir})
-        if self.owner is None:
-            self.initialize_storage()
         if self.current(observation.name, result_dir) != observation.attempt:
             raise WorkflowError("Task selection changed before initialization")
         attempt_id, operation, preparation = uuid4().hex, uuid4().hex, uuid4().hex
@@ -1031,7 +1029,26 @@ class Store:
                        _record("current", **self.identity(attempt)))
         return self.finish_initialization(attempt)
 
-    def initialize_storage(self):
+    def check_scheduler_directory(self, scheduler_dir):
+        if self.owner is not None and "scheduler_dir" in self.owner:
+            recorded = self.owner["scheduler_dir"]
+            if not isinstance(recorded, str) or not Path(recorded).is_absolute():
+                raise WorkflowError("Malformed scheduler directory in managed ownership evidence")
+            if recorded != str(Path(scheduler_dir).resolve()):
+                raise WorkflowError(f"Use a workflow file in the recorded scheduler directory: {recorded}")
+
+    def claim_scheduler_directory(self, scheduler_dir):
+        directory = str(Path(scheduler_dir).resolve())
+        if self.owner is None:
+            self.initialize_storage(directory)
+        elif "scheduler_dir" not in self.owner:
+            # Existing runs predate the directory field. Upgrade the owner
+            # atomically under the same guard as an initial submission.
+            owner = {**self.owner, "scheduler_dir": directory}
+            _files.publish(self.owner_path, owner)
+            self.owner = owner
+
+    def initialize_storage(self, scheduler_dir):
         """Publish ownership before populating the managed namespace.
 
         Interrupted private allocations are never adopted. The canonical root
@@ -1040,7 +1057,7 @@ class Store:
         The frontend submission guard serializes this operation.
         """
         owner = _record("owner", owner=uuid4().hex, task=None, working_dir=str(self.working_dir),
-                        locations={key: str(path) for key, path in self.locations.items()})
+                        scheduler_dir=scheduler_dir, locations={key: str(path) for key, path in self.locations.items()})
         allocation = self.root.with_name(".gwflow-bootstrap-" + owner["owner"])
         try:
             with _files.directory(allocation.parent, create=True) as parent:

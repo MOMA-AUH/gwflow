@@ -121,7 +121,7 @@ def logs(ctx, selectors, stderr, no_pager, history, details):
     """
     workflow = load_workflow(ctx)
     try:
-        with _submission_guard(ctx.working_dir):
+        with _submission_guard(ctx.working_dir, workflow.working_dir):
             store = Store.for_workflow(workflow)
             attempts = {attempt["task"]: attempt for attempt in store.recorded_tasks()}
             names = set(workflow._task_declarations) | set(attempts)

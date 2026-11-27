@@ -29,7 +29,7 @@ def clean_work(ctx, selectors, delete, attempt_ids, plain):
     if selectors and attempt_ids:
         raise WorkflowError("Cannot combine Task selectors and --attempt")
     workflow = load_workflow(ctx)
-    with _submission_guard(ctx.working_dir):
+    with _submission_guard(ctx.working_dir, workflow.working_dir):
         store = Store.for_workflow(workflow)
         for name, declaration in workflow._task_declarations.items():
             declarations(declaration, store, workflow)

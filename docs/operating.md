@@ -38,6 +38,20 @@ filesystem. Broader environments are unverified. See
 [storage requirements](reference.md#storage) and the
 [validation guide](validation/README.md) for deployment details and evidence.
 
+The first submission records the scheduler directory alongside the managed
+run's storage ownership. This is the resolved directory containing the workflow
+file selected by `--file`. A symlink to the file in a different directory
+selects the directory containing the link. A symlink to the directory itself
+resolves to the same scheduler directory.
+
+Use a workflow file in the recorded directory for subsequent submissions and
+`run --dry-run`. If the directories differ, gwflow reports the directory to
+use before it changes a Task or submits a job. Inspection and previews before
+the first submission leave the choice open. For a run created by a version
+that did not record this directory, use its original workflow directory for
+the first submission after upgrading. Recovery through another workflow file
+can still use the original Submission's recorded scheduler evidence.
+
 ## Local execution with gwf 3
 
 Start `gwflow workers` from the resolved workflow directory, in the frontend's

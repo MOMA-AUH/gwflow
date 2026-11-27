@@ -56,7 +56,7 @@ def cancel(ctx, selectors, dry_run, details, plain):
     workflow = load_workflow(ctx)
     errors = 0
     try:
-        with _submission_guard(ctx.working_dir):
+        with _submission_guard(ctx.working_dir, workflow.working_dir):
             store = Store.for_workflow(workflow)
             attempts = {attempt["task"]: attempt for attempt in store.recorded_tasks()}
             selected = task_selection(set(workflow._task_declarations) | set(attempts), selectors)

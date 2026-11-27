@@ -316,6 +316,8 @@ def plan_workflow(workflow, ctx, *, selectors=(), force=False, for_submission=Fa
     if set(workflow.targets) != expected:
         raise WorkflowError("Every computation target in gwflow.Workflow must belong to a registered Task")
     store = Store.for_workflow(workflow)
+    if for_submission:
+        store.check_scheduler_directory(ctx.working_dir)
     declared = {name: declarations(task, store, workflow) for name, task in workflow._task_declarations.items()}
     order = ordered_tasks(declared)
     scope = set(selected_names)

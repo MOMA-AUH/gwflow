@@ -57,9 +57,12 @@ def submit_plan(plan, workflow, ctx, *, dry_run, outcomes, progress):
         raise WorkflowError("; ".join(f"Task {task.name}: {task.reason}" for task in plan.blocked))
     if dry_run:
         return
+    has_pending = any(task.pending for task in plan.tasks)
+    if has_pending:
+        plan.store.claim_scheduler_directory(ctx.working_dir)
     replacements = [task for task in plan.tasks if task.action in ("fresh", "initialize") and task.attempt is not None]
     transfers = [task for task in plan.tasks if task.action in ("transfer", "repair")]
-    needed_roots = {"results", "staging"} if any(task.pending for task in plan.tasks) else set()
+    needed_roots = {"results", "staging"} if has_pending else set()
     if any(task.action in ("fresh", "initialize") for task in plan.tasks):
         needed_roots.add("work")
     recreate = sorted(key for key in needed_roots if plan.store.root_needs_recreation(key))

@@ -35,7 +35,7 @@ def capture(ctx, destination, selectors):
 
 def capture_snapshot(ctx, destination, selectors):
     workflow = load_workflow(ctx, cache_parent=destination.parent)
-    with _submission_guard(ctx.working_dir):
+    with _submission_guard(ctx.working_dir, workflow.working_dir):
         names = status_selection(workflow, selectors)
         plan = plan_workflow(workflow, ctx, selectors=names)
         rows = selected_rows(workflow, plan, names=names)
