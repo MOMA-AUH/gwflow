@@ -8,6 +8,17 @@ proposes release notes from merged changes and waits for your explicit agreement
 You can revise the notes before agreeing. Version changes, PRs, and tags begin
 after that agreement.
 
+Before proposing notes, check the requested tag against GitHub's latest
+published non-prerelease. From `v1.2.3`, the next patch is `v1.2.4`, the next
+minor is `v1.3.0`, and the next major is `v2.0.0`. For an explicitly requested
+prerelease, apply the same rule to its base version. Set `REQUESTED_TAG` to the
+requested tag and run the check from the repository root.
+
+```sh
+latest=$(gh api repos/MOMA-AUH/gwflow/releases/latest --jq .tag_name) &&
+  python tests/check_release_version.py "$latest" "$REQUESTED_TAG"
+```
+
 Your notes approval authorizes the remaining delivery: prepare and merge the
 version PR through required CI, push the tag, wait for qualification of that exact
 release commit, monitor Conda publication, verify the draft assets, and publish the
@@ -97,7 +108,8 @@ match the intended version. Merge the preparation PR through required CI.
 Push a matching `v<version>` tag at the approved commit on `master`.
 The `release-qualification.yml` workflow runs complete qualification for that
 exact tagged commit through the same reusable pipeline as PRs.
-Its preflight rejects commits absent from `master` and mismatched tag or package versions.
+Its preflight checks master membership and package versions. For tag pushes, it
+also checks the version against the latest published release before qualification.
 A PR's synthetic merge commit cannot qualify the final release commit.
 
 To qualify a commit without publishing, dispatch `release-qualification.yml`:

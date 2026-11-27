@@ -38,6 +38,14 @@ jobs:
           python tests/qualification_event.py qualify \
             --event "$GITHUB_EVENT_PATH" --repo "$GITHUB_REPOSITORY" \
             --source "$GITHUB_SHA" --requested-source "$REQUESTED_SOURCE" --tag "$RELEASE_TAG"
+      - name: Check tag against the latest published release
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          latest=$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq '.tag_name')
+          python tests/check_release_version.py "$latest" "$RELEASE_TAG"
 
   qualification:
     needs: verify
