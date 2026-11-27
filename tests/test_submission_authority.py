@@ -1,6 +1,5 @@
 """Submission coordination across independent installed CLI processes on one frontend."""
 
-import json
 import os
 from pathlib import Path
 import subprocess
@@ -69,23 +68,26 @@ class SubmissionAuthorityTests(unittest.TestCase):
         self.cli(alias / next_task.name, "run")
         self.assert_accepted("sample", "next")
 
-    def test_existing_owner_without_scheduler_directory_upgrades_on_next_submission(self):
+    def test_first_submission_after_upgrade_preserves_existing_owner(self):
         storage = self.root / "data"
         original = self.workflow(self.root / "original", storage)
         self.cli(original, "run")
-        # This field was absent in the previous owner record format.
-        path = storage / ".gwf/gwflow/owner.json"
-        owner = json.loads(path.read_text())
-        del owner["scheduler_dir"]
-        path.write_text(json.dumps(owner))
+        # Older runs have the same ownership record and no scheduler record.
+        records = storage / ".gwf/gwflow"
+        (records / "scheduler.json").unlink()
+        path = records / "owner.json"
+        before = path.stat(), path.read_bytes()
         second = self.workflow(original.parent, storage, "other", "other.py")
         self.cli(second, "run", "--dry-run")
-        self.assertEqual(json.loads(path.read_text()), owner)
+        self.assertFalse((records / "scheduler.json").exists())
         self.cli(second, "run")
         elsewhere = self.workflow(self.root / "alternate", storage, "other")
         self.assertIn(str(original.parent), self.cli(elsewhere, "run", success=False))
         self.cli(original, "run")
         self.assert_accepted("sample", "other")
+        self.assertEqual(path.read_bytes(), before[1])
+        self.assertEqual(path.stat().st_ino, before[0].st_ino)
+        self.assertEqual(path.stat().st_mtime_ns, before[0].st_mtime_ns)
 
     def launch(self, path, *args, phase=None):
         output = tempfile.TemporaryFile(mode="w+")

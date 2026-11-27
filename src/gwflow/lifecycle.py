@@ -1029,26 +1029,28 @@ class Store:
                        _record("current", **self.identity(attempt)))
         return self.finish_initialization(attempt)
 
-    def check_scheduler_directory(self, scheduler_dir):
-        if self.owner is not None and "scheduler_dir" in self.owner:
-            recorded = self.owner["scheduler_dir"]
-            if not isinstance(recorded, str) or not Path(recorded).is_absolute():
-                raise WorkflowError("Malformed scheduler directory in managed ownership evidence")
-            if recorded != str(Path(scheduler_dir).resolve()):
-                raise WorkflowError(f"Use a workflow file in the recorded scheduler directory: {recorded}")
-
-    def claim_scheduler_directory(self, scheduler_dir):
-        directory = str(Path(scheduler_dir).resolve())
+    def check_scheduler_directory(self, scheduler_dir, *, claim=False):
         if self.owner is None:
-            self.initialize_storage(directory)
-        elif "scheduler_dir" not in self.owner:
-            # Existing runs predate the directory field. Upgrade the owner
-            # atomically under the same guard as an initial submission.
-            owner = {**self.owner, "scheduler_dir": directory}
-            _files.publish(self.owner_path, owner)
-            self.owner = owner
+            if not claim:
+                return
+            self.initialize_storage()
+        # Keep the original owner intact, including when first submitting
+        # additional work in a run created before submission authority existed.
+        path = self.root / "scheduler.json"
+        directory = str(Path(scheduler_dir).resolve())
+        record = _files.read_json(path)
+        if record is None and not _files.exists(path):
+            if claim:
+                _files.publish(path, _record("scheduler", owner=self.owner["owner"], directory=directory),
+                               replace=False)
+            return
+        if (not _matches(record, "scheduler", owner=self.owner["owner"])
+                or not isinstance(record.get("directory"), str) or not Path(record["directory"]).is_absolute()):
+            raise WorkflowError("Malformed scheduler directory in managed ownership evidence")
+        if record["directory"] != directory:
+            raise WorkflowError(f"Use a workflow file in the recorded scheduler directory: {record['directory']}")
 
-    def initialize_storage(self, scheduler_dir):
+    def initialize_storage(self):
         """Publish ownership before populating the managed namespace.
 
         Interrupted private allocations are never adopted. The canonical root
@@ -1057,7 +1059,7 @@ class Store:
         The frontend submission guard serializes this operation.
         """
         owner = _record("owner", owner=uuid4().hex, task=None, working_dir=str(self.working_dir),
-                        scheduler_dir=scheduler_dir, locations={key: str(path) for key, path in self.locations.items()})
+                        locations={key: str(path) for key, path in self.locations.items()})
         allocation = self.root.with_name(".gwflow-bootstrap-" + owner["owner"])
         try:
             with _files.directory(allocation.parent, create=True) as parent:

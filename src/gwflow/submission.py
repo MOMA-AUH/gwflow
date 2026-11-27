@@ -59,7 +59,7 @@ def submit_plan(plan, workflow, ctx, *, dry_run, outcomes, progress):
         return
     has_pending = any(task.pending for task in plan.tasks)
     if has_pending:
-        plan.store.claim_scheduler_directory(ctx.working_dir)
+        plan.store.check_scheduler_directory(ctx.working_dir, claim=True)
     replacements = [task for task in plan.tasks if task.action in ("fresh", "initialize") and task.attempt is not None]
     transfers = [task for task in plan.tasks if task.action in ("transfer", "repair")]
     needed_roots = {"results", "staging"} if has_pending else set()
