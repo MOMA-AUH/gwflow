@@ -23,12 +23,12 @@ version is missing or literally `vX.Y.Z`, ask for the intended version.
    releases. Preserve unrelated edits; use an isolated checkout when needed.
    Base the scope on committed, merged work. Identify the candidate master
    commit and previous published release used for comparison.
-2. Validate canonical `vMAJOR.MINOR.PATCH` with no leading zeroes and ensure the
-   version advances the previous release. Publish a normal release by default,
-   including pre-1.0 versions. Support a suffix only for an explicitly requested
-   prerelease, checking it against existing package/tag rules. If the version is
-   already published, report its URL rather than replacing it. Inspect existing
-   tags, drafts, or preparation PRs as possible resume points.
+2. If the requested version is already published, report its URL. For a new
+   release, run the version check in the release guide against GitHub's latest
+   published non-prerelease. If it fails, stop before proposing notes and report
+   the error. Support a suffix only for an explicitly requested prerelease,
+   checking it against existing package/tag rules. Inspect matching tags, drafts,
+   or preparation PRs as possible resume points.
 3. Propose notes covering shipped features, fixes, requirements, compatibility,
    and deployment limits, following previous notes and the release guide.
    Separate observed validation from planned checks. Save the notes and a state
@@ -62,7 +62,8 @@ actual agreement and verified remote state.
    PR head. Squash-merge using that exact head SHA and record the resulting master
    commit. Use the approved existing master commit if preparation was unnecessary.
    Apply this protected PR process to subsequent archive/baseline changes too.
-4. Create an annotated tag at the recorded release commit and push only that tag
+4. Repeat the version check against the current latest release before pushing.
+   Create an annotated tag at the recorded release commit and push only that tag
    using authenticated user Git so Actions runs. Reuse an existing tag only after
    verifying its peeled commit matches the approved release source. Preserve
    existing tags. Moving or force-pushing a release tag is outside this workflow.
