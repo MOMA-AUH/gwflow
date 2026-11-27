@@ -25,7 +25,7 @@ def run(ctx, selectors, dry_run, force, details, plain):
     in the default report.
     """
     workflow = load_workflow(ctx)
-    with _submission_guard(ctx.working_dir):
+    with _submission_guard(ctx.working_dir, workflow.working_dir):
         plan = plan_workflow(workflow, ctx, selectors=selectors, force=force, for_submission=True)
         report = Report(plan.store, plain=plain)
         report.plan(plan, selected_rows(workflow, plan), scheduler_dir=ctx.working_dir,

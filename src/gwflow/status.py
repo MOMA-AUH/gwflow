@@ -68,7 +68,7 @@ def status(ctx, selectors, statuses, details, plain, static_report, json_report)
         plain = True
         click.get_current_context().params["plain"] = True
     workflow = load_workflow(ctx)
-    with _submission_guard(ctx.working_dir, waiting_message="Waiting for frontend submission bookkeeping..."):
+    with _submission_guard(ctx.working_dir, workflow.working_dir, waiting_message="Waiting for frontend submission bookkeeping..."):
         names = status_selection(workflow, selectors)
         plan = plan_workflow(workflow, ctx, selectors=names)
         report = Report(plan.store, plain=plain)

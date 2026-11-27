@@ -1008,8 +1008,6 @@ class Store:
     def initialize(self, observation, result_dir, *, tracking, managed_tmpdir, producers):
         self.validate_roots()
         self.validate_result_ownership({observation.name: result_dir})
-        if self.owner is None:
-            self.initialize_storage()
         if self.current(observation.name, result_dir) != observation.attempt:
             raise WorkflowError("Task selection changed before initialization")
         attempt_id, operation, preparation = uuid4().hex, uuid4().hex, uuid4().hex
@@ -1030,6 +1028,27 @@ class Store:
         _files.publish(self._task_dir(observation.name) / "current.json",
                        _record("current", **self.identity(attempt)))
         return self.finish_initialization(attempt)
+
+    def check_scheduler_directory(self, scheduler_dir, *, claim=False):
+        if self.owner is None:
+            if not claim:
+                return
+            self.initialize_storage()
+        # Keep the original owner intact, including when first submitting
+        # additional work in a run created before submission authority existed.
+        path = self.root / "scheduler.json"
+        directory = str(Path(scheduler_dir).resolve())
+        record = _files.read_json(path)
+        if record is None and not _files.exists(path):
+            if claim:
+                _files.publish(path, _record("scheduler", owner=self.owner["owner"], directory=directory),
+                               replace=False)
+            return
+        if (not _matches(record, "scheduler", owner=self.owner["owner"])
+                or not isinstance(record.get("directory"), str) or not Path(record["directory"]).is_absolute()):
+            raise WorkflowError("Malformed scheduler directory in managed ownership evidence")
+        if record["directory"] != directory:
+            raise WorkflowError(f"Use a workflow file in the recorded scheduler directory: {record['directory']}")
 
     def initialize_storage(self):
         """Publish ownership before populating the managed namespace.

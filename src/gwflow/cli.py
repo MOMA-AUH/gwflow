@@ -60,7 +60,7 @@ def configure_context(ctx, file, backend, verbose):
     except FileNotFoundError:
         filename, _, obj_name = file.partition(":")
         path, obj_name = Path(filename).absolute(), obj_name or "gwf"
-    working_dir = path.parent if path.is_file() else Path.cwd()
+    working_dir = path.parent.resolve() if path.is_file() else Path.cwd()
     settings = FileConfig.load(working_dir / ".gwfconf.json")
     # Keep explicit settings writable and leave ordinary gwf's defaults alone.
     settings.data.maps.insert(1, {"use_spec_hashes": True})

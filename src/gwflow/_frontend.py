@@ -1,7 +1,8 @@
 """Coordinate frontend operations until their bookkeeping is saved."""
 
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 import fcntl
+import os
 import signal
 from pathlib import Path
 import sys
@@ -70,23 +71,27 @@ def load_workflow(ctx, *, cache_parent=None):
 
 
 @contextmanager
-def _submission_guard(working_dir, *, waiting_message="Waiting for frontend submission bookkeeping..."):
-    # gwf saves command hashes and backend tracking on context exit. Keep
-    # concurrent runs out until those writes finish, not just until planning
-    # or submission returns. The OS releases this lock on CLI interruption;
-    # jobs neither inherit nor wait for it.
-    path = Path(working_dir) / ".gwf" / "gwflow-submission.lock"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("a") as lock:
-        try:
-            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError:
-            if waiting_message is None:
-                fcntl.flock(lock, fcntl.LOCK_EX)
-            else:
-                with activity(waiting_message):
+def _submission_guard(scheduler_dir, working_dir, *, waiting_message="Waiting for frontend submission bookkeeping..."):
+    # Distinct paths can lead to the same lock, including via bind mounts.
+    # Order the open files on this frontend so reversed pairs cannot deadlock.
+    directories = {(Path(path) / ".gwf").resolve() for path in (scheduler_dir, working_dir)}
+    with ExitStack() as resources:
+        files = {}
+        for directory in directories:
+            directory.mkdir(parents=True, exist_ok=True)
+            lock = resources.enter_context((directory / "gwflow-submission.lock").open("a"))
+            info = os.fstat(lock.fileno())
+            files[info.st_dev, info.st_ino] = lock
+        for identity in sorted(files):
+            lock = files[identity]
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                if waiting_message is None:
                     fcntl.flock(lock, fcntl.LOCK_EX)
-        try:
-            yield
-        finally:
-            fcntl.flock(lock, fcntl.LOCK_UN)
+                else:
+                    with activity(waiting_message):
+                        fcntl.flock(lock, fcntl.LOCK_EX)
+            resources.callback(fcntl.flock, lock, fcntl.LOCK_UN)
+        # Hold through gwf's context-exit writes of backend tracking and hashes.
+        yield

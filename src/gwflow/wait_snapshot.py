@@ -44,7 +44,7 @@ def capture_snapshot(ctx, destination, selectors):
         if missing:
             raise WorkflowError("Awaited Tasks removed: " + ", ".join(sorted(missing)))
         selectors = tuple(awaited)
-    with _submission_guard(ctx.working_dir), waiting_observations() as scheduler_errors:
+    with _submission_guard(ctx.working_dir, workflow.working_dir), waiting_observations() as scheduler_errors:
         plan = plan_workflow(workflow, ctx, selectors=selectors)
         observations = {task.name: task for task in plan.tasks}
         for task in plan.tasks:
