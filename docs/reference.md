@@ -1235,9 +1235,9 @@ paths containing spaces. Each declared image alias is an implicit External
 input of its Task, outside managed work, results, and bookkeeping storage.
 Images do not become staged data inputs, command bindings, or extra source
 mounts unless also explicitly declared as data inputs. Each target's image
-binding is part of the declared structure: adding, removing, or changing an
-alias requires a fresh whole-Task attempt, even when aliases resolve to the
-same file and command tracking is disabled.
+binding is part of the declared Task structure. Adding, removing, or changing
+that binding requires a fresh attempt for the whole Task. This applies even
+when two aliases resolve to the same file.
 
 Preparation accepts the image alias, resolved absolute destination, size, and
 nanosecond modification time in the ordinary immutable Input baseline. Changes
@@ -1317,8 +1317,9 @@ private work directory, using the declared input basenames. Target-output
 references use their output filename; retained-output references use the
 producer's retained pathname, rather than the public output name. `shell()` bindings
 continue to name the original inputs and render to these staged files, with the
-same quoting contract. Literal commands may use their basenames directly. The
-effective layout is tracked as Task structure even when command hashes are off.
+same quoting contract. Literal commands may use their basenames directly.
+gwflow tracks the effective mapping from staged paths to inputs as Task
+structure. Managed Tasks always track computation command text separately.
 Duplicate effective paths, invalid managed relative paths, and input/output
 collisions (including file/directory ancestry) are rejected before submission.
 For a logical input, the staged path names its [descriptor](#logical-inputs).
@@ -1396,14 +1397,14 @@ producer's eligible work can be cleaned before adding the consumer. Within a
 Task, staged references read checked committed upstream outputs. Internal
 intermediates remain unavailable as cross-Task dependencies.
 
-Changing any selected image refreshes the whole owning Task, even with command
-hashes disabled. When its consumers are subsequently included in a run, the new
-producer attempt invalidates their prior bindings even if retained-file metadata
-is identical. A selected producer run does not add its downstream consumers.
-Unrelated Tasks remain reusable. Adding or removing image
-selection and changes to declared aliases are also tracked. Existing active
-job, active consumer, uncertain admission, and ownership protections apply to
-image-driven replacement, including consumers removed from the current workflow.
+An image change that requires a fresh producer attempt also affects Tasks that
+consume its retained outputs. Each consumer bound to the previous attempt
+needs a fresh attempt when it next runs, even if the retained files have
+identical metadata. Selecting the producer alone leaves its downstream
+consumers outside the run. Unrelated Tasks remain eligible for Reuse.
+Existing active job, active consumer, uncertain admission, and ownership
+protections apply to image-driven replacement, including consumers removed
+from the current workflow.
 
 gwflow stages links to the checked resolved sources and requests their parent
 directories read-only, plus writable private work and managed TMPDIR. Sources
@@ -1585,7 +1586,7 @@ retry with fresh private work and TMPDIR, preserving eligible successful sibling
 Nonzero commands, unusable images, missing image software or Apptainer, and
 invalid output sets establish no successful execution; there is no host fallback.
 A changed selected image instead requires a fresh whole-Task attempt, including
-previously successful targets, independently of command hashes.
+previously successful targets, even if their commands are unchanged.
 
 An ordinary run starts a fresh attempt when declared structure, tracked commands,
 input metadata, or a bound producer attempt changes. Declaration order alone does
